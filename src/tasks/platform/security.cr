@@ -5,7 +5,7 @@ require "../utils/utils.cr"
 
 namespace "platform" do
   desc "The CNF test suite checks to see if the platform is hardened."
-  task "security", ["control_plane_hardening", "cluster_admin", "helm_tiller"] do |t, args|
+  task "security", ["control_plane_hardening", "cluster_admin", "helm_tiller", "verify_configmaps_encryption"] do |t, args|
     Log.debug { "security" }
     stdout_score("platform:security")
   end
@@ -62,5 +62,33 @@ namespace "platform" do
         CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Containers with the Helm Tiller image are running")
       end
     end
+  end
+
+  desc "Verify if configmaps are encrypted"
+  task "verify_configmaps_encryption" do |t, args|
+    kube_system_ns = "kube-system"
+    cm_name = generate_cm_name
+    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config|
+      test_cm_key = "key"
+      test_cm_value = "testconfigmapvalue"
+      KubectlClient::Create.command("cm #{cm_name} --from-literal=#{test_cm_key}=#{test_cm_value}")
+      etcd_pod_name = get_full_pod_name("etcd", kube_system_ns)
+    
+      if etcd_pod_name
+        etcd_certs_path = get_etcd_certs_path(etcd_pod_name, kube_system_ns)
+        if etcd_certs_path
+          if etcd_cm_encrypted?(etcd_certs_path, etcd_pod_name, cm_name, test_cm_value, kube_system_ns)
+            CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Configmaps are encrypted in etcd")
+          else
+            CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Configmaps are not encrypted in etcd")
+          end
+        else
+          CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Error: etcd certs path not found.")
+        end
+      else
+        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "No etcd pod found.")
+      end
+    end
+    KubectlClient::Delete.command("cm #{cm_name}")
   end
 end
