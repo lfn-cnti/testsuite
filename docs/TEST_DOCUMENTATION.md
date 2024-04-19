@@ -39,7 +39,7 @@
 
 * [**Category: Platform Tests**](#category-platform-tests)
 
-   [[K8s Conformance]](#k8s-conformance) | [[ClusterAPI enabled]](#clusterapi-enabled) | [[OCI Compliant]](#oci-compliant) | [[(POC) Worker reboot recovery]](#poc-worker-reboot-recovery) | [[Cluster admin]](#cluster-admin) | [[Control plane hardening]](#control-plane-hardening) | [[Tiller images]](#tiller-images)
+   [[K8s Conformance]](#k8s-conformance) | [[ClusterAPI enabled]](#clusterapi-enabled) | [[OCI Compliant]](#oci-compliant) | [[(POC) Worker reboot recovery]](#poc-worker-reboot-recovery) | [[Cluster admin]](#cluster-admin) | [[Control plane hardening]](#control-plane-hardening) | [[Tiller images]](#tiller-images) | [[ConfigMaps encrypted]](#configmaps-encrypted)
 
 ----------
 
@@ -1786,3 +1786,25 @@ Switch to using Helm v3+ and make sure not to pull any images with name tiller i
 #### Usage
 
 `./cnf-testsuite platform:helm_tiller`
+
+----------
+
+### ConfigMaps encrypted
+
+#### Overview
+
+Test verifies that Kubernetes ConfigMaps are encrypted at rest in etcd. This ensures that sensitive data stored in ConfigMaps is not accessible in plain text, meeting basic security and compliance requirements. Expectation: ConfigMaps should be encrypted to ensure sensitive data is not stored in plain text.
+
+#### Rationale
+
+ConfigMaps encryption is not enabled by default in kubernetes environment. Since ConfigMaps can contain sensitive information, it is recommended to enable encryption to protect these values. To encrypt ConfigMaps stored in etcd, Kubernetes supports encryption at rest, which ensures that key-value pairs are no longer stored in plain text.
+
+#### Remediation
+
+Check version of ETCDCTL in etcd pod, it should be v3 or higher, as earlier versions lack support for encryption features. To enable encryption of ConfigMaps, create an EncryptionConfiguration file for the API server and reference it in the cluster configuration. Optionally, encryption can be enabled manually by editing the kube-apiserver manifest.
+
+#### Usage
+
+To run the test to verify if ConfigMaps are encrypted:
+
+`./cnf-testsuite platform:verify_configmaps_encryption`

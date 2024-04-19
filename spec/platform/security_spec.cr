@@ -1,6 +1,7 @@
 require "./../spec_helper"
 require "colorize"
 require "./../../src/tasks/utils/utils.cr"
+require "../../src/tasks/kind_setup.cr"
 
 describe "Platform" do
   before_all do
@@ -37,5 +38,43 @@ describe "Platform" do
     result = ShellCmd.run_testsuite("platform:helm_tiller")
     result[:status].success?.should be_true
     (/(PASSED).*(No Helm Tiller containers are running)/ =~ result[:output]).should_not be_nil
+  end
+
+  describe "verify_configmaps_encryption", tags: ["platform:security"] do
+    it "should pass if encryption is enabled in etcd", tags: ["platform:security"] do
+      kind_manager = KindManager.new
+      cluster = kind_manager.create_cluster("encrypted-cluster", "./spec/fixtures/kind-config-encryption.yaml", KubectlClient.server_version)
+      cluster.wait_until_nodes_ready()
+      cluster.wait_until_pods_ready()
+    
+      with_kubeconfig(cluster.kubeconfig) { 
+        result = ShellCmd.run_testsuite("platform:verify_configmaps_encryption")
+        result[:status].success?.should be_true
+        (/(PASSED).*(ConfigMaps are encrypted in etcd)/ =~ result[:output]).should_not be_nil
+      }
+    
+    ensure
+      if kind_manager
+        kind_manager.delete_cluster("encrypted-cluster")
+      end
+    end 
+    
+    it "should fail if encryption is disabled in etcd", tags: ["platform:security"] do
+      kind_manager = KindManager.new
+      cluster = kind_manager.create_cluster("nonencrypted-cluster", nil, KubectlClient.server_version)
+      cluster.wait_until_nodes_ready()
+      cluster.wait_until_pods_ready()
+
+      with_kubeconfig(cluster.kubeconfig) { 
+        result = ShellCmd.run_testsuite("platform:verify_configmaps_encryption")
+        result[:status].success?.should be_true
+        (/(FAILED).*(ConfigMaps are not encrypted in etcd)/ =~ result[:output]).should_not be_nil
+      }
+      
+    ensure
+      if kind_manager
+        kind_manager.delete_cluster("nonencrypted-cluster")
+      end
+    end
   end
 end

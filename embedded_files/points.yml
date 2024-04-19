@@ -241,6 +241,9 @@
 - name: cluster_admin
   emoji: "🔓🔑"
   tags: ["platform", "platform:security", "dynamic"]
+- name: verify_configmaps_encryption
+  emoji: "🔓🔑"
+  tags: ["platform", "platform:security", "dynamic"]
 - name: kube_state_metrics
   emoji: "📶☠"
   tags: [platform, "platform:observability", dynamic]
