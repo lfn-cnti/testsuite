@@ -39,7 +39,7 @@
 
 * [**Category: Platform Tests**](#category-platform-tests)
 
-   [[K8s Conformance]](#k8s-conformance) | [[ClusterAPI enabled]](#clusterapi-enabled) | [[OCI Compliant]](#oci-compliant) | [[(POC) Worker reboot recovery]](#poc-worker-reboot-recovery) | [[Cluster admin]](#cluster-admin) | [[Control plane hardening]](#control-plane-hardening) | [[Tiller images]](#tiller-images)
+   [[K8s Conformance]](#k8s-conformance) | [[ClusterAPI enabled]](#clusterapi-enabled) | [[OCI Compliant]](#oci-compliant) | [[(POC) Worker reboot recovery]](#poc-worker-reboot-recovery) | [[Cluster admin]](#cluster-admin) | [[Control plane hardening]](#control-plane-hardening) | [[Tiller images]](#tiller-images) | [[Configmaps encrypted]](#configmaps-encrypted)
 
 ----------
 
@@ -1786,3 +1786,25 @@ Switch to using Helm v3+ and make sure not to pull any images with name tiller i
 #### Usage
 
 `./cnf-testsuite platform:helm_tiller`
+
+----------
+
+### Configmaps encrypted
+
+#### Overview
+
+Checks if configmaps are encrypted in the platform. Expectation: Configmaps should be encrypted to ensure sensitive data is not stored in plain text.
+
+#### Rationale
+
+Configmaps encryption is not enabled by default in kubernetes environment. Since Configmaps can contain sensitive information, it is recommended to enable encryption to protect these values. To encrypt Configmaps stored in etcd, Kubernetes supports encryption at rest, which ensures that key-value pairs are no longer stored in plain text.
+
+#### Remediation
+
+Check version of ETCDCTL in etcd pod, it should be v3.+
+
+#### Usage
+
+To run the test to verify if configmaps are encrypted:
+
+`./cnf-testsuite platform:verify_configmaps_encryption`
