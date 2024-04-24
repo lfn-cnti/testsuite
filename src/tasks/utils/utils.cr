@@ -360,9 +360,13 @@ def read_version_file(filepath)
 end
 
 def with_kubeconfig(kube_config : String, &)
-  last_kube_config = ENV["KUBECONFIG"]
+  last_kube_config = ENV["KUBECONFIG"]?
   ENV["KUBECONFIG"] = kube_config
-  result = yield
-  ENV["KUBECONFIG"] = last_kube_config
-  result
+  yield
+  unless last_kube_config.nil?
+    ENV["KUBECONFIG"] = last_kube_config
+  else
+    # We don't want to set kube_config variable permanently.
+    ENV.delete("KUBECONFIG")
+  end
 end
