@@ -5,7 +5,6 @@ require "./config_updater/config_updater.cr"
 
 module CNFInstall
   module Config
-
     class Config < ConfigV2::Config
     end
 
