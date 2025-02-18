@@ -49,22 +49,26 @@ dependencies:
     version: ~> 1.0.0
   kubectl_client:
     github: cnf-testsuite/kubectl_client
-    version: ~> 1.0.7
+    branch: rlal-refactor-k8sclient-module
+    # version: ~> 1.0.7
   cluster_tools:
     github: cnf-testsuite/cluster_tools
-    version: ~> 1.0.9
+    branch: rlal_change_kubectl_shard_ver
+    # version: ~> 1.0.9
   kernel_introspection:
     github: cnf-testsuite/kernel_introspection
     version: ~> 0.1.0
   k8s_kernel_introspection:
     github: cnf-testsuite/k8s_kernel_introspection
-    version: ~> 1.0.3
+    branch: rlal_change_kubectl_shard_ver
+    # version: ~> 1.0.3
   helm:
     github: cnf-testsuite/helm
     version: ~> 1.0.4
   k8s_netstat:
     github: cnf-testsuite/k8s_netstat
-    version: ~> 1.0.1
+    branch: rlal_change_kubectl_shard_ver
+    # version: ~> 1.0.1
   release_manager:
     github: cnf-testsuite/release_manager
     branch: main
