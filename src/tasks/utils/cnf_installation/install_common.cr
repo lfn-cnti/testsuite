@@ -19,11 +19,13 @@ module CNFInstall
   end
 
   def self.parse_cli_args(cli_args)
-    Log.for("cnf_install").debug { "cli_args = #{cli_args.inspect}" }
+    logger = Log.for("parsed_cli_args")
+
+    logger.trace { "CLI args: #{cli_args.inspect}" }
     cnf_config_path = ""
     timeout = 1800
     skip_wait_for_install = cli_args.raw.includes? "skip_wait_for_install"
-  
+
     if cli_args.named.keys.includes? "cnf-config"
       cnf_config_path = cli_args.named["cnf-config"].as(String)
     elsif cli_args.named.keys.includes? "cnf-path"
@@ -35,7 +37,7 @@ module CNFInstall
       timeout = cli_args.named["timeout"].to_i
     end
     parsed_args = {config_path: cnf_config_path, timeout: timeout, skip_wait_for_install: skip_wait_for_install}
-    Log.for("cnf_install").debug { "parsed_cli_args = #{parsed_args}"}
+    logger.debug { "Parsed args: #{parsed_args}" }
     parsed_args
   end
 
@@ -46,8 +48,8 @@ module CNFInstall
       yml = File.join(path, CONFIG_FILE)
     end
   end
-  
-  def self.ensure_cnf_dir_structure()
+
+  def self.ensure_cnf_dir_structure
     FileUtils.mkdir_p(CNF_DIR)
     FileUtils.mkdir_p(DEPLOYMENTS_DIR)
     FileUtils.mkdir_p(CNF_TEMP_FILES_DIR)
@@ -91,13 +93,13 @@ module CNFInstall
       deployment_name = deployment_manager.deployment_name
 
       stdout_success "Installing deployment \"#{deployment_name}\"."
-      result = deployment_manager.install()
+      result = deployment_manager.install
       if !result
         stdout_failure "Deployment of \"#{deployment_name}\" failed during CNF installation."
         exit 1
       end
 
-      generated_deployment_manifest = deployment_manager.generate_manifest()
+      generated_deployment_manifest = deployment_manager.generate_manifest
       deployment_manifest_path = File.join(DEPLOYMENTS_DIR, deployment_name, DEPLOYMENT_MANIFEST_FILE_NAME)
       Manifest.add_manifest_to_file(deployment_name, generated_deployment_manifest, deployment_manifest_path)
       Manifest.add_manifest_to_file(deployment_name, generated_deployment_manifest, COMMON_MANIFEST_FILE_PATH)
@@ -110,17 +112,23 @@ module CNFInstall
 
   def self.wait_for_deployment_resources(deployment_name, deployment_manifest, timeout)
     resources_info = Helm.workload_resource_kind_names(Manifest.manifest_string_to_ymls(deployment_manifest))
-    workload_resources_info = resources_info.select { |resource_info| 
-    ["replicaset", "deployment", "statefulset", "pod", "daemonset"].includes?(resource_info[:kind].downcase) 
+    workload_resources_info = resources_info.select { |resource_info|
+      ["replicaset", "deployment", "statefulset", "pod", "daemonset"].includes?(resource_info[:kind].downcase)
     }
-    total_resource_count = workload_resources_info.size()
+    total_resource_count = workload_resources_info.size
     current_resource_number = 1
-    workload_resources_info.each do | resource_info |
-      stdout_success "Waiting for resource for \"#{deployment_name}\" deployment (#{current_resource_number}/#{total_resource_count}): [#{resource_info[:kind]}] #{resource_info[:name]}", same_line: true
-      ready = KubectlClient::Wait.resource_wait_for_install(resource_info[:kind], resource_info[:name], wait_count: timeout, namespace: resource_info[:namespace])
+    workload_resources_info.each do |resource_info|
+      stdout_success "Waiting for resource for \"#{deployment_name}\" deployment (#{current_resource_number}/" +
+                     "#{total_resource_count}): [#{resource_info[:kind]}] #{resource_info[:name]}",
+        same_line: true
+
+      ready = KubectlClient::Wait.resource_wait_for_install(resource_info[:kind],
+        resource_info[:name], wait_count: timeout, namespace: resource_info[:namespace])
       if !ready
-        stdout_failure "\"#{deployment_name}\" deployment installation has timed-out, [#{resource_info[:kind]}] #{resource_info[:name]} is not ready after #{timeout} seconds.", same_line: true
-        stdout_failure "It is recommended to investigate the resource in the cluster, run cnf_uninstall, and then attempt to reinstall the CNF."
+        stdout_failure "\"#{deployment_name}\" deployment installation has timed-out, [#{resource_info[:kind]}] " +
+                       "#{resource_info[:name]} is not ready after #{timeout} seconds.", same_line: true
+        stdout_failure "It is recommended to investigate the resource in the cluster, " +
+                       "run cnf_uninstall, and then attempt to reinstall the CNF."
         exit 1
       end
       current_resource_number += 1
@@ -128,7 +136,7 @@ module CNFInstall
     stdout_success "All \"#{deployment_name}\" deployment resources are up.", same_line: true
   end
 
-  def self.uninstall_cnf()
+  def self.uninstall_cnf
     cnf_config_path = File.join(CNF_DIR, CONFIG_FILE)
     if !File.exists?(cnf_config_path)
       stdout_warning "CNF uninstallation skipped. No CNF config found in #{CNF_DIR} directory. "
@@ -145,7 +153,7 @@ module CNFInstall
   def self.uninstall_deployments(deployment_managers)
     all_uninstallations_successfull = true
     deployment_managers.each do |deployment_manager|
-      uninstall_success = deployment_manager.uninstall()
+      uninstall_success = deployment_manager.uninstall
       all_uninstallations_successfull = all_uninstallations_successfull && uninstall_success
     end
     if all_uninstallations_successfull
