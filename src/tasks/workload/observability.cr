@@ -23,7 +23,7 @@ task "log_output" do |t, args|
       test_passed = false
       case resource["kind"].downcase
       when .in?(WORKLOAD_RESOURCE_KIND_NAMES)
-        result = KubectlClient.logs("#{resource["kind"]}/#{resource["name"]}", namespace: resource[:namespace], options: "--all-containers --tail=5 --prefix=true")
+        result = KubectlClient::Utils.logs("#{resource["kind"]}/#{resource["name"]}", namespace: resource[:namespace], options: "--all-containers --tail=5 --prefix=true")
         Log.for("Log lines").info { result[:output] }
         if result[:output].size > 0
           test_passed = true
@@ -93,7 +93,7 @@ task "prometheus_traffic" do |t, args|
       prom_cnf_match = CNFManager.workload_resource_test(args, config) do |resource_name, container, initialized|
         ip_match = false
         resource = KubectlClient::Get.resource(resource_name[:kind], resource_name[:name], resource_name[:namespace])
-        pods = KubectlClient::Get.pods_by_resource(resource, resource_name[:namespace])
+        pods = KubectlClient::Get.pods_by_resource_labels(resource, resource_name[:namespace])
         pods.each do |pod|
           pod_ips = pod.dig("status", "podIPs")
           Log.info { "pod_ips: #{pod_ips}"}
@@ -157,7 +157,7 @@ end
 desc "Does the CNF emit prometheus open metric compatible traffic"
 task "open_metrics", ["prometheus_traffic"] do |t, args|
   task_response = CNFManager::Task.task_runner(args, task: t) do |args, config|
-    configmap = KubectlClient::Get.configmap("cnf-testsuite-open-metrics")
+    configmap = KubectlClient::Get.resource("configmap", "cnf-testsuite-open-metrics")
     if configmap != EMPTY_JSON
       open_metrics_validated = configmap["data"].as_h["open_metrics_validated"].as_s
 
@@ -185,7 +185,7 @@ task "routed_logs", ["install_cluster_tools"] do |t, args|
     all_pods_logged = true
     CNFManager.workload_resource_test(args, config) do |resource_name, container, initialized|
       resource = KubectlClient::Get.resource(resource_name[:kind], resource_name[:name], resource_name[:namespace])
-      pods = KubectlClient::Get.pods_by_resource(resource, namespace: resource_name[:namespace])
+      pods = KubectlClient::Get.pods_by_resource_labels(resource, namespace: resource_name[:namespace])
   
       pods.each do |pod|
         pod_name = pod.dig("metadata", "name").as_s

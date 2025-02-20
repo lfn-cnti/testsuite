@@ -117,7 +117,7 @@ module CNFInstall
     current_resource_number = 1
     workload_resources_info.each do | resource_info |
       stdout_success "Waiting for resource for \"#{deployment_name}\" deployment (#{current_resource_number}/#{total_resource_count}): [#{resource_info[:kind]}] #{resource_info[:name]}", same_line: true
-      ready = KubectlClient::Get.resource_wait_for_install(resource_info[:kind], resource_info[:name], wait_count: timeout, namespace: resource_info[:namespace])
+      ready = KubectlClient::Wait.resource_wait_for_install(resource_info[:kind], resource_info[:name], wait_count: timeout, namespace: resource_info[:namespace])
       if !ready
         stdout_failure "\"#{deployment_name}\" deployment installation has timed-out, [#{resource_info[:kind]}] #{resource_info[:name]} is not ready after #{timeout} seconds.", same_line: true
         stdout_failure "It is recommended to investigate the resource in the cluster, run cnf_uninstall, and then attempt to reinstall the CNF."

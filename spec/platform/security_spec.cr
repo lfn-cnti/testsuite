@@ -23,13 +23,13 @@ describe "Platform" do
 
   it "'helm_tiller' should fail if Helm Tiller is running in the cluster", tags: ["platform:security"] do
     ShellCmd.run("kubectl run tiller --image=rancher/tiller:v2.11.0", "create_tiller")
-    KubectlClient::Get.resource_wait_for_install("pod", "tiller")
+    KubectlClient::Wait.resource_wait_for_install("pod", "tiller")
     result = ShellCmd.run_testsuite("platform:helm_tiller")
     result[:status].success?.should be_true
     (/(FAILED).*(Containers with the Helm Tiller image are running)/ =~ result[:output]).should_not be_nil
   ensure
-    KubectlClient::Delete.command("pod/tiller")
-    KubectlClient::Get.resource_wait_for_uninstall("pod", "tiller")
+    KubectlClient::Delete.resource("pod", "tiller")
+    KubectlClient::Wait.resource_wait_for_uninstall("pod", "tiller")
   end
 
   it "'helm_tiller' should fail if Helm Tiller is running in the cluster", tags: ["platform:security"] do

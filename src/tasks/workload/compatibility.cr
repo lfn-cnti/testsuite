@@ -53,7 +53,7 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
         Log.trace { "#{tn}: #{container} valid_cnf_testsuite_yml=#{valid_cnf_testsuite_yml}" }
         Log.trace { "#{tn}: #{container} config_container=#{config_container}" }
         if valid_cnf_testsuite_yml && config_container
-          resp = KubectlClient::Set.image(
+          resp = KubectlClient::Utils.set_image(
             resource["kind"],
             resource["name"],
             container.as_h["name"].as_s,
@@ -71,8 +71,6 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
         rollout_status = KubectlClient::Rollout.status(resource["kind"], resource["name"], namespace: namespace, timeout: "200s")
         unless rollout_status
           Log.info { "Rollout failed for #{resource["kind"]}/#{resource["name"]} in #{namespace} namespace" }
-          KubectlClient.describe(resource["kind"], resource["name"], namespace: resource["namespace"], force_output: true)
-          KubectlClient::ShellCmd.run("kubectl get all -A", "get_all_resources", force_output: true)
           test_passed = false
         end
         Log.trace { "#{tn}: #{container} test_passed=#{test_passed}" }
@@ -138,15 +136,16 @@ task "rollback" do |t, args|
           Log.for(t.name).debug {
             "rollback: update #{resource_kind}/#{resource_name}, container: #{container_name}, image: #{image_name}, tag: #{rollback_from_tag}"
           }
+          
           # set a temporary image/tag, so that we can rollback to the current (original) tag later
-          version_change_applied = KubectlClient::Set.image(
+          version_change_applied = KubectlClient::Utils.set_image(
             resource_kind,
             resource_name,
             container_name,
             image_name,
             rollback_from_tag,
             namespace: namespace
-          )
+          )[:status].success?
         end
 
         Log.for(t.name).info { "rollback version change successful? #{version_change_applied}" }
@@ -159,7 +158,7 @@ task "rollback" do |t, args|
 
         # https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#rolling-back-to-a-previous-revision
         Log.for(t.name).debug { "rollback: rolling back to old version" }
-        rollback_status = KubectlClient::Rollout.undo(resource_kind, resource_name, namespace: namespace)
+        rollback_status = KubectlClient::Rollout.undo(resource_kind, resource_name, namespace: namespace)[:status].success?
 
     end
 
@@ -307,21 +306,7 @@ def change_capacity(base_replicas, target_replica_count, args, config, resource 
   Log.trace { "increase_capacity args.named: #{args.named}" }
 
   initialization_time = base_replicas.to_i * 10
-  scale_cmd = ""
-
-  case resource["kind"].as_s.downcase
-  when "deployment"
-    scale_cmd = "#{resource["kind"]}.v1.apps/#{resource["metadata"]["name"]} --replicas=#{base_replicas}"
-  when "statefulset"
-    scale_cmd = "statefulsets #{resource["metadata"]["name"]} --replicas=#{base_replicas}"
-  else #TODO what else can be scaled?
-    scale_cmd = "#{resource["kind"]}.v1.apps/#{resource["metadata"]["name"]} --replicas=#{base_replicas}"
-  end
-
-  namespace = resource.dig("metadata", "namespace")
-  scale_cmd = "#{scale_cmd} -n #{namespace}"
-  KubectlClient::Scale.command(scale_cmd)
-
+  KubectlClient::Utils.scale("#{resource["kind"]}", "#{resource["metadata"]["name"]}", base_replicas.to_i, resource.dig("metadata", "namespace").as_s)
   initialized_count = wait_for_scaling(resource, base_replicas, args)
   if initialized_count != base_replicas
     Log.debug { "#{resource["kind"]} initialized to #{initialized_count} and could not be set to #{base_replicas}" }
@@ -329,20 +314,9 @@ def change_capacity(base_replicas, target_replica_count, args, config, resource 
     Log.debug { "#{resource["kind"]} initialized to #{initialized_count}" }
   end
 
-  case resource["kind"].as_s.downcase
-  when "deployment"
-    scale_cmd = "#{resource["kind"]}.v1.apps/#{resource["metadata"]["name"]} --replicas=#{target_replica_count}"
-  when "statefulset"
-    scale_cmd = "statefulsets #{resource["metadata"]["name"]} --replicas=#{target_replica_count}"
-  else #TODO what else can be scaled?
-    scale_cmd = "#{resource["kind"]}.v1.apps/#{resource["metadata"]["name"]} --replicas=#{target_replica_count}"
-  end
-
-  namespace = resource.dig("metadata", "namespace")
-  scale_cmd = "#{scale_cmd} -n #{namespace}"
-  KubectlClient::Scale.command(scale_cmd)
-
+  KubectlClient::Utils.scale("#{resource["kind"]}", "#{resource["metadata"]["name"]}", target_replica_count.to_i, resource.dig("metadata", "namespace").as_s)
   current_replicas = wait_for_scaling(resource, target_replica_count, args)
+
   current_replicas
 end
 

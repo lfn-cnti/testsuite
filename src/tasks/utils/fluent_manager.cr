@@ -22,7 +22,7 @@ module FluentManager
       File.write(values_file, values_macro)
       begin
         Helm.install(flavor_name, chart, namespace: TESTSUITE_NAMESPACE, values: "--values #{values_file}")
-        KubectlClient::Get.resource_wait_for_install("Daemonset", flavor_name, namespace: TESTSUITE_NAMESPACE)
+        KubectlClient::Wait.resource_wait_for_install("Daemonset", flavor_name, namespace: TESTSUITE_NAMESPACE)
       rescue Helm::CannotReuseReleaseNameError
         Log.info { "Release #{flavor_name} already installed" }
       end
@@ -34,7 +34,7 @@ module FluentManager
     end
 
     def installed?
-      KubectlClient::Get.resource_wait_for_install("Daemonset", flavor_name, namespace: TESTSUITE_NAMESPACE)
+      KubectlClient::Wait.resource_wait_for_install("Daemonset", flavor_name, namespace: TESTSUITE_NAMESPACE)
     end
   end
 
@@ -85,7 +85,7 @@ module FluentManager
     fluent_pods = KubectlClient::Get.pods_by_digest(match[:digest])
     fluent_pods.each do |fluent_pod|
       fluent_pod_name = fluent_pod.dig("metadata", "name").as_s
-      logs = KubectlClient.logs(fluent_pod_name, namespace: TESTSUITE_NAMESPACE)
+      logs = KubectlClient::Utils.logs(fluent_pod_name, namespace: TESTSUITE_NAMESPACE)
       Log.info { "Searching logs of #{fluent_pod_name} for string #{pod_name}" }
       Log.debug { "Fluent logs: #{logs}" }
       return true if logs[:output].to_s.includes?(pod_name)

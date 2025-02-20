@@ -48,7 +48,7 @@ module K8sTshark
     def begin_capture_by_label(label_key : String, label_value : String, command : String = "")
       Log.info { "Searching for the pod matching the label '#{label_key}:#{label_value}'."}
       all_pods = KubectlClient::Get.pods_by_nodes(KubectlClient::Get.schedulable_nodes_list)
-      pod_match = KubectlClient::Get.pods_by_label(all_pods, label_key, label_value).first?
+      pod_match = KubectlClient::Get.pods_by_labels(all_pods, {label_key =>label_value}).first?
   
       unless pod_match && pod_match.dig?("metadata", "name")
         error_message = "Pod with label '#{label_key}:#{label_value}' could not be found."

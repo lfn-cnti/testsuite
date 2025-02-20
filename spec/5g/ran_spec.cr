@@ -17,7 +17,7 @@ def setup_5g_network
 
   deployment_names.each do |deployment_name|
     # Wait for each deployment to be ready
-    ready = KubectlClient::Get.resource_wait_for_install("deployment", deployment_name, namespace: "oran")
+    ready = KubectlClient::Wait.resource_wait_for_install("deployment", deployment_name, namespace: "oran")
     if !ready
       stdout_failure "Could not set up the 5g network"
       return false

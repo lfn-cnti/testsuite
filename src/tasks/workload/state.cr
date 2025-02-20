@@ -237,7 +237,7 @@ task "node_drain", ["install_litmus"] do |t, args|
         Log.info { "Found node to cordon #{cordon_target_node_name} using label #{cordon_deployment_label}='#{cordon_deployment_value}' in #{app_namespace} namespace." }
 
         # Cordon the node.
-        result = KubectlClient::Cordon.command("#{cordon_target_node_name}")
+        result = KubectlClient::Utils.cordon("#{cordon_target_node_name}")
 
         # If cordoning fails, skip the test.
         if result[:status].success?
@@ -292,7 +292,7 @@ task "node_drain", ["install_litmus"] do |t, args|
             Log.info {"Re-Schedule Litmus"}
             LitmusManager.add_node_selector(litmus_nodes[0])
             KubectlClient::Apply.file("#{LitmusManager::MODIFIED_LITMUS_FILE}")
-            KubectlClient::Get.resource_wait_for_install(kind: "Deployment", resource_name: "chaos-operator-ce", wait_count: 180, namespace: "litmus")
+            KubectlClient::Wait.resource_wait_for_install(kind: "Deployment", resource_name: "chaos-operator-ce", wait_count: 180, namespace: "litmus")
           end
 
           experiment_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::Version}/faults/kubernetes/node-drain/fault.yaml"
@@ -307,7 +307,7 @@ task "node_drain", ["install_litmus"] do |t, args|
           File.write(rbac_path, rbac_yaml)
           KubectlClient::Apply.file(rbac_path)
 
-          KubectlClient::Annotate.run("--overwrite -n #{app_namespace} deploy/#{resource["name"]} litmuschaos.io/chaos=\"true\"")
+          KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"")
 
           chaos_experiment_name = "node-drain"
           test_name = "#{resource["name"]}-#{Random::Secure.hex(4)}"
@@ -330,7 +330,7 @@ task "node_drain", ["install_litmus"] do |t, args|
         end
 
         # Uncordon the node.
-        result = KubectlClient::Uncordon.command("#{cordon_target_node_name}")
+        result = KubectlClient::Utils.uncordon("#{cordon_target_node_name}")
 
         # If uncordoning fails, log the error.
         if result[:status].success?
@@ -481,7 +481,7 @@ task "no_local_volume_configuration" do |t, args|
         # get all items, get spec, get claimRef, get pvc name that matches pvc name 
         local_storage_not_found = true 
         persistent_volume_claim_names.map do | claim_name|
-          items = KubectlClient::Get.pv_items_by_claim_name(claim_name)
+          items = KubectlClient::Get.pv_items_by_claim_name(claim_name.as_s)
           items.map do |item|
             begin
               if item["spec"]["local"]? && item["spec"]["local"]["path"]?

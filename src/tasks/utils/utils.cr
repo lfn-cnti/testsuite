@@ -58,10 +58,10 @@ def ensure_kubeconfig!
   end
   
   # Check if cluster is up and running with assigned KUBECONFIG variable 
-  cmd = "kubectl get nodes --kubeconfig=#{ENV["KUBECONFIG"]}"
-  exit_code = KubectlClient::ShellCmd.run(cmd, "", false)[:status].exit_status
-  if exit_code != 0
-    stdout_failure "Cluster liveness check failed: '#{cmd}' returned exit code #{exit_code}. Check the cluster and/or KUBECONFIG environment variable."
+  begin
+    KubectlClient::Get.resource("nodes")
+  rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+    stdout_failure "Cluster liveness check failed: '#{ex.message}'. Check the cluster and/or KUBECONFIG environment variable."
     exit 1
   end
 end
@@ -362,6 +362,7 @@ end
 def with_kubeconfig(kube_config : String, &)
   last_kube_config = ENV["KUBECONFIG"]
   ENV["KUBECONFIG"] = kube_config
-  yield
+  result = yield
   ENV["KUBECONFIG"] = last_kube_config
+  result
 end

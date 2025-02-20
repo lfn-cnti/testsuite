@@ -15,9 +15,9 @@ module JaegerManager
     Helm.helm_repo_add("jaegertracing","https://jaegertracing.github.io/helm-charts")
     CNFManager.ensure_namespace_exists!("jaeger")
     Helm.install("jaeger", "jaegertracing/jaeger", namespace: "jaeger", values: "--set cassandra.config.cluster_size=1 --set cassandra.config.seed_size=1")
-    KubectlClient::Get.resource_wait_for_install("Deployment", "jaeger-collector", 300, namespace: "jaeger")
-    KubectlClient::Get.resource_wait_for_install("Deployment", "jaeger-query", 300, namespace: "jaeger")
-    KubectlClient::Get.resource_wait_for_install("Daemonset", "jaeger-agent", 300, namespace: "jaeger")
+    KubectlClient::Wait.resource_wait_for_install("Deployment", "jaeger-collector", 300, namespace: "jaeger")
+    KubectlClient::Wait.resource_wait_for_install("Deployment", "jaeger-query", 300, namespace: "jaeger")
+    KubectlClient::Wait.resource_wait_for_install("Daemonset", "jaeger-agent", 300, namespace: "jaeger")
   end
 
   def self.node_for_cnf(resource_name)
@@ -65,7 +65,7 @@ module JaegerManager
   end
 
   def self.connected_clients_total
-    nodes = KubectlClient::Get.nodes
+    nodes = KubectlClient::Get.resource("nodes")
     pods = jaeger_pods(nodes["items"].as_a)
     metrics = jaeger_metrics_by_pods(pods)
     total_clients = metrics.reduce(0) do |acc, metric|
@@ -83,7 +83,7 @@ module JaegerManager
   end
 
   def self.unique_services_total
-    nodes = KubectlClient::Get.nodes
+    nodes = KubectlClient::Get.resource("nodes")
     pods = jaeger_pods(nodes["items"].as_a)
     metrics = jaeger_metrics_by_pods(pods)
     total_count = metrics.reduce(0) do |acc, metric|

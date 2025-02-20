@@ -64,7 +64,7 @@ describe "State" do
   it "'no_local_volume_configuration' should fail if local storage configuration found", tags: ["no_local_volume_configuration"]  do
     begin
       # update the helm parameter with a schedulable node for the pv chart
-      schedulable_nodes = KubectlClient::Get.schedulable_nodes
+      schedulable_nodes = KubectlClient::Get.schedulable_nodes_list
       update_yml("sample-cnfs/sample-local-storage/worker-node-value.yml", "worker_node", "#{schedulable_nodes[0]}")
       ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-local-storage/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("no_local_volume_configuration")

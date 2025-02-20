@@ -51,7 +51,7 @@ task "cluster_api_install" do |_, args|
     error: create_cluster_stderr = IO::Memory.new
   )
 
-  KubectlClient::Get.wait_for_install_by_apply(create_cluster_file)
+  KubectlClient::Wait.wait_for_install_by_apply(create_cluster_file)
 
   Log.for("clusterctl-create").info { create_cluster_stdout.to_s }
   Log.info { "cluster api setup complete" }
@@ -60,7 +60,6 @@ end
 desc "Uninstall Cluster API"
 task "cluster_api_uninstall" do |_, args|
   current_dir = FileUtils.pwd 
-  #KubectlClient::Delete.command("cluster capi-quickstart")
   delete_cluster_file = "#{current_dir}/capi.yaml"
   KubectlClient::Delete.file("#{delete_cluster_file}")
 

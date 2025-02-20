@@ -16,7 +16,7 @@ describe "Platform Observability" do
       result = ShellCmd.run("#{helm} repo add prometheus-community https://prometheus-community.github.io/helm-charts")
       result = ShellCmd.run("#{helm} repo update")
       result = ShellCmd.run("#{helm} -n #{TESTSUITE_NAMESPACE} install --version 5.3.0 kube-state-metrics prometheus-community/kube-state-metrics", force_output: true)
-      KubectlClient::Get.wait_for_install("kube-state-metrics", namespace: TESTSUITE_NAMESPACE)
+      KubectlClient::Wait.resource_wait_for_install("deployment", "kube-state-metrics", namespace: TESTSUITE_NAMESPACE)
 
       result = ShellCmd.run_testsuite("platform:kube_state_metrics poc")
       (/(PASSED).*(Your platform is using the).*(release for kube state metrics)/ =~ result[:output]).should_not be_nil
@@ -33,8 +33,7 @@ describe "Platform Observability" do
       result = ShellCmd.run("#{helm} install -n #{TESTSUITE_NAMESPACE} node-exporter prometheus-community/prometheus-node-exporter", force_output: true)
 
       repeat_with_timeout(timeout: POD_READINESS_TIMEOUT, errormsg: "Pod readiness has timed-out") do
-        pod_ready = KubectlClient::Get.pod_status("node-exporter-prometheus", namespace: TESTSUITE_NAMESPACE).split(",")[2] == "true"
-        Log.info { "Pod Ready Status: #{pod_ready}" }
+        pod_ready = KubectlClient::Get.pod_ready?("node-exporter-prometheus", namespace: TESTSUITE_NAMESPACE)
         pod_ready
       end
       result = ShellCmd.run_testsuite("platform:node_exporter poc")
@@ -58,7 +57,7 @@ describe "Platform Observability" do
     rescue e : Helm::CannotReuseReleaseNameError
       Log.info { "Prometheus already installed" }
     end
-    KubectlClient::Get.wait_for_install("prometheus-adapter", namespace: TESTSUITE_NAMESPACE)
+    KubectlClient::Wait.resource_wait_for_install("deployment", "prometheus-adapter", namespace: TESTSUITE_NAMESPACE)
 
     result = ShellCmd.run_testsuite("platform:prometheus_adapter poc")
     (/(PASSED).*(Your platform is using the prometheus adapter)/ =~ result[:output]).should_not be_nil
@@ -77,7 +76,7 @@ describe "Platform Observability" do
       Log.info { "Metrics Server already installed" }
     end
       Log.info { result }
-      KubectlClient::Get.wait_for_install(deployment_name: "metrics-server", namespace: TESTSUITE_NAMESPACE)
+      KubectlClient::Wait.resource_wait_for_install("deployment", "metrics-server", namespace: TESTSUITE_NAMESPACE)
       result = ShellCmd.run_testsuite("platform:metrics_server poc")
       (/(PASSED).*(Your platform is using the metrics server)/ =~ result[:output]).should_not be_nil
   ensure

@@ -3,20 +3,22 @@ require "colorize"
 require "./cnf_manager.cr"
 require "halite"
 
-module OPA 
+module OPA
+  OPA_KIND_NAME      = "requiretags"
+  OPA_VIOLATION_NAME = "block-latest-tag"
 
-  OPA_KIND_NAME="requiretags"
-  OPA_VIOLATION_NAME="block-latest-tag"
-  def self.find_non_versioned_pod(pod_name)
+  def self.find_non_versioned_pod(pod_name : String) : Bool
     Log.info { "OPA.find_non_versioned_pod: #{pod_name}" }
-    resp = KubectlClient.describe(OPA_KIND_NAME, OPA_VIOLATION_NAME)
-    output = resp[:output]
-    match = output.match(/.*Pod #{pod_name}, it uses an image tag that is not versioned.*/)
-    Log.info { "OPA Pod Data: #{match}" }
-    if match
-      true
-    else
-      false
+    violations = KubectlClient::Get.resource(OPA_KIND_NAME, OPA_VIOLATION_NAME).dig("status", "violations").as_a
+    matched = violations.any? do |violation|
+      begin
+        violation.dig("kind").as_s.downcase == "pod" && violation.dig("name").as_s.match(/#{pod_name}/)
+      rescue
+        false
+      end
     end
+
+    Log.info { "OPA Pod Data: #{matched}" }
+    matched ? true : false
   end
 end

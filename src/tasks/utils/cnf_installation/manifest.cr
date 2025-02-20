@@ -64,8 +64,10 @@ module CNFInstall
     # Apply namespaces only to resources that are retrieved from Kubernetes as namespaced resource kinds.
     # Namespaced resource kinds are utilized exclusively during the Helm installation process.
     def self.add_namespace_to_resources(manifest_string, namespace) 
-      Log.for("add_namespace_to_resources").info { "Updating metadata.namespace field for resources in generated manifest" }
-      namespaced_resources = KubectlClient::ShellCmd.run("kubectl api-resources --namespaced=true --no-headers", "", false).[:output]
+      logger = Log.for("add_namespace_to_resources")
+      logger.info { "Updating metadata.namespace field for resources in generated manifest" }
+
+      namespaced_resources = KubectlClient::ShellCMD.run("kubectl api-resources --namespaced=true --no-headers", logger, false).[:output]
       list_of_namespaced_resources = namespaced_resources.split("\n").select { |item| !item.empty? }
       list_of_namespaced_kinds = list_of_namespaced_resources.map do |line|
         line.split(/\s+/).last
@@ -76,13 +78,13 @@ module CNFInstall
       parsed_manifest.each do |resource|
         if resource["kind"].as_s.in?(list_of_namespaced_kinds)
           Helm.ensure_resource_with_namespace(resource, namespace)
-          Log.for("add_namespace_to_resources").info { "Added #{namespace} namespace for resource: {kind: #{resource["kind"]}, name: #{resource["metadata"]["name"]}}" }
+          logger.info { "Added #{namespace} namespace for resource: {kind: #{resource["kind"]}, name: #{resource["metadata"]["name"]}}" }
         end
         ymls << resource
       end
 
       string_manifest_with_namespaces = combine_ymls_as_manifest_string(ymls)
-      Log.for("add_namespace_to_resources").debug { "\n#{string_manifest_with_namespaces}" }
+      logger.debug { "\n#{string_manifest_with_namespaces}" }
       string_manifest_with_namespaces
     end
 

@@ -43,7 +43,7 @@ describe "Observability" do
     install_cmd = "#{helm} install -n #{TESTSUITE_NAMESPACE} --set alertmanager.persistentVolume.enabled=false --set server.persistentVolume.enabled=false --set pushgateway.persistentVolume.enabled=false prometheus prometheus-community/prometheus"
     ShellCmd.run(install_cmd, "helm_install_prometheus", force_output: true)
 
-    KubectlClient::Get.wait_for_install("prometheus-server", namespace: TESTSUITE_NAMESPACE)
+    KubectlClient::Wait.resource_wait_for_install("deployment", "prometheus-server", namespace: TESTSUITE_NAMESPACE)
     ShellCmd.run("kubectl describe deployment prometheus-server -n #{TESTSUITE_NAMESPACE}", "k8s_describe_prometheus", force_output: true)
 
     test_result = ShellCmd.run_testsuite("prometheus_traffic")
@@ -73,7 +73,7 @@ describe "Observability" do
       helm = Helm::BinarySingleton.helm
       result = ShellCmd.run("helm repo add prometheus-community https://prometheus-community.github.io/helm-charts", force_output: true)
       result = ShellCmd.run("#{helm} install -n #{TESTSUITE_NAMESPACE} --set alertmanager.persistentVolume.enabled=false --set server.persistentVolume.enabled=false --set pushgateway.persistentVolume.enabled=false prometheus prometheus-community/prometheus", force_output: true)
-      KubectlClient::Get.wait_for_install("prometheus-server", namespace: TESTSUITE_NAMESPACE)
+      KubectlClient::Wait.resource_wait_for_install("deployment", "prometheus-server", namespace: TESTSUITE_NAMESPACE)
       result = ShellCmd.run("kubectl describe deployment prometheus-server", force_output: true)
       #todo logging on prometheus pod
 
@@ -91,7 +91,7 @@ describe "Observability" do
     Log.info { "Installing prometheus server" }
     helm = Helm::BinarySingleton.helm
     result = ShellCmd.run("#{helm} install -n #{TESTSUITE_NAMESPACE} --set alertmanager.persistentVolume.enabled=false --set server.persistentVolume.enabled=false --set pushgateway.persistentVolume.enabled=false prometheus prometheus-community/prometheus", force_output: true)
-    KubectlClient::Get.wait_for_install("prometheus-server", namespace: TESTSUITE_NAMESPACE)
+    KubectlClient::Wait.resource_wait_for_install("deployment", "prometheus-server", namespace: TESTSUITE_NAMESPACE)
     result = ShellCmd.run("kubectl describe deployment prometheus-server -n #{TESTSUITE_NAMESPACE}", force_output: true)
     #todo logging on prometheus pod
 
@@ -109,7 +109,7 @@ describe "Observability" do
     Log.info { "Installing prometheus server" }
     helm = Helm::BinarySingleton.helm
     result = ShellCmd.run("#{helm} install -n #{TESTSUITE_NAMESPACE} --set alertmanager.persistentVolume.enabled=false --set server.persistentVolume.enabled=false --set pushgateway.persistentVolume.enabled=false prometheus prometheus-community/prometheus", force_output: true)
-    KubectlClient::Get.wait_for_install("prometheus-server", namespace: TESTSUITE_NAMESPACE)
+    KubectlClient::Wait.resource_wait_for_install("deployment", "prometheus-server", namespace: TESTSUITE_NAMESPACE)
     result = ShellCmd.run("kubectl describe deployment prometheus-server -n #{TESTSUITE_NAMESPACE}", force_output: true)
     #todo logging on prometheus pod
 
@@ -150,7 +150,7 @@ describe "Observability" do
     #todo  #helm install --values ./override.yml fluentd ./fluentd
     Helm.install("fluentd", "bitnami/fluentd", namespace: TESTSUITE_NAMESPACE, values: "--values ./spec/fixtures/fluentd-values-bad.yml")
     Log.info { "Installing FluentD daemonset" }
-    KubectlClient::Get.resource_wait_for_install("Daemonset", "fluentd", namespace: TESTSUITE_NAMESPACE)
+    KubectlClient::Wait.resource_wait_for_install("Daemonset", "fluentd", namespace: TESTSUITE_NAMESPACE)
 
     result = ShellCmd.run_testsuite("routed_logs")
     (/(FAILED).*(Your CNF's logs are not being captured)/ =~ result[:output]).should_not be_nil

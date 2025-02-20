@@ -100,9 +100,7 @@ task "clusterapi_enabled" do |t, args|
     # https://cluster-api.sigs.k8s.io/clusterctl/commands/init.html#additional-information
 
     # this indicates that cluster-api is installed
-    clusterapi_namespaces_json = KubectlClient::Get.namespaces(
-      "--selector clusterctl.cluster.x-k8s.io"
-    )
+    clusterapi_namespaces_json = KubectlClient::Get.resource("namespace", selector: "clusterctl.cluster.x-k8s.io")
     Log.info { "clusterapi_namespaces_json: #{clusterapi_namespaces_json}" }
 
     # check that a node is actually being manageed

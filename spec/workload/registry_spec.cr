@@ -15,25 +15,25 @@ describe "Private Registry: Image" do
   before_all do
     result = ShellCmd.run_testsuite("setup")
     Dockerd.install
-    install_registry = KubectlClient::Apply.file(registry_manifest_path)
-    KubectlClient::Get.resource_wait_for_install("Pod", "registry")
+    install_registry = KubectlClient::Apply.file(registry_manifest_path.to_s)
+    KubectlClient::Wait.resource_wait_for_install("Pod", "registry")
 
-    Dockerd.exec("apk add curl", force_output: true)
-    Dockerd.exec("curl http://example.com", force_output: true)
+    Dockerd.exec("apk add curl")
+    Dockerd.exec("curl http://example.com")
 
     if ENV["DOCKERHUB_USERNAME"]? && ENV["DOCKERHUB_PASSWORD"]?
-      result = Dockerd.exec("docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD", force_output: true)
+      result = Dockerd.exec("docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD",)
       Log.info { "Docker Login output: #{result[:output]}" }
     end
 
     private_registry = "registry.default.svc.cluster.local:5000"
-    Dockerd.exec("docker pull coredns/coredns:1.6.7", force_output: true)
-    Dockerd.exec("docker tag coredns/coredns:1.6.7 #{private_registry}/coredns:1.6.7", force_output: true)
-    Dockerd.exec("docker push #{private_registry}/coredns:1.6.7", force_output: true)
+    Dockerd.exec("docker pull coredns/coredns:1.6.7")
+    Dockerd.exec("docker tag coredns/coredns:1.6.7 #{private_registry}/coredns:1.6.7",)
+    Dockerd.exec("docker push #{private_registry}/coredns:1.6.7")
 
     # This is required for the test that uses the sample_local_registry_org_image CNF
-    Dockerd.exec("docker tag coredns/coredns:1.6.7 #{private_registry}/coredns-sample-org/coredns:1.6.7", force_output: true)
-    Dockerd.exec("docker push #{private_registry}/coredns-sample-org/coredns:1.6.7", force_output: true)
+    Dockerd.exec("docker tag coredns/coredns:1.6.7 #{private_registry}/coredns-sample-org/coredns:1.6.7")
+    Dockerd.exec("docker push #{private_registry}/coredns-sample-org/coredns:1.6.7")
   end
 
   it "'reasonable_image_size' should pass if using local registry and a port", tags: ["private_registry_image"]  do
@@ -59,7 +59,7 @@ describe "Private Registry: Image" do
   end
 
   after_all do
-    delete_registry = KubectlClient::Delete.file(registry_manifest_path)
+    delete_registry = KubectlClient::Delete.file(registry_manifest_path.to_s)
     Dockerd.uninstall
   end	
 end
@@ -68,20 +68,20 @@ describe "Private Registry: Rolling" do
   before_all do
     result = ShellCmd.run_testsuite("setup")
     Dockerd.install
-    install_registry = KubectlClient::Apply.file(registry_manifest_path)
-    KubectlClient::Get.resource_wait_for_install("Pod", "registry")
+    install_registry = KubectlClient::Apply.file(registry_manifest_path.to_s)
+    KubectlClient::Wait.resource_wait_for_install("Pod", "registry")
 
-    Dockerd.exec("apk add curl", force_output: true)
-    Dockerd.exec("curl http://example.com", force_output: true)
+    Dockerd.exec("apk add curl")
+    Dockerd.exec("curl http://example.com")
 
     private_registry = "registry.default.svc.cluster.local:5000"
-    Dockerd.exec("docker pull coredns/coredns:1.6.7", force_output: true)
-    Dockerd.exec("docker tag coredns/coredns:1.6.7 #{private_registry}/coredns:1.6.7", force_output: true)
-    Dockerd.exec("docker push #{private_registry}/coredns:1.6.7", force_output: true)
+    Dockerd.exec("docker pull coredns/coredns:1.6.7")
+    Dockerd.exec("docker tag coredns/coredns:1.6.7 #{private_registry}/coredns:1.6.7")
+    Dockerd.exec("docker push #{private_registry}/coredns:1.6.7")
 
-    Dockerd.exec("docker pull coredns/coredns:1.8.0", force_output: true)
-    Dockerd.exec("docker tag coredns/coredns:1.8.0 #{private_registry}/coredns:1.8.0", force_output: true)
-    Dockerd.exec("docker push #{private_registry}/coredns:1.8.0", force_output: true)
+    Dockerd.exec("docker pull coredns/coredns:1.8.0")
+    Dockerd.exec("docker tag coredns/coredns:1.8.0 #{private_registry}/coredns:1.8.0")
+    Dockerd.exec("docker push #{private_registry}/coredns:1.8.0")
   end
 
   it "'rolling_update' should pass if using local registry and a port", tags: ["private_registry_rolling"]  do
@@ -124,7 +124,7 @@ describe "Private Registry: Rolling" do
   end  
 
   after_all do
-    delete_registry = KubectlClient::Delete.file(registry_manifest_path)
+    delete_registry = KubectlClient::Delete.file(registry_manifest_path.to_s)
     Dockerd.uninstall
   end	
 end

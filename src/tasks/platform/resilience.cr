@@ -28,16 +28,16 @@ namespace "platform" do
 
       File.write("node_failure_values.yml", NODE_FAILED_VALUES)
       install_coredns = Helm.install("node-failure", "stable/coredns", values: "-f ./node_failure_values.yml --set nodeSelector.\"kubernetes\\.io/hostname\"=#{worker_node}")
-      KubectlClient::Get.wait_for_install("node-failure-coredns")
+      KubectlClient::Wait.resource_wait_for_install("deployment", "node-failure-coredns")
 
       File.write("reboot_daemon_pod.yml", REBOOT_DAEMON)
       KubectlClient::Apply.file("reboot_daemon_pod.yml")
-      KubectlClient::Get.wait_for_install("node-failure-coredns")
+      KubectlClient::Wait.resource_wait_for_install("deployment", "node-failure-coredns")
 
       begin
 
         execution_complete = repeat_with_timeout(timeout: POD_READINESS_TIMEOUT, errormsg: "Pod daemon installation has timed-out") do
-          pod_ready = KubectlClient::Get.pod_status("reboot", "--field-selector spec.nodeName=#{worker_node}").split(",")[2] == "true"
+          pod_ready = KubectlClient::Get.pod_ready?("reboot", "spec.nodeName=#{worker_node}")
           Log.info { "Waiting for reboot daemon to be ready. Current status: #{pod_ready}" }
           pod_ready
         end
@@ -47,13 +47,12 @@ namespace "platform" do
         end
 
         # Find Reboot Daemon name
-        reboot_daemon_pod = KubectlClient::Get.pod_status("reboot", "--field-selector spec.nodeName=#{worker_node}").split(",")[0]
-        start_reboot = KubectlClient.exec("#{reboot_daemon_pod} touch /tmp/reboot")
-
+        reboot_daemon_pod = KubectlClient::Get.match_pods_by_prefix("reboot", "spec.nodeName=#{worker_node}").first?
+        start_reboot = KubectlClient::Utils.exec("#{reboot_daemon_pod}", "touch /tmp/reboot")
         #Watch for Node Failure.
         execution_complete = repeat_with_timeout(timeout: GENERIC_OPERATION_TIMEOUT, errormsg: "Node shut-off has timed-out") do
-          pod_ready = KubectlClient::Get.pod_status("node-failure").split(",")[2] == "true"
-          node_ready = KubectlClient::Get.node_status("#{worker_node}") == "True"
+          pod_ready = KubectlClient::Get.pod_ready?("node-failure")
+          node_ready = KubectlClient::Get.node_ready?("#{worker_node}") == "True"
           Log.info { "Waiting for Node to go offline..." }
           Log.info { "Pod Ready Status: #{pod_ready}" }
           Log.info { "Node Ready Status: #{node_ready}" }
@@ -66,8 +65,8 @@ namespace "platform" do
 
         #Watch for Node to come back online
         execution_complete = repeat_with_timeout(timeout: NODE_READINESS_TIMEOUT, errormsg: "Node startup has timed-out") do
-          pod_ready = KubectlClient::Get.pod_status("node-failure", "").split(",")[2] == "true"
-          node_ready = KubectlClient::Get.node_status("#{worker_node}") == "True"
+          pod_ready = KubectlClient::Get.pod_ready?("node-failure")
+          node_ready = KubectlClient::Get.node_ready?("#{worker_node}") == "True"
           Log.info { "Waiting for Node to come back online..." }
           Log.info { "Pod Ready Status: #{pod_ready}" }
           Log.info { "Node Ready Status: #{node_ready}" }

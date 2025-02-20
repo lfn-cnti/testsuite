@@ -22,7 +22,7 @@ module Dockerd
 
   def self.wait_for_install
     Log.info { "Wait for dockerd install" }
-    KubectlClient::Get.resource_wait_for_install("Pod", "dockerd", wait_count: 180, namespace: TESTSUITE_NAMESPACE)
+    KubectlClient::Wait.resource_wait_for_install("Pod", "dockerd", wait_count: 180, namespace: TESTSUITE_NAMESPACE)
   end
 
   def self.uninstall
@@ -30,11 +30,11 @@ module Dockerd
     KubectlClient::Delete.file(dockerd_manifest_file, namespace: TESTSUITE_NAMESPACE)
 
     Log.info { "Uninstall docker-config from manifest" }
-    KubectlClient::Delete.command("configmaps/docker-config -n #{TESTSUITE_NAMESPACE}")
+    KubectlClient::Delete.resource("configmaps", "docker-config", TESTSUITE_NAMESPACE)
   end
 
-  def self.exec(cli, force_output : Bool = false)
-    KubectlClient.exec("dockerd -t -- #{cli}", namespace: TESTSUITE_NAMESPACE, force_output: force_output)
+  def self.exec(cli)
+    KubectlClient::Utils.exec("dockerd", cli, namespace: TESTSUITE_NAMESPACE)
   end
 
   def self.dockerd_manifest_file

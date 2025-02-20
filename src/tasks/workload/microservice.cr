@@ -292,7 +292,7 @@ task "reasonable_image_size" do |t, args|
           end
           File.write(image_secrets_config_path, str_auths)
           Dockerd.exec("mkdir -p /root/.docker/")
-          KubectlClient.cp("#{image_secrets_config_path} #{TESTSUITE_NAMESPACE}/dockerd:/root/.docker/config.json")
+          KubectlClient::Utils.copy_to_pod("dockerd", image_secrets_config_path, "/root/.docker/config.json", namespace: TESTSUITE_NAMESPACE)
         end
 
         Log.info { "FQDN of the docker image: #{fqdn_image}" }
@@ -485,7 +485,7 @@ task "sig_term_handled" do |t, args|
       when .in?(WORKLOAD_RESOURCE_KIND_NAMES)
         resource_yaml = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
         #todo needs namespace
-        pods = KubectlClient::Get.pods_by_resource(resource_yaml, resource[:namespace])
+        pods = KubectlClient::Get.pods_by_resource_labels(resource_yaml, resource[:namespace])
         # containers = KubectlClient::Get.resource_containers(kind, resource[:name], resource[:namespace])
         #todo loop through containers (we only need to process each image per deployment.  skip images that were already processed)
         # --- skipped because could have same image but started with different startup commands which would instantiate different processes
@@ -498,7 +498,7 @@ task "sig_term_handled" do |t, args|
           Log.info { "pod_name: #{pod_name}" }
 
           # Wait for a pod to be available. Only wait for 60 seconds.
-          KubectlClient::Get.wait_for_resource_availability("pod", pod_name, pod_namespace, GENERIC_OPERATION_TIMEOUT)
+          KubectlClient::Wait.wait_for_resource_availability("pod", pod_name, pod_namespace, GENERIC_OPERATION_TIMEOUT)
 
           status = pod["status"]
           if status["containerStatuses"]?
@@ -696,11 +696,11 @@ task "service_discovery" do |t, args|
     end
 
     # Get all the pods in the cluster
-    pods = KubectlClient::Get.pods().dig("items").as_a
+    pods = KubectlClient::Get.resource("pods").dig("items").as_a
 
     # Get pods for the services in the CNF based on the labels
     test_passed = false
-    KubectlClient::Get.services(all_namespaces: true).dig("items").as_a.each do |service_info|
+    KubectlClient::Get.resource("services", all_namespaces: true).dig("items").as_a.each do |service_info|
       # Only check for pods for services that are defined by the CNF
       service_name = service_info["metadata"]["name"]
       next unless cnf_service_names.includes?(service_name)
@@ -739,7 +739,7 @@ task "specialized_init_system", ["install_cluster_tools"] do |t, args|
         namespace = resource[:namespace]
         Log.for(t.name).info { "Checking resource #{resource[:kind]}/#{resource[:name]} in #{namespace}" }
         resource_yaml = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
-        pods = KubectlClient::Get.pods_by_resource(resource_yaml, namespace)
+        pods = KubectlClient::Get.pods_by_resource_labels(resource_yaml, namespace)
         Log.for(t.name).info { "Pod count for resource #{resource[:kind]}/#{resource[:name]} in #{namespace}: #{pods.size}" }
         pods.each do |pod|
           Log.for(t.name).info { "Inspecting pod: #{pod}" }

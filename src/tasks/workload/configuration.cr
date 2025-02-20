@@ -110,10 +110,10 @@ task "versioned_tag", ["install_opa"] do |t, args|
       case kind
       when .in?(WORKLOAD_RESOURCE_KIND_NAMES)
         resource_yaml = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
-        pods = KubectlClient::Get.pods_by_resource(resource_yaml, namespace: resource[:namespace])
+        pods = KubectlClient::Get.pods_by_resource_labels(resource_yaml, namespace: resource[:namespace])
         pods.map do |pod|
           pod_name = pod.dig("metadata", "name")
-          if OPA.find_non_versioned_pod(pod_name)
+          if OPA.find_non_versioned_pod(pod_name.as_s)
             if kind == "pod"
               fail_msg = "Pod/#{resource[:name]} in #{resource[:namespace]} namespace does not use a versioned image"
             else
@@ -246,7 +246,7 @@ task "hardcoded_ip_addresses_in_k8s_runtime_configuration" do |t, args|
   rescue
     CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Skipped, "unknown exception")
   ensure
-    KubectlClient::Delete.command("namespace hardcoded-ip-test --force --grace-period 0")
+    KubectlClient::Delete.resource("namespace", "hardcoded-ip-test", extra_opts: "--force --grace-period 0")
   end
 end
 
@@ -291,7 +291,7 @@ task "secrets_used" do |t, args|
       #  is an installation problem, and does not stop the test from passing
 
       namespace = resource[:namespace]
-      secrets = KubectlClient::Get.secrets(namespace: namespace)
+      secrets = KubectlClient::Get.resource("secrets", namespace: namespace)
 
       secrets["items"].as_a.each do |s|
         s_name = s["metadata"]["name"]
@@ -497,7 +497,7 @@ task "immutable_configmap" do |t, args|
         # If the install type is manifest, the namesapce would be in the manifest.
         # Else rely on config for helm-based install
         namespace = resource[:namespace]
-        configmaps = KubectlClient::Get.configmaps(namespace: namespace)
+        configmaps = KubectlClient::Get.resource("configmaps", namespace: namespace)
         if configmaps.dig?("items")
           configmaps = configmaps.dig("items").as_a
         else
@@ -582,9 +582,9 @@ task "alpha_k8s_apis" do |t, args|
     k8s_major_minor_version = k8s_server_version.split(".")[0..1].join(".")
     pod_name = "pod/apisnoop-#{cluster_name}-control-plane"
     db_query = "select count(*) from testing.audit_event where endpoint in (select endpoint from open_api where level='alpha' and release ilike '#{k8s_major_minor_version}%')"
-    exec_cmd = "#{pod_name} --container snoopdb --kubeconfig #{cluster.kubeconfig} -- psql -d apisnoop -c \"#{db_query}\""
+    exec_cmd = "psql -d apisnoop -c \"#{db_query}\""
 
-    result = KubectlClient.exec(exec_cmd)
+    result = with_kubeconfig(cluster.kubeconfig) { KubectlClient::Utils.exec(pod_name, exec_cmd, snoopdb) }
     api_count = result[:output].split("\n")[2].to_i
 
     if api_count == 0
@@ -619,7 +619,7 @@ task "operator_installed" do |t, args|
       csv_created = nil
       resource_created = false
 
-      KubectlClient::Get.wait_for_resource_key_value("sub", "#{subscription["name"]}", {"status", "installedCSV"}, namespace: subscription["namespace"].as_s)
+      KubectlClient::Wait.wait_for_resource_key_value("sub", "#{subscription["name"]}", {"status", "installedCSV"}, namespace: subscription["namespace"].as_s)
 
       installed_csv = KubectlClient::Get.resource("sub", "#{subscription["name"]}", "#{subscription["namespace"]}")
       if installed_csv.dig?("status", "installedCSV")
@@ -631,7 +631,7 @@ task "operator_installed" do |t, args|
 
 
     succeeded = csv_names.map do |csv| 
-      if KubectlClient::Get.wait_for_resource_key_value("csv", "#{csv["name"]}", {"status", "reason"}, namespace: csv["namespace"].as_s, value: "InstallSucceeded" ) && KubectlClient::Get.wait_for_resource_key_value("csv", "#{csv["name"]}", {"status", "phase"}, namespace: csv["namespace"].as_s, value: "Succeeded" )
+      if KubectlClient::Wait.wait_for_resource_key_value("csv", "#{csv["name"]}", {"status", "reason"}, namespace: csv["namespace"].as_s, value: "InstallSucceeded" ) && KubectlClient::Wait.wait_for_resource_key_value("csv", "#{csv["name"]}", {"status", "phase"}, namespace: csv["namespace"].as_s, value: "Succeeded" )
         csv_succeeded=true
       end
       csv_succeeded

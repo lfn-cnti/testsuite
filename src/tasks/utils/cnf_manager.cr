@@ -19,17 +19,17 @@ module CNFManager
     Log.info { "cnf_resource_ymls" }
     manifest_ymls = CNFInstall::Manifest.manifest_path_to_ymls(COMMON_MANIFEST_FILE_PATH)
 
-    manifest_ymls = manifest_ymls.reject! {|x|
+    manifest_ymls = manifest_ymls.reject! { |x|
       # reject resources that contain the 'helm.sh/hook: test' annotation
-      x.dig?("metadata","annotations","helm.sh/hook")
+      x.dig?("metadata", "annotations", "helm.sh/hook")
     }
     Log.debug { "cnf_resource_ymls: #{manifest_ymls}" }
-    manifest_ymls 
+    manifest_ymls
   end
 
   def self.cnf_resources(args, config, &block)
     manifest_ymls = cnf_resource_ymls(args, config)
-    resource_resp = manifest_ymls.map do | resource |
+    resource_resp = manifest_ymls.map do |resource|
       resp = yield resource
       Log.debug { "cnf_workload_resource yield resp: #{resp}" }
       resp
@@ -37,7 +37,7 @@ module CNFManager
     resource_resp
   end
 
-  #TODO define cnf_resources
+  # TODO define cnf_resources
   # add all code from cnf_workload resources and the reject from the helm.workload_resource_by_kind
   # (removes helm test annotations)
   # return all the resources
@@ -53,7 +53,7 @@ module CNFManager
     manifest_ymls = cnf_resource_ymls(args, config)
     # call cnf cnf_resources to get unfiltered yml
     resource_ymls = Helm.all_workload_resources(manifest_ymls, default_namespace: CLUSTER_DEFAULT_NAMESPACE)
-    resource_resp = resource_ymls.map do | resource |
+    resource_resp = resource_ymls.map do |resource|
       resp = yield resource
       Log.debug { "cnf_workload_resource yield resp: #{resp}" }
       resp
@@ -62,13 +62,12 @@ module CNFManager
     resource_resp
   end
 
-  #test_passes_completely = workload_resource_test do | cnf_config, resource, container, initialized |
+  # test_passes_completely = workload_resource_test do | cnf_config, resource, container, initialized |
   def self.workload_resource_test(args, config,
                                   check_containers = true,
                                   check_service = false,
-                                  &block  : (NamedTuple(kind: String, name: String, namespace: String),
-                                             JSON::Any, JSON::Any, Bool | Nil) -> Bool | Nil)
-            # resp = yield resource, container, volumes, initialized
+                                  &block : (NamedTuple(kind: String, name: String, namespace: String), JSON::Any, JSON::Any, Bool | Nil) -> Bool | Nil)
+    # resp = yield resource, container, volumes, initialized
     test_passed = true
     resource_ymls = cnf_workload_resources(args, config) do |resource|
       resource
@@ -82,8 +81,8 @@ module CNFManager
       initialized = false
     end
     # todo check to see if following 'resource' variable is conflicting with above resource variable
-		resource_names.each do | resource |
-			Log.trace { resource.inspect }
+    resource_names.each do |resource|
+      Log.trace { resource.inspect }
       volumes = KubectlClient::Get.resource_volumes(kind: resource[:kind], resource_name: resource[:name], namespace: resource[:namespace])
       Log.trace { "check_service: #{check_service}" }
       Log.trace { "check_containers: #{check_containers}" }
@@ -98,26 +97,26 @@ module CNFManager
         end
       else
         containers = KubectlClient::Get.resource_containers(resource[:kind], resource[:name], resource[:namespace])
-				if check_containers
-					containers.as_a.each do |container|
-						resp = yield resource, container, volumes, initialized
-						Log.debug { "yield resp: #{resp}" }
-						# if any response is false, the test fails
-						test_passed = false if resp == false
-					end
-				else
-					resp = yield resource, containers, volumes, initialized
-					Log.debug { "yield resp: #{resp}" }
-					# if any response is false, the test fails
-					test_passed = false if resp == false
-				end
+        if check_containers
+          containers.as_a.each do |container|
+            resp = yield resource, container, volumes, initialized
+            Log.debug { "yield resp: #{resp}" }
+            # if any response is false, the test fails
+            test_passed = false if resp == false
+          end
+        else
+          resp = yield resource, containers, volumes, initialized
+          Log.debug { "yield resp: #{resp}" }
+          # if any response is false, the test fails
+          test_passed = false if resp == false
+        end
       end
-		end
+    end
     Log.debug { "workload resource test intialized: #{initialized} test_passed: #{test_passed}" }
     initialized && test_passed
   end
 
-  def self.cnf_config_list(silent=false)
+  def self.cnf_config_list(silent = false)
     Log.info { "cnf_config_list" }
     find_cmd = "find #{CNF_DIR}/* -name \"#{CONFIG_FILE}\""
     Log.info { "find: #{find_cmd}" }
@@ -128,17 +127,17 @@ module CNFManager
       error: find_stderr = IO::Memory.new
     )
 
-    cnf_testsuite = find_stdout.to_s.split("\n").select{ |x| x.empty? == false }
+    cnf_testsuite = find_stdout.to_s.split("\n").select { |x| x.empty? == false }
     Log.info { "find response: #{cnf_testsuite}" }
     if cnf_testsuite.size == 0 && !silent
       raise "No cnf_testsuite.yml found! Did you run the \"cnf_install\" task?"
     end
     cnf_testsuite
   end
-  
+
   def self.cnf_installed?
     cnf_configs = self.cnf_config_list(silent: true)
-    
+
     if cnf_configs.size == 0
       false
     else
@@ -187,11 +186,16 @@ module CNFManager
   end
 
   def self.ensure_namespace_exists!(name, kubeconfig : String | Nil = nil)
-    KubectlClient::Create.namespace(name, kubeconfig: kubeconfig)
+    if kubeconfig
+      with_kubeconfig(kubeconfig) { KubectlClient::Apply.namespace(name) }
+    else
+      KubectlClient::Apply.namespace(name)
+    end
+
     Log.for("ensure_namespace_exists").info { "Created kubernetes namespace #{name} for the CNF install" }
     cmd = "kubectl label namespace #{name} pod-security.kubernetes.io/enforce=privileged"
     ShellCmd.run(cmd, "Label.namespace")
-  rescue e : KubectlClient::Create::AlreadyExistsError
+  rescue e : KubectlClient::ShellCMD::AlreadyExistsError
     Log.for("ensure_namespace_exists").info { "Kubernetes namespace #{name} already exists for the CNF install" }
     cmd = "kubectl label --overwrite namespace #{name} pod-security.kubernetes.io/enforce=privileged"
     ShellCmd.run(cmd, "Label.namespace")
@@ -218,14 +222,14 @@ module CNFManager
 
   def self.get_and_verify_tgz_name(helm_chart)
     tgz_files = find_tgz_files(helm_chart)
-    
+
     if tgz_files.empty?
       Log.error { "No .tgz files found for #{get_helm_tgz_glob(helm_chart)}" }
       raise TarFileNotFoundError.new(Helm.chart_name(helm_chart))
     elsif tgz_files.size > 1
       Log.warn { "Multiple .tgz files found: #{tgz_files.join(", ")}" }
     end
-  
+
     tgz_files.first
   end
 

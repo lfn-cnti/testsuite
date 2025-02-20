@@ -35,7 +35,7 @@ module SRSRAN
 
     if core 
       all_pods = KubectlClient::Get.pods_by_nodes(KubectlClient::Get.schedulable_nodes_list)
-      ueran_pods = KubectlClient::Get.pods_by_label(all_pods, "app.kubernetes.io/name", "ueransim-gnb")
+      ueran_pods = KubectlClient::Get.pods_by_labels(all_pods, {"app.kubernetes.io/name" => "ueransim-gnb"})
 
       Log.info { "ueran_pods: #{ueran_pods}" }
       unless ueran_pods[0]? == nil
@@ -88,7 +88,7 @@ module SRSRAN
       File.write("#{Dir.current}/ueransim-gnb/resources/ue.yaml", UERANSIM_HELMCONFIG)
       Helm.install("ueransim",  "#{Dir.current}/ueransim-gnb", namespace: "testsuite-5g", values: "--values ./gnb-ues-values.yaml")
       Log.info { "after helm install" }
-      KubectlClient::Get.resource_wait_for_install("Pod", "ueransim", namespace: "testsuite-5g")
+      KubectlClient::Wait.resource_wait_for_install("Pod", "ueransim", namespace: "testsuite-5g")
       true
     else
       false

@@ -319,7 +319,7 @@ describe CnfTestSuite do
       (/(FAILED).*(Resources are created in the default namespace)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
-      KubectlClient::Utils.wait_for_terminations()
+      KubectlClient::Wait.wait_for_terminations()
     end
   end
 
@@ -331,7 +331,7 @@ describe CnfTestSuite do
       (/(PASSED).*(default namespace is not being used)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
-      KubectlClient::Utils.wait_for_terminations()
+      KubectlClient::Wait.wait_for_terminations()
     end
   end
 

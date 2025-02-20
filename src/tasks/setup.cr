@@ -11,14 +11,14 @@ end
 
 task "create_namespace" do |_, args|
   ensure_kubeconfig!
-  if KubectlClient::Create.namespace(TESTSUITE_NAMESPACE)
+  if KubectlClient::Apply.namespace(TESTSUITE_NAMESPACE)
     stdout_success "Created #{TESTSUITE_NAMESPACE} namespace on the Kubernetes cluster"
     cmd = "kubectl label namespace #{TESTSUITE_NAMESPACE} pod-security.kubernetes.io/enforce=privileged"
     ShellCmd.run(cmd, "Label.namespace")
   else
     stdout_failure "Could not create #{TESTSUITE_NAMESPACE} namespace on the Kubernetes cluster"
   end
-rescue e : KubectlClient::Create::AlreadyExistsError
+rescue e : KubectlClient::ShellCMD::AlreadyExistsError
   stdout_success "#{TESTSUITE_NAMESPACE} namespace already exists on the Kubernetes cluster"
   cmd = "kubectl label --overwrite namespace #{TESTSUITE_NAMESPACE} pod-security.kubernetes.io/enforce=privileged"
   ShellCmd.run(cmd, "Label.namespace")
