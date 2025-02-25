@@ -2,7 +2,7 @@ version: 2.0
 shards:
   cluster_tools:
     git: https://github.com/cnf-testsuite/cluster_tools.git
-    version: 1.0.0+git.commit.be18f8ed0228b8fd19e8ca79874b6d85780f86b4
+    version: 1.0.0+git.commit.c586bd570757b94ea32f8219cbcedce71ef74b28
 
   commander:
     git: https://github.com/mrrooijen/commander.git
@@ -34,7 +34,7 @@ shards:
 
   k8s_kernel_introspection:
     git: https://github.com/cnf-testsuite/k8s_kernel_introspection.git
-    version: 1.0.2+git.commit.cfaec10ba4e26a2916c9c53a5e40e8714d4fb7dd
+    version: 1.0.2+git.commit.540e8507742bf810ae40821d089ca69218d2b100
 
   k8s_netstat:
     git: https://github.com/cnf-testsuite/k8s_netstat.git
@@ -46,7 +46,7 @@ shards:
 
   kubectl_client:
     git: https://github.com/cnf-testsuite/kubectl_client.git
-    version: 1.0.6+git.commit.c4e5f6b05266234326b66c4f0459d43b84263e1a
+    version: 1.0.6+git.commit.0c2f05e759404a9a558b0c2e9f68ee4b34daeefa
 
   popcorn:
     git: https://github.com/icyleaf/popcorn.git
