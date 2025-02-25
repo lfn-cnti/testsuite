@@ -137,7 +137,7 @@ task "pod_network_latency", ["install_litmus"] do |t, args|
         KubectlClient::Apply.file(rbac_path)
 
         #TODO Use Labels to Annotate, not resource["name"]
-        KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"")
+        KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"", namespace: app_namespace)
 
         chaos_experiment_name = "pod-network-latency"
         test_name = "#{resource["name"]}-#{Random::Secure.hex(4)}"
@@ -205,7 +205,7 @@ task "pod_network_corruption", ["install_litmus"] do |t, args|
         File.write(rbac_path, rbac_yaml)
         KubectlClient::Apply.file(rbac_path)
  
-        KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"")
+        KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"", namespace: app_namespace)
 
         chaos_experiment_name = "pod-network-corruption"
         test_name = "#{resource["name"]}-#{Random.rand(99)}"
@@ -260,8 +260,8 @@ task "pod_network_duplication", ["install_litmus"] do |t, args|
         rbac_yaml = rbac_yaml.gsub("namespace: default", "namespace: #{app_namespace}")
         File.write(rbac_path, rbac_yaml)
         KubectlClient::Apply.file(rbac_path)
-
-        KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"")
+        puts resource["name"]
+        KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"", namespace: app_namespace)
 
         chaos_experiment_name = "pod-network-duplication"
         test_name = "#{resource["name"]}-#{Random.rand(99)}"
@@ -315,7 +315,7 @@ task "disk_fill", ["install_litmus"] do |t, args|
         File.write(rbac_path, rbac_yaml)
         KubectlClient::Apply.file(rbac_path)
 
-        KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"")
+        KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"", namespace: app_namespace)
 
         chaos_experiment_name = "disk-fill"
         test_name = "#{resource["name"]}-#{Random.rand(99)}"
@@ -402,7 +402,7 @@ task "pod_delete", ["install_litmus"] do |t, args|
         KubectlClient::Apply.file(rbac_path)
 
         Log.info { "resource: #{resource["name"]}" }
-        KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"")
+        KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"", namespace: app_namespace)
 
         chaos_experiment_name = "pod-delete"
         target_pod_name = ""
@@ -473,7 +473,7 @@ task "pod_memory_hog", ["install_litmus"] do |t, args|
         File.write(rbac_path, rbac_yaml)
         KubectlClient::Apply.file(rbac_path)
 
-        KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"")
+        KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"", namespace: app_namespace)
 
         chaos_experiment_name = "pod-memory-hog"
         target_pod_name = ""
@@ -531,7 +531,7 @@ task "pod_io_stress", ["install_litmus"] do |t, args|
         File.write(rbac_path, rbac_yaml)
         KubectlClient::Apply.file(rbac_path)
 
-        KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"")
+        KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"", namespace: app_namespace)
 
         chaos_experiment_name = "pod-io-stress"
         target_pod_name = ""
@@ -596,7 +596,7 @@ task "pod_dns_error", ["install_litmus"] do |t, args|
           File.write(rbac_path, rbac_yaml)
           KubectlClient::Apply.file(rbac_path)
 
-          KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"")
+          KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"", namespace: app_namespace)
 
           chaos_experiment_name = "pod-dns-error"
           target_pod_name = ""
