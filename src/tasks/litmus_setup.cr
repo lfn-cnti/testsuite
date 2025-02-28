@@ -28,7 +28,10 @@ task "uninstall_litmus" do |_, args|
       output: stdout = IO::Memory.new,
       error: stderr = IO::Memory.new
   )
-  KubectlClient::Delete.file("https://litmuschaos.github.io/litmus/litmus-operator-v#{LitmusManager::Version}.yaml", namespace: LitmusManager::LITMUS_NAMESPACE)
+  begin
+    KubectlClient::Delete.file("https://litmuschaos.github.io/litmus/litmus-operator-v#{LitmusManager::Version}.yaml", namespace: LitmusManager::LITMUS_NAMESPACE)
+  rescue KubectlClient::ShellCMD::NotFoundError
+  end
   Log.info { stdout }
   Log.info { stderr }
 end

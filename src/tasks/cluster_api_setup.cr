@@ -61,7 +61,7 @@ desc "Uninstall Cluster API"
 task "cluster_api_uninstall" do |_, args|
   current_dir = FileUtils.pwd 
   delete_cluster_file = "#{current_dir}/capi.yaml"
-  KubectlClient::Delete.file("#{delete_cluster_file}")
+  begin KubectlClient::Delete.file("#{delete_cluster_file}") rescue KubectlClient::ShellCMD::NotFoundError end
 
   cmd = "clusterctl delete --all --include-crd --include-namespace"
   Process.run(cmd, shell: true, output: stdout = IO::Memory.new, error: stderr = IO::Memory.new)

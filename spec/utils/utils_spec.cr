@@ -84,7 +84,7 @@ describe "Utils" do
         Log.info { "white_list_container_names #{white_list_container_names.inspect}" }
         violation_list = [] of String
         resource_response = CNFManager.workload_resource_test(args, config) do |resource, container, initialized|
-          privileged_list = KubectlClient::Get.privileged_containers.dig("name").as_a.uniq
+          privileged_list = KubectlClient::Get.privileged_containers(all_namespaces: true).map { |container| container.dig("name") }.uniq
           resource_containers = KubectlClient::Get.resource_containers(resource["kind"],resource["name"],resource["namespace"])
           resource_containers_list = (JSON.parse(resource_containers.to_json).as_a).map { |element| element["name"] }
           # Only check the containers that are in the deployed helm chart or manifest

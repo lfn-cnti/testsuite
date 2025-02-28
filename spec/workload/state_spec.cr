@@ -65,7 +65,9 @@ describe "State" do
     begin
       # update the helm parameter with a schedulable node for the pv chart
       schedulable_nodes = KubectlClient::Get.schedulable_nodes_list
-      update_yml("sample-cnfs/sample-local-storage/worker-node-value.yml", "worker_node", "#{schedulable_nodes[0]}")
+      schedulable_nodes.should_not be_empty
+
+      update_yml("sample-cnfs/sample-local-storage/worker-node-value.yml", "worker_node", schedulable_nodes[0].dig("metadata", "name"))
       ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-local-storage/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("no_local_volume_configuration")
       (/(FAILED).*(local storage configuration volumes found)/ =~ result[:output]).should_not be_nil

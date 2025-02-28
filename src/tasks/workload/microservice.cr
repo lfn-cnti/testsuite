@@ -696,7 +696,7 @@ task "service_discovery" do |t, args|
     end
 
     # Get all the pods in the cluster
-    pods = KubectlClient::Get.resource("pods").dig("items").as_a
+    pods = KubectlClient::Get.resource("pods", all_namespaces: true).dig("items").as_a
 
     # Get pods for the services in the CNF based on the labels
     test_passed = false
