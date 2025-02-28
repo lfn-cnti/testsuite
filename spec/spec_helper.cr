@@ -5,6 +5,7 @@ require "../src/tasks/utils/utils.cr"
 require "../src/modules/tar/tar.cr"
 require "../src/modules/git/git.cr"
 require "../src/modules/release_manager/release_manager.cr"
+require "../src/modules/kernel_introspection/kernel_introspection.cr"
 
 ENV["CRYSTAL_ENV"] = "TEST" 
 
