@@ -3,7 +3,8 @@ require "colorize"
 require "../src/cnf_testsuite"
 require "../src/tasks/utils/utils.cr"
 require "../src/modules/tar/tar.cr"
-require "../src/modules/git.cr"
+require "../src/modules/git/git.cr"
+require "../src/modules/release_manager/release_manager.cr"
 
 ENV["CRYSTAL_ENV"] = "TEST" 
 
