@@ -43,10 +43,8 @@ module CNFInstall
     end
 
     def uninstall()
-      deployment_name = get_deployment_name()
-      helm_uninstall_cmd = "#{deployment_name} -n #{get_deployment_namespace()}"
       begin
-        result = Helm.uninstall(helm_uninstall_cmd)
+        result = Helm.uninstall(get_deployment_name(), get_deployment_namespace())
       rescue ex : Helm::ShellCMD::ReleaseNotFound
         false
       else
