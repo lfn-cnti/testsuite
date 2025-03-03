@@ -64,7 +64,7 @@ describe "Private Registry: Image" do
     begin
       delete_registry = KubectlClient::Delete.file(registry_manifest_path.to_s)
     rescue ex : KubectlClient::ShellCMD::UnspecifiedError
-      unless /this namespace may not be deleted/i.match(ex.message)
+      unless /this namespace may not be deleted/i.match("#{ex.message}")
         raise ex
       end
     end
