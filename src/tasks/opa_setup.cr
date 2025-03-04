@@ -28,7 +28,7 @@ task "install_opa", ["helm_local_install", "create_namespace"] do |_, args|
 
   File.write("enforce-image-tag.yml", ENFORCE_IMAGE_TAG)
   File.write("constraint_template.yml", CONSTRAINT_TEMPLATE)
-  KubectlClient::Apply.file("constraint_template.yml")
+  KubectlClient::Wait.wait_for_install_by_apply("constraint_template.yml")
   KubectlClient::Wait.wait_for_condition("crd", "requiretags.constraints.gatekeeper.sh", "condition=established", 300)
   KubectlClient::Apply.file("enforce-image-tag.yml")
 end

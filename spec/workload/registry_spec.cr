@@ -132,7 +132,15 @@ describe "Private Registry: Rolling" do
   end  
 
   after_all do
-    delete_registry = KubectlClient::Delete.file(registry_manifest_path.to_s)
+    # TODO (rafal-lal): Why manifest file has 'default' namespace defined in it?
+    # We wouldn't need to catch this exception otherwise.
+    begin
+      delete_registry = KubectlClient::Delete.file(registry_manifest_path.to_s)
+    rescue ex : KubectlClient::ShellCMD::UnspecifiedError
+      unless /this namespace may not be deleted/i.match("#{ex.message}")
+        raise ex
+      end
+    end
     Dockerd.uninstall
   end	
 end
