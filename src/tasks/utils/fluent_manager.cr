@@ -86,6 +86,8 @@ module FluentManager
     fluent_pods.each do |fluent_pod|
       fluent_pod_name = fluent_pod.dig("metadata", "name").as_s
       logs = KubectlClient::Utils.logs(fluent_pod_name, namespace: TESTSUITE_NAMESPACE)
+      puts "!!!DEBUG!!!"
+      puts logs[:output]
       Log.info { "Searching logs of #{fluent_pod_name} for string #{pod_name}" }
       Log.debug { "Fluent logs: #{logs}" }
       return true if logs[:output].to_s.includes?(pod_name)
