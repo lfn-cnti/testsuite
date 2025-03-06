@@ -47,9 +47,9 @@ task "liveness" do |t, args|
     end
     Log.for(t.name).info { "Workload resource task response: #{task_response}" }
     if task_response
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Helm liveness probe found")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Helm liveness probe found")
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "No livenessProbe found")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "No livenessProbe found")
     end
   end
 end
@@ -74,9 +74,9 @@ task "readiness" do |t, args|
     end
     Log.for(t.name).info { "Workload resource task response: #{task_response}" }
     if task_response
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Helm readiness probe found")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Helm readiness probe found")
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "No readinessProbe found")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "No readinessProbe found")
     end
   end
 end
@@ -171,9 +171,9 @@ task "pod_network_latency", ["install_litmus"] do |t, args|
     unless args.named["pod_labels"]?
         #todo if in pod specific mode, dont do upserts and resp = ""
         if task_response
-          CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "pod_network_latency chaos test passed")
+          CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "pod_network_latency chaos test passed")
         else
-          CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "pod_network_latency chaos test failed")
+          CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "pod_network_latency chaos test failed")
         end
     end
 
@@ -227,9 +227,9 @@ task "pod_network_corruption", ["install_litmus"] do |t, args|
       end
     end
     if task_response
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "pod_network_corruption chaos test passed")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "pod_network_corruption chaos test passed")
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "pod_network_corruption chaos test failed")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "pod_network_corruption chaos test failed")
     end
   end
 end
@@ -283,9 +283,9 @@ task "pod_network_duplication", ["install_litmus"] do |t, args|
       end
     end
     if task_response
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "pod_network_duplication chaos test passed")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "pod_network_duplication chaos test passed")
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "pod_network_duplication chaos test failed")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "pod_network_duplication chaos test failed")
     end
   end
 end
@@ -340,9 +340,9 @@ task "disk_fill", ["install_litmus"] do |t, args|
       test_passed
     end
     if task_response
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "disk_fill chaos test passed")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "disk_fill chaos test passed")
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "disk_fill chaos test failed")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "disk_fill chaos test failed")
     end
   end
 end
@@ -440,9 +440,9 @@ task "pod_delete", ["install_litmus"] do |t, args|
     end
     unless args.named["pod_labels"]?
         if task_response
-          CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "pod_delete chaos test passed")
+          CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "pod_delete chaos test passed")
         else
-          CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "pod_delete chaos test failed")
+          CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "pod_delete chaos test failed")
         end
     end
   end
@@ -499,9 +499,9 @@ task "pod_memory_hog", ["install_litmus"] do |t, args|
       test_passed
     end
     if task_response
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "pod_memory_hog chaos test passed")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "pod_memory_hog chaos test passed")
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "pod_memory_hog chaos test failed")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "pod_memory_hog chaos test failed")
     end
   end
 end
@@ -556,9 +556,9 @@ task "pod_io_stress", ["install_litmus"] do |t, args|
       end
     end
     if task_response
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "pod_io_stress chaos test passed")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "pod_io_stress chaos test passed")
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "pod_io_stress chaos test failed")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "pod_io_stress chaos test failed")
     end
   end
 ensure
@@ -619,12 +619,12 @@ task "pod_dns_error", ["install_litmus"] do |t, args|
         end
       end
       if task_response
-        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "pod_dns_error chaos test passed")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "pod_dns_error chaos test passed")
       else
-        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "pod_dns_error chaos test failed")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "pod_dns_error chaos test failed")
       end
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Skipped, "pod_dns_error docker runtime not found")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "pod_dns_error docker runtime not found")
     end
   end
 end

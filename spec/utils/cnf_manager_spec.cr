@@ -29,9 +29,9 @@ describe "SampleUtils" do
 
   it  "'task_points(, false)' should return the amount of points for a failing test", tags: ["points"]  do
     # default
-    (CNFManager::Points.task_points("liveness", false)).should eq(0)
+    (CNFManager::Points.task_points("liveness", CNFManager::ResultStatus::Failed)).should eq(0)
     # assigned
-    (CNFManager::Points.task_points("increase_decrease_capacity", false)).should eq(0)
+    (CNFManager::Points.task_points("increase_decrease_capacity", CNFManager::ResultStatus::Failed)).should eq(0)
   end
 
   it  "'task_points(, skipped)' should return the amount of points for a skipped test", tags: ["points"]  do
@@ -103,19 +103,6 @@ describe "SampleUtils" do
     (CNFManager::Points.all_task_test_names()).sort.should eq(tags.sort)
   end
 
-  it "'CNFManager::Points.all_result_test_names' should return the tasks assigned to a tag", tags: ["points"] do
-    CNFManager::Points.clean_results_yml
-    CNFManager::Points.upsert_task("liveness", PASSED, CNFManager::Points.task_points("liveness"), Time.utc)
-    (CNFManager::Points.all_result_test_names(CNFManager::Points::Results.file)).should eq(["liveness"])
-  end
-  it "'CNFManager::Points.results_by_tag' should return a list of results by tag", tags: ["points"] do
-    CNFManager::Points.clean_results_yml
-    CNFManager::Points.upsert_task("liveness", PASSED, CNFManager::Points.task_points("liveness"), Time.utc)
-    (CNFManager::Points.results_by_tag("resilience")).should eq([{"name" => "liveness", "status" => "passed", "type" => "essential", "points" => 100}])
-    (CNFManager::Points.results_by_tag("does-not-exist")).should eq([] of YAML::Any) 
-  end
-
-
   it "'#CNFManager::Points::Results.file' should return the name of the current yaml file", tags: ["points"]  do
     CNFManager::Points.clean_results_yml
     yaml = File.open("#{CNFManager::Points::Results.file}") do |file|
@@ -123,10 +110,6 @@ describe "SampleUtils" do
     end
     (yaml["name"]).should eq("cnf testsuite")
     (yaml["exit_code"]).should eq(0) 
-  end
-
-  it "'CNFManager::Points.final_cnf_results_yml. should return the latest time stamped results file", tags: ["points"]  do
-    (CNFManager::Points.final_cnf_results_yml).should contain("cnf-testsuite-results")
   end
 
   it "'validate_config' should pass, when a cnf has a valid config file yml", tags: ["validate_config"]  do

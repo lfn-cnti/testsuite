@@ -24,9 +24,9 @@ namespace "platform" do
       end
       Log.info { "all_oci_runtimes: #{all_oci_runtimes}" }
       if all_oci_runtimes
-        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Your platform is using the following runtimes: [#{KubectlClient::Get.container_runtimes.join(",")}] which are OCI compliant runtimes")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Your platform is using the following runtimes: [#{KubectlClient::Get.container_runtimes.join(",")}] which are OCI compliant runtimes")
       else
-        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Platform has at least one node that uses a non OCI compliant runtime")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Platform has at least one node that uses a non OCI compliant runtime")
       end
     end
   end

@@ -1,6 +1,6 @@
 require "totem"
 require "colorize"
-require "./cnf_manager.cr"
+require "./cnf_manager/cnf_manager.cr"
 require "halite"
 
 module OPA
