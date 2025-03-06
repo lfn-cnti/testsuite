@@ -157,8 +157,12 @@ end
 desc "Does the CNF emit prometheus open metric compatible traffic"
 task "open_metrics", ["prometheus_traffic"] do |t, args|
   task_response = CNFManager::Task.task_runner(args, task: t) do |args, config|
-    configmap = KubectlClient::Get.resource("configmap", "cnf-testsuite-open-metrics")
-    if configmap != EMPTY_JSON
+    begin
+      configmap = KubectlClient::Get.resource("configmap", "cnf-testsuite-open-metrics")
+    rescue KubectlClient::ShellCMD::NotFoundError
+    end
+
+    if !configmap.nil? && configmap != EMPTY_JSON
       open_metrics_validated = configmap["data"].as_h["open_metrics_validated"].as_s
 
       if open_metrics_validated == "true"
