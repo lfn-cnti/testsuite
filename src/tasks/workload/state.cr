@@ -345,11 +345,11 @@ task "node_drain", ["install_litmus"] do |t, args|
     end
     if skipped
       Log.for(t.name).warn{"The node_drain test needs minimum 2 schedulable nodes, current number of nodes: #{KubectlClient::Get.schedulable_nodes_list.size}"}
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Skipped, "node_drain chaos test requires the cluster to have atleast two schedulable nodes")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "node_drain chaos test requires the cluster to have atleast two schedulable nodes")
     elsif task_response
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "node_drain chaos test passed")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "node_drain chaos test passed")
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "node_drain chaos test failed")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "node_drain chaos test failed")
     end
   end
 end
@@ -379,11 +379,11 @@ task "elastic_volumes" do |t, args|
 
     Log.for("elastic_volumes:result").info { "Volumes used: #{volumes_used}; Elastic?: #{all_volumes_elastic}" }
     if volumes_used == false
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Skipped, "No volumes are used")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "No volumes are used")
     elsif all_volumes_elastic
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "All used volumes are elastic")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "All used volumes are elastic")
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Some of the used volumes are not elastic")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Some of the used volumes are not elastic")
     end
   end
 
@@ -431,12 +431,12 @@ task "database_persistence" do |t, args|
         end
       end
       if statefulset_found && !non_elastic_database_statefulset_found
-        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Pass5, "CNF uses database with cloud-native persistence")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Pass5, "CNF uses database with cloud-native persistence")
       else
-        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "CNF uses database without cloud-native persistence (ভ_ভ) ރ 💾")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "CNF uses database without cloud-native persistence (ভ_ভ) ރ 💾")
       end
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Skipped, "CNF does not use database")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "CNF does not use database")
     end
   end
 
@@ -502,9 +502,9 @@ task "no_local_volume_configuration" do |t, args|
     end
 
     if task_response.any?(false)
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "local storage configuration volumes found (ভ_ভ) ރ")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "local storage configuration volumes found (ভ_ভ) ރ")
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "local storage configuration volumes not found 🖥️")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "local storage configuration volumes not found 🖥️")
     end
   end
 end

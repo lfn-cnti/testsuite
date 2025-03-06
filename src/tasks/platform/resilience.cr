@@ -16,7 +16,7 @@ namespace "platform" do
   task "worker_reboot_recovery" do |t, args|
     task_response = CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args|
       unless check_destructive(args)
-        next CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Skipped, "Node not in destructive mode")
+        next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Node not in destructive mode")
       end
       Log.info { "Running POC in destructive mode!" }
       current_dir = FileUtils.pwd
@@ -43,7 +43,7 @@ namespace "platform" do
         end
 
         if !execution_complete
-          next CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Failed to install reboot daemon")
+          next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Failed to install reboot daemon")
         end
 
         # Find Reboot Daemon name
@@ -60,7 +60,7 @@ namespace "platform" do
         end
 
         if !execution_complete
-          next CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Node failed to go offline")
+          next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Node failed to go offline")
         end
 
         #Watch for Node to come back online
@@ -74,10 +74,10 @@ namespace "platform" do
         end
 
         if !execution_complete
-          next CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Node failed to come back online")
+          next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Node failed to come back online")
         end
         
-        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Node came back online")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Node came back online")
       ensure
         Log.info { "node_failure cleanup" }
         delete_reboot_daemon = KubectlClient::Delete.file("reboot_daemon_pod.yml")

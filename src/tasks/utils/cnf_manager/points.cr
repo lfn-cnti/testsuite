@@ -3,9 +3,7 @@ require "colorize"
 require "helm"
 require "uuid"
 
-
 module CNFManager
-
   enum ResultStatus
     Passed
     Failed
@@ -16,7 +14,7 @@ module CNFManager
     Pass3
     Error
 
-    def to_basic()
+    def to_basic
       case self
       when Pass5, Pass3
         ret = CNFManager::ResultStatus::Passed
@@ -28,35 +26,28 @@ module CNFManager
     end
   end
 
-  struct TestcaseResult
+  struct TestCaseResult
     property state, result_message
 
-    def initialize(@state : CNFManager::ResultStatus, @result_message : String|Nil = nil)
+    def initialize(@state : CNFManager::ResultStatus, @result_message : String? = nil)
     end
   end
 
   module Points
+    @@logger : ::Log = Log.for("Points")
+
     class Results
-
-      enum ResultStatus
-        Passed
-        Failed
-        Skipped
-        NA
-        Neutral
-        Pass5
-        Pass3
-      end
-
       @@file : String = ""
       # @@file_used variable is needed to avoid recreation of the file
       @@file_used : Bool = false
 
+      @@logger : ::Log = Log.for("Points").for("Results")
+
       def self.file
         unless @@file_used || self.file_exists?
           @@file = CNFManager::Points.create_final_results_yml_name
-          self._create_file
-          Log.debug { "Results.file created: #{@@file}" }
+          self.create_file
+          @@logger.for("file").debug { "Results file created: #{@@file}" }
         end
         @@file_used = true
         @@file
@@ -66,10 +57,8 @@ module CNFManager
         !@@file.blank? && File.exists?(@@file)
       end
 
-      def self._create_file
-        File.open(@@file, "w") do |f|
-          YAML.dump(CNFManager::Points.template_results_yml, f)
-        end
+      private def self.create_file
+        File.open(@@file, "w") { |f| YAML.dump(CNFManager::Points.template_results_yml, f) }
       end
 
       def self.ensure_results_file!
@@ -80,12 +69,10 @@ module CNFManager
     end
 
     def self.points_yml
-      points = File.open("points.yml") do |f|
-        YAML.parse(f)
-      end
+      points = File.open("points.yml") { |f| YAML.parse(f) }
       points.as_a
     end
-    
+
     def self.create_points_yml
       EmbeddedFileManager.points_yml_write_file
     end
@@ -94,36 +81,36 @@ module CNFManager
       begin
         FileUtils.mkdir_p("results") unless Dir.exists?("results")
       rescue File::AccessDeniedError
-        Log.error {"ERROR: missing write permission in current directory"}
+        stdout_failure("ERROR: missing write permission in current directory")
+        @@logger.for("create_final_results_yml_name").error { "Could not create ./results directory, access denied" }
         exit 1
       end
       "results/cnf-testsuite-results-" + Time.local.to_s("%Y%m%d-%H%M%S-%L") + ".yml"
     end
 
-    def self.clean_results_yml()
+    def self.clean_results_yml
       if File.exists?("#{Results.file}")
-        results = File.open("#{Results.file}") do |f|
-          YAML.parse(f)
-        end
+        results = File.open("#{Results.file}") { |f| YAML.parse(f) }
         File.open("#{Results.file}", "w") do |f|
-          YAML.dump({name: results["name"],
-                     # testsuite_version: CnfTestSuite::VERSION,
+          YAML.dump({name:              results["name"],
                      testsuite_version: ReleaseManager::VERSION,
-                     status: results["status"],
-                     exit_code: results["exit_code"],
-                     points: results["points"],
-                     items: [] of YAML::Any}, f)
+                     status:            results["status"],
+                     exit_code:         results["exit_code"],
+                     points:            results["points"],
+                     items:             [] of YAML::Any},
+            f)
         end
       end
     end
 
-    def self.dynamic_task_points(task, status_name)
-      points =points_yml.find {|x| x["name"] == task}
-      Log.warn { "****Warning**** task #{task} not found in points.yml".colorize(:yellow) } unless points
+    private def self.dynamic_task_points(task, status_name) : Int32?
+      points = points_yml.find { |x| x["name"] == task }
+      @@logger.for("dynamic_task_points").warn { "Task: #{task} not found in points.yml" } unless points
+
       if points && points[status_name]?
-          resp = points[status_name].as_i if points
+        resp = points[status_name].as_i if points
       else
-        points =points_yml.find {|x| x["name"] == "default_scoring"}
+        points = points_yml.find { |x| x["name"] == "default_scoring" }
         resp = points[status_name].as_i if points
       end
       resp
@@ -131,62 +118,26 @@ module CNFManager
 
     # Returns what the potential points should be (for a points type) in order to assign those points to a task
     def self.task_points(task, status : CNFManager::ResultStatus = CNFManager::ResultStatus::Passed)
-      #todo replace case statement with dynamic point call
       case status
       when CNFManager::ResultStatus::Passed
-        resp = CNFManager::Points.task_points(task, true)
+        resp = dynamic_task_points(task, "pass")
       when CNFManager::ResultStatus::Failed
-        resp = CNFManager::Points.task_points(task, false)
+        resp = dynamic_task_points(task, "fail")
       when CNFManager::ResultStatus::Skipped
         resp = dynamic_task_points(task, "skipped")
-        # field_name = "skipped"
-        # points =points_yml.find {|x| x["name"] == task}
-        # Log.warn { "****Warning**** task #{task} not found in points.yml".colorize(:yellow) } unless points
-        # if points && points[field_name]?
-        #     resp = points[field_name].as_i if points
-        # else
-        #   points =points_yml.find {|x| x["name"] == "default_scoring"}
-        #   resp = points[field_name].as_i if points
-        # end
       when CNFManager::ResultStatus::NA
         resp = dynamic_task_points(task, "na")
-        # field_name = "na"
-        # points =points_yml.find {|x| x["name"] == task}
-        # Log.warn { "****Warning**** task #{task} not found in points.yml".colorize(:yellow) } unless points
-        # if points && points[field_name]?
-        #     resp = points[field_name].as_i if points
-        # else
-        #   points =points_yml.find {|x| x["name"] == "default_scoring"}
-        #   resp = points[field_name].as_i if points
-        # end
       when CNFManager::ResultStatus::Error
         resp = 0
       else
         resp = dynamic_task_points(task, status.to_s.downcase)
       end
-      Log.info { "task_points: task: #{task} is worth: #{resp} points" }
+      @@logger.for("task_points").info { "Task: #{task} is worth: #{resp} points" }
       resp
     end
 
-    # Returns what the potential points should be (for a points type of true or false) in order to assign those points to a task
-    def self.task_points(task, passed=true)
-      if passed
-        field_name = "pass"
-      else
-        field_name = "fail"
-      end
-      points =points_yml.find {|x| x["name"] == task}
-      Log.warn { "****Warning**** task #{task} not found in points.yml".colorize(:yellow) } unless points
-      if points && points[field_name]?
-          points[field_name].as_i if points
-      else
-        points =points_yml.find {|x| x["name"] == "default_scoring"}
-        points[field_name].as_i if points
-      end
-    end
-
     def self.tasks_by_tag_intersection(tags)
-      tasks = tags.reduce([] of String) do |acc, t| 
+      tasks = tags.reduce([] of String) do |acc, t|
         if acc.empty?
           acc = tasks_by_tag(t)
         else
@@ -195,237 +146,148 @@ module CNFManager
       end
     end
 
-    # Gets the total assigned points for a tag (or all total points) from the results file
-    # Usesful for calculation categories total
-    def self.total_points(tag=nil)
-      total_points([tag])
+    # Gets the total assigned points for a tag (or all total points) from the results file.
+    # Usesful for calculation categories total.
+    def self.total_points(tag = nil) : Int32
+      total_tasks_passed([tag])[0]
     end
 
-    def self.total_points(tags : Array(String) = [] of String)
+    def self.total_points(tags : Array(String) = [] of String) : Int32
+      total_tasks_passed(tags)[0]
+    end
+
+    def self.total_passed(tag = nil) : Int32
+      total_tasks_passed([tag])[1]
+    end
+
+    def self.total_passed(tags : Array(String) = [] of String) : Int32
+      total_tasks_passed(tags)[1]
+    end
+
+    private def self.total_tasks_passed(tags : Array(String) = [] of String) : Tuple(Int32, Int32)
+      logger = @@logger.for("total_tasks_passed")
       if !tags.empty?
         tasks = tasks_by_tag_intersection(tags)
       else
         tasks = all_task_test_names
       end
-      yaml = File.open("#{Results.file}") do |file|
-        YAML.parse(file)
-      end
-      Log.debug { "total_points: #{tags}, found tasks: #{tasks}" }
-      total = yaml["items"].as_a.reduce(0) do |acc, i|
-        Log.debug { "total_points: #{tags}, #{i["name"].as_s} = #{i["points"].as_i}" }
-        if i["points"].as_i? && i["name"].as_s? &&
-            tasks.find{|x| x == i["name"]}
-          (acc + i["points"].as_i)
-        else
-          acc
+
+      yaml = File.open("#{Results.file}") { |file| YAML.parse(file) }
+      logger.debug { "Found tasks: #{tasks} for tags: #{tags}" }
+
+      total_passed = 0
+      total_points = 0
+      yaml["items"].as_a.map do |elem|
+        if elem["points"].as_i? && elem["name"].as_s? && tasks.find { |x| x == elem["name"] }
+          total_points += elem["points"].as_i
+          if elem["points"].as_i > 0
+            total_passed += 1
+          end
         end
       end
-      Log.info { "total_points: #{tags} = #{total}" }
-      total
+      logger.info { "Total points scored: #{total_points}, total tasks passed: #{total_passed} for tags: #{tags}" }
+
+      {total_points, total_passed}
     end
 
-    def self.total_passed(tag=nil)
-      total_passed([tag])
-    end
-
-    def self.total_passed(tags : Array(String) = [] of String)
-      Log.debug { "total_passed: #{tags}" }
-      if !tags.empty?
-        tasks = tasks_by_tag_intersection(tags)
-      else
-        tasks = all_task_test_names
-      end
-      yaml = File.open("#{Results.file}") do |file|
-        YAML.parse(file)
-      end
-      Log.debug { "total_points: #{tags}, found tasks: #{tasks}" }
-      total = yaml["items"].as_a.reduce(0) do |acc, i|
-        Log.debug { "total_points: #{tags}, #{i["name"].as_s} = #{i["points"].as_i}" }
-        if i["points"].as_i? && i["points"].as_i > 0 && i["name"].as_s? &&
-            tasks.find{|x| x == i["name"]}
-          # (acc + i["points"].as_i)
-          (acc + 1)
-        else
-          acc
-        end
-      end
-      Log.info { "total_passed: #{tags} = #{total}" }
-      total
-    end
-
-    def self.na_assigned?(task)
-      yaml = File.open("#{Results.file}") do |file|
-        YAML.parse(file)
-      end
+    private def self.na_assigned?(task : String) : YAML::Any?
+      yaml = File.open("#{Results.file}") { |file| YAML.parse(file) }
       assigned = yaml["items"].as_a.find do |i|
-        Log.debug { "total_points: #{task}, #{i["name"].as_s} = #{i["points"].as_i} status = #{i["status"]}" }
-        if i["name"].as_s? && i["name"].as_s == task && i["status"].as_s? && i["status"] == NA 
+        if i["name"].as_s? && i["name"].as_s == task && i["status"].as_s? && i["status"] == NA
           true
         end
       end
-      Log.info { "assigned: #{assigned}" }
-      assigned 
+      @@logger.for("na_assigned?").debug { "NA status assigned for task: #{task}" }
+      assigned
     end
 
-    # Calculates the total potential points
-    def self.total_max_points(tag=nil)
-      total_max_points([tag])
+    # Calculates the total potential points.
+    def self.total_max_points(tag = nil) : Int32
+      total_max_tasks_passed([tag])[0]
     end
 
-    # Calculates the total potential points
-    def self.total_max_points(tags : Array(String) = [] of String)
-      Log.debug { "total_max_points tag: #{tags}" }
+    def self.total_max_points(tags : Array(String) = [] of String) : Int32
+      total_max_tasks_passed(tags)[0]
+    end
+
+    def self.total_max_passed(tag = nil) : Int32
+      total_max_tasks_passed([tag])[1]
+    end
+
+    def self.total_max_passed(tags : Array(String) = [] of String) : Int32
+      total_max_tasks_passed(tags)[1]
+    end
+
+    # Calculates the total potential points.
+    private def self.total_max_tasks_passed(tags : Array(String) = [] of String) : Tuple(Int32, Int32)
+      logger = @@logger.for("total_max_tasks_passed")
       if !tags.empty?
         tasks = tasks_by_tag_intersection(tags)
       else
         tasks = all_task_test_names
       end
 
-      Log.debug { "tasks - bonus tasks: #{tasks.size}" }
-
-      results_yaml = File.open("#{Results.file}") do |file|
-        YAML.parse(file)
-      end
-
-      skipped_tests = results_yaml["items"].as_a.reduce([] of String) do |acc, test_info|
+      yaml = File.open("#{Results.file}") { |file| YAML.parse(file) }
+      skipped_tests = yaml["items"].as_a.reduce([] of String) do |acc, test_info|
         if test_info["status"] == "skipped"
           acc + [test_info["name"].as_s]
         else
           acc
         end
       end
+      logger.info { "Skipped tests: #{skipped_tests}" }
 
-      Log.info { "skipped tests #{skipped_tests}" }
-
-      failed_tests = results_yaml["items"].as_a.reduce([] of String) do |acc, test_info|
+      failed_tests = yaml["items"].as_a.reduce([] of String) do |acc, test_info|
         if test_info["status"] == "failed"
           acc + [test_info["name"].as_s]
         else
           acc
         end
       end
-
-      Log.info { "failed tests #{failed_tests}" }
+      logger.info { "Failed tests: #{failed_tests}" }
 
       bonus_tasks = tasks_by_tag("bonus")
-      Log.info { "bonus tasks #{bonus_tasks}" }
+      logger.info { "Bonus tests: #{failed_tests}" }
 
-      max = tasks.reduce(0) do |acc, x|
-        Log.info { "task reduce x: #{x}" }
-        Log.info { "bonus_tasks.includes?(x) #{bonus_tasks.includes?(x)}" }
-        Log.info { "skipped_tests.includes?(x) #{skipped_tests.includes?(x)}" }
-        Log.info { "failed_tests.includes?(x) #{failed_tests.includes?(x)}" }
-        Log.info { "na_assigned?(x) #{na_assigned?(x)}" }
+      max_points = 0
+      max_passed = 0
+      tasks.each do |x|
+        logger.info { sprintf("Task: %s -> failed: %s, skipped: NA: %s, bonus: %s",
+          x, failed_tests.includes?(x), skipped_tests.includes?(x), na_assigned?(x), bonus_tasks.includes?(x)) }
         if na_assigned?(x)
-          Log.info { "na_assigned for #{x}" }
-          acc
+          next
         elsif bonus_tasks.includes?(x) && (failed_tests.includes?(x) || skipped_tests.includes?(x))
-          Log.info { "bonus not counted in maximum #{x}" }
-          #don't count failed tests that are bonus tests #1465
-          acc
+          logger.debug { "Bonus tasks not counted in maximum" }
+          # Don't count failed tests that are bonus tests #1465.
+          next
         else
           points = task_points(x)
           if points
-            acc + points
+            max_points += points
+            max_passed += 1
           else
-            acc
+            next
           end
         end
       end
-      Log.info { "total_max_points: #{tags} = #{max}" }
-      max
+      logger.info { "Max points scored: #{max_points}, max tasks passed: #{max_passed} for tags: #{tags}" }
+
+      {max_points, max_passed}
     end
-
-    def self.total_max_passed(tag=nil)
-      total_max_passed([tag])
-    end
-
-    def self.total_max_passed(tags : Array(String) = [] of String)
-      Log.debug { "total_max_passed tag: #{tags}" }
-      if !tags.empty?
-        tasks = tasks_by_tag_intersection(tags)
-      else
-        tasks = all_task_test_names
-      end
-      Log.info { "total_max_passed tasks: #{tasks}" }
-
-      results_yaml = File.open("#{Results.file}") do |file|
-        YAML.parse(file)
-      end
-
-      skipped_tests = results_yaml["items"].as_a.reduce([] of String) do |acc, test_info|
-        Log.info { "skipped test_info status: #{test_info["status"]}" }
-        if test_info["status"] == "skipped"
-          acc + [test_info["name"].as_s]
-        else
-          acc
-        end
-      end
-
-      failed_tests = results_yaml["items"].as_a.reduce([] of String) do |acc, test_info|
-        if test_info["status"] == "failed"
-          acc + [test_info["name"].as_s]
-        else
-          acc
-        end
-      end
-
-      Log.info { "failed tests #{failed_tests}" }
-
-      bonus_tasks = tasks_by_tag("bonus")
-      Log.info { "bonus tasks #{bonus_tasks}" }
-
-      max = tasks.reduce(0) do |acc, x|
-        Log.info { "bonus_tasks.includes?(x) #{bonus_tasks.includes?(x)}" }
-        Log.info { "skipped_tests.includes?(x) #{skipped_tests.includes?(x)}" }
-        Log.info { "failed_tests.includes?(x) #{failed_tests.includes?(x)}" }
-        Log.info { "na_assigned?(x) #{na_assigned?(x)}" }
-        Log.info { "tasks x: #{x}" }
-        # skipped counted against max score (not reduced), na not counted (reduced)
-        if na_assigned?(x)
-          Log.info { "na_assigned for #{x}" }
-          acc
-        elsif bonus_tasks.includes?(x) && (failed_tests.includes?(x) || skipped_tests.includes?(x))
-          Log.info { "bonus not counted in maximum #{x}" }
-          #don't count failed tests that are bonus tests #1465
-          acc
-        elsif skipped_tests.includes?(x)
-          Log.info { "skipped_assigned for: #{x}" }
-          acc + 1 
-        else
-          points = task_points(x)
-          if points
-            acc + 1 
-          else
-            acc
-          end
-        end
-      end
-      Log.info { "total_max_passed: #{tags} = #{max}" }
-      max
-    end
-
 
     def self.upsert_task(task, status, points, start_time)
-      # In certain cases the results file might not exist.
-      # So create one.
+      logger = @@logger.for("upsert_task-#{task}")
+
+      # Raise exception when results file does not exists.
       CNFManager::Points::Results.ensure_results_file!
 
-      results = File.open("#{Results.file}") do |f|
-        YAML.parse(f)
-      end
-
+      results = File.open("#{Results.file}") { |f| YAML.parse(f) }
       result_items = results["items"].as_a
       # remove the existing entry
-      result_items = result_items.reject do |x|
-        x["name"] == task
-      end
-      cmd = "#{Process.executable_path} #{ARGV.join(" ")}"
-      Log.info {"cmd: #{cmd}"}
+      result_items = result_items.reject { |x| x["name"] == task }
+
       end_time = Time.utc
       task_runtime = (end_time - start_time)
-
-      Log.for("#{task}").info { "task_runtime=#{task_runtime}; start_time=#{start_time}; end_time:#{end_time}" }
 
       # The task result info has to be appeneded to an array of YAML::Any
       # So encode it into YAML and parse it back again to assign it.
@@ -433,36 +295,37 @@ module CNFManager
       # Only add task timestamps if the env var is set.
       if ENV.has_key?("TASK_TIMESTAMPS")
         task_result_info = {
-          name: task,
-          status: status,
-          type: task_type_by_task(task),
-          points: points,
-          start_time: start_time,
-          end_time: end_time,
-          task_runtime: "#{task_runtime}"
+          name:         task,
+          status:       status,
+          type:         task_type_by_task(task),
+          points:       points,
+          start_time:   start_time,
+          end_time:     end_time,
+          task_runtime: "#{task_runtime}",
         }
         result_items << YAML.parse(task_result_info.to_yaml)
       else
         task_result_info = {
-          name: task,
+          name:   task,
           status: status,
-          type: task_type_by_task(task),
-          points: points
+          type:   task_type_by_task(task),
+          points: points,
         }
         result_items << YAML.parse(task_result_info.to_yaml)
       end
 
       File.open("#{Results.file}", "w") do |f|
-        YAML.dump({name: results["name"],
-                   # testsuite_version: CnfTestSuite::VERSION,
+        YAML.dump({name:              results["name"],
                    testsuite_version: ReleaseManager::VERSION,
-                   status: results["status"],
-                   command: cmd,
-                   points: results["points"],
-                   exit_code: results["exit_code"],
-                   items: result_items}, f)
+                   status:            results["status"],
+                   command:           "#{Process.executable_path} #{ARGV.join(" ")}",
+                   points:            results["points"],
+                   exit_code:         results["exit_code"],
+                   items:             result_items}, f)
       end
-      Log.info { "upsert_task: task: #{task} has status: #{status} and is awarded: #{points} points. Runtime: #{task_runtime}" }
+      logger.debug { "Task start time: #{start_time}, end time: #{end_time}" }
+      logger.info { "Task: '#{task}' has status: '#{status}' and is awarded: #{points} points." +
+        "Runtime: #{task_runtime}" }
     end
 
     def self.failed_task(task, msg)
@@ -481,13 +344,9 @@ module CNFManager
     end
 
     def self.failed_required_tasks
-      yaml = File.open("#{Results.file}") do |file|
-        YAML.parse(file)
-      end
+      yaml = File.open("#{Results.file}") { |file| YAML.parse(file) }
       yaml["items"].as_a.reduce([] of String) do |acc, i|
-        if i["status"].as_s == "failed" &&
-            i["name"].as_s? &&
-            task_required(i["name"].as_s)
+        if i["status"].as_s == "failed" && i["name"].as_s? && task_required(i["name"].as_s)
           (acc << i["name"].as_s)
         else
           acc
@@ -495,9 +354,9 @@ module CNFManager
       end
     end
 
-    def self.task_required(task)
-      points =points_yml.find {|x| x["name"] == task}
-      Log.warn { "task #{task} not found in points.yml".colorize(:yellow) } unless points
+    private def self.task_required(task)
+      points = points_yml.find { |x| x["name"] == task }
+      @@logger.for("task_required").warn { "Task: '#{task}' not found in points.yml" } unless points
       if points && points["required"]? && points["required"].as_bool == true
         true
       else
@@ -506,9 +365,8 @@ module CNFManager
     end
 
     def self.all_task_test_names
-      result_items =points_yml.reduce([] of String) do |acc, x|
-        if x["name"].as_s == "default_scoring" ||
-            x["tags"].as_a.find{|x|x=="platform"}
+      result_items = points_yml.reduce([] of String) do |acc, x|
+        if x["name"].as_s == "default_scoring" || x["tags"].as_a.find { |x| x == "platform" }
           acc
         else
           acc << x["name"].as_s
@@ -518,13 +376,10 @@ module CNFManager
 
     def self.tasks_by_tag(tag)
       result_items = points_yml.reduce([] of String) do |acc, x|
-        Log.debug { "tasks_by_tag: tag:#{tag}, points.name:#{x["name"].as_s?}, points.tags:#{x["tags"].as_a?}" }
         if x["tags"].as_a?
           tag_match = x["tags"].as_a.map { |parsed_tag|
-            Log.debug { "parsed_tag #{parsed_tag} tag: #{tag}" }
             parsed_tag if parsed_tag == tag.strip
           }.uniq.compact
-          Log.debug { "tag_match #{tag_match} name #{x["name"]}" }
           if !tag_match.empty?
             acc << x["name"].as_s
           else
@@ -534,13 +389,19 @@ module CNFManager
           acc
         end
       end
+      @@logger.for("tasks_by_tag").debug { "Found tasks: #{result_items} for tag: #{tag}" }
+
+      result_items
     end
 
     def self.emoji_by_task(task)
-      md = points_yml.find {|x| x["name"] == task}
-      Log.warn { "****Warning**** task #{task} not found in points.yml".colorize(:yellow) } unless md
+      logger = @@logger.for("emoji_by_task")
+
+      md = points_yml.find { |x| x["name"] == task }
+      logger.warn { "Task: '#{task}' not found in points.yml" } unless md
+
       if md && md["emoji"]?
-        Log.debug { "task #{task} emoji: #{md["emoji"]?}" }
+        logger.debug { "Task: '#{task}' emoji: #{md["emoji"]?}" }
         resp = md["emoji"]
       else
         resp = ""
@@ -548,23 +409,21 @@ module CNFManager
     end
 
     def self.tags_by_task(task)
-      points =points_yml.find {|x| x["name"] == task}
-      Log.warn { "****Warning**** task #{task} not found in points.yml".colorize(:yellow) } unless points
-      Log.info { "points: #{points}" }
+      logger = @@logger.for("tags_by_task")
+
+      points = points_yml.find { |x| x["name"] == task }
+      logger.warn { "Task: '#{task}' not found in points.yml" } unless points
+
       if points && points["tags"]?
-          Log.debug { "points tags: #{points["tags"]?}" }
+        logger.debug { "Task: '#{task}' tags: #{points["tags"]?}" }
         resp = points["tags"].as_a
       else
         resp = [] of String
       end
-          Log.info { "resp: #{resp}" }
-      resp
     end
 
-    def self.task_type_by_task(task)
-      Log.info {"task_type_by_task"}
+    private def self.task_type_by_task(task)
       task_type = tags_by_task(task).reduce("") do |acc, x|
-        Log.info { "task_type x: #{x} acc: #{acc}" }
         if x == "essential"
           acc = "essential"
         elsif x == "normal" && acc != "essential"
@@ -577,7 +436,8 @@ module CNFManager
           acc
         end
       end
-      Log.info { "task_type: #{task_type}" }
+      @@logger.debug { "Task: '#{task}' type: #{task_type}" }
+
       task_type
     end
 
@@ -592,35 +452,9 @@ module CNFManager
       end
     end
 
-    def self.all_result_test_names(results_file)
-      results = File.open(results_file) do |f|
-        YAML.parse(f)
-      end
-      result_items = results["items"].as_a.reduce([] of String) do |acc, x|
-        acc << x["name"].as_s
-      end
-    end
-
-    def self.results_by_tag(tag)
-      task_list = tasks_by_tag(tag)
-
-      results = File.open("#{Results.file}") do |f|
-        YAML.parse(f)
-      end
-
-      found = false
-      result_items = results["items"].as_a.reduce([] of YAML::Any) do |acc, x|
-        if x["name"].as_s? && task_list.find{|tl| tl == x["name"].as_s}
-          acc << x
-        else
-          acc
-        end
-      end
-    end
-
     def self.template_results_yml
-  #TODO add tags for category summaries
-  YAML.parse <<-END
+      # TODO add tags for category summaries
+      YAML.parse <<-END
 name: cnf testsuite
 testsuite_version: <%= CnfTestSuite::VERSION %>
 status:
@@ -629,23 +463,5 @@ exit_code: 0
 items: []
 END
     end
-
-    def self.final_cnf_results_yml
-      Log.info { "final_cnf_results_yml" }
-      find_cmd = "find ./results/* -name \"cnf-testsuite-results-*.yml\""
-      Process.run(
-        find_cmd,
-        shell: true,
-        output: find_stdout = IO::Memory.new,
-        error: find_stderr = IO::Memory.new
-      )
-
-      results_file = find_stdout.to_s.split("\n")[-2].gsub("./", "")
-      if results_file.empty?
-        raise "No cnf_testsuite-results-*.yml found! Did you run the all task?"
-      end
-      results_file
-    end
   end
-
 end

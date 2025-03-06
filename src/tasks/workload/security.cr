@@ -44,14 +44,14 @@ task "sysctls" do |t, args|
     failures = Kyverno.filter_failures_for_cnf_resources(resource_keys, failures)
 
     if failures.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "No restricted values found for sysctls")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "No restricted values found for sysctls")
     else
       failures.each do |failure|
         failure.resources.each do |resource|
           puts "#{resource.kind} #{resource.name} in #{resource.namespace} namespace failed. #{failure.message}".colorize(:red)
         end
       end
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Restricted values for are being used for sysctls")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Restricted values for are being used for sysctls")
     end
   end
 end
@@ -67,14 +67,14 @@ task "external_ips" do |t, args|
     failures = Kyverno.filter_failures_for_cnf_resources(resource_keys, failures)
     
     if failures.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Services are not using external IPs")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Services are not using external IPs")
     else
       failures.each do |failure|
         failure.resources.each do |resource|
           puts "#{resource.kind} #{resource.name} in #{resource.namespace} namespace failed. #{failure.message}".colorize(:red)
         end
       end
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Services are using external IPs")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Services are using external IPs")
     end
   end
 end
@@ -97,19 +97,19 @@ task "selinux_options" do |t, args|
     check_failures = Kyverno.filter_failures_for_cnf_resources(resource_keys, check_failures)
 
     if check_failures.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::NA, "Pods are not using SELinux")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::NA, "Pods are not using SELinux")
     else
       failures = Kyverno.filter_failures_for_cnf_resources(resource_keys, disallow_failures)
 
       if failures.size == 0
-        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Pods are not using custom SELinux options that can be used for privilege escalations")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Pods are not using custom SELinux options that can be used for privilege escalations")
       else
         failures.each do |failure|
           failure.resources.each do |resource|
             puts "#{resource.kind} #{resource.name} in #{resource.namespace} namespace failed. #{failure.message}".colorize(:red)
           end
         end
-        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Pods are using custom SELinux options that can be used for privilege escalations")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Pods are using custom SELinux options that can be used for privilege escalations")
       end
     end
   end
@@ -123,14 +123,14 @@ task "container_sock_mounts" do |t, args|
     failures = Kyverno::PolicyAudit.run(policy_path, EXCLUDE_NAMESPACES)
 
     if failures.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Container engine daemon sockets are not mounted as volumes")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Container engine daemon sockets are not mounted as volumes")
     else
       failures.each do |failure|
         failure.resources.each do |resource|
           puts "#{resource.kind} #{resource.name} in #{resource.namespace} namespace failed. #{failure.message}".colorize(:red)
         end
       end
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Container engine daemon sockets are mounted as volumes")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Container engine daemon sockets are mounted as volumes")
     end
   end
 end
@@ -157,12 +157,12 @@ task "privileged_containers" do |t, args|
     end
     Log.debug { "violator list: #{violation_list.flatten}" }
     if task_response
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "No privileged containers")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "No privileged containers")
     else
       violation_list.each do |violation|
         stdout_failure("Privileged container #{violation[:container]} in #{violation[:kind]}/#{violation[:name]} in the #{violation[:namespace]} namespace")
       end
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Found #{violation_list.size} privileged containers")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Found #{violation_list.size} privileged containers")
     end
   end
 end
@@ -177,11 +177,11 @@ task "privilege_escalation", ["kubescape_scan"] do |t, args|
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
     if test_report.failed_resources.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "No containers that allow privilege escalation were found")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "No containers that allow privilege escalation were found")
     else
       test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
       stdout_failure("Remediation: #{test_report.remediation}")
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Found containers that allow privilege escalation")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Found containers that allow privilege escalation")
     end
   end
 end
@@ -196,11 +196,11 @@ task "symlink_file_system", ["kubescape_scan"] do |t, args|
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
     if test_report.failed_resources.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "No containers allow a symlink attack")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "No containers allow a symlink attack")
     else
       test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
       stdout_failure("Remediation: #{test_report.remediation}")
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Found containers that allow a symlink attack")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Found containers that allow a symlink attack")
     end
   end
 end
@@ -215,11 +215,11 @@ task "application_credentials", ["kubescape_scan"] do |t, args|
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
     if test_report.failed_resources.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "No applications credentials in configuration files")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "No applications credentials in configuration files")
     else
       test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
       stdout_failure("Remediation: #{test_report.remediation}")
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Found applications credentials in configuration files")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Found applications credentials in configuration files")
     end
   end
 end
@@ -234,11 +234,11 @@ task "host_network", ["kubescape_scan"] do |t, args|
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
     if test_report.failed_resources.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "No host network attached to pod")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "No host network attached to pod")
     else
       test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
       stdout_failure("Remediation: #{test_report.remediation}")
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Found host network attached to pod")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Found host network attached to pod")
     end
   end
 end
@@ -253,11 +253,11 @@ task "service_account_mapping", ["kubescape_scan"] do |t, args|
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
     if test_report.failed_resources.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "No service accounts automatically mapped")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "No service accounts automatically mapped")
     else
       test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
       stdout_failure("Remediation: #{test_report.remediation}")
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Service accounts automatically mapped")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Service accounts automatically mapped")
     end
   end
 end
@@ -272,11 +272,11 @@ task "linux_hardening", ["kubescape_scan"] do |t, args|
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
     if test_report.failed_resources.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Security services are being used to harden applications")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Security services are being used to harden applications")
     else
       test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
       stdout_failure("Remediation: #{test_report.remediation}")
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Found resources that do not use security services")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Found resources that do not use security services")
     end
   end
 end
@@ -291,11 +291,11 @@ task "insecure_capabilities", ["kubescape_scan"] do |t, args|
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
     if test_report.failed_resources.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Containers with insecure capabilities were not found")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Containers with insecure capabilities were not found")
     else
       test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
       stdout_failure("Remediation: #{test_report.remediation}")
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Found containers with insecure capabilities")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Found containers with insecure capabilities")
     end
   end
 end
@@ -310,11 +310,11 @@ task "cpu_limits", ["kubescape_scan"] do |t, args|
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
     if test_report.failed_resources.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Containers have CPU limits set")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Containers have CPU limits set")
     else
       test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
       stdout_failure("Remediation: #{test_report.remediation}")
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Found containers without CPU limits set")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Found containers without CPU limits set")
     end
   end
 end
@@ -329,11 +329,11 @@ task "memory_limits", ["kubescape_scan"] do |t, args|
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
     if test_report.failed_resources.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Containers have memory limits set")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Containers have memory limits set")
     else
       test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
       stdout_failure("Remediation: #{test_report.remediation}")
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Found containers without memory limits set")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Found containers without memory limits set")
     end
   end
 end
@@ -348,11 +348,11 @@ task "ingress_egress_blocked", ["kubescape_scan"] do |t, args|
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
     if test_report.failed_resources.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Ingress and Egress traffic blocked on pods")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Ingress and Egress traffic blocked on pods")
     else
       test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
       stdout_failure("Remediation: #{test_report.remediation}")
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Ingress and Egress traffic not blocked on pods")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Ingress and Egress traffic not blocked on pods")
     end
   end
 end
@@ -367,11 +367,11 @@ task "host_pid_ipc_privileges", ["kubescape_scan"] do |t, args|
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
     if test_report.failed_resources.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "No containers with hostPID and hostIPC privileges")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "No containers with hostPID and hostIPC privileges")
     else
       test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
       stdout_failure("Remediation: #{test_report.remediation}")
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Found containers with hostPID and hostIPC privileges")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Found containers with hostPID and hostIPC privileges")
     end
   end
 end
@@ -386,11 +386,11 @@ task "non_root_containers", ["kubescape_scan"] do |t, args|
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
     if test_report.failed_resources.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Containers are running with non-root user with non-root group membership")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Containers are running with non-root user with non-root group membership")
     else
       test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
       stdout_failure("Remediation: #{test_report.remediation}")
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Found containers running with root user or user with root group membership")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Found containers running with root user or user with root group membership")
     end
   end
 end
@@ -405,11 +405,11 @@ task "immutable_file_systems", ["kubescape_scan"] do |t, args|
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
     if test_report.failed_resources.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Containers have immutable file systems")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Containers have immutable file systems")
     else
       test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
       stdout_failure("Remediation: #{test_report.remediation}")
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Found containers with mutable file systems")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Found containers with mutable file systems")
     end
   end
 end
@@ -427,11 +427,11 @@ task "hostpath_mounts", ["install_kubescape"] do |t, args|
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
     if test_report.failed_resources.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Containers do not have hostPath mounts")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Containers do not have hostPath mounts")
     else
       test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
       stdout_failure("Remediation: #{test_report.remediation}")
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Found containers with hostPath mounts")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Found containers with hostPath mounts")
     end
   end
 end

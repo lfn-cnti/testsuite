@@ -18,11 +18,11 @@ namespace "platform" do
       test_report = Kubescape.parse_test_report(test_json)
 
       if test_report.failed_resources.size == 0
-        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Insecure port of Kubernetes API server is not enabled")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Insecure port of Kubernetes API server is not enabled")
       else
         test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
         stdout_failure("Remediation: #{test_report.remediation}")
-        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Insecure port of Kubernetes API server is enabled")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Insecure port of Kubernetes API server is enabled")
       end
     end
   end
@@ -35,11 +35,11 @@ namespace "platform" do
       test_report = Kubescape.parse_test_report(test_json)
 
       if test_report.failed_resources.size == 0
-        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "No users with cluster-admin RBAC permissions were found")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "No users with cluster-admin RBAC permissions were found")
       else
         test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
         stdout_failure("Remediation: #{test_report.remediation}")
-        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Users with cluster-admin RBAC permissions found")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Users with cluster-admin RBAC permissions found")
       end
     end
   end
@@ -52,14 +52,14 @@ namespace "platform" do
       failures = Kyverno::PolicyAudit.run(policy_path, EXCLUDE_NAMESPACES)
 
       if failures.size == 0
-        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "No Helm Tiller containers are running")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "No Helm Tiller containers are running")
       else
         failures.each do |failure|
           failure.resources.each do |resource|
             puts "#{resource.kind} #{resource.name} in #{resource.namespace} namespace failed. #{failure.message}".colorize(:red)
           end
         end
-        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Containers with the Helm Tiller image are running")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Containers with the Helm Tiller image are running")
       end
     end
   end

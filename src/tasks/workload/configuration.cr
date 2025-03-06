@@ -41,14 +41,14 @@ task "require_labels" do |t, args|
     failures = Kyverno.filter_failures_for_cnf_resources(resource_keys, failures)
 
     if failures.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Pods have the app.kubernetes.io/name label")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Pods have the app.kubernetes.io/name label")
     else
       failures.each do |failure|
         failure.resources.each do |resource|
           puts "#{resource.kind} #{resource.name} in #{resource.namespace} namespace failed. #{failure.message}".colorize(:red)
         end
       end
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Pods should have the app.kubernetes.io/name label.")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Pods should have the app.kubernetes.io/name label.")
     end
   end
 end
@@ -64,14 +64,14 @@ task "default_namespace" do |t, args|
     failures = Kyverno.filter_failures_for_cnf_resources(resource_keys, failures)
 
     if failures.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "default namespace is not being used")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "default namespace is not being used")
     else
       failures.each do |failure|
         failure.resources.each do |resource|
           puts "#{resource.kind} #{resource.name} in #{resource.namespace} namespace failed. #{failure.message}".colorize(:red)
       end
       end
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Resources are created in the default namespace")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Resources are created in the default namespace")
     end
   end
 end
@@ -88,14 +88,14 @@ task "latest_tag" do |t, args|
     failures = Kyverno.filter_failures_for_cnf_resources(resource_keys, failures)
 
     if failures.size == 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Container images are not using the latest tag")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Container images are not using the latest tag")
     else
       failures.each do |failure|
         failure.resources.each do |resource|
           puts "#{resource.kind} #{resource.name} in #{resource.namespace} namespace failed. #{failure.message}".colorize(:red)
         end
       end
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Container images are using the latest tag")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Container images are using the latest tag")
     end
   end
 end
@@ -130,12 +130,12 @@ task "versioned_tag", ["install_opa"] do |t, args|
     end
 
     if task_response
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Container images use versioned tags")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Container images use versioned tags")
     else
       fail_msgs.each do |msg|
         stdout_failure(msg)
       end
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Container images do not use versioned tags")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Container images do not use versioned tags")
     end
   end
 end
@@ -162,9 +162,9 @@ task "nodeport_not_used" do |t, args|
       end
     end
     if task_response
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "NodePort is not used")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "NodePort is not used")
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "NodePort is being used")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "NodePort is being used")
     end
   end
 end
@@ -203,9 +203,9 @@ task "hostport_not_used" do |t, args|
       test_passed
     end
     if task_response
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "HostPort is not used")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "HostPort is not used")
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "HostPort is being used")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "HostPort is being used")
     end
   end
 end
@@ -235,16 +235,16 @@ task "hardcoded_ip_addresses_in_k8s_runtime_configuration" do |t, args|
     end
 
     if found_violations.empty?
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "No hard-coded IP addresses found in the runtime K8s configuration")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "No hard-coded IP addresses found in the runtime K8s configuration")
     else
       stdout_failure("Hard-coded IP addresses found in #{COMMON_MANIFEST_FILE_PATH}")
       found_violations.each do |violation|
         stdout_failure("  * Line #{violation[:line_number]}: #{violation[:line]}")
       end
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Hard-coded IP addresses found in the runtime K8s configuration")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Hard-coded IP addresses found in the runtime K8s configuration")
     end
   rescue
-    CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Skipped, "unknown exception")
+    CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "unknown exception")
   ensure
     begin
       KubectlClient::Delete.resource("namespace", "hardcoded-ip-test", extra_opts: "--force --grace-period 0")
@@ -341,10 +341,10 @@ task "secrets_used" do |t, args|
       test_passed
     end
     if task_response
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Secrets defined and used")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Secrets defined and used")
     else
       puts "Secrets not used. To address this issue please see the USAGE.md documentation".colorize(:yellow)
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Skipped, "Secrets not used")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Secrets not used")
     end
   end
 end
@@ -486,9 +486,9 @@ task "immutable_configmap" do |t, args|
       Log.for(t.name).info { "kubectl apply on immutable configmap succeeded for: #{test_config_map_filename}" }
       k8s_ver = KubectlClient.server_version
       if version_less_than(k8s_ver, "1.19.0")
-        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Skipped, "immutable configmaps are not supported in this k8s cluster")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "immutable configmaps are not supported in this k8s cluster")
       else
-        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "immutable configmaps are not enabled in this k8s cluster")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "immutable configmaps are not enabled in this k8s cluster")
       end
     end
 
@@ -521,7 +521,7 @@ task "immutable_configmap" do |t, args|
     end
 
     if cnf_manager_workload_resource_task_response
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "All volume or container mounted configmaps immutable")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "All volume or container mounted configmaps immutable")
     elsif immutable_configmap_supported
 
       # Print out any mutable configmaps mounted as volumes
@@ -538,7 +538,7 @@ task "immutable_configmap" do |t, args|
         msg = "Mutable configmap #{result[:configmap]} used in env in #{result[:container]} part of #{result[:resource][:kind]}/#{result[:resource][:name]} in #{result[:resource][:namespace]}."
         stdout_failure(msg)
       end
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Found mutable configmap(s)")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Found mutable configmap(s)")
     end
   end
 end
@@ -547,14 +547,14 @@ desc "Check if CNF uses Kubernetes alpha APIs"
 task "alpha_k8s_apis" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config|
     unless check_poc(args)
-      next CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Skipped, "alpha_k8s_apis not in poc mode")
+      next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "alpha_k8s_apis not in poc mode")
     end
 
     cluster_name = "apisnooptest"
     kubeconfig_orig = ENV["KUBECONFIG"]
 
     # TODO (kosstennbl) adapt cnf_to_new_cluster metod to new installation process. Until then - test is disabled. More info: #2153
-    result = CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Skipped, "alpha_k8s_apis test was temporarily disabled, check #2153")
+    result = CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "alpha_k8s_apis test was temporarily disabled, check #2153")
     next result
 
     ensure_kubeconfig!
@@ -576,7 +576,7 @@ task "alpha_k8s_apis" do |t, args|
     # CNF installation failed on kind cluster. Inform in test output.
     unless cnf_install_complete
       puts "CNF failed to install on apisnoop cluster".colorize(:red)
-      next CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Could not check CNF for usage of Kubernetes alpha APIs")
+      next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Could not check CNF for usage of Kubernetes alpha APIs")
     end
 
     # CNF installation was fine on kind cluster. Check for usage of alpha Kubernetes APIs.
@@ -592,9 +592,9 @@ task "alpha_k8s_apis" do |t, args|
     api_count = result[:output].split("\n")[2].to_i
 
     if api_count == 0
-      result = CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "CNF does not use Kubernetes alpha APIs")
+      result = CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "CNF does not use Kubernetes alpha APIs")
     else
-      result = CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "CNF uses Kubernetes alpha APIs")
+      result = CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "CNF uses Kubernetes alpha APIs")
     end
   ensure
     if cluster_name != nil
@@ -645,9 +645,9 @@ task "operator_installed" do |t, args|
 
     if succeeded.size > 0 && succeeded.all?(true)
       Log.for(t.name).info { "Succeeded All True?" }
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Operator is installed: 🐜")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Operator is installed: 🐜")
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::NA, "No Operators Found 🦖")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::NA, "No Operators Found 🦖")
     end
   end
 end

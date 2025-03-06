@@ -19,6 +19,6 @@ WORKDIR /test_workspace
 from base as ci_test
 # add binary AND ONLY the binary in this container so we can fail if binary is broken without the rest of the source
 COPY cnf-testsuite .
-RUN ./cnf-testsuite setup verbose
+RUN ./cnf-testsuite setup
 RUN wget https://raw.githubusercontent.com/lfn-cnti/testsuite/main/example-cnfs/coredns/cnf-testsuite.yml
 RUN ./cnf-testsuite helm_chart_valid cnf-config=./cnf-testsuite.yml
