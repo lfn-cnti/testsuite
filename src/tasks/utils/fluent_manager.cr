@@ -71,23 +71,25 @@ module FluentManager
     end
   end
 
-  def self.find_active_match
+  def self.find_active_match_pods : Array(JSON::Any)?
     all_flavors.each do |flavor|
-      match = ClusterTools.local_match_by_image_name(flavor.image_name)
-      return match if match[:found]
+      # Look for images of all flavors stored on node.
+      matching_image = ClusterTools.local_match_by_image_name(flavor.image_name)
+      # When image name found on any of the nodes, check if any
+      # pod with this image is currently running on the cluster.
+      matching_pods = KubectlClient::Get.pods_by_digest(matching_image[:digest]) if matching_image[:found]
+
+      return matching_pods if !matching_pods.nil? && matching_pods.first?
     end
     nil
   end
 
-  def self.pod_tailed?(pod_name, match)
-    return false unless match
+  def self.pod_tailed?(pod_name : String, fluent_pods : Array(JSON::Any)?) : Bool
+    return false unless fluent_pods
 
-    fluent_pods = KubectlClient::Get.pods_by_digest(match[:digest])
     fluent_pods.each do |fluent_pod|
       fluent_pod_name = fluent_pod.dig("metadata", "name").as_s
       logs = KubectlClient::Utils.logs(fluent_pod_name, namespace: TESTSUITE_NAMESPACE)
-      puts "!!!DEBUG!!!"
-      puts logs[:output]
       Log.info { "Searching logs of #{fluent_pod_name} for string #{pod_name}" }
       Log.debug { "Fluent logs: #{logs}" }
       return true if logs[:output].to_s.includes?(pod_name)

@@ -67,7 +67,7 @@ module CNFInstall
       logger = Log.for("add_namespace_to_resources")
       logger.info { "Updating metadata.namespace field for resources in generated manifest" }
 
-      namespaced_resources = KubectlClient::ShellCMD.run("kubectl api-resources --namespaced=true --no-headers", logger, false).[:output]
+      namespaced_resources = KubectlClient::ShellCMD.run("kubectl api-resources --namespaced=true --no-headers", logger).[:output]
       list_of_namespaced_resources = namespaced_resources.split("\n").select { |item| !item.empty? }
       list_of_namespaced_kinds = list_of_namespaced_resources.map do |line|
         line.split(/\s+/).last
