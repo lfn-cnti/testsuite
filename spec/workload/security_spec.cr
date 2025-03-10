@@ -32,7 +32,7 @@ describe "Security" do
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_whitelisted_privileged_cnf/cnf-testsuite.yml skip_wait_for_install")
       result = ShellCmd.run_testsuite("privileged_containers")
       result[:status].success?.should be_true
-      (/Found.*privileged containers.*/ =~ result[:output]).should be_nil
+      (/No privileged containers/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end
