@@ -21,6 +21,13 @@ task "microservice", ["reasonable_image_size", "reasonable_startup_time", "singl
 end
 
 REASONABLE_STARTUP_BUFFER = 10.0
+STRACE_WAIT_BUFFER = 3.0
+
+enum StraceAttachResult
+  Attached
+  NotPermitted
+  NoSuchProcess
+end
 
 desc "To check if the CNF has multiple microservices that share a database"
 task "shared_database", ["install_cluster_tools"] do |t, args|
@@ -459,16 +466,41 @@ task "zombie_handled" do |t, args|
   end
 end
 
+# Attach strace to a PID in background
+def attach_strace(pid : String, node : JSON::Any)
+  path = "/tmp/#{pid}-strace"
 
+  # Using timeout here is a small hack to avoid endless strace execution on unexpected failures
+  cmd = "timeout #{GENERIC_OPERATION_TIMEOUT}s strace -p #{pid} -e 'trace=!all' 2>&1 | tee #{path}"
+  ClusterTools.exec_by_node_bg(cmd, node)
+
+  # Ensure strace logging begins
+  unless repeat_with_timeout(10, "Waiting for strace log file #{path} timed out", delay: 1) { File.exists?(path) }
+    return StraceAttachResult::NoSuchProcess
+  end
+
+  contents = File.read(path)
+  return StraceAttachResult::NoSuchProcess if contents.empty? ||
+                                              contents.includes?("No such process") ||
+                                              contents.includes?("ptrace(PTRACE_SEIZE)")
+  return StraceAttachResult::NotPermitted  if contents.includes?("Operation not permitted")
+
+  StraceAttachResult::Attached
+end
+
+# Checks if SIGTERM appears in the PID's strace log
+def check_sigterm_in_strace_logs(pid : String) : Bool
+  path = "/tmp/#{pid}-strace"
+  return false unless File.exists?(path)
+  File.read(path).includes?("SIGTERM")
+end
 
 desc "Are the SIGTERM signals handled?"
 task "sig_term_handled" do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args,config|
-    # test_status can be "skipped" or "failed".
-    #   Only collecting containers that failed or were skipped.
-    #
-    # test_reason can be "No Node PID found" or "Not ready".
-    #   Only available when when test is skipped.
+  logger = ::Log.for(t.name)
+
+  CNFManager::Task.task_runner(args, task: t) do |args, config|
+    # We'll store any failures (or skips) in this array:
     failed_containers = [] of NamedTuple(
       namespace: String,
       pod: String,
@@ -477,202 +509,154 @@ task "sig_term_handled" do |t, args|
       test_reason: String | Nil
     )
 
-    task_response = CNFManager.workload_resource_test(args, config, check_containers:false ) do |resource, container, initialized|
-      test_passed = true
-      # todo Clustertools.each_container_by_resource(resource, namespace) do | container_id, container_pid_on_node, node, container_proctree_statuses, container_status| 
+    # Iterate over all resources
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, container, initialized|
       kind = resource["kind"].downcase
-      case kind 
-      when .in?(WORKLOAD_RESOURCE_KIND_NAMES)
+
+      # Early skip if this is not a relevant workload resource
+      next true unless kind.in?(["deployment","statefulset","pod","replicaset","daemonset"])
+
+      resource_yaml = nil
+      begin
         resource_yaml = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
-        #todo needs namespace
-        pods = KubectlClient::Get.pods_by_resource_labels(resource_yaml, resource[:namespace])
-        # containers = KubectlClient::Get.resource_containers(kind, resource[:name], resource[:namespace])
-        #todo loop through containers (we only need to process each image per deployment.  skip images that were already processed)
-        # --- skipped because could have same image but started with different startup commands which would instantiate different processes
-        # sig_term_found = false
-        pid_log_names  = [] of String
-        pod_sig_terms = pods.map do |pod|
-          #todo get the host pid from the container pid
-          pod_name = pod.dig("metadata", "name").as_s
-          pod_namespace = pod.dig("metadata", "namespace").as_s
-          Log.info { "pod_name: #{pod_name}" }
-
-          # Wait for a pod to be available. Only wait for 60 seconds.
-          KubectlClient::Wait.wait_for_resource_availability("pod", pod_name, pod_namespace, GENERIC_OPERATION_TIMEOUT)
-
-          status = pod["status"]
-          if status["containerStatuses"]?
-              container_statuses = status["containerStatuses"].as_a
-            Log.for(t.name).info { "container_statuses: #{container_statuses}" }
-            Log.for(t.name).info { "pod_name: #{pod_name}" }
-            nodes = KubectlClient::Get.nodes_by_pod(pod)
-            Log.for(t.name).info { "nodes_by_resource done" }
-            node = nodes.first # there should only be one node returned for one pod
-            sig_result = container_statuses.map do |container_status|
-              container_name = container_status.dig("name")
-              previous_process_type = "initial_name"
-
-              # Check if the container status is ready.
-              # If this container is not ready, move on to next.
-              container_name = container_status.dig("name").as_s
-              Log.for(t.name).info { "before ready containerStatuses pod:#{pod_name} container:#{container_name}" }
-              ready = container_status.dig("ready").as_bool
-              if !ready
-                Log.info { "container status: #{container_status} "}
-                Log.info { "not ready! skipping: containerStatuses pod:#{pod_name} container:#{container_name}" }
-                failed_containers << {
-                  namespace: pod_namespace,
-                  pod: pod_name,
-                  container: container_name,
-                  test_status: "skipped",
-                  test_reason: "Not ready"
-                }
-                false
-                next
-              end
-
-              container_id = container_status.dig("containerID").as_s
-              Log.for(t.name).info { "containerStatuses container_id #{container_id}" }
-
-              #get container id's pid on the node (different from inside the container)
-              pid = "#{ClusterTools.node_pid_by_container_id(container_id, node)}"
-              if pid.empty?
-                Log.info { "no pid for (skipping): containerStatuses container_id #{container_id}" }
-                failed_containers << {
-                  namespace: pod_namespace,
-                  pod: pod_name,
-                  container: container_name,
-                  test_status: "skipped",
-                  test_reason: "No Node PID found"
-                }
-                false
-                next
-              end
-
-              # next if pid.empty?
-              Log.for(t.name).info { "node pid (should never be pid 1): #{pid}" }
-
-              # need to do the next line.  how to kill the current cnf?
-              # this was one of the reason why we did stuff like this durring the cnf install and saved it as a configmap
-              #todo 1. Kill PID one in container/ send term signal
-              #Kill Container, with top level pid
-              #todo 2.2.1 kill 1 
-            #  ClusterTools.exec("kill #{pid}")
-              #todo  1.1 get in container
-              #todo 2. Watch for signals for the containers pid one process, and the tree of all child processes ity manages
-              #todo 2.1 loop through all child processes that are not threads (only include proceses where tgid = pid)
-              #todo 2.1.1 ignore the parent pid (we are on the host so it wont be pid 1)
-              node_name = node.dig("metadata", "name").as_s
-              Log.for(t.name).info { "node name : #{node_name}" }
-              pids = KernelIntrospection::K8s::Node.pids(node) 
-              Log.for(t.name).info { "proctree_by_pid pids: #{pids}" }
-              proc_statuses = KernelIntrospection::K8s::Node.all_statuses_by_pids(pids, node)
-
-              statuses = KernelIntrospection::K8s::Node.proctree_by_pid(pid, node, proc_statuses)
-
-              non_thread_statuses = statuses.reduce([] of Hash(String, String)) do |acc, i|
-                current_pid = i["Pid"].strip
-                tgid = i["Tgid"].strip # check if 'g' is uppercase
-                Log.info { "#{tgid} && #{tgid} != #{current_pid}: #{tgid && tgid != current_pid}" }
-                if tgid && tgid == current_pid
-                  acc << i
-                elsif tgid.empty?
-                  acc << i
-                else
-                  acc
-                end
-              end
-              non_thread_statuses.map do |status|
-                Log.for(t.name).debug { "status: #{status}" }
-                Log.for(t.name).info { "status cmdline: #{status["cmdline"]}" }
-                status_name = status["Name"].strip
-                ppid = status["PPid"].strip
-                current_pid = status["Pid"].strip
-                tgid = status["Tgid"].strip # check if 'g' is uppercase
-                Log.for(t.name).info { "Pid: #{current_pid}" }
-                Log.for(t.name).info { "Tgid: #{tgid}" }
-                Log.for(t.name).info { "status name: #{status_name}" }
-                Log.for(t.name).info { "previous status name: #{previous_process_type}" }
-                # do not count the top pid if there are children
-                if non_thread_statuses.size > 1 && pid == current_pid 
-                  next
-                end
-                #todo 5. Make sure that threads are not counted as new processes.  A thread does not get a signal (sigterm or sigkill)
-                # Log.info { "#{tgid} && #{tgid} != #{current_pid}: #{tgid && tgid != current_pid}" }
-                # next if tgid && tgid != current_pid
-                #todo 2.2 strace -p <pid> -e 'trace=!all'
-                #Watch strace
-                #todo 2.2.1 try writing to a file or live?
-                pid_log_name = "/tmp/#{current_pid}-strace"
-                ClusterTools.exec_by_node_bg("strace -p #{current_pid} -e 'trace=!all' 2>&1 | tee #{pid_log_name}", node)
-                pid_log_names << pid_log_name
-
-
-                # todo save off all directory/filenames into a hash
-                #strace: Process 94273 attached
-                # ---SIGURG {si_signo=SIGURG, si_code=SI_TKILL, si_pid=1, si_uid=0} ---
-                # --- SIGTERM {si_signo=SIGTERM, si_code=SI_USER, si_pid=0, si_uid=0} ---
-                #todo 2.2 wait for 30 seconds
-              end
-              ClusterTools.exec_by_node("bash -c 'sleep 10 && kill #{pid} && sleep 5 && kill -9 #{pid}'", node)
-              Log.for(t.name).info { "pid_log_names: #{pid_log_names}" }
-              #todo 2.3 parse the logs 
-              #todo get the log
-              sleep 5
-              sig_term_found = pid_log_names.map do |pid_name|
-                Log.info { "pid_name: #{pid_name}" }
-                resp = File.read("#{pid_name}")
-                if resp
-                  Log.info { "resp: #{resp}" }
-                  if resp =~ /SIGTERM/ 
-                    true
-                  else
-                    Log.info { "resp: #{resp}" }
-                    false
-                  end
-                else
-                  false
-                end
-              end
-              Log.for(t.name).info { "SigTerm Found: #{sig_term_found}" }
-              # per all containers
-              container_sig_term_check = sig_term_found.all?(true)
-              if container_sig_term_check == false
-                failed_containers << {
-                  namespace: pod_namespace,
-                  pod: pod_name,
-                  container: container_name,
-                  test_status: "failed",
-                  test_reason: nil
-                }
-              end
-
-              container_sig_term_check
-              # todo save off all directory/filenames into a hash
-              #todo make a clustertools that gets a files contents
-              #todo 3. Collect all signals sent, if SIGKILL is captured, application fails test because it doesn't exit child processes cleanly
-              #todo 4. Collect all signals sent, if SIGTERM is captured, application pass test because it  exits child processes cleanly
-            end
-            sig_result.all?(true)
-          else
-            false
-          end 
-        end
-        pod_sig_terms.all?(true)
-      else
-        true # non "deployment","statefulset","pod","replicaset", and "daemonset" don't need a sigterm check
+      rescue ex: KubectlClient::ShellCMD::NotFoundError
+        logger.error { "Failed to retrieve resource #{resource[:kind]}/#{resource[:name]}: #{ex.message}" }
+        next false
       end
-    end	
+
+      pods = [] of JSON::Any
+      begin
+        pods = KubectlClient::Get.pods_by_resource_labels(resource_yaml, resource[:namespace])
+      rescue ex: KubectlClient::ShellCMD::NotFoundError
+        logger.error { "Failed to retrieve pods for #{resource[:kind]}/#{resource[:name]}: #{ex.message}" }
+        next false
+      end
+
+      # For each pod, do the main SIGTERM check
+      pods.all? do |pod|
+        pod_name      = pod.dig("metadata", "name").as_s
+        pod_namespace = pod.dig("metadata", "namespace").as_s
+        KubectlClient::Wait.wait_for_resource_availability("pod", pod_name, pod_namespace, GENERIC_OPERATION_TIMEOUT)
+
+        status = pod["status"]
+        next true unless status["containerStatuses"]?
+
+        container_statuses = status["containerStatuses"].as_a
+        container_statuses.all? do |c_stat|
+          c_name = c_stat["name"].as_s
+          ready  = c_stat["ready"].as_bool
+          unless ready
+            failed_containers << {
+              namespace: pod_namespace,
+              pod: pod_name,
+              container: c_name,
+              test_status: "skipped",
+              test_reason: "Not ready"
+            }
+            next false
+          end
+
+          # Find the container's host PID
+          c_id = c_stat["containerID"].as_s
+          node = KubectlClient::Get.nodes_by_pod(pod).first
+          pid  = ClusterTools.node_pid_by_container_id(c_id, node)
+
+          if pid.nil? || pid.empty?
+            failed_containers << {
+              namespace: pod_namespace,
+              pod: pod_name,
+              container: c_name,
+              test_status: "skipped",
+              test_reason: "No Node PID found"
+            }
+            next false
+          end
+
+          # Child process check
+          pids           = KernelIntrospection::K8s::Node.pids(node)
+          proc_statuses  = KernelIntrospection::K8s::Node.all_statuses_by_pids(pids, node)
+          process_tree   = KernelIntrospection::K8s::Node.proctree_by_pid(pid, node, proc_statuses)
+
+          # Filter out threads (Tgid != Pid means it's a thread).
+          non_threads = process_tree.select do |info|
+            tgid = info["Tgid"].to_s.strip
+            cpid = info["Pid"].to_s.strip
+            tgid.empty? || (tgid == cpid)
+          end
+
+          # Attach strace to each non-thread process (besides the top if it has children)
+          attached_pids = [] of String
+          non_threads.each do |info|
+            cpid = info["Pid"].to_s.strip
+
+            # If the container has multiple processes, we want to verify that the SIGTERM signal sent to PID 1
+            # is properly propagated to its child processes.
+            if cpid == pid && non_threads.size > 1
+              logger.info {"Skipping top PID #{cpid} (it has children)."}
+              next
+            end
+
+            attach_result = attach_strace(cpid, node)
+            case attach_result
+            when StraceAttachResult::Attached
+              attached_pids << cpid
+            when StraceAttachResult::NotPermitted
+              logger.info {"Skipping process #{cpid}; strace not permitted."}
+            when StraceAttachResult::NoSuchProcess
+              logger.info {"Skipping ephemeral/gone process #{cpid}."}
+            end
+          end
+
+          logger.info {"Attached strace to PIDs: #{attached_pids.join(", ")}"}
+          sleep STRACE_WAIT_BUFFER
+
+          # Send SIGTERM => wait => SIGKILL
+          ClusterTools.exec_by_node("bash -c 'kill -TERM #{pid} || true; sleep 5; kill -9 #{pid} || true'", node)
+          sleep STRACE_WAIT_BUFFER
+
+          # If no processes were attached, treat that as "skip"
+          if attached_pids.empty?
+            failed_containers << {
+              namespace: pod_namespace,
+              pod: pod_name,
+              container: c_name,
+              test_status: "skipped",
+              test_reason: "No valid processes to trace."
+            }
+            next false
+          end
+
+          # Check each attached process's log for SIGTERM
+          results = attached_pids.map do |p|
+            found = check_sigterm_in_strace_logs(p)
+            logger.info {"PID #{p} => SIGTERM captured? #{found}"}
+            found
+          end
+
+          if results.all?(true)
+            true
+          else
+            failed_containers << {
+              namespace: pod_namespace,
+              pod: pod_name,
+              container: c_name,
+              test_status: "failed",
+              test_reason: "At least one process did not observe SIGTERM"
+            }
+            false
+          end
+        end
+      end
+    end
 
     if task_response
       CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Sig Term handled")
     else
-      failed_containers.map do |failure_info|
-        resource_output = "Pod: #{failure_info["pod"]}, Container: #{failure_info["container"]}, Result: #{failure_info["test_status"]}"
-        if failure_info["test_status"] == "skipped"
-          resource_output = "#{resource_output}, Reason: #{failure_info["test_reason"]}"
-        end
-        stdout_failure resource_output
+      # Otherwise, print out each container that failed or was skipped
+      failed_containers.each do |info|
+        msg = "Pod: #{info["pod"]}, Container: #{info["container"]}, Result: #{info["test_status"]}"
+        msg += ", Reason: #{info["test_reason"]}" if info["test_status"] == "skipped"
+        stdout_failure msg
       end
       CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Sig Term not handled")
     end
