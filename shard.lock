@@ -2,7 +2,7 @@ version: 2.0
 shards:
   cluster_tools:
     git: https://github.com/cnf-testsuite/cluster_tools.git
-    version: 1.0.0+git.commit.f1c998a1a4be71976b150b3885ce99943235af29
+    version: 1.0.11
 
   commander:
     git: https://github.com/mrrooijen/commander.git
@@ -26,7 +26,7 @@ shards:
 
   helm:
     git: https://github.com/cnf-testsuite/helm.git
-    version: 1.0.2+git.commit.8f3fb7931a51ee8f69d9492ad157f4ff02800838
+    version: 1.0.5
 
   icr:
     git: https://github.com/crystal-community/icr.git
@@ -34,11 +34,11 @@ shards:
 
   k8s_kernel_introspection:
     git: https://github.com/cnf-testsuite/k8s_kernel_introspection.git
-    version: 1.0.2+git.commit.d82fe49c4ff028d880a42cc3098a9472fc403f76
+    version: 1.0.4
 
   k8s_netstat:
     git: https://github.com/cnf-testsuite/k8s_netstat.git
-    version: 1.0.0+git.commit.b00b28bce901a23fb6ba2c65a680de3c43e960cf
+    version: 1.0.2
 
   kernel_introspection:
     git: https://github.com/cnf-testsuite/kernel_introspection.git
@@ -46,7 +46,7 @@ shards:
 
   kubectl_client:
     git: https://github.com/cnf-testsuite/kubectl_client.git
-    version: 1.0.6+git.commit.92e8e3ba7da848dda6fbb90a134af27dd1e77b32
+    version: 1.0.8
 
   popcorn:
     git: https://github.com/icyleaf/popcorn.git
