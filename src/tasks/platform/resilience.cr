@@ -52,7 +52,7 @@ namespace "platform" do
         #Watch for Node Failure.
         execution_complete = repeat_with_timeout(timeout: GENERIC_OPERATION_TIMEOUT, errormsg: "Node shut-off has timed-out") do
           pod_ready = KubectlClient::Get.pod_ready?("node-failure")
-          node_ready = KubectlClient::Get.node_ready?("#{worker_node}") == "True"
+          node_ready = KubectlClient::Get.node_ready?(worker_node)
           Log.info { "Waiting for Node to go offline..." }
           Log.info { "Pod Ready Status: #{pod_ready}" }
           Log.info { "Node Ready Status: #{node_ready}" }
@@ -66,7 +66,7 @@ namespace "platform" do
         #Watch for Node to come back online
         execution_complete = repeat_with_timeout(timeout: NODE_READINESS_TIMEOUT, errormsg: "Node startup has timed-out") do
           pod_ready = KubectlClient::Get.pod_ready?("node-failure")
-          node_ready = KubectlClient::Get.node_ready?("#{worker_node}") == "True"
+          node_ready = KubectlClient::Get.node_ready?(worker_node)
           Log.info { "Waiting for Node to come back online..." }
           Log.info { "Pod Ready Status: #{pod_ready}" }
           Log.info { "Node Ready Status: #{node_ready}" }
