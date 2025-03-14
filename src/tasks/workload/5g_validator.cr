@@ -106,9 +106,9 @@ task "smf_upf_heartbeat" do |t, args|
 
     #todo move this to validator code code
     if heartbeat_found
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Chaos service degradation is less than 50%")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Chaos service degradation is less than 50%")
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Chaos service degradation is more than 50%")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Chaos service degradation is more than 50%")
     end
   end
 end
@@ -152,9 +152,9 @@ task "suci_enabled" do |t, args|
 
 
     if suci_found
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Core uses SUCI 5g authentication")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Core uses SUCI 5g authentication")
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Core does not use SUCI 5g authentication")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Core does not use SUCI 5g authentication")
     end
   ensure
     Helm.uninstall("ueransim", "testsuite-5g")

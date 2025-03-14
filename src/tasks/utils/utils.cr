@@ -1,6 +1,6 @@
 require "totem"
 require "colorize"
-require "./cnf_manager.cr"
+require "./cnf_manager/cnf_manager.cr"
 require "./embedded_file_manager.cr"
 require "log"
 require "file_utils"
@@ -15,7 +15,7 @@ require "./cnf_installation/config.cr"
 require "ecr"
 
 module ShellCmd
-  def self.run(cmd, log_prefix="ShellCmd.run", force_output=false, joined_output=false)
+  def self.run(cmd, log_prefix = "ShellCmd.run", force_output = false, joined_output = false)
     log = Log.for(log_prefix)
     log.info { "command: #{cmd}" }
     output = IO::Memory.new
@@ -41,9 +41,8 @@ module ShellCmd
 end
 
 def ensure_kubeconfig!
-
   kubeconfig_path = File.join(ENV["HOME"], ".kube", "config")
-  
+
   if ENV.has_key?("KUBECONFIG") && File.exists?(ENV["KUBECONFIG"])
     stdout_success "KUBECONFIG is already set."
   elsif File.exists?(kubeconfig_path)
@@ -56,8 +55,8 @@ def ensure_kubeconfig!
     stdout_failure "KUBECONFIG is set to #{ENV["KUBECONFIG"]} path and it does not exist. Please set KUBECONFIG to an existing config file, i.e. 'export KUBECONFIG=path-to-your-kubeconfig'"
     exit 1
   end
-  
-  # Check if cluster is up and running with assigned KUBECONFIG variable 
+
+  # Check if cluster is up and running with assigned KUBECONFIG variable
   begin
     KubectlClient::Get.resource("nodes")
   rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
@@ -75,7 +74,7 @@ def check_cnf_config(args)
     Log.debug { "all cnf: #{cnf}" }
   else
     cnf = nil
-	end
+  end
   Log.info { "check_cnf_config cnf: #{cnf}" }
   cnf
 end
@@ -96,8 +95,8 @@ def toggle(toggle_name)
   toggle_on
 end
 
-## check feature level e.g. --beta
-## if no feature level then feature level = ga
+# # check feature level e.g. --beta
+# # if no feature level then feature level = ga
 def check_feature_level(args)
   Log.info { "args.raw #{args.raw}" }
   case args.raw
@@ -145,7 +144,7 @@ end
 
 def check_wip(args)
   toggle("wip") || check_feature_level(args) == "wip" ||
-  toggle("poc") || check_feature_level(args) == "poc"
+    toggle("poc") || check_feature_level(args) == "poc"
 end
 
 def check_poc
@@ -187,7 +186,7 @@ def update_yml(yml_file, top_level_key, value)
   parsed_new_yml = YAML.parse(new_yaml)
   Log.debug { "update_yml parsed_new_yml: #{parsed_new_yml}" }
   File.open("#{yml_file}", "w") do |f|
-    YAML.dump(parsed_new_yml,f)
+    YAML.dump(parsed_new_yml, f)
   end
 end
 
@@ -209,43 +208,43 @@ def upsert_decorated_task(task, status : CNFManager::ResultStatus, message, star
 end
 
 def upsert_failed_task(task, message, start_time)
- CNFManager::Points.upsert_task(task, FAILED, CNFManager::Points.task_points(task, false), start_time)
+  CNFManager::Points.upsert_task(task, FAILED, CNFManager::Points.task_points(task, CNFManager::ResultStatus::Failed), start_time)
   stdout_failure message
   message
 end
 
 def upsert_passed_task(task, message, start_time)
- CNFManager::Points.upsert_task(task, PASSED, CNFManager::Points.task_points(task), start_time)
+  CNFManager::Points.upsert_task(task, PASSED, CNFManager::Points.task_points(task, CNFManager::ResultStatus::Passed), start_time)
   stdout_success message
   message
 end
 
 def upsert_skipped_task(task, message, start_time)
- CNFManager::Points.upsert_task(task, SKIPPED, CNFManager::Points.task_points(task, CNFManager::ResultStatus::Skipped), start_time)
+  CNFManager::Points.upsert_task(task, SKIPPED, CNFManager::Points.task_points(task, CNFManager::ResultStatus::Skipped), start_time)
   stdout_warning message
   message
 end
 
 def upsert_na_task(task, message, start_time)
- CNFManager::Points.upsert_task(task, NA, CNFManager::Points.task_points(task, CNFManager::ResultStatus::NA), start_time)
+  CNFManager::Points.upsert_task(task, NA, CNFManager::Points.task_points(task, CNFManager::ResultStatus::NA), start_time)
   stdout_warning message
   message
 end
 
 def upsert_error_task(task, message, start_time)
   CNFManager::Points.upsert_task(task, ERROR, CNFManager::Points.task_points(task, CNFManager::ResultStatus::Error), start_time)
-   stdout_error message
-   message
- end
+  stdout_error message
+  message
+end
 
 def upsert_dynamic_task(task, status : CNFManager::ResultStatus, message, start_time)
   CNFManager::Points.upsert_task(task, status.to_s.downcase, CNFManager::Points.task_points(task, status), start_time)
-  case status.to_s.downcase 
+  case status.to_s.downcase
   when /pass/
     stdout_success message
   when /fail/
-  stdout_failure message
-  message
+    stdout_failure message
+    message
   else
     stdout_warning message
   end
@@ -265,31 +264,34 @@ def tools_path
   value
 end
 
-def stdout_info(msg)
+def stdout_info(msg, same_line = false)
+  if same_line
+    msg = "#{"\e[1A\e[K"}#{msg}"
+  end
   puts msg
 end
 
 # \e[1A\e[K is a sequence that allows to clear current line and place cursor at its beginning
-def stdout_colored(msg, color, same_line=false)
+def stdout_colored(msg, color, same_line = false)
   if same_line
     msg = "#{"\e[1A\e[K"}#{msg}"
   end
   puts msg.colorize(color)
 end
 
-def stdout_success(msg, same_line=false)
+def stdout_success(msg, same_line = false)
   stdout_colored(msg, :green, same_line)
 end
 
-def stdout_warning(msg, same_line=false)
+def stdout_warning(msg, same_line = false)
   stdout_colored(msg, :yellow, same_line)
 end
 
-def stdout_failure(msg, same_line=false)
+def stdout_failure(msg, same_line = false)
   stdout_colored(msg, :red, same_line)
 end
 
-def stdout_error(msg, same_line=false)
+def stdout_error(msg, same_line = false)
   stdout_colored(msg, Colorize::Color256.new(208), same_line)
 end
 
@@ -310,8 +312,8 @@ def stdout_score(test_names : Array(String), full_name)
   essential_max_passed = CNFManager::Points.total_max_passed("essential")
 
   pretty_test_name = full_name.split(/:|_/).map(&.capitalize).join(" ")
-  test_log_msg = 
-<<-STRING
+  test_log_msg =
+    <<-STRING
 #{pretty_test_name} results: #{total_passed} of #{max_passed} tests passed
 
 STRING
@@ -324,7 +326,6 @@ STRING
     stdout_failure test_log_msg
   end
 end
-  
 
 # this method extracts a string value from a config section if it exists
 # if the value is an integer it will be converted to a string before extraction
@@ -342,9 +343,9 @@ def version_less_than(v1str, v2str)
   # To allow microk8s, we strip the plus sign from the minor version.
   # The below code block performs that cleanup.
 
-  v1str = v1str.split(".").map {|i| i.ends_with?("+") ? i.gsub("+", "") : i}
+  v1str = v1str.split(".").map { |i| i.ends_with?("+") ? i.gsub("+", "") : i }
   v1str = v1str.join(".")
-  v2str = v2str.split(".").map {|i| i.ends_with?("+") ? i.gsub("+", "") : i}
+  v2str = v2str.split(".").map { |i| i.ends_with?("+") ? i.gsub("+", "") : i }
   v2str = v2str.join(".")
 
   v1 = SemanticVersion.parse(v1str)

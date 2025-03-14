@@ -69,9 +69,9 @@ task "k8s_conformance" do |t, args|
 
     failed_count = ((results.match(/Failed: (.*)/)).try &.[1]) 
     if failed_count.to_s.to_i > 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "K8s conformance test has #{failed_count} failure(s)!")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "K8s conformance test has #{failed_count} failure(s)!")
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "K8s conformance test has no failures")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "K8s conformance test has no failures")
     end
   rescue ex
     Log.error { ex.message }
@@ -87,7 +87,7 @@ desc "Is Cluster Api available and managing a cluster?"
 task "clusterapi_enabled" do |t, args|
   CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do
     unless check_poc(args)
-      next CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Skipped, "Cluster API not in poc mode")
+      next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Cluster API not in poc mode")
     end
 
     Log.debug { "clusterapi_enabled" }
@@ -126,9 +126,9 @@ task "clusterapi_enabled" do |t, args|
     Log.info { "clusterapi_control_planes_json: #{clusterapi_control_planes_json}" }
 
     if clusterapi_namespaces_json["items"]? && clusterapi_namespaces_json["items"].as_a.size > 0 && clusterapi_control_planes_json["items"]? && clusterapi_control_planes_json["items"].as_a.size > 0
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Cluster API is enabled")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Cluster API is enabled")
     else
-      CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Cluster API NOT enabled")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Cluster API NOT enabled")
     end
   end
 end
