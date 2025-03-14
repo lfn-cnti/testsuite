@@ -3,9 +3,6 @@ require "file_utils"
 require "colorize"
 require "totem"
 require "helm"
-# require "./utils/system_information/wget.cr"
-# require "./utils/system_information/curl.cr"
-require "./utils/system_information/clusterctl.cr"
 
 task "prereqs" do |_, args|
   helm_ok = Helm::SystemInfo.helm_installation_info() && begin
