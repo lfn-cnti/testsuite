@@ -1786,3 +1786,25 @@ Switch to using Helm v3+ and make sure not to pull any images with name tiller i
 #### Usage
 
 `./cnf-testsuite platform:helm_tiller`
+
+
+### Verify if configmaps are encrypted
+
+#### Overview
+
+Checks if configmaps are encrypted in the platform.  
+Expectation: Configmaps should be encrypted to ensure sensitive data is not stored in plain text.
+
+#### Rationale
+
+Configmaps encryption is not enabled by default in kubernetes environment. As configmaps can  contain sensitive information, it is recommended to encrypt these values. For encrypting configmaps in etcd, we are using encryption in rest, this will cause, that there will not be configmaps key value in plain text format anymore in etcd.
+
+#### Remediation
+
+Check version of ETCDCTL in etcd pod, it should be v3.+
+
+#### Usage
+
+To run the test to verify if configmaps are encrypted:
+
+`./cnf-testsuite platform:verify_configmaps_encryption`
