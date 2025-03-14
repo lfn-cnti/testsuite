@@ -2,6 +2,13 @@ require "spec"
 require "colorize"
 require "../src/cnf_testsuite"
 require "../src/tasks/utils/utils.cr"
+require "../src/modules/tar/tar.cr"
+require "../src/modules/git/git.cr"
+require "../src/modules/release_manager/release_manager.cr"
+require "../src/modules/kernel_introspection/kernel_introspection.cr"
+require "../src/modules/docker_client/docker_client.cr"
+require "../src/modules/helm/helm.cr"
+require "../src/modules/kernel_introspection/k8s.cr"
 
 ENV["CRYSTAL_ENV"] = "TEST" 
 
