@@ -1,6 +1,7 @@
 require "./../spec_helper"
 require "colorize"
 require "./../../src/tasks/utils/utils.cr"
+require "../../src/tasks/kind_setup.cr"
 
 describe "Platform" do
   before_all do
@@ -39,3 +40,37 @@ describe "Platform" do
     (/(PASSED).*(No Helm Tiller containers are running)/ =~ result[:output]).should_not be_nil
   end
 end
+
+it "'kubescape_secret_etcd' should pass if encryption is enabled in etcd", tags: ["platform:security"] do
+  kind_manager = KindManager.new
+  cluster = kind_manager.create_cluster("cluster-encrypted", "./spec/fixtures/kind-config.yaml", "1.25.3")
+  cluster.wait_until_pods_ready()
+
+  with_kubeconfig(cluster.kubeconfig) { 
+    result = ShellCmd.run_testsuite("platform:kubescape_secret_etcd")
+    result[:status].success?.should be_true
+    (/(PASSED).*(Secret\/etcd encryption enabled)/ =~ result[:output]).should_not be_nil
+  }
+
+ensure
+  if kind_manager
+    kind_manager.delete_cluster("cluster-encrypted")
+  end
+end 
+
+it "'kubescape_secret_etcd' should fail if encryption is disabled in etcd", tags: ["platform:security"] do
+  kind_manager = KindManager.new
+  cluster = kind_manager.create_cluster("cluster-nonencrypted", nil, "1.25.3")
+  cluster.wait_until_pods_ready()
+
+  with_kubeconfig(cluster.kubeconfig) { 
+    result = ShellCmd.run_testsuite("platform:kubescape_secret_etcd")
+    result[:status].success?.should be_true
+    (/(FAILED).*(Secret\/etcd encryption disabled)/ =~ result[:output]).should_not be_nil
+  }
+
+ensure
+  if kind_manager
+    kind_manager.delete_cluster("cluster-encrypted")
+  end
+end 
