@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-multi-container-pod
+spec:
+  containers:
+    - name: nginx-container
+      image: nginx:latest
+      ports:
+        - containerPort: 80
+    - name: failing-container
+      image: busybox
+      command: ["sh", "-c", "exit 1"]
