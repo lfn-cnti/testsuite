@@ -8,7 +8,9 @@ require "../src/modules/release_manager/release_manager.cr"
 require "../src/modules/kernel_introspection/kernel_introspection.cr"
 require "../src/modules/docker_client/docker_client.cr"
 require "../src/modules/helm/helm.cr"
-require "../src/modules/kernel_introspection/k8s.cr"
+require "../src/modules/k8s_kernel_introspection/k8s_kernel_introspection.cr"
+require "../src/modules/k8s_netstat/k8s_netstat.cr"
+require "../src/modules/cluster_tools/cluster_tools.cr"
 
 ENV["CRYSTAL_ENV"] = "TEST" 
 
