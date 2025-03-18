@@ -11,6 +11,7 @@ require "../src/modules/helm/helm.cr"
 require "../src/modules/k8s_kernel_introspection/k8s_kernel_introspection.cr"
 require "../src/modules/k8s_netstat/k8s_netstat.cr"
 require "../src/modules/cluster_tools/cluster_tools.cr"
+require "../src/modules/kubectl_client/kubectl_client.cr"
 
 ENV["CRYSTAL_ENV"] = "TEST" 
 
