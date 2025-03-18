@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+    name: cluster-tools
+spec:
+  selector:
+    matchLabels:
+      name: cluster-tools
+  template:
+    metadata:
+      labels:
+        name: cluster-tools
+    spec:
+      hostPID: true
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: cluster-tools
+          image: lfncnti/cluster-tools:v1.0.6
+          imagePullPolicy: Always
+          command: ["/bin/sh"]
+          args: ["-c", "sleep infinity"]
+          volumeMounts:
+          - mountPath: /run/containerd/
+            name: containerd-volume
+          - mountPath: /run/systemd/
+            name: systemd
+            readOnly: true
+          - mountPath: /proc
+            name: proc
+          - mountPath: /run/dockershim.sock
+            name: dockerd-volume
+          securityContext:
+            privileged: true
+      volumes:
+      - name: containerd-volume
+        hostPath:
+          path: /var/run/containerd/
+      - name: proc
+        hostPath:
+          path: /proc
+      - name: dockerd-volume
+        hostPath:
+          path: /run/dockershim.sock
+      - name: systemd
+        hostPath:
+          path: /run/systemd
