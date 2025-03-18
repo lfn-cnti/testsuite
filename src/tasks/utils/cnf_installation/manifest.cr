@@ -17,14 +17,14 @@ module CNFInstall
       ymls
     end
 
-    def self.manifest_file_list(manifest_directory, raise = false)
+    def self.manifest_file_list(manifest_directory, raise_ex = false)
       logger = Log.for("manifest_file_list")
 
       logger.debug { "Look for manifest files in: '#{manifest_directory}'" }
       if manifest_directory && !manifest_directory.empty? && manifest_directory != "/"
         manifests = Find.find("#{manifest_directory}/", "\"*.yml\" -o -name \"*.yaml\"")
         logger.debug { "Found manifests: #{manifests}" }
-        if manifests.size == 0 && !silent
+        if manifests.size == 0 && raise_ex
           raise "No manifest YAMLs found in the #{manifest_directory} directory!"
         end
         manifests
