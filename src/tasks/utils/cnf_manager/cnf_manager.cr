@@ -120,7 +120,7 @@ module CNFManager
 
     cnf_testsuite = Find.find("#{CNF_DIR}/*", "\"#{CONFIG_FILE}\"")
     if cnf_testsuite.empty?
-      logger.info { "CNF config file not found" }
+      logger.error { "CNF config file not found" }
       raise "No cnf_testsuite.yml found! Did you run the \"cnf_install\" task?" if raise_exc
     else
       logger.info { "Found CNF config file: #{cnf_testsuite}" }
@@ -130,14 +130,11 @@ module CNFManager
   end
 
   def self.cnf_installed?
-    cnf_configs = cnf_config_list(false)
-    return false if cnf_configs.empty?
-    true
+    !cnf_config_list(false).empty?
   end
 
   def self.path_has_yml?(config_path)
-    return true if config_path =~ /\.yml/
-    false
+    config_path =~ /\.yml/
   end
 
   # (kosstennbl) TODO: Redesign this method using new installation.
