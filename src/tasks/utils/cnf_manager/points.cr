@@ -149,23 +149,23 @@ module CNFManager
     # Gets the total assigned points for a tag (or all total points) from the results file.
     # Usesful for calculation categories total.
     def self.total_points(tag = nil) : Int32
-      total_tasks_passed([tag])[0]
+      total_tasks_points([tag])[0]
     end
 
     def self.total_points(tags : Array(String) = [] of String) : Int32
-      total_tasks_passed(tags)[0]
+      total_tasks_points(tags)[0]
     end
 
     def self.total_passed(tag = nil) : Int32
-      total_tasks_passed([tag])[1]
+      total_tasks_points([tag])[1]
     end
 
     def self.total_passed(tags : Array(String) = [] of String) : Int32
-      total_tasks_passed(tags)[1]
+      total_tasks_points(tags)[1]
     end
 
-    private def self.total_tasks_passed(tags : Array(String) = [] of String) : Tuple(Int32, Int32)
-      logger = @@logger.for("total_tasks_passed")
+    private def self.total_tasks_points(tags : Array(String) = [] of String) : Tuple(Int32, Int32)
+      logger = @@logger.for("total_tasks_points")
       if !tags.empty?
         tasks = tasks_by_tag_intersection(tags)
       else
@@ -203,24 +203,24 @@ module CNFManager
 
     # Calculates the total potential points.
     def self.total_max_points(tag = nil) : Int32
-      total_max_tasks_passed([tag])[0]
+      total_max_tasks_points([tag])[0]
     end
 
     def self.total_max_points(tags : Array(String) = [] of String) : Int32
-      total_max_tasks_passed(tags)[0]
+      total_max_tasks_points(tags)[0]
     end
 
     def self.total_max_passed(tag = nil) : Int32
-      total_max_tasks_passed([tag])[1]
+      total_max_tasks_points([tag])[1]
     end
 
     def self.total_max_passed(tags : Array(String) = [] of String) : Int32
-      total_max_tasks_passed(tags)[1]
+      total_max_tasks_points(tags)[1]
     end
 
     # Calculates the total potential points.
-    private def self.total_max_tasks_passed(tags : Array(String) = [] of String) : Tuple(Int32, Int32)
-      logger = @@logger.for("total_max_tasks_passed")
+    private def self.total_max_tasks_points(tags : Array(String) = [] of String) : Tuple(Int32, Int32)
+      logger = @@logger.for("total_max_tasks_points")
       if !tags.empty?
         tasks = tasks_by_tag_intersection(tags)
       else
