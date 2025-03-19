@@ -4,7 +4,7 @@ require "file_utils"
 require "colorize"
 require "totem"
 require "../utils/utils.cr"
-require "kubectl_client"
+require "../../modules/kubectl_client"
 
 desc "The CNF test suite checks if state is stored in a custom resource definition or a separate database (e.g. etcd) rather than requiring local storage.  It also checks to see if state is resilient to node failure"
 task "state", ["no_local_volume_configuration", "elastic_volumes", "database_persistence", "node_drain"] do |_, args|

@@ -1,4 +1,4 @@
-require "cluster_tools"
+require "../../modules/cluster_tools"
 require "./k8s_tshark.cr"
 module ORANMonitor 
 

@@ -1,4 +1,5 @@
-require "cluster_tools"
+require "../../modules/cluster_tools"
+
 module Mysql
   MYSQL_PORT = "3306" 
   MYSQL_IMAGES = ["mysql/mysql-server","bitnami/mysql"]

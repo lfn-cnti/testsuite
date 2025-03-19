@@ -1,4 +1,4 @@
-require "kubectl_client"
+require "../kubectl_client"
 require "./utils/utils.cr"
 require "./utils/binary_reference.cr"
 require "./utils/system_information.cr"

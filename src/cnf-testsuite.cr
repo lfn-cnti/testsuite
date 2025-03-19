@@ -1,5 +1,5 @@
 require "sam"
-require "release_manager"
+require "./modules/release_manager"
 require "./proto/**"
 require "./tasks/**"
 require "./tasks/utils/utils.cr"

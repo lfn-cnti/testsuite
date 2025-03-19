@@ -1,20 +1,8 @@
 require "../spec_helper.cr"
+
 require "file_utils"
 
 TAR_SPEC_DIR="./tar_spec_dir"
-
-def self.find(directory, wildcard="*.tar*", maxdepth="1", silent=true)
-  Log.info { "find command: find #{directory} -maxdepth #{maxdepth} -name #{wildcard}" }
-  status = Process.run("find #{directory} -maxdepth #{maxdepth} -name \"#{wildcard}\"",
-                       shell: true,
-                       output: output = IO::Memory.new,
-                       error: stderr = IO::Memory.new)
-  found_files = output.to_s.split("\n").select{|x| x.empty? == false}
-  if found_files.size == 0 && !silent
-    raise "No files found!"
-  end
-  found_files
-end
 
 describe "TarClient" do
   before_all do
@@ -25,7 +13,7 @@ describe "TarClient" do
     Dir.delete(TAR_SPEC_DIR)
   end
 
-  it "'.tar' should tar a source file or directory", tags:["tar"]  do
+  it "'.tar' should tar a source file or directory", tags:["tar"] do
     `rm #{TAR_SPEC_DIR}/test.tar`
     TarClient.tar("#{TAR_SPEC_DIR}/test.tar", "./spec/fixtures", "cnf-testsuite.yml")
     (File.exists?("./spec/fixtures/cnf-testsuite.yml")).should be_true
@@ -33,7 +21,7 @@ describe "TarClient" do
     `rm #{TAR_SPEC_DIR}/test.tar`
   end
 
-  it "'.untar' should untar a tar file into a directory", tags:["tar"]  do
+  it "'.untar' should untar a tar file into a directory", tags:["tar"] do
     `rm #{TAR_SPEC_DIR}/test.tar`
     TarClient.tar("#{TAR_SPEC_DIR}/test.tar", "./spec/fixtures", "cnf-testsuite.yml")
     TarClient.untar("#{TAR_SPEC_DIR}/test.tar", "#{TAR_SPEC_DIR}")
@@ -43,13 +31,13 @@ describe "TarClient" do
     `rm #{TAR_SPEC_DIR}/cnf-testsuite.yml`
   end
 
-  it "'.modify_tar!' should untar file, yield to block, retar", tags:["tar"]  do
+  it "'.modify_tar!' should untar file, yield to block, retar", tags:["tar"] do
     `rm #{TAR_SPEC_DIR}/test.tar`
     input_content = File.read("./spec/fixtures/litmus-operator-v1.13.2.yaml") 
     (input_content =~ /imagePullPolicy: Never/).should be_nil
     TarClient.tar("#{TAR_SPEC_DIR}/test.tar", "./spec/fixtures", "litmus-operator-v1.13.2.yaml")
     TarClient.modify_tar!("#{TAR_SPEC_DIR}/test.tar") do |directory| 
-      template_files = Find.find(directory, "*.yaml*", "100")
+      template_files = find(directory, "*.yaml*", "100")
       Log.debug {"template_files: #{template_files}"}
       template_files.map do |x| 
         input_content = File.read(x) 

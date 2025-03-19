@@ -1,4 +1,5 @@
-require "cluster_tools"
+require "../../modules/cluster_tools"
+
 module JaegerManager
   # JAEGER_PORT = "14271" # agent port
   JAEGER_PORT = "14269" # collector port

@@ -1,4 +1,4 @@
-require "kubectl_client"
+require "../kubectl_client"
 
 module KernelIntrospection
   module K8s

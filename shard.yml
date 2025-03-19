@@ -22,49 +22,15 @@ dependencies:
   halite:
     github: icyleaf/halite
     version: ~> 0.12.0
-  
   icr:
     github: crystal-community/icr
     branch: master
-
   commander:
     github: mrrooijen/commander
     version: ~> 0.4.0
-
   retriable:
     github: Sija/retriable.cr
     version: ~> 0.2.4
-  tar:
-    github: cnf-testsuite/tar
-    # version: ~> 0.1.0
-    branch: main
-  git:
-    github: cnf-testsuite/git
-    version: ~> 1.0.0
-  docker_client:
-    github: cnf-testsuite/docker_client
-    version: ~> 1.0.0
-  kubectl_client:
-    github: cnf-testsuite/kubectl_client
-    version: ~> 1.0.8
-  cluster_tools:
-    github: cnf-testsuite/cluster_tools
-    version: ~> 1.0.11
-  kernel_introspection:
-    github: cnf-testsuite/kernel_introspection
-    version: ~> 0.1.0
-  k8s_kernel_introspection:
-    github: cnf-testsuite/k8s_kernel_introspection
-    version: ~> 1.0.4
-  helm:
-    github: cnf-testsuite/helm
-    version: ~> 1.0.5
-  k8s_netstat:
-    github: cnf-testsuite/k8s_netstat
-    version: ~> 1.0.2
-  release_manager:
-    github: cnf-testsuite/release_manager
-    branch: main
   protobuf:
     github: jeromegn/protobuf.cr
 

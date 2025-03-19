@@ -3,7 +3,7 @@ require "sam"
 require "colorize"
 require "../utils/utils.cr"
 require "retriable"
-require "k8s_kernel_introspection"
+require "../../modules/k8s_kernel_introspection"
 
 namespace "platform" do
   desc "The CNF test suite checks to see if the Platform has Observability support."

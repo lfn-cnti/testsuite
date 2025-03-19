@@ -1,9 +1,9 @@
 require "file_utils"
 require "colorize"
 require "totem"
-require "kubectl_client"
+require "../../kubectl_client"
 require "./utils.cr"
-require "../../helm.cr"
+require "../helm.cr"
 
 # TODO (rafal-lal): move stdout_ to main cnti testsuite
 def helm_installation(verbose = false)

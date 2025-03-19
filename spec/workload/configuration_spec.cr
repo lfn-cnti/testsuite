@@ -1,5 +1,4 @@
 require "../spec_helper"
-require "kubectl_client"
 require "colorize"
 require "../../src/tasks/utils/utils.cr"
 

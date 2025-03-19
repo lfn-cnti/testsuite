@@ -1,5 +1,5 @@
 require "colorize"
-require "../../src/utils/utils.cr"
+require "./utils.cr"
 
 def git_installation(verbose=false)
   gmsg = "No Global git version found"

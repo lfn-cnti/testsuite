@@ -1,5 +1,5 @@
 require "colorize"
-require "kernel_introspection"
+require "../../modules/kernel_introspection"
 
 module HttpHelper 
   # avoids problems with ssl

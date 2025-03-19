@@ -1,9 +1,10 @@
 require "totem"
 require "colorize"
-require "docker_client"
-require "./src/modules/*"
-require "./src/utils/utils.cr"
-require "./src/utils/system_information.cr"
+require "../docker_client"
+require "./modules/*"
+require "./constants.cr"
+require "./utils/utils.cr"
+require "./utils/system_information.cr"
 
 module KubectlClient
   Log = ::Log.for("KubectlClient")

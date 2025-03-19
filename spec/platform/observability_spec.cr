@@ -1,7 +1,6 @@
 require "./../spec_helper"
 require "colorize"
 require "./../../src/tasks/utils/utils.cr"
-require "kubectl_client"
 
 describe "Platform Observability" do
   before_all do

@@ -1,4 +1,4 @@
-require "cluster_tools"
+require "../../modules/cluster_tools"
 module UERANSIM 
 
   def self.uninstall
