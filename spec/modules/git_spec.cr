@@ -1,5 +1,4 @@
-require "../spec_helper"
-require "colorize"
+require "../spec_helper.cr"
 
 describe "Git" do
   it "'installation_found?' should show a git client was located", tags:["git"] do

@@ -1,4 +1,4 @@
-require "cluster_tools"
+require "../../cluster_tools"
 
 module Netstat
   module Mariadb

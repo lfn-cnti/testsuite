@@ -2,7 +2,7 @@ require "sam"
 require "file_utils"
 require "colorize"
 require "totem"
-require "helm"
+require "../modules/helm"
 
 task "prereqs" do |_, args|
   helm_ok = Helm::SystemInfo.helm_installation_info() && begin

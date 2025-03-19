@@ -1,6 +1,6 @@
-require "kubectl_client"
-require "cluster_tools"
-require "../utils/mariadb.cr"
+require "../kubectl_client"
+require "../cluster_tools"
+require "./utils/mariadb.cr"
 
 module Netstat
     # kubectl exec cluster-tools-lhwkk -t -- nsenter -t 743858 -n netstat

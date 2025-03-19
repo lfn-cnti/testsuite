@@ -3,7 +3,7 @@ require "colorize"
 require "log"
 require "file_utils"
 require "../constants.cr"
-require "tar"
+require "../../tar"
 
 def stdout_info(msg)
   puts msg

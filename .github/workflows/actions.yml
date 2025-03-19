@@ -245,9 +245,7 @@ jobs:
         cache-name: cache-crystal-shards
       with:
         path: ./lib
-        key: lib-${{ hashFiles('**/shard.lock') }}
-        restore-keys: |
-          lib-
+        key: lib-${{ hashFiles('**/shard.lock') }}-${{ runner.os }}
     - name: Setup CNF-Conformance
       run: |
         helm repo add stable https://cncf.gitlab.io/stable

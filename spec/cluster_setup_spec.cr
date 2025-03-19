@@ -1,8 +1,6 @@
 require "./spec_helper"
 require "colorize"
 require "../src/tasks/utils/utils.cr"
-require "kubectl_client"
-require "cluster_tools"
 
 describe "Cluster Setup" do
   it "'install_cluster_tools' should give a message if namespace does not exist", tags: ["cluster_setup"]  do

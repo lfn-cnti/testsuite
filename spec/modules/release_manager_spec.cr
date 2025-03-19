@@ -1,8 +1,6 @@
-require "spec"
 require "../spec_helper.cr"
 
 describe "ReleaseManager" do
-
   ghrm = ReleaseManager::GithubReleaseManager.new("cnf-testsuite/release_manager")
   
   # upsert a test release

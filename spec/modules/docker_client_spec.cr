@@ -1,7 +1,6 @@
-require "../spec_helper"
+require "../spec_helper.cr"
 
 describe "DockerClient" do
-
   it "'installation_found?' should show a git client was located", tags: ["docker_client"] do
     (DockerClient.pull("hello-world")[:output].to_s).should contain("Pulling from")
   end

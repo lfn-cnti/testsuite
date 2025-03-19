@@ -1,4 +1,4 @@
-require "../spec_helper"
+require "../spec_helper.cr"
 
 describe "KernelIntrospection" do
   before_all do
