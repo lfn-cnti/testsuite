@@ -3,7 +3,7 @@ require "sam"
 require "file_utils"
 require "colorize"
 require "totem"
-require "docker_client"
+require "../../modules/docker_client"
 require "../utils/utils.cr"
 
 

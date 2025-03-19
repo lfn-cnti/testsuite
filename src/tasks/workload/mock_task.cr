@@ -4,7 +4,7 @@ require "file_utils"
 require "colorize"
 require "totem"
 require "../utils/utils.cr"
-require "kubectl_client"
+require "../../modules/kubectl_client"
 
 
 task "divide_by_zero" do |_, args|

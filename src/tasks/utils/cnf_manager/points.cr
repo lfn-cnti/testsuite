@@ -1,6 +1,6 @@
 require "totem"
 require "colorize"
-require "helm"
+require "../../../modules/helm"
 require "uuid"
 
 module CNFManager

@@ -1,4 +1,4 @@
-require "../spec_helper"
+require "../spec_helper.cr"
 
 describe "KernelIntrospection" do
   before_all do
@@ -9,7 +9,7 @@ describe "KernelIntrospection" do
     ClusterTools.install
   end
 
-  it "'#status_by_proc' should return all statuses for all containers in a pod", tags: ["k8s_kernel_introspection"] do
+  it "'#status_by_proc' should return all statuses for all containers in a pod", tags:["k8s_kernel_introspection"] do
     result = KubectlClient::ShellCMD.run("kubectl run nginx --image=nginx --labels='name=nginx'")
     pods = KubectlClient::Get.pods_by_nodes(KubectlClient::Get.schedulable_nodes_list)
     pods.should_not be_nil
@@ -28,7 +28,7 @@ describe "KernelIntrospection" do
     KubectlClient::Delete.resource("pod", "nginx")
   end
 
-  it "'#find_first_process' should return first matching process", tags: ["k8s_kernel_introspection"]  do
+  it "'#find_first_process' should return first matching process", tags:["k8s_kernel_introspection"] do
     result = KubectlClient::ShellCMD.run("kubectl run nginx --image=nginx --labels='name=nginx'")
     KubectlClient::Wait.resource_wait_for_install("pod", "nginx")
     begin
@@ -40,7 +40,7 @@ describe "KernelIntrospection" do
     end
   end
 
-  it "'#find_matching_processes' should return all matching processes", tags: ["k8s_kernel_introspection"]  do
+  it "'#find_matching_processes' should return all matching processes", tags:["k8s_kernel_introspection"] do
     result = KubectlClient::ShellCMD.run("kubectl run nginx --image=nginx --labels='name=nginx'")
     KubectlClient::Wait.resource_wait_for_install("pod", "nginx")
     begin

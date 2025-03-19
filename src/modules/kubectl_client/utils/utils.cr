@@ -2,7 +2,7 @@ require "totem"
 require "colorize"
 require "log"
 require "file_utils"
-require "./constants.cr"
+require "../constants.cr"
 
 def stdout_info(msg)
   puts msg

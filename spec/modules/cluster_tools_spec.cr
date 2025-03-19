@@ -1,4 +1,4 @@
-require "../spec_helper"
+require "../spec_helper.cr"
 
 describe "ClusterTools" do
   before_all do
@@ -14,7 +14,7 @@ describe "ClusterTools" do
     ClusterTools.uninstall
   end
 
-  it "ensure_namespace_exists!", tags: ["cluster_tools"] do
+  it "ensure_namespace_exists!", tags:["cluster_tools"] do
     (ClusterTools.ensure_namespace_exists!).should be_true
 
     KubectlClient::Delete.resource("namespace", "#{ClusterTools.namespace}")
@@ -24,7 +24,7 @@ describe "ClusterTools" do
     end
   end
 
-  it "install", tags: ["cluster_tools"] do
+  it "install", tags:["cluster_tools"] do
     KubectlClient::Apply.namespace(ClusterTools.namespace)
 
     (ClusterTools.install).should be_true
@@ -32,12 +32,12 @@ describe "ClusterTools" do
     (ClusterTools.ensure_namespace_exists!).should be_true
   end
 
-  it "ensure_namespace_exists! (post install)", tags: ["cluster_tools"] do
+  it "ensure_namespace_exists! (post install)", tags:["cluster_tools"] do
     ClusterTools.install
     (ClusterTools.ensure_namespace_exists!).should be_true
   end
 
-  it "pod_name", tags: ["cluster_tools"] do
+  it "pod_name", tags:["cluster_tools"] do
     (/cluster-tools/ =~ ClusterTools.pod_name).should_not be_nil
   end
 end

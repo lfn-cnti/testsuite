@@ -1,8 +1,6 @@
-require "spec"
 require "../spec_helper.cr"
 
 describe "ReleaseManager" do
-
   ghrm = ReleaseManager::GithubReleaseManager.new("cnf-testsuite/release_manager")
   
   # upsert a test release
@@ -15,14 +13,14 @@ describe "ReleaseManager" do
       ghrm.delete_release("test_version")
     end
   end
-  it "'#ReleaseManager.tag' should return the list of tags on the current branch", tags: ["release_manager"]  do
+  it "'#ReleaseManager.tag' should return the list of tags on the current branch", tags:["release_manager"] do
     (ReleaseManager.tag.size).should be > 0
   end
-  it "'#ReleaseManager.tag' should accept a list of options", tags: ["release_manager"]  do
+  it "'#ReleaseManager.tag' should accept a list of options", tags:["release_manager"] do
       (ReleaseManager.tag("--list")).should_not eq([""])
       (ReleaseManager.tag("--list 'shouldbeempty'")).should eq([""]) 
   end
-  it "'#ReleaseManager.current_branch' should return the current branch as a string", tags: ["release_manager"]  do
+  it "'#ReleaseManager.current_branch' should return the current branch as a string", tags:["release_manager"] do
     if ReleaseManager.on_a_tag?
       (ReleaseManager.tag("--list")).should_not eq([""])
     else
@@ -30,15 +28,15 @@ describe "ReleaseManager" do
     end
   end
 
-  it "'#ReleaseManager.current_hash' should return the current hash as a string", tags: ["release_manager"]  do
+  it "'#ReleaseManager.current_hash' should return the current hash as a string", tags:["release_manager"] do
     (ReleaseManager.current_hash).should_not eq("")
   end
 
-  it "'#ReleaseManager::GithubReleaseManager.remote_main_branch_hash' should return the current hash as a string", tags: ["release_manager"]  do
+  it "'#ReleaseManager::GithubReleaseManager.remote_main_branch_hash' should return the current hash as a string", tags:["release_manager"] do
     (ghrm.remote_main_branch_hash).should_not eq("")
   end
 
-  it "'#ReleaseManager::GithubReleaseManager.github_releases' should return the existing releases", tags: ["release_manager"]  do
+  it "'#ReleaseManager::GithubReleaseManager.github_releases' should return the existing releases", tags:["release_manager"] do
     if ENV["GITHUB_TOKEN"]?.nil?
       puts "Warning: Set GITHUB_TOKEN to activate release manager tests!".colorize(:red)
     else 
@@ -46,7 +44,7 @@ describe "ReleaseManager" do
     end
   end
 
-  it "'#ReleaseManager::GithubReleaseManager.upsert_release' should return the upserted release and asset response", tags: ["release_manager"]  do
+  it "'#ReleaseManager::GithubReleaseManager.upsert_release' should return the upserted release and asset response", tags:["release_manager"] do
     if ENV["GITHUB_TOKEN"]?.nil?
       puts "Warning: Set GITHUB_TOKEN to activate release manager tests!".colorize(:red)
     else 
@@ -59,12 +57,12 @@ describe "ReleaseManager" do
     end
   end
 
-  it "'#ReleaseManager::GithubReleaseManager.upsert_release' should return nil if not on a valid version", tags: ["release_manager"]  do
+  it "'#ReleaseManager::GithubReleaseManager.upsert_release' should return nil if not on a valid version", tags:["release_manager"] do
     found_release, asset = ghrm.upsert_release("invalid_version")
     (asset).should be_nil
   end
 
-  it "'#ghrm.delete_release' should delete the release from the found_id", tags: ["release_manager"]  do
+  it "'#ghrm.delete_release' should delete the release from the found_id", tags:["release_manager"] do
     if ENV["GITHUB_TOKEN"]?.nil?
       puts "Warning: Set GITHUB_TOKEN to activate release manager tests!".colorize(:red)
     else 
@@ -76,11 +74,11 @@ describe "ReleaseManager" do
       resp_code.should eq 204
     end
   end
-  it "'#ReleaseManager.detached_head?' should return if the head is detached", tags: ["release_manager"]  do
+  it "'#ReleaseManager.detached_head?' should return if the head is detached", tags:["release_manager"] do
     (ReleaseManager.detached_head?).should_not be_nil
   end
 
-  it "'#ReleaseManager.commit_message_issues' should list previsions releases", tags: ["release_manager"]  do
+  it "'#ReleaseManager.commit_message_issues' should list previsions releases", tags:["release_manager"] do
     hash = ReleaseManager.current_hash
     #todo dynamically change issues tag so that it is only a few weeks back
     # if this tag is too far in the past, the specs will not run
@@ -88,7 +86,7 @@ describe "ReleaseManager" do
     (issues[0].match(/#/)).should_not be_nil
   end
 
-  it "'#ReleaseManager.latest_release' should return latest release", tags: ["release_manager"] do
+  it "'#ReleaseManager.latest_release' should return latest release", tags:["release_manager"] do
     if ENV["GITHUB_TOKEN"]?.nil?
       puts "Warning: Set GITHUB_TOKEN to activate release manager tests!".colorize(:red)
     else 
@@ -98,7 +96,7 @@ describe "ReleaseManager" do
     end
   end
 
-  it "'#ReleaseManager.latest_snapshot' should return the latest snapshot", tags: ["release_manager"]  do
+  it "'#ReleaseManager.latest_snapshot' should return the latest snapshot", tags:["release_manager"] do
     if ENV["GITHUB_TOKEN"]?.nil?
       puts "Warning: Set GITHUB_TOKEN to activate release manager tests!".colorize(:red)
     else 
@@ -109,7 +107,7 @@ describe "ReleaseManager" do
   end
 
 
-  it "'#ReleaseManager.issue_title' should return issue title", tags: ["release_manager"]  do
+  it "'#ReleaseManager.issue_title' should return issue title", tags:["release_manager"] do
     if ENV["GITHUB_TOKEN"]?.nil?
       puts "Warning: Set GITHUB_TOKEN to activate release manager tests!".colorize(:red)
     else 
