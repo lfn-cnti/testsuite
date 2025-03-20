@@ -4,8 +4,8 @@ require "colorize"
 require "../utils/utils.cr"
 
 namespace "platform" do
-  desc "The CNF test suite checks to see if the platform is hardened."
-  task "security", ["control_plane_hardening", "cluster_admin", "helm_tiller"] do |t, args|
+  desc "The CNF test suite checks to see if the platform is hardened."    
+  task "security", ["control_plane_hardening", "cluster_admin", "helm_tiller", "kubescape_secret_etcd"] do |t, args|
     Log.debug { "security" }
     stdout_score("platform:security")
   end
@@ -60,6 +60,25 @@ namespace "platform" do
           end
         end
         CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Containers with the Helm Tiller image are running")
+      end
+    end
+  end
+
+  desc "Kubescape secret/etcd"
+  task "kubescape_secret_etcd", ["kubescape_scan"] do |t, args|
+    next if args.named["offline"]?
+
+    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config|
+      results_json = Kubescape.parse
+      test_json = Kubescape.test_by_test_name(results_json, "Secret/etcd encryption enabled")
+      test_report = Kubescape.parse_test_report(test_json)
+
+      if test_report.failed_resources.size == 0
+        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Passed, "Secret/etcd encryption enabled")
+      else
+        test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
+        stdout_failure("Remediation: #{test_report.remediation}")
+        CNFManager::TestcaseResult.new(CNFManager::ResultStatus::Failed, "Secret/etcd encryption disabled")
       end
     end
   end
