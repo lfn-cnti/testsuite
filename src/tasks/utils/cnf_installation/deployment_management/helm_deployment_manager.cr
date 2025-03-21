@@ -22,7 +22,6 @@ module CNFInstall
     def install_from_folder(chart_path, helm_namespace, helm_values)
       begin
         CNFManager.ensure_namespace_exists!(helm_namespace)
-        #TODO (kosstennbl) fix Helm install to add -n to namespace and remove it there
         response = Helm.install(@deployment_name, chart_path, namespace: helm_namespace, values: helm_values)
         if !response[:status].success?
           stdout_failure "Helm installation failed, stderr:"

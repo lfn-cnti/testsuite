@@ -367,3 +367,16 @@ def with_kubeconfig(kube_config : String, &)
   ENV["KUBECONFIG"] = last_kube_config
   result
 end
+
+def self.find(directory : String, wildcard : String)
+  Log.debug { "find command: find #{directory} -name #{wildcard}" }
+  status = Process.run("find #{directory} -name #{wildcard}",
+    shell: true,
+    output: output = IO::Memory.new,
+    error: stderr = IO::Memory.new)
+  Log.debug { "find output: #{output.to_s}" }
+  Log.warn { "find stderr: #{stderr.to_s}" } unless stderr.to_s.empty?
+  found_files = output.to_s.split("\n").select { |x| x.empty? == false }
+
+  found_files
+end
