@@ -38,9 +38,6 @@ dependencies:
     github: cnf-testsuite/tar
     # version: ~> 0.1.0
     branch: main
-  find:
-    github: cnf-testsuite/find
-    branch: main
   git:
     github: cnf-testsuite/git
     version: ~> 1.0.0
