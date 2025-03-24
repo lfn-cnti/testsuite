@@ -1,6 +1,8 @@
 require "../utils.cr"
 
 module CNFInstall
+  Log = ::Log.for("CNFInstall")
+
   def self.install_cnf(cli_args)
     parsed_args = parse_cli_args(cli_args)
     cnf_config_path = parsed_args[:config_path]
