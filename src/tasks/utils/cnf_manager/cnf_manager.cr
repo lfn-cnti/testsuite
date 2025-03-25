@@ -132,6 +132,7 @@ module CNFManager
     !cnf_config_list(false).empty?
   end
 
+  # (rafal-lal) TODO: why are we not accepting *.yaml
   def self.path_has_yml?(config_path)
     config_path =~ /\.yml/
   end
