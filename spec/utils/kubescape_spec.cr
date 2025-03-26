@@ -4,7 +4,7 @@ require "../../src/tasks/utils/utils.cr"
 
 describe "K8sInstrumentation" do
   before_all do
-    result = ShellCmd.run_testsuite("install_kubescape")
+    result = ShellCmd.run_testsuite("setup:install_kubescape")
   end
 
   it "'#scan and #test_by_test_name' should return the results of a kubescape scan", tags: ["kubescape"]  do

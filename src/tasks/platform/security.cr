@@ -12,7 +12,7 @@ namespace "platform" do
   end
 
   desc "Is the platform control plane hardened"
-  task "control_plane_hardening", ["kubescape_scan"] do |t, args|
+  task "control_plane_hardening", ["setup:kubescape_scan"] do |t, args|
     task_response = CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args|
       results_json = Kubescape.parse
       test_json = Kubescape.test_by_test_name(results_json, "API server insecure port is enabled")
@@ -29,7 +29,7 @@ namespace "platform" do
   end
 
   desc "Attackers who have Cluster-admin permissions (can perform any action on any resource), can take advantage of their high privileges for malicious intentions. Determines which subjects have cluster admin permissions."
-  task "cluster_admin", ["kubescape_scan"] do |t, args|
+  task "cluster_admin", ["setup:kubescape_scan"] do |t, args|
     CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config|
       results_json = Kubescape.parse
       test_json = Kubescape.test_by_test_name(results_json, "Administrative Roles")
