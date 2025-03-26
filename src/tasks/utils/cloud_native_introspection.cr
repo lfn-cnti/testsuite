@@ -1,6 +1,6 @@
 
 require "colorize"
-require "kubectl_client"
+require "../../modules/kubectl_client"
 
 module CloudNativeIntrospection
   PROMETHEUS_PROCESS = "prometheus"

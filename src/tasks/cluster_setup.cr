@@ -1,7 +1,7 @@
 require "sam"
 require "file_utils"
 require "colorize"
-require "cluster_tools"
+require "../modules/cluster_tools"
 require "totem"
 require "./utils/utils.cr"
 
