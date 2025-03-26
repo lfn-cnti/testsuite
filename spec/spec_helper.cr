@@ -1,6 +1,7 @@
 require "spec"
 require "colorize"
 require "../src/cnf_testsuite"
+require "../src/cnf-testsuite"
 require "../src/tasks/utils/utils.cr"
 
 ENV["CRYSTAL_ENV"] = "TEST" 
