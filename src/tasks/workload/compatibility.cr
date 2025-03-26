@@ -611,7 +611,6 @@ task "deprecated_k8s_features" do |t, args|
         passed = true
         logger.info { "CNF does not use any deprecated features" }
       else
-        # (rafal-lal) TODO: Next step is to check the source of the warning and provide it in results or/and logs.
         stdout_warning("Deprecated features warnings:\n#{warnings.join("\n")}")
         logger.info { "Warnings:\n#{warnings.join("\n")}" }
         passed = false
