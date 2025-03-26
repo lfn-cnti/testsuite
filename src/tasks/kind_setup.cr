@@ -10,7 +10,7 @@ private KIND_DIR = "#{tools_path}/kind"
 namespace "setup" do
   desc "Install Kind"
   task "install_kind" do |_, args|
-    logger = SLog.for("install_kind")
+    logger = SLOG.for("install_kind")
     logger.info { "Installing kind tool" }
 
     current_dir = FileUtils.pwd
@@ -43,7 +43,7 @@ namespace "setup" do
 
   desc "Uninstall Kind"
   task "uninstall_kind" do |_, args|
-    logger = SLog.for("uninstall_kind")
+    logger = SLOG.for("uninstall_kind")
     logger.info { "Uninstall kind tool" }
     FileUtils.rm_rf(KIND_DIR)
   end

@@ -21,9 +21,9 @@ Log.setup(loglevel, log_backend)
 
 # Define top level loggers for workload, platform and setup tasks.
 # Modules and Classes should have their own loggers.
-WLog = Log.for("Workload")
-PLog = Log.for("Platform")
-SLog = Log.for("Setup")
+WLOG = Log.for("Workload")
+PLOG = Log.for("Platform")
+SLOG = Log.for("Setup")
 
 private def log_backend
   if ENV.has_key?("LOGPATH") || ENV.has_key?("LOG_PATH")
