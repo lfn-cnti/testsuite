@@ -19,7 +19,21 @@ module CNFInstall
         return false
       end
 
-      KubectlClient::Apply.file(@manifest_directory_path)
+      begin
+        response = KubectlClient::Apply.file(@manifest_directory_path)
+        # Save the stderr from installation command for usage in other tests.
+        unless response[:output].empty?
+          File.open(CNF_INSTALL_LOG_FILE, "a") { |file| file.puts("#{response[:error]}\n") }
+        end
+      rescue ex : KubectlClient::ShellCMD::AlreadyExistsError
+        stdout_failure "Error while installing manifest deployment \"#{@manifest_config.name}\": #{ex.message}"
+        stdout_failure "Change CNF configuration or uninstall existing deployment."
+        return false
+      rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+        stdout_failure "Error while installing manifest deployment \"#{@manifest_config.name}\": #{ex.message}"
+        return false
+      end
+
       true
     end
 
@@ -29,7 +43,7 @@ module CNFInstall
       rescue KubectlClient::ShellCMD::NotFoundError
         # We don't need to do anything here.
       rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
-        stdout_error "Error while uninstalling manifest deployment \"#{@manifest_config.name}\": #{ex.message}"
+        stdout_failure "Error while uninstalling manifest deployment \"#{@manifest_config.name}\": #{ex.message}"
         return false
       end
 
