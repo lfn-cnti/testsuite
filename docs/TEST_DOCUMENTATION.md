@@ -39,7 +39,7 @@
 
 * [**Category: Platform Tests**](#category-platform-tests)
 
-   [[K8s Conformance]](#k8s-conformance) | [[ClusterAPI enabled]](#clusterapi-enabled) | [[OCI Compliant]](#oci-compliant) | [[(POC) Worker reboot recovery]](#poc-worker-reboot-recovery) | [[Cluster admin]](#cluster-admin) | [[Control plane hardening]](#control-plane-hardening) | [[Tiller images]](#tiller-images)
+   [[K8s Conformance]](#k8s-conformance) | [[ClusterAPI enabled]](#clusterapi-enabled) | [[OCI Compliant]](#oci-compliant) | [[(POC) Worker reboot recovery]](#poc-worker-reboot-recovery) | [[Cluster admin]](#cluster-admin) | [[Control plane hardening]](#control-plane-hardening) | [[Tiller images]](#tiller-images) | [[Tiller images]](#tiller-images) | [[Verify if secrets are secured]](#verify-if-secrets-are-secured)
 
 ----------
 
@@ -1786,3 +1786,27 @@ Switch to using Helm v3+ and make sure not to pull any images with name tiller i
 #### Usage
 
 `./cnf-testsuite platform:helm_tiller`
+
+----------
+
+### Verify if secrets are secured
+
+#### Overview
+
+Checks if Kubernetes secrets are encrypted in the platform. Expectation: Secrets should be encrypted to ensure sensitive data is not stored in plain text.
+
+#### Rationale
+
+By default, Kubernetes stores secrets in etcd without encryption. Since secrets contain sensitive information, it is recommended to encrypt these values. Enabling encryption in etcd ensures that secret values are not stored in plain text, protecting them from unauthorized access.
+
+#### Remediation
+
+Verify that etcd encryption is enabled for secrets.
+Check if `EncryptionConfiguration` is set up in the Kubernetes API server configuration.
+Ensure the encryption provider is properly configured.
+
+#### Usage
+
+To run the test to verify if secrets are secured:
+
+`./cnf-testsuite platform:verify_secrets_security`

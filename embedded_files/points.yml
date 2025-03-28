@@ -354,6 +354,10 @@
   emoji: "🔓🔑"
   tags: ["platform", "platform:security", "dynamic"]
 
+- name: kubescape_secret_etcd
+  emoji: "🔓🔑"
+  tags: ["platform", "platform:security", "dynamic"]
+
 - name: external_ips
   emoji: "🔓🔑"
   tags: [security, dynamic, workload, normal]
