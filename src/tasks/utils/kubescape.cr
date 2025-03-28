@@ -4,14 +4,18 @@ require "log"
 module Kubescape
 
   #kubescape scan framework nsa --exclude-namespaces kube-system,kube-public
-  def self.scan(cli : String | Nil = nil, control_id : String | Nil = nil)
+  def self.scan(cli : String | Nil = nil, control_id : String | Nil = nil, namespace : String | Nil = nil)
+    default_options = "--format json --format-version=v1"
+    output_file = "kubescape_results.json"
     exclude_namespaces = EXCLUDE_NAMESPACES.join(",")
-    default_options = "--format json --format-version=v1 --exclude-namespaces #{exclude_namespaces}"
+
+    namespace_option = "--exclude-namespaces #{exclude_namespaces}"
+    namespace_option = "--include-namespaces #{namespace}" if namespace
 
     if control_id != nil
-      cli = "control #{control_id} --output #{control_results_file(control_id)} #{default_options}"
+      cli = "control #{control_id} --output #{control_results_file(control_id)} #{default_options} #{namespace_option}"
     elsif cli == nil
-      cli = "framework nsa --use-from #{tools_path}/kubescape/nsa.json --output kubescape_results.json #{default_options}"
+      cli = "framework nsa --use-from #{tools_path}/kubescape/nsa.json --output #{output_file} #{default_options} #{namespace_option}"
     end
     cmd = "#{tools_path}/kubescape/kubescape scan #{cli}"
     Log.info { "scan command: #{cmd}" }
@@ -25,6 +29,38 @@ module Kubescape
     Log.info { "stderr: #{stderr.to_s}" }
     {status: status, output: output.to_s, error: stderr.to_s}
   end
+
+  def self.scan_namespace(namespace : String)
+    default_options = "--format json --format-version=v1 --include-namespaces #{namespace}"
+  
+    cli = "framework nsa --use-from #{tools_path}/kubescape/nsa.json --output kubescape_results_#{namespace}.json #{default_options}"
+    
+    cmd = "#{tools_path}/kubescape/kubescape scan #{cli}"
+    Log.info { "Namespace scan command: #{cmd}" }
+  
+    begin
+      status = Process.run(
+        cmd,
+        shell: true,
+        output: output = IO::Memory.new,
+        error: stderr = IO::Memory.new
+      )
+    
+      if status.exit_code != 0
+        Log.error { "Kubescape scan failed for namespace '#{namespace}' with exit code #{status.exit_code}" }
+        raise Exception.new("Kubescape scan failed with exit code #{status.exit_code}")
+      end
+
+      Log.info { "output: #{output.to_s}" }
+      Log.info { "stderr: #{stderr.to_s}" }
+    
+      {status: status, output: output.to_s, error: stderr.to_s}
+    rescue ex: Exception
+      Log.error { "Exception occurred during scan: #{ex.message}" }
+      raise ex
+    end
+  end
+  
 
   def self.parse(results_file="kubescape_results.json")
     Log.info { "kubescape parse" }
