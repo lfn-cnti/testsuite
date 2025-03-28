@@ -26,6 +26,32 @@ module Kubescape
     {status: status, output: output.to_s, error: stderr.to_s}
   end
 
+  def self.scan_namespace(namespace : String, cli : String | Nil = nil, control_id : String | Nil = nil)
+    default_options = "--format json --format-version=v1 --include-namespaces #{namespace}"
+  
+    if control_id
+      cli = "control #{control_id} --output #{control_results_file(control_id)} #{default_options}"
+    elsif cli.nil?
+      cli = "framework nsa --use-from #{tools_path}/kubescape/nsa.json --output kubescape_results_#{namespace}.json #{default_options}"
+    end
+  
+    cmd = "#{tools_path}/kubescape/kubescape scan #{cli}"
+    Log.info { "namespace scan command: #{cmd}" }
+  
+    status = Process.run(
+      cmd,
+      shell: true,
+      output: output = IO::Memory.new,
+      error: stderr = IO::Memory.new
+    )
+  
+    Log.info { "output: #{output.to_s}" }
+    Log.info { "stderr: #{stderr.to_s}" }
+  
+    {status: status, output: output.to_s, error: stderr.to_s}
+  end
+  
+
   def self.parse(results_file="kubescape_results.json")
     Log.info { "kubescape parse" }
     results_json = File.open(results_file) do |f| 
