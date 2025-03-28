@@ -78,3 +78,41 @@ describe "Platform" do
     end
   end
 end
+
+describe "verify_secrets_encryption", tags: ["platform:security"] do
+  it "should pass if encryption is enabled in etcd", tags: ["platform:security"] do
+    kind_manager = KindManager.new
+    cluster = kind_manager.create_cluster("encrypted-cluster", "./spec/fixtures/kind-config-encryption.yaml", KubectlClient.server_version)
+    cluster.wait_until_nodes_ready()
+    cluster.wait_until_pods_ready()
+
+    with_kubeconfig(cluster.kubeconfig) { 
+      result = ShellCmd.run_testsuite("platform:verify_secrets_encryption")
+      result[:status].success?.should be_true
+      (/(PASSED).*(Secret\/etcd encryption enabled)/ =~ result[:output]).should_not be_nil
+    }
+
+  ensure
+    if kind_manager
+      kind_manager.delete_cluster("encrypted-cluster")
+    end
+  end 
+
+  it "should fail if encryption is disabled in etcd", tags: ["platform:security"] do
+    kind_manager = KindManager.new
+    cluster = kind_manager.create_cluster("nonencrypted-cluster", nil, KubectlClient.server_version)
+    cluster.wait_until_nodes_ready()
+    cluster.wait_until_pods_ready()
+
+    with_kubeconfig(cluster.kubeconfig) { 
+      result = ShellCmd.run_testsuite("platform:verify_secrets_encryption")
+      result[:status].success?.should be_true
+      (/(FAILED).*(Secret\/etcd encryption disabled)/ =~ result[:output]).should_not be_nil
+    }
+
+  ensure
+    if kind_manager
+      kind_manager.delete_cluster("nonencrypted-cluster")
+    end
+  end 
+end

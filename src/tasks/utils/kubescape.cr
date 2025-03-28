@@ -4,14 +4,18 @@ require "log"
 module Kubescape
 
   #kubescape scan framework nsa --exclude-namespaces kube-system,kube-public
-  def self.scan(cli : String | Nil = nil, control_id : String | Nil = nil)
+  def self.scan(cli : String? = nil, control_id : String? = nil, namespace : String? = nil)
+    default_options = "--format json --format-version=v1"
+    output_file = "kubescape_results.json"
     exclude_namespaces = EXCLUDE_NAMESPACES.join(",")
-    default_options = "--format json --format-version=v1 --exclude-namespaces #{exclude_namespaces}"
+
+    namespace_option = "--exclude-namespaces #{exclude_namespaces}"
+    namespace_option = "--include-namespaces #{namespace}" if namespace
 
     if control_id != nil
-      cli = "control #{control_id} --output #{control_results_file(control_id)} #{default_options}"
+      cli = "control #{control_id} --output #{control_results_file(control_id)} #{default_options} #{namespace_option}"
     elsif cli == nil
-      cli = "framework nsa --use-from #{tools_path}/kubescape/nsa.json --output kubescape_results.json #{default_options}"
+      cli = "framework nsa --use-from #{tools_path}/kubescape/nsa.json --output #{output_file} #{default_options} #{namespace_option}"
     end
     cmd = "#{tools_path}/kubescape/kubescape scan #{cli}"
     Log.info { "scan command: #{cmd}" }

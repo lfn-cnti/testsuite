@@ -6,7 +6,7 @@ require "yaml"
 
 namespace "platform" do
   desc "The CNF test suite checks to see if the platform is hardened."
-  task "security", ["control_plane_hardening", "cluster_admin", "helm_tiller", "verify_configmaps_encryption"] do |t, args|
+  task "security", ["control_plane_hardening", "cluster_admin", "helm_tiller", "verify_configmaps_encryption", "verify_secrets_encryption"] do |t, args|
     Log.debug { "security" }
     stdout_score("platform:security")
   end
@@ -99,86 +99,106 @@ namespace "platform" do
   end
 end
 
-private def generate_cm_name(prefix : String = "test-cm-") : String
-  "#{prefix}-#{Random::Secure.rand(9999).to_s}"
-end
+  private def generate_cm_name(prefix : String = "test-cm-") : String
+    "#{prefix}-#{Random::Secure.rand(9999).to_s}"
+  end
 
-private def create_test_configmap(cm_name : String, key : String, value : String) : Bool
-  logger = Log.for("create_test_configmap")
+  private def create_test_configmap(cm_name : String, key : String, value : String) : Bool
+    logger = Log.for("create_test_configmap")
 
-  cm_manifest = <<-YAML
-    apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      name: #{cm_name}
-    data:
-      #{key}: "#{value}"
-  YAML
+    cm_manifest = <<-YAML
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: #{cm_name}
+      data:
+        #{key}: "#{value}"
+    YAML
 
-    file = File.tempfile("configmap", ".yaml")
-    file.puts cm_manifest
-    file.flush
+      file = File.tempfile("configmap", ".yaml")
+      file.puts cm_manifest
+      file.flush
 
-    KubectlClient::Apply.file(file.path)
+      KubectlClient::Apply.file(file.path)
 
-    file.delete
-    return true
-end
+      file.delete
+      return true
+  end
 
 
-private def get_etcd_certs_path(etcd_pod_name : String, namespace : String) : String?
-  logger = Log.for("get_etcd_certs_path")
+  private def get_etcd_certs_path(etcd_pod_name : String, namespace : String) : String?
+    logger = Log.for("get_etcd_certs_path")
 
-  begin
-    pod_info = KubectlClient::Get.resource("pod", etcd_pod_name, namespace: namespace)
-    volumes_json = pod_info.dig?("spec", "volumes")
-  
-    volumes = volumes_json.try(&.as_a) rescue nil
-  
-    if volumes
-      etcd_certs_volume = volumes.find { |volume| volume["name"]?.try(&.to_s) == "etcd-certs" }
-  
-      if etcd_certs_volume
-        return etcd_certs_volume["hostPath"]?.try(&.["path"]?.to_s)
+    begin
+      pod_info = KubectlClient::Get.resource("pod", etcd_pod_name, namespace: namespace)
+      volumes_json = pod_info.dig?("spec", "volumes")
+    
+      volumes = volumes_json.try(&.as_a) rescue nil
+    
+      if volumes
+        etcd_certs_volume = volumes.find { |volume| volume["name"]?.try(&.to_s) == "etcd-certs" }
+    
+        if etcd_certs_volume
+          return etcd_certs_volume["hostPath"]?.try(&.["path"]?.to_s)
+        else
+          logger.warn { "No volume named 'etcd-certs' found in pod #{etcd_pod_name}" }
+          return nil
+        end
       else
-        logger.warn { "No volume named 'etcd-certs' found in pod #{etcd_pod_name}" }
+        logger.warn { "No volumes array found in pod spec for #{etcd_pod_name}" }
         return nil
       end
-    else
-      logger.warn { "No volumes array found in pod spec for #{etcd_pod_name}" }
-      return nil
+    rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+      logger.error { "Failed to get pod definition for #{etcd_pod_name}: #{ex.message}" }
+      raise ex
     end
-  rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
-    logger.error { "Failed to get pod definition for #{etcd_pod_name}: #{ex.message}" }
-    raise ex
   end
-end
  
-private def etcd_cm_encrypted?(
-  etcd_certs_path : String, 
-  etcd_pod_name : String, 
-  cm_name : String, 
-  test_cm_value : String, 
-  namespace : String,
-  ) : Bool
-  etcd_output =  execute_etcd_command(etcd_certs_path, etcd_pod_name, cm_name, namespace)
-  etcd_output.includes?("k8s:enc:") && !etcd_output.includes?(test_cm_value)
-end
- 
-private def execute_etcd_command(etcd_certs_path : String, etcd_pod_name : String, cm_name : String, namespace : String) : String
-  logger = Log.for("execute_etcd_command")
-
-  command = "ETCDCTL_API=3 etcdctl " \
-            "--cacert #{etcd_certs_path}/ca.crt " \
-            "--cert #{etcd_certs_path}/server.crt " \
-            "--key #{etcd_certs_path}/server.key " \
-            "get /registry/configmaps/default/#{cm_name}"
-
-  begin
-    result = KubectlClient::Utils.exec(etcd_pod_name, "sh -c \"#{command}\"", namespace: namespace)
-    result["output"]
-  rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
-    logger.error {"Failed to execute etcdctl command in pod #{etcd_pod_name}: #{ex.message}"}
-    raise ex 
+  private def etcd_cm_encrypted?(
+    etcd_certs_path : String, 
+    etcd_pod_name : String, 
+    cm_name : String, 
+    test_cm_value : String, 
+    namespace : String,
+    ) : Bool
+    etcd_output =  execute_etcd_command(etcd_certs_path, etcd_pod_name, cm_name, namespace)
+    etcd_output.includes?("k8s:enc:") && !etcd_output.includes?(test_cm_value)
   end
-end
+  
+  private def execute_etcd_command(etcd_certs_path : String, etcd_pod_name : String, cm_name : String, namespace : String) : String
+    logger = Log.for("execute_etcd_command")
+
+    command = "ETCDCTL_API=3 etcdctl " \
+              "--cacert #{etcd_certs_path}/ca.crt " \
+              "--cert #{etcd_certs_path}/server.crt " \
+              "--key #{etcd_certs_path}/server.key " \
+              "get /registry/configmaps/default/#{cm_name}"
+
+    begin
+      result = KubectlClient::Utils.exec(etcd_pod_name, "sh -c \"#{command}\"", namespace: namespace)
+      result["output"]
+    rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+      logger.error {"Failed to execute etcdctl command in pod #{etcd_pod_name}: #{ex.message}"}
+      raise ex 
+    end
+  end
+
+  desc "Verify if Secrets are encrypted"
+  task "verify_secrets_encryption", ["kubescape_scan"] do |t, args|
+    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config|
+      namespace="kube-system"
+      Kubescape.scan(namespace: namespace)
+      results_json = Kubescape.parse("kubescape_results.json")
+      test_json = Kubescape.test_by_test_name(results_json, "Secret/etcd encryption enabled")
+      test_report = Kubescape.parse_test_report(test_json)
+
+      if test_report.failed_resources.size == 0
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Secret/etcd encryption enabled.")
+      else
+        test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
+        stdout_failure("Remediation: #{test_report.remediation}")
+        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Secret/etcd encryption disabled.")
+      end
+    end
+  end
+

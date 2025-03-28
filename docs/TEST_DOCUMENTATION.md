@@ -39,7 +39,7 @@
 
 * [**Category: Platform Tests**](#category-platform-tests)
 
-   [[K8s Conformance]](#k8s-conformance) | [[ClusterAPI enabled]](#clusterapi-enabled) | [[OCI Compliant]](#oci-compliant) | [[(POC) Worker reboot recovery]](#poc-worker-reboot-recovery) | [[Cluster admin]](#cluster-admin) | [[Control plane hardening]](#control-plane-hardening) | [[Tiller images]](#tiller-images) | [[ConfigMaps encrypted]](#configmaps-encrypted)
+   [[K8s Conformance]](#k8s-conformance) | [[ClusterAPI enabled]](#clusterapi-enabled) | [[OCI Compliant]](#oci-compliant) | [[(POC) Worker reboot recovery]](#poc-worker-reboot-recovery) | [[Cluster admin]](#cluster-admin) | [[Control plane hardening]](#control-plane-hardening) | [[Tiller images]](#tiller-images) | [[ConfigMaps encrypted]](#configmaps-encrypted) | [[Secrets encrypted]](#secrets-encrypted)
 
 ----------
 
@@ -1830,3 +1830,25 @@ Check version of ETCDCTL in etcd pod, it should be v3 or higher, as earlier vers
 To run the test to verify if ConfigMaps are encrypted:
 
 `./cnf-testsuite platform:verify_configmaps_encryption`
+
+----------
+
+### Secrets encrypted
+
+#### Overview
+
+Test verifies that Kubernetes Secrets are encrypted at rest in etcd. This ensures that sensitive information stored in Secrets is not accessible in plain text, aligning with security requirements. Expectation: Secrets should be encrypted to ensure sensitive data is not stored in plain text.
+
+#### Rationale
+
+By default, Kubernetes stores Secrets in etcd without encryption. Since Secrets contain sensitive information, it is recommended to encrypt these values. Enabling encryption in etcd ensures that secret values are not stored in plain text, protecting them from unauthorized access.
+
+#### Remediation
+
+Check version of ETCDCTL in etcd pod, it should be v3 or higher, as earlier versions lack support for encryption features. To enable encryption of Secrets, create an EncryptionConfiguration file for the API server and reference it in the cluster configuration. Optionally, encryption can be enabled manually by editing the kube-apiserver manifest.
+
+#### Usage
+
+To run the test to verify if Secrets are secured:
+
+`./cnf-testsuite platform:verify_secrets_encryption`
