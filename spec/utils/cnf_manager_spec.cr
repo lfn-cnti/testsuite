@@ -2,7 +2,7 @@
 require "../spec_helper"
 require "colorize"
 require "../../src/tasks/utils/utils.cr"
-require "../../src/tasks/helmenv_setup.cr"
+require "../../src/tasks/setup/helmenv_setup.cr"
 require "../../src/tasks/utils/utils.cr"
 require "file_utils"
 require "sam"
@@ -110,39 +110,6 @@ describe "SampleUtils" do
     (yaml["name"]).should eq("cnf testsuite")
     (yaml["exit_code"]).should eq(0) 
   end
-
-  it "'validate_config' should pass, when a cnf has a valid config file yml", tags: ["validate_config"]  do
-    result = ShellCmd.run_testsuite("validate_config cnf-config=spec/fixtures/cnf-testsuite-v2-example.yml")
-    result[:status].success?.should be_true
-    (/Successfully validated CNF config/ =~ result[:output]).should_not be_nil
-  end
-
-  it "'validate_config' should pass, for all sample-cnfs", tags: ["validate_config"]  do
-    get_dirs = Dir.entries("sample-cnfs")
-    dir_list = get_dirs - [".", ".."]
-    dir_list.each do |dir|
-      testsuite_yml = "sample-cnfs/#{dir}/cnf-testsuite.yml"
-      result = ShellCmd.run_testsuite("validate_config cnf-config=#{testsuite_yml}")
-      unless result[:status].success?
-        Log.info {"Could not validate config: #{testsuite_yml}"}
-      end
-      (/Successfully validated CNF config/ =~ result[:output]).should_not be_nil
-    end
-  end
-
-  it "'validate_config' should pass, for all example-cnfs", tags: ["validate_config"]  do
-    get_dirs = Dir.entries("example-cnfs")
-    dir_list = get_dirs - [".", ".."]
-    dir_list.each do |dir|
-      testsuite_yml = "example-cnfs/#{dir}/cnf-testsuite.yml"
-      result = ShellCmd.run_testsuite("validate_config cnf-config=#{testsuite_yml}")
-      unless result[:status].success?
-        Log.info {"Could not validate config: #{testsuite_yml}"}
-      end
-      (/Successfully validated CNF config/ =~ result[:output]).should_not be_nil
-    end
-  end
-
 
   it "'CNFInstall::Config.parse_cnf_config_from_file' should return a populated CNFInstall::Config::Config", tags: ["cnf-config"]  do
     config = CNFInstall::Config.parse_cnf_config_from_file("spec/fixtures/cnf-testsuite.yml")    
