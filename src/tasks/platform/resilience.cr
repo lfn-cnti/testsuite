@@ -20,7 +20,6 @@ namespace "platform" do
       end
       Log.info { "Running POC in destructive mode!" }
       current_dir = FileUtils.pwd
-      helm = Helm::BinarySingleton.helm
 
       #Select the first node that isn't a master and is also schedulable
       worker_nodes = KubectlClient::Get.worker_nodes

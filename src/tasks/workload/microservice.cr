@@ -111,8 +111,6 @@ task "reasonable_startup_time" do |t, args|
   # TODO (kosstennbl) Redesign this test, now it is based only on livness probes. 
   CNFManager::Task.task_runner(args, task: t) do |args, config|
     current_dir = FileUtils.pwd
-    helm = Helm::BinarySingleton.helm
-    Log.debug {helm}
 
     # (kosstennbl) That part was copied from cnf_manager.cr, but it wasn't given much attention as
     # it would be probably redesigned in future.

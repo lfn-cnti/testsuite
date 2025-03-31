@@ -1,12 +1,9 @@
 require "../kubectl_client"
-require "./utils/utils.cr"
-require "./utils/binary_reference.cr"
-require "./utils/system_information.cr"
+require "./utils.cr"
 
 module Helm
   Log = ::Log.for("Helm")
 
-  BinarySingleton = BinaryReference.new
   alias CMDResult = NamedTuple(status: Process::Status, output: String, error: String)
 
   module ShellCMD
@@ -74,9 +71,7 @@ module Helm
     logger = Log.for("generate_manifest")
     logger.info { "Generating manifest from installed CNF: #{release_name}" }
 
-    helm = BinarySingleton.helm
-
-    resp = ShellCMD.raise_exc_on_error { ShellCMD.run("#{helm} get manifest #{release_name} --namespace #{namespace}") }
+    resp = ShellCMD.raise_exc_on_error { ShellCMD.run("#{Binary.get} get manifest #{release_name} --namespace #{namespace}") }
     logger.info { "Manifest was generated successfully" } if resp[:status].success? && !resp[:output].empty?
     resp[:output]
   end
@@ -207,11 +202,12 @@ module Helm
   def self.helm_repo_add(helm_repo_name, helm_repo_url) : Bool
     logger = Log.for("helm_repo_add")
     logger.info { "Adding helm repository: #{helm_repo_name}" }
-    helm = BinarySingleton.helm
 
     resp = nil
     begin
-      resp = ShellCMD.raise_exc_on_error { ShellCMD.run("#{helm} repo add #{helm_repo_name} #{helm_repo_url}", logger) }
+      resp = ShellCMD.raise_exc_on_error do
+        ShellCMD.run("#{Binary.get} repo add #{helm_repo_name} #{helm_repo_url}", logger)
+      end
     rescue ex : ShellCMD::RepoNotFound
       logger.error { "Failed to add helm repository, exception msg: #{ex.message}" }
     end
@@ -225,23 +221,6 @@ module Helm
     end
   end
 
-  def self.helm_gives_k8s_warning? : {Bool, String?}
-    logger = Log.for("helm_gives_k8s_warning?")
-    helm = BinarySingleton.helm
-
-    begin
-      resp = ShellCMD.raise_exc_on_error { ShellCMD.run("#{helm} list", logger) }
-      # Helm version v3.3.3 gave us a surprise
-      if (resp[:output] + resp[:error]) =~ /WARNING: Kubernetes configuration file is/
-        return {true, "For this version of helm you must set your K8s config file permissions to chmod 700"}
-      end
-
-      {false, nil}
-    rescue
-      {true, "Please use newer version of helm"}
-    end
-  end
-
   def self.chart_name(helm_chart_repo) : String
     helm_chart_repo.split("/").last
   end
@@ -251,8 +230,8 @@ module Helm
                     namespace : String? = nil,
                     values : String? = nil) : CMDResult
     logger = Log.for("template")
-    helm = BinarySingleton.helm
-    cmd = "#{helm} template"
+
+    cmd = "#{Binary.get} template"
     cmd = "#{cmd} -n #{namespace}" if namespace != nil
     cmd = "#{cmd} #{release_name} #{values} #{helm_chart_or_directory} > #{output_file}"
 
@@ -270,8 +249,7 @@ module Helm
     logger.info { "Installing helm chart: #{helm_chart}" }
     logger.debug { "Values: #{values}" }
 
-    helm = BinarySingleton.helm
-    cmd = "#{helm} install #{release_name} #{values} #{helm_chart}"
+    cmd = "#{Binary.get} install #{release_name} #{values} #{helm_chart}"
     cmd = "#{cmd} -n #{namespace}" if namespace
     cmd = "#{cmd} --create-namespace" if create_namespace
     cmd = "#{cmd} #{values}" if values
@@ -282,8 +260,7 @@ module Helm
     logger = Log.for("uninstall")
     logger.info { "Uninstalling helm chart: #{release_name}" }
 
-    helm = BinarySingleton.helm
-    cmd = "#{helm} uninstall #{release_name}"
+    cmd = "#{Binary.get} uninstall #{release_name}"
     cmd = "#{cmd} -n #{namespace}" if namespace
     cmd = "#{cmd} --wait" if wait
   
@@ -295,8 +272,7 @@ module Helm
     full_chart_name = "#{helm_repo_name}/#{helm_chart_name}"
     logger.info { "Pulling helm chart: #{full_chart_name}" }
 
-    helm = BinarySingleton.helm
-    cmd = "#{helm} pull #{full_chart_name}"
+    cmd = "#{Binary.get} pull #{full_chart_name}"
     cmd = "#{cmd} --version" if version
     cmd = "#{cmd} --untar" if untar
     cmd = "#{cmd} --destination #{destination}" if destination
@@ -309,8 +285,7 @@ module Helm
     logger = Log.for("pull")
     logger.info { "Pulling helm chart from OCI registry: #{oci_address}" }
 
-    helm = BinarySingleton.helm
-    cmd = "#{helm} pull #{oci_address}"
+    cmd = "#{Binary.get} pull #{oci_address}"
     cmd = "#{cmd} --version" if version
     cmd = "#{cmd} --untar" if untar
     cmd = "#{cmd} --destination #{destination}" if destination

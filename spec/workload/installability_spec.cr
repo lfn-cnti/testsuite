@@ -70,7 +70,7 @@ describe CnfTestSuite do
       result[:status].success?.should be_true
       (/(FAILED).*(One or more Helm charts are not published)/ =~ result[:output]).should_not be_nil
     ensure
-      result = ShellCmd.run("#{Helm::BinarySingleton.helm} repo remove badrepo")
+      result = ShellCmd.run("#{Helm::Binary.get} repo remove badrepo")
       result = ShellCmd.cnf_uninstall()
     end
   end
