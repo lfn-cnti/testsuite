@@ -396,4 +396,3 @@ def download_file(url : String, output_path : String,
   end
   File.write(output_path, response.body.to_s)
 end
-

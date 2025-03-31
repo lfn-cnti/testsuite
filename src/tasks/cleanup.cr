@@ -22,7 +22,7 @@ task "tools_uninstall", [
   "setup:uninstall_opa",
   # Helm needs to be uninstalled last to allow other uninstalls to use helm if necessary.
   # Check this issue for details - https://github.com/cncf/cnf-testsuite/issues/1586
-  "uninstall_local_helm",
+  "setup:uninstall_local_helm",
 ] do |_, args|
   # (rafal-lal) Temporary solution that will be replaced soon
   Dockerd.uninstall

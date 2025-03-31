@@ -34,7 +34,7 @@ describe "Observability" do
 
   it "'prometheus_traffic' should pass if there is prometheus traffic", tags: ["observability"] do
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-prom-pod-discovery/cnf-testsuite.yml")
-    helm = Helm::BinarySingleton.helm
+    helm = Helm::Binary.get
 
     Log.info { "Add prometheus helm repo" }
     ShellCmd.run("#{helm} repo add prometheus-community https://prometheus-community.github.io/helm-charts", "helm_repo_add_prometheus", force_output: true)
@@ -57,7 +57,7 @@ describe "Observability" do
   it "'prometheus_traffic' should skip if there is no prometheus installed", tags: ["observability"] do
 
       ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
-      helm = Helm::BinarySingleton.helm
+      helm = Helm::Binary.get
       result = ShellCmd.run("#{helm} delete prometheus -n #{TESTSUITE_NAMESPACE}", force_output: true)
 
       result = ShellCmd.run_testsuite("prometheus_traffic")
@@ -70,7 +70,7 @@ describe "Observability" do
 
       ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
       Log.info { "Installing prometheus server" }
-      helm = Helm::BinarySingleton.helm
+      helm = Helm::Binary.get
       result = ShellCmd.run("helm repo add prometheus-community https://prometheus-community.github.io/helm-charts", force_output: true)
       result = ShellCmd.run("#{helm} install -n #{TESTSUITE_NAMESPACE} --set alertmanager.persistentVolume.enabled=false --set server.persistentVolume.enabled=false --set pushgateway.persistentVolume.enabled=false prometheus prometheus-community/prometheus", force_output: true)
       KubectlClient::Wait.resource_wait_for_install("deployment", "prometheus-server", namespace: TESTSUITE_NAMESPACE)
@@ -89,7 +89,7 @@ describe "Observability" do
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-prom-pod-discovery/cnf-testsuite.yml")
     result = ShellCmd.run("helm repo add prometheus-community https://prometheus-community.github.io/helm-charts", force_output: true)
     Log.info { "Installing prometheus server" }
-    helm = Helm::BinarySingleton.helm
+    helm = Helm::Binary.get
     result = ShellCmd.run("#{helm} install -n #{TESTSUITE_NAMESPACE} --set alertmanager.persistentVolume.enabled=false --set server.persistentVolume.enabled=false --set pushgateway.persistentVolume.enabled=false prometheus prometheus-community/prometheus", force_output: true)
     KubectlClient::Wait.resource_wait_for_install("deployment", "prometheus-server", namespace: TESTSUITE_NAMESPACE)
     result = ShellCmd.run("kubectl describe deployment prometheus-server -n #{TESTSUITE_NAMESPACE}", force_output: true)
@@ -107,7 +107,7 @@ describe "Observability" do
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-openmetrics/cnf-testsuite.yml")
     result = ShellCmd.run("helm repo add prometheus-community https://prometheus-community.github.io/helm-charts", force_output: true)
     Log.info { "Installing prometheus server" }
-    helm = Helm::BinarySingleton.helm
+    helm = Helm::Binary.get
     result = ShellCmd.run("#{helm} install -n #{TESTSUITE_NAMESPACE} --set alertmanager.persistentVolume.enabled=false --set server.persistentVolume.enabled=false --set pushgateway.persistentVolume.enabled=false prometheus prometheus-community/prometheus", force_output: true)
     KubectlClient::Wait.resource_wait_for_install("deployment", "prometheus-server", namespace: TESTSUITE_NAMESPACE)
     result = ShellCmd.run("kubectl describe deployment prometheus-server -n #{TESTSUITE_NAMESPACE}", force_output: true)

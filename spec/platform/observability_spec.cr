@@ -11,7 +11,7 @@ describe "Platform Observability" do
   it "'kube_state_metrics' should return some json", tags: ["platform:observability"] do
 
       Log.info { "Installing kube_state_metrics" }
-      helm = Helm::BinarySingleton.helm
+      helm = Helm::Binary.get
       result = ShellCmd.run("#{helm} repo add prometheus-community https://prometheus-community.github.io/helm-charts")
       result = ShellCmd.run("#{helm} repo update")
       result = ShellCmd.run("#{helm} -n #{TESTSUITE_NAMESPACE} install --version 5.3.0 kube-state-metrics prometheus-community/kube-state-metrics", force_output: true)
@@ -27,7 +27,7 @@ describe "Platform Observability" do
   it "'node_exporter' should detect the named release of the installed node_exporter", tags: ["platform:observability"] do
 
       Log.info { "Installing prometheus-node-exporter" }
-      helm = Helm::BinarySingleton.helm
+      helm = Helm::Binary.get
       Helm.helm_repo_add("prometheus-community","https://prometheus-community.github.io/helm-charts")
       result = ShellCmd.run("#{helm} install -n #{TESTSUITE_NAMESPACE} node-exporter prometheus-community/prometheus-node-exporter", force_output: true)
 
@@ -48,7 +48,7 @@ describe "Platform Observability" do
 
   it "'prometheus_adapter' should detect the named release of the installed prometheus_adapter", tags: ["platform:observability"] do
     Log.info { "Installing prometheus-adapter" }
-    helm = Helm::BinarySingleton.helm
+    helm = Helm::Binary.get
     begin
       Helm.helm_repo_add("prometheus-community","https://prometheus-community.github.io/helm-charts")
       result = Helm.install("prometheus-adapter", "prometheus-community/prometheus-adapter", namespace: TESTSUITE_NAMESPACE)
@@ -66,7 +66,7 @@ describe "Platform Observability" do
 
   it "'metrics_server' should detect the named release of the installed metrics_server", tags: ["platform:observability"] do
     Log.info { "Installing metrics-server" }
-    helm = Helm::BinarySingleton.helm
+    helm = Helm::Binary.get
     begin
       Helm.helm_repo_add("metrics-server","https://kubernetes-sigs.github.io/metrics-server/")
       result = Helm.install("metrics-server", "metrics-server/metrics-server", namespace: TESTSUITE_NAMESPACE, values: "--values spec/fixtures/metrics_values.yml")
