@@ -1,7 +1,7 @@
 require "sam"
 
 desc "Sets up the CNF test suite, the K8s cluster, and upstream projects"
-task "setup", ["version", "setup:cnf_directory_setup", "setup:helm_local_install", "setup:prereqs",
+task "setup", ["version", "setup:cnf_directory_setup", "setup:install_local_helm", "setup:prereqs",
                "setup:create_namespace", "setup:configuration_file_setup", "setup:install_apisnoop",
                "setup:install_sonobuoy", "setup:install_kind"] do |_, args|
   stdout_success "Dependency installation complete"
