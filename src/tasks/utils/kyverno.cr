@@ -12,7 +12,7 @@ module Kyverno
     return true if File.exists?(cli_path)
     tempfile = File.tempfile("kyverno", ".tar.gz")
 
-    HttpHelper.download(download_url, tempfile.path)
+    download(download_url, tempfile.path)
 
     result = TarClient.untar(tempfile.path, tools_path)
     tempfile.delete

@@ -1,7 +1,9 @@
 require "../spec_helper"
 require "colorize"
 require "../../src/tasks/utils/utils.cr"
-require "../../src/tasks/dockerd_setup.cr"
+require "kubectl_client"
+require "helm"
+require "../../src/tasks/setup/dockerd_setup.cr"
 require "file_utils"
 require "sam"
 
