@@ -2,7 +2,7 @@ require "../spec_helper"
 require "colorize"
 require "../../src/tasks/utils/utils.cr"
 require "../../src/tasks/utils/fluent_manager.cr"
-require "../../src/tasks/jaeger_setup.cr"
+require "../../src/tasks/setup/jaeger_setup.cr"
 
 describe "Observability" do
   before_all do
