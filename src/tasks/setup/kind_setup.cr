@@ -1,41 +1,36 @@
 require "sam"
 require "file_utils"
-require "colorize"
-require "totem"
-require "./utils/utils.cr"
-require "retriable"
-
-private KIND_DIR = "#{tools_path}/kind"
+require "../utils/utils.cr"
 
 namespace "setup" do
   desc "Install Kind"
   task "install_kind" do |_, args|
     logger = SLOG.for("install_kind")
     logger.info { "Installing kind tool" }
+    failed_msg = "Task 'install_kind' failed"
 
-    current_dir = FileUtils.pwd
-    if Dir.exists?(KIND_DIR)
-      logger.notice { "kind directory: '#{KIND_DIR}' already exists, kind should be available" }
+    if Dir.exists?(Setup::KIND_DIR)
+      logger.notice { "kind directory: '#{Setup::KIND_DIR}' already exists, kind should be available" }
       next
     end
 
-    FileUtils.mkdir_p(KIND_DIR)
-    kind_binary = "#{KIND_DIR}/kind"
+    FileUtils.mkdir_p(Setup::KIND_DIR)
+    kind_binary = "#{Setup::KIND_DIR}/kind"
 
     begin
-      HttpHelper.download(KIND_DOWNLOAD_URL, kind_binary).raise_for_status
-    rescue ex : Halite::ClientError | Halite::ServerError
-      logger.error { "Error while downloading kind binary: [#{ex.status_code}] #{ex.status_message}" }
-      stdout_error("Task 'install_kind' failed")
+      download(Setup::KIND_DOWNLOAD_URL, kind_binary)
+    rescue ex : Exception
+      logger.error { "Error while downloading kind binary: #{ex.message}" }
       # (rafal-lal) TODO: SAM tasks error handling, what to do if prerequisite, setup task like this one fails?
+      # Applicable to all setup tasks.
+      stdout_failure(failed_msg)
       next
     end
+    logger.debug { "Downloaded kind binary" }
 
-    resp = ShellCmd.run("chmod +x #{kind_binary}")
-    unless resp[:status].success?
+    unless ShellCmd.run("chmod +x #{kind_binary}")[:status].success?
       logger.error { "Error while making kind binary: '#{kind_binary}' executable" }
-      stdout_error("Task 'install_kind' failed")
-      # (rafal-lal) TODO: SAM tasks error handling, what to do if prerequisite, setup task like this one fails?
+      stdout_failure(failed_msg)
       next
     end
     logger.info { "Kind tool has been installed" }
@@ -43,8 +38,7 @@ namespace "setup" do
 
   desc "Uninstall Kind"
   task "uninstall_kind" do |_, args|
-    logger = SLOG.for("uninstall_kind")
-    logger.info { "Uninstall kind tool" }
-    FileUtils.rm_rf(KIND_DIR)
+    logger = SLOG.for("uninstall_kind").info { "Uninstall kind tool" }
+    FileUtils.rm_rf(Setup::KIND_DIR)
   end
 end
