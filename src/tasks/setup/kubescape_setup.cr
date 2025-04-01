@@ -1,63 +1,86 @@
 require "sam"
 require "file_utils"
-require "colorize"
-require "totem"
-require "./utils/utils.cr"
-require "retriable"
+require "../utils/utils.cr"
 
-desc "Sets up Kubescape in the K8s Cluster"
-task "install_kubescape", ["kubescape_framework_download"] do |_, args|
-  Log.info {"install_kubescape"}
+namespace "setup" do
+  desc "Sets up Kubescape in the K8s Cluster"
+  task "install_kubescape", ["kubescape_framework_download"] do |_, args|
+    logger = SLOG.for("install_kubescape")
+    logger.info { "Installing Kubescape tool" }
+    failed_msg = "Task 'install_kubescape' failed"
 
-  version_file = "#{tools_path}/kubescape/.kubescape_version"
-  installed_kubescape_version = read_version_file(version_file)
-
-  FileUtils.mkdir_p("#{tools_path}/kubescape")
-  if !File.exists?("#{tools_path}/kubescape/kubescape") || installed_kubescape_version != KUBESCAPE_VERSION
-    write_file = "#{tools_path}/kubescape/kubescape"
-    Log.info { "write_file: #{write_file}" }
-    Log.info { "kubescape install" }
-    url = "https://github.com/armosec/kubescape/releases/download/v#{KUBESCAPE_VERSION}/kubescape-ubuntu-latest"
-    Log.info { "url: #{url}" }
-    Retriable.retry do
-      HttpHelper.download("#{url}","#{write_file}")
-      stderr = IO::Memory.new
-      status = Process.run("chmod +x #{write_file}", shell: true, output: stderr, error: stderr)
-      success = status.success?
-      raise "Unable to make #{write_file} executable" if success == false
+    FileUtils.mkdir_p(KUBESCAPE_DIR)
+    version_file = "#{KUBESCAPE_DIR}/.kubescape_version"
+    installed_kubescape_version = File.read(version_file)
+    if File.exists?("#{KUBESCAPE_DIR}/kubescape") && installed_kubescape_version == KUBESCAPE_VERSION
+      logger.info { "Kubescape tool already exists and has the required version" }
+      next
     end
 
-    File.write(version_file, KUBESCAPE_VERSION)
+    kubescape_binary = "#{KUBESCAPE_DIR}/kubescape"
+    begin
+      download(KUBESCAPE_URL, kubescape_binary)
+    rescue ex : Exception
+      logger.error { "Error while downloading kubescape tool: #{ex.message}" }
+      stdout_failure(failed_msg)
+      next
+    end
+    logger.debug { "Downloaded Kubescape binary" }
+    File.write(installed_kubescape_version, KUBESCAPE_VERSION)
+
+    unless ShellCmd.run("chmod +x #{kubescape_binary}")[:status].success?
+      logger.error { "Error while making kubescape binary: '#{kubescape_binary}' executable" }
+      stdout_failure(failed_msg)
+      next
+    end
+
+    logger.info { "Kubescape tool has been installed" }
   end
-end
 
-desc "Kubescape framework download"
-task "kubescape_framework_download" do |_, args|
-  Log.info { "kubescape_framework_download" }
-  current_dir = FileUtils.pwd 
-  # Download framework file using Github token if the GITHUB_TOKEN env var is present
+  desc "Kubescape framework download"
+  task "download_kubescape_framework" do |_, args|
+    logger = SLOG.for("download_kubescape_framework")
+    logger.info { "Downloading Kubescape testing framework" }
+    failed_msg = "Task 'download_kubescape_framework' failed"
 
-  version_file = "#{tools_path}/kubescape/.kubescape_framework_version"
-  installed_framework_version = read_version_file(version_file)
-  FileUtils.mkdir_p("#{tools_path}/kubescape")
+    FileUtils.mkdir_p(KUBESCAPE_DIR)
+    version_file = "#{KUBESCAPE_DIR}/.kubescape_framework_version"
+    installed_framework_version = File.read(version_file)
 
-  framework_path = "#{tools_path}/kubescape/nsa.json"
-  if !File.exists?(framework_path) || installed_framework_version != KUBESCAPE_FRAMEWORK_VERSION
-    asset_url = "https://github.com/armosec/regolibrary/releases/download/v#{KUBESCAPE_FRAMEWORK_VERSION}/nsa"
+    framework_path = "#{tools_path}/kubescape/nsa.json"
+    if File.exists?("#{KUBESCAPE_DIR}/nsa.json") && installed_framework_version == KUBESCAPE_FRAMEWORK_VERSION
+      logger.info { "Kubescape framework file already exists and has the required version" }
+      next
+    end
 
-    HttpHelper.download_auth(asset_url, framework_path)
-    File.write(version_file, KUBESCAPE_FRAMEWORK_VERSION)
+    # (rafal-lal) TODO: what is the history of this TOKEN usage, is it still needed?
+    begin
+      if ENV.has_key?("GITHUB_TOKEN")
+        download(KUBESCAPE_URL, framework_path,
+          headers: HTTP::Headers{"Authorization" => "Bearer #{ENV["GITHUB_TOKEN"]}"})
+      else
+        download(KUBESCAPE_URL, framework_path)
+      end
+      logger.debug { "Downloaded Kubescape framework json" }
+      File.write(version_file, KUBESCAPE_FRAMEWORK_VERSION)
+    rescue ex : Exception
+      logger.error { "Error while downloading kubescape framework: #{ex.message}" }
+      stdout_failure(failed_msg)
+      next
+    end
+
+    logger.info { "Kubescape framework json has been downloaded" }
   end
-end
 
-desc "Kubescape Scan"
-task "kubescape_scan", ["install_kubescape"] do |_, args|
-  Kubescape.scan
-end
+  desc "Kubescape Scan"
+  task "kubescape_scan", ["install_kubescape"] do |_, args|
+    logger = SLOG.for("kubescape_scan").info { "Perform Kubescape cluster scan" }
+    Kubescape.scan
+  end
 
-desc "Uninstall Kubescape"
-task "uninstall_kubescape" do |_, args|
-  current_dir = FileUtils.pwd 
-  Log.debug { "uninstall_kubescape" }
-  FileUtils.rm_rf("#{tools_path}/kubescape")
+  desc "Uninstall Kubescape"
+  task "uninstall_kubescape" do |_, args|
+    logger = SLOG.for("uninstall_kubescape").info { "Uninstall kubescape tool" }
+    FileUtils.rm_rf(KUBESCAPE_DIR)
+  end
 end
