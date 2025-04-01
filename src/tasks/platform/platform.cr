@@ -90,7 +90,8 @@ task "cluster_api_enabled" do |t, args|
   logger.info { "Testing if cluster has nodes managed by Cluster API" }
 
   CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do
-    unless check_poc(args) # RLTODO: maybe this shouldn't be a POC when I redesign it
+    # (rafal-lal) TODO: should this still be POC after discussing task
+    unless check_poc(args)
       next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Cluster API not in POC mode")
     end
 
@@ -104,14 +105,14 @@ task "cluster_api_enabled" do |t, args|
     # Check if any of the cluster nodes have Cluster API annotations
     capi_nodes = [] of String
     capi_annotation_found = nodes.any? do |node|
-      annotations = node.dig?("metadata", "annotation")
+      annotations = node.dig?("metadata", "annotations")
       if annotations.nil?
         false
       else
         if !annotations.dig?("cluster.x-k8s.io/owner-name").nil? &&
            !annotations.dig?("cluster.x-k8s.io/machine").nil? &&
            !annotations.dig?("cluster.x-k8s.io/cluster-name").nil?
-          capi_nodes << node.dig("metadata", "name")
+          capi_nodes << node.dig("metadata", "name").as_s
           true
         end
       end

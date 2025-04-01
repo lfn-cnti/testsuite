@@ -17,10 +17,10 @@ describe "Platform" do
 
     it "should pass if nodes are managed by Cluster API" do
       begin
-        node_name = KubectlClient::Get.resource("nodes").dig("items").as_a.first?.dig("metadata", "name")
-        KubectlClient::Utils.label("node", node_name, ["cluster.x-k8s.io/owner-name=test-cluster-quickstart",
-                                                       "cluster.x-k8s.io/machine=test-1",
-                                                       "cluster.x-k8s.io/cluster-name=test-cluster"])
+        node_name = KubectlClient::Get.resource("nodes").dig("items").as_a.first.dig("metadata", "name").as_s
+        KubectlClient::Utils.annotate("node", node_name, ["cluster.x-k8s.io/owner-name=test-cluster-quickstart",
+                                                          "cluster.x-k8s.io/machine=test-1",
+                                                          "cluster.x-k8s.io/cluster-name=test-cluster"])
       rescue ex : Exception
         ex.message.should be_nil
       end
@@ -30,10 +30,10 @@ describe "Platform" do
       # (rafal-lal) TODO: decide how to proceed with Cluster API test case
       # result = ShellCmd.run_testsuite("uninstall_cluster_api")
       begin
-        node_name = KubectlClient::Get.resource("nodes").dig("items").as_a.first?.dig("metadata", "name")
-        KubectlClient::Utils.label("node", ["cluster.x-k8s.io/owner-name-",
-                                            "cluster.x-k8s.io/machine-",
-                                            "cluster.x-k8s.io/cluster-name-"])
+        node_name = KubectlClient::Get.resource("nodes").dig("items").as_a.first.dig("metadata", "name").as_s
+        KubectlClient::Utils.annotate("node", node_name, ["cluster.x-k8s.io/owner-name-",
+                                                          "cluster.x-k8s.io/machine-",
+                                                          "cluster.x-k8s.io/cluster-name-"])
       rescue Exception
       end
     end
