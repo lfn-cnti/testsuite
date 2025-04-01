@@ -307,7 +307,7 @@ task "node_drain", ["install_litmus"] do |t, args|
           File.write(rbac_path, rbac_yaml)
           KubectlClient::Apply.file(rbac_path)
 
-          KubectlClient::Utils.annotate("deployment", resource["name"], "litmuschaos.io/chaos=\"true\"")
+          KubectlClient::Utils.annotate("deployment", resource["name"], ["litmuschaos.io/chaos=\"true\""])
 
           chaos_experiment_name = "node-drain"
           test_name = "#{resource["name"]}-#{Random::Secure.hex(4)}"
