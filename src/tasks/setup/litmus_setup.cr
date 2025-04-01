@@ -3,7 +3,7 @@ require "sam"
 require "file_utils"
 require "colorize"
 require "totem"
-require "./utils/utils.cr"
+require "../utils/utils.cr"
 
 desc "Install LitmusChaos"
 task "install_litmus" do |_, args|
@@ -134,7 +134,7 @@ module LitmusManager
     filepath = "#{cmp}/#{filename}"
     Log.info {"filepath: #{filepath}"}
 
-    HttpHelper.download(url, filepath)
+    download(url, filepath)
 
     filepath
   end

@@ -4,7 +4,7 @@ require "colorize"
 require "totem"
 require "http/client"
 require "halite" 
-require "./utils/utils.cr"
+require "../utils/utils.cr"
 
 def sonobuoy_details(cmd_path : String)
   Log.trace { cmd_path }
@@ -37,7 +37,7 @@ task "install_sonobuoy" do |_, args|
     # todo I think http get doesn't do follows and thats why we use halite here, that's sad. Shouldn't need to do a follow to download a file though?
      #  i think any url can do a redirect  ....
     # it could be that http.get 'just works' now.  keyword just
-    HttpHelper.download("#{url}","#{write_file}")
+    download("#{url}","#{write_file}")
     `tar -xzf #{tools_path}/sonobuoy/sonobuoy.tar.gz -C #{tools_path}/sonobuoy/ && \
      chmod +x #{tools_path}/sonobuoy/sonobuoy && \
      rm #{tools_path}/sonobuoy/sonobuoy.tar.gz`
