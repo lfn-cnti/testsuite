@@ -27,7 +27,7 @@ describe "Resilience Node Drain Chaos" do
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
-      result = ShellCmd.run_testsuite("uninstall_litmus")
+      result = ShellCmd.run_testsuite("setup:uninstall_litmus")
       result[:status].success?.should be_true
     end
   end

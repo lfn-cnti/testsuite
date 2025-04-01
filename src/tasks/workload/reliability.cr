@@ -74,7 +74,7 @@ task "readiness" do |t, args|
 end
 
 desc "Does the CNF crash when network latency occurs"
-task "pod_network_latency", ["install_litmus"] do |t, args|
+task "pod_network_latency", ["setup:install_litmus"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     #todo if args has list of labels to perform test on, go into pod specific mode
     #TODO tests should fail if cnf not installed
@@ -174,7 +174,7 @@ task "pod_network_latency", ["install_litmus"] do |t, args|
 end
 
 desc "Does the CNF crash when network corruption occurs"
-task "pod_network_corruption", ["install_litmus"] do |t, args|
+task "pod_network_corruption", ["setup:install_litmus"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     #TODO tests should fail if cnf not installed
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
@@ -230,7 +230,7 @@ task "pod_network_corruption", ["install_litmus"] do |t, args|
 end
 
 desc "Does the CNF crash when network duplication occurs"
-task "pod_network_duplication", ["install_litmus"] do |t, args|
+task "pod_network_duplication", ["setup:install_litmus"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     #TODO tests should fail if cnf not installed
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
@@ -288,7 +288,7 @@ task "pod_network_duplication", ["install_litmus"] do |t, args|
 end
 
 desc "Does the CNF crash when disk fill occurs"
-task "disk_fill", ["install_litmus"] do |t, args|
+task "disk_fill", ["setup:install_litmus"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
       app_namespace = resource[:namespace]
@@ -346,7 +346,7 @@ task "disk_fill", ["install_litmus"] do |t, args|
 end
 
 desc "Does the CNF crash when pod-delete occurs"
-task "pod_delete", ["install_litmus"] do |t, args|
+task "pod_delete", ["setup:install_litmus"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     #todo clear all annotations
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
@@ -448,7 +448,7 @@ task "pod_delete", ["install_litmus"] do |t, args|
 end
 
 desc "Does the CNF crash when pod-memory-hog occurs"
-task "pod_memory_hog", ["install_litmus"] do |t, args|
+task "pod_memory_hog", ["setup:install_litmus"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
       app_namespace = resource[:namespace]
@@ -506,7 +506,7 @@ task "pod_memory_hog", ["install_litmus"] do |t, args|
 end
 
 desc "Does the CNF crash when pod-io-stress occurs"
-task "pod_io_stress", ["install_litmus"] do |t, args|
+task "pod_io_stress", ["setup:install_litmus"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
       app_namespace = resource[:namespace]
@@ -574,7 +574,7 @@ end
 
 
 desc "Does the CNF crash when pod-dns-error occurs"
-task "pod_dns_error", ["install_litmus"] do |t, args|
+task "pod_dns_error", ["setup:install_litmus"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     runtimes = KubectlClient::Get.container_runtimes
     Log.info { "pod_dns_error runtimes: #{runtimes}" }

@@ -216,7 +216,7 @@ module WorkloadResource
 end
 
 desc "Does the CNF crash when node-drain occurs"
-task "node_drain", ["install_litmus"] do |t, args|
+task "node_drain", ["setup:install_litmus"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     skipped = false
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
