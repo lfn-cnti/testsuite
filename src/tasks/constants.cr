@@ -17,10 +17,6 @@ ERROR = "error"
 # CHART_YAML = "Chart.yaml"
 DEFAULT_POINTSFILENAME = "points_v1.yml"
 SONOBUOY_K8S_VERSION = "0.56.14"
-KUBESCAPE_VERSION = "3.0.30"
-KUBESCAPE_FRAMEWORK_VERSION = "1.0.316"
-KIND_VERSION = "0.27.0"
-KIND_DOWNLOAD_URL = "https://github.com/kubernetes-sigs/kind/releases/download/v#{KIND_VERSION}/kind-linux-amd64"
 SONOBUOY_OS = "linux"
 IGNORED_SECRET_TYPES = ["kubernetes.io/service-account-token", "kubernetes.io/dockercfg", "kubernetes.io/dockerconfigjson", "helm.sh/release.v1"]
 EMPTY_JSON = JSON.parse(%({}))
@@ -29,6 +25,7 @@ SPECIALIZED_INIT_SYSTEMS = ["tini", "dumb-init", "s6-svscan"]
 ROLLING_VERSION_CHANGE_TEST_NAMES = ["rolling_update", "rolling_downgrade", "rolling_version_change"]
 WORKLOAD_RESOURCE_KIND_NAMES = ["replicaset", "deployment", "statefulset", "pod", "daemonset"]
 
+# (rafal-lal)T TODO: why do we need 2 namespaces, trim that to 1
 TESTSUITE_NAMESPACE = "cnf-testsuite"
 DEFAULT_CNF_NAMESPACE = "cnf-default"
 # (kosstennbl) Needed only for manifest deployments, where we don't have control over installation namespace
