@@ -4,6 +4,7 @@ ESSENTIAL_PASSED_THRESHOLD = 15
 CNF_DIR = "installed_cnf_files"
 DEPLOYMENTS_DIR = File.join(CNF_DIR, "deployments")
 CNF_TEMP_FILES_DIR = File.join(CNF_DIR, "temp_files")
+CNF_INSTALL_LOG_FILE = File.join(CNF_TEMP_FILES_DIR, "installation.log")
 CONFIG_FILE = "cnf-testsuite.yml"
 BASE_CONFIG = "./config.yml"
 COMMON_MANIFEST_FILE_PATH = "#{CNF_DIR}/common_manifest.yml"

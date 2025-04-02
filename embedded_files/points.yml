@@ -146,6 +146,8 @@
   tags: [compatibility, dynamic, workload]
 - name: rollback
   tags: [compatibility, dynamic, workload, normal]
+- name: deprecated_k8s_features
+  tags: [compatibility, dynamic, workload]
 - name: nodeport_not_used
   tags: [configuration, dynamic, workload, normal]
 - name: hostport_not_used

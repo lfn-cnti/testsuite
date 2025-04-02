@@ -23,18 +23,17 @@ module CNFInstall
       begin
         CNFManager.ensure_namespace_exists!(helm_namespace)
         response = Helm.install(@deployment_name, chart_path, namespace: helm_namespace, values: helm_values)
-        if !response[:status].success?
-          stdout_failure "Helm installation failed, stderr:"
-          stdout_failure "\t#{response[:error]}"
-          return false
+        # Save the stderr from installation command for usage in other tests.
+        unless response[:output].empty?
+          File.open(CNF_INSTALL_LOG_FILE, "a") { |file| file.puts("#{response[:error]}\n") }
         end
-      rescue e : Helm::InstallationFailed
-        stdout_failure "Helm installation failed with message:"
-        stdout_failure "\t#{e.message}"
-        return false
-      rescue e : Helm::CannotReuseReleaseNameError
+      rescue e : Helm::ShellCMD::CannotReuseReleaseNameError
         stdout_failure "Helm deployment \"#{@deployment_name}\" already exists in \"#{helm_namespace}\" namespace."
         stdout_failure "Change deployment name in CNF configuration or uninstall existing deployment."
+        return false
+      rescue e : Helm::ShellCMD::HelmCMDException
+        stdout_failure "Helm installation failed with message:"
+        stdout_failure "\t#{e.message}"
         return false
       end
 
@@ -45,9 +44,14 @@ module CNFInstall
       begin
         result = Helm.uninstall(get_deployment_name(), get_deployment_namespace())
       rescue ex : Helm::ShellCMD::ReleaseNotFound
+        stdout_success "Helm deployment not installed \"#{deployment_name}\"."
+        true
+      rescue ex : Helm::ShellCMD::HelmCMDException
+        stdout_failure "Error while uninstalling helm deployment \"#{deployment_name}\"."
+        stdout_failure "\t#{ex.message}"
         false
       else
-        stdout_success "Successfully uninstalled helm deployment \"#{deployment_name}\"."  
+        stdout_success "Successfully uninstalled helm deployment \"#{deployment_name}\"."
         true
       end
     end
