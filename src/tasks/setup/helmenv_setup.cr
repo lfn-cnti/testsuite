@@ -20,7 +20,7 @@ end
 ENV["CUSTOM_HELM_PATH"] = "#{helm_local_install_dir}/helm"
 
 desc "Sets up helm 3.8.2"
-task "helm_local_install", ["cnf_directory_setup"] do |_, args|
+task "helm_local_install", ["setup:cnf_directory_setup"] do |_, args|
   Log.debug { "helm_local_install" }
   # check if helm is installed
   # if proper version of helm installed, don't install
