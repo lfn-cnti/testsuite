@@ -2,7 +2,7 @@ require "sam"
 require "file_utils"
 require "colorize"
 require "totem"
-require "./utils/utils.cr"
+require "../utils/utils.cr"
 
 desc "Sets up OPA in the K8s Cluster"
 task "install_opa", ["helm_local_install", "create_namespace"] do |_, args|
