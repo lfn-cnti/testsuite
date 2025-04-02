@@ -37,7 +37,7 @@ describe "TarClient" do
     (input_content =~ /imagePullPolicy: Never/).should be_nil
     TarClient.tar("#{TAR_SPEC_DIR}/test.tar", "./spec/fixtures", "litmus-operator-v1.13.2.yaml")
     TarClient.modify_tar!("#{TAR_SPEC_DIR}/test.tar") do |directory| 
-      template_files = find(directory, "*.yaml*", "100")
+      template_files = find(directory, "\"*.yaml*\"")
       Log.debug {"template_files: #{template_files}"}
       template_files.map do |x| 
         input_content = File.read(x) 
