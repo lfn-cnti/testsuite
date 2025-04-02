@@ -53,7 +53,7 @@ describe "Platform Observability" do
       Helm.helm_repo_add("prometheus-community","https://prometheus-community.github.io/helm-charts")
       result = Helm.install("prometheus-adapter", "prometheus-community/prometheus-adapter", namespace: TESTSUITE_NAMESPACE)
       Log.info { "Prometheus installed" }
-    rescue e : Helm::CannotReuseReleaseNameError
+    rescue e : Helm::ShellCMD::CannotReuseReleaseNameError
       Log.info { "Prometheus already installed" }
     end
     KubectlClient::Wait.resource_wait_for_install("deployment", "prometheus-adapter", namespace: TESTSUITE_NAMESPACE)
@@ -71,7 +71,7 @@ describe "Platform Observability" do
       Helm.helm_repo_add("metrics-server","https://kubernetes-sigs.github.io/metrics-server/")
       result = Helm.install("metrics-server", "metrics-server/metrics-server", namespace: TESTSUITE_NAMESPACE, values: "--values spec/fixtures/metrics_values.yml")
       Log.info { "Metrics Server installed" }
-    rescue e : Helm::CannotReuseReleaseNameError
+    rescue e : Helm::ShellCMD::CannotReuseReleaseNameError
       Log.info { "Metrics Server already installed" }
     end
       Log.info { result }
