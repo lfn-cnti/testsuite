@@ -1,18 +1,19 @@
 # coding: utf-8
 require "totem"
 require "colorize"
-require "helm"
-require "git"
+require "../../../modules/helm"
+require "../../../modules/git"
 require "uuid"
 require "./points.cr"
 require "./task.cr"
 require "../jaeger.cr"
-require "tar"
+require "../../../modules/tar"
 require "../oran_monitor.cr"
 require "../cnf_installation/install_common.cr"
 require "../cnf_installation/manifest.cr"
 require "log"
 require "ecr"
+require "../utils.cr"
 
 module CNFManager
   Log = ::Log.for("CNFManager")

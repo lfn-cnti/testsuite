@@ -3,7 +3,7 @@ require "file_utils"
 require "colorize"
 require "totem"
 require "./utils/utils.cr"
-require "tar"
+require "../modules/tar"
 
 CHAOS_MESH_VERSION = "v0.8.0"
 

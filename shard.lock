@@ -1,52 +1,16 @@
 version: 2.0
 shards:
-  cluster_tools:
-    git: https://github.com/cnf-testsuite/cluster_tools.git
-    version: 1.0.11
-
   commander:
     git: https://github.com/mrrooijen/commander.git
     version: 0.4.0
-
-  docker_client:
-    git: https://github.com/cnf-testsuite/docker_client.git
-    version: 1.0.0
-
-  find:
-    git: https://github.com/cnf-testsuite/find.git
-    version: 0.1.0+git.commit.129096c08d84adb1b741aa8a5ee132d6f2a87e02
-
-  git:
-    git: https://github.com/cnf-testsuite/git.git
-    version: 1.0.0
 
   halite:
     git: https://github.com/icyleaf/halite.git
     version: 0.12.1
 
-  helm:
-    git: https://github.com/cnf-testsuite/helm.git
-    version: 1.0.5
-
   icr:
     git: https://github.com/crystal-community/icr.git
     version: 0.9.0+git.commit.f62bfcdfbe65ee31c46c3d9951cee08ac2e0bee0
-
-  k8s_kernel_introspection:
-    git: https://github.com/cnf-testsuite/k8s_kernel_introspection.git
-    version: 1.0.4
-
-  k8s_netstat:
-    git: https://github.com/cnf-testsuite/k8s_netstat.git
-    version: 1.0.2
-
-  kernel_introspection:
-    git: https://github.com/cnf-testsuite/kernel_introspection.git
-    version: 0.1.0
-
-  kubectl_client:
-    git: https://github.com/cnf-testsuite/kubectl_client.git
-    version: 1.0.8
 
   popcorn:
     git: https://github.com/icyleaf/popcorn.git
@@ -60,10 +24,6 @@ shards:
     git: https://github.com/crystal-lang/crystal-readline.git
     version: 0.1.1+git.commit.69ecf33d7cad5568d7d19333510cfd9d17cb1bbd
 
-  release_manager:
-    git: https://github.com/cnf-testsuite/release_manager.git
-    version: 0.1.0+git.commit.a1d7b3568d3112f737ab3ff4a7bae69a6b86970a
-
   retriable:
     git: https://github.com/sija/retriable.cr.git
     version: 0.2.5
@@ -71,10 +31,6 @@ shards:
   sam:
     git: https://github.com/vulk/sam.cr.git
     version: 0.4.0+git.commit.4e3b271d31d7fd3c3ca2b0c1ff4943b86dc27021
-
-  tar:
-    git: https://github.com/cnf-testsuite/tar.git
-    version: 0.1.0+git.commit.ae9bbea1402eded7b411368336653e4ad822003a
 
   totem:
     git: https://github.com/icyleaf/totem.git
