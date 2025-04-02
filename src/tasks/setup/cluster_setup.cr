@@ -1,6 +1,6 @@
 require "sam"
-require "../modules/cluster_tools"
-require "./utils/utils.cr"
+require "../../modules/cluster_tools"
+require "../utils/utils.cr"
 
 namespace "setup" do
   desc "Install CNF Test Suite Cluster Tools"
@@ -30,7 +30,7 @@ namespace "setup" do
 
     begin
       ClusterTools.uninstall
-    rescue e : ClusterTools::NamespaceDoesNotExistException
+    rescue ex : ClusterTools::NamespaceDoesNotExistException
       logger.error { "Error while uninstalling: #{ex.message}" }
       stdout_failure "Error: Namespace cnf-testsuite does not exist.\n" +
                      "Please run 'cnf-testsuite setup' to create the necessary namespace."

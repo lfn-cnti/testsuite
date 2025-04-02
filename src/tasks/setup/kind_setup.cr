@@ -2,7 +2,8 @@ require "sam"
 require "file_utils"
 require "colorize"
 require "totem"
-require "./utils/utils.cr"
+require "../utils/utils.cr"
+require "./constants.cr"
 require "retriable"
 
 desc "Install Kind"
@@ -14,13 +15,13 @@ task "install_kind" do |_, args|
     write_file = "#{tools_path}/kind/kind"
     Log.info { "write_file: #{write_file}" }
     Log.info { "install kind" }
-    url = "https://github.com/kubernetes-sigs/kind/releases/download/v#{KIND_VERSION}/kind-linux-amd64"
+    url = "https://github.com/kubernetes-sigs/kind/releases/download/v#{Setup::KIND_VERSION}/kind-linux-amd64"
     Log.info { "url: #{url}" }
     do_this_on_each_retry = ->(ex : Exception, attempt : Int32, elapsed_time : Time::Span, next_interval : Time::Span) do
         Log.info { "#{ex.class}: '#{ex.message}' - #{attempt} attempt in #{elapsed_time} seconds and #{next_interval} seconds until the next try."}
     end
     Retriable.retry(on_retry: do_this_on_each_retry, times: 3, base_interval: 1.second) do
-      HttpHelper.download("#{url}","#{write_file}")
+      download("#{url}","#{write_file}")
       stderr = IO::Memory.new
       status = Process.run("chmod +x #{write_file}", shell: true, output: stderr, error: stderr)
       success = status.success?

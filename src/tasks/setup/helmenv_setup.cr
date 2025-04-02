@@ -2,7 +2,7 @@ require "sam"
 require "file_utils"
 require "colorize"
 require "totem"
-require "./utils/utils.cr"
+require "../utils/utils.cr"
 require "http/client"
 
 def helm_arch
@@ -36,7 +36,7 @@ task "helm_local_install", ["cnf_directory_setup"] do |_, args|
       begin       
         Log.trace { "full path?: #{tools_path}/helm" }
 
-        HttpHelper.download("https://get.helm.sh/helm-v3.8.2-#{helm_arch}.tar.gz","#{tools_path}/helm/helm-v3.8.2-#{helm_arch}.tar.gz")
+        download("https://get.helm.sh/helm-v3.8.2-#{helm_arch}.tar.gz","#{tools_path}/helm/helm-v3.8.2-#{helm_arch}.tar.gz")
 
         TarClient.untar(
           "#{tools_path}/helm/helm-v3.8.2-#{helm_arch}.tar.gz",

@@ -88,6 +88,6 @@ module FluentManager
   end
 
   def self.all_flavors : Array(FluentBase)
-    [FluentD.new, FluentDBitnami.new, FluentBit.new]
+    [FluentDBitnami.new, FluentBit.new]
   end
 end

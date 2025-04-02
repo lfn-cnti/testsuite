@@ -191,13 +191,17 @@ module KubectlClient
       ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
     end
 
-    def self.annotate(kind : String, resource_name : String, annotatation_str : String, namespace : String? = nil)
+    def self.annotate(kind : String, resource_name : String, annotations : Array(String), namespace : String? = nil)
       logger = @@logger.for("annotate")
-      logger.info { "Annotate #{kind}/#{resource_name} with #{annotatation_str}" }
+      logger.info { "Annotate #{kind}/#{resource_name} with #{annotations.join(",")}" }
 
-      cmd = "kubectl annotate #{kind}/#{resource_name} --overwrite #{annotatation_str}"
+      cmd = "kubectl annotate --overwrite #{kind}/#{resource_name}"
       cmd = "#{cmd} -n #{namespace}" if namespace
 
+      annotations.each do |annot|
+        cmd = "#{cmd} #{annot}"
+      end
+      
       ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
     end
 
@@ -207,7 +211,6 @@ module KubectlClient
 
       cmd = "kubectl label --overwrite #{kind}/#{resource_name}"
       cmd = "#{cmd} -n #{namespace}" if namespace
-
       labels.each do |label|
         cmd = "#{cmd} #{label}"
       end
