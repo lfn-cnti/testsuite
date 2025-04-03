@@ -9,7 +9,7 @@ require "sam"
 
 describe "SampleUtils" do
   before_all do
-    result = ShellCmd.run_testsuite("helm_local_install")
+    result = ShellCmd.run_testsuite("setup:helm_local_install")
     result[:status].success?.should be_true
     # Ensure a results file is present to test different scenarios
     CNFManager::Points::Results.ensure_results_file!

@@ -5,7 +5,7 @@ require "totem"
 require "../utils/utils.cr"
 
 desc "Sets up OPA in the K8s Cluster"
-task "install_opa", ["helm_local_install", "create_namespace"] do |_, args|
+task "install_opa", ["setup:helm_local_install", "setup:create_namespace"] do |_, args|
   helm_install_args_list = [
     "--set auditInterval=1",
     "--set postInstall.labelNamespace.enabled=false",

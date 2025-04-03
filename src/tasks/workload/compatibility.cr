@@ -396,7 +396,7 @@ task "helm_deploy" do |t, args|
   end
 end
 
-task "helm_chart_published", ["helm_local_install"] do |t, args|
+task "helm_chart_published", ["setup:helm_local_install"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config|
     helm = Helm::BinarySingleton.helm
 
@@ -445,7 +445,7 @@ task "helm_chart_published", ["helm_local_install"] do |t, args|
   end
 end
 
-task "helm_chart_valid", ["helm_local_install"] do |t, args|
+task "helm_chart_valid", ["setup:helm_local_install"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config|
     current_dir = FileUtils.pwd
     helm = Helm::BinarySingleton.helm
