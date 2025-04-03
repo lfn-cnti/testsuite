@@ -7,7 +7,7 @@ require "sam"
 
 describe "State" do
   before_all do
-    result = ShellCmd.run_testsuite("configuration_file_setup")
+    result = ShellCmd.run_testsuite("setup:configuration_file_setup")
   end
   
   it "'elastic_volumes' should fail if the cnf does not use volumes that are elastic volume", tags: ["elastic_volume"]  do

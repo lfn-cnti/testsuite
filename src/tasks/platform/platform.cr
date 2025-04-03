@@ -1,6 +1,6 @@
 # coding: utf-8
 desc "Platform Tests"
-task "platform", ["helm_local_install", "k8s_conformance", "platform:observability", "platform:resilience", "platform:hardware_and_scheduling", "platform:security"]  do |_, args|
+task "platform", ["setup:helm_local_install", "k8s_conformance", "platform:observability", "platform:resilience", "platform:hardware_and_scheduling", "platform:security"]  do |_, args|
   Log.debug { "platform" }
 
   total = CNFManager::Points.total_points("platform")

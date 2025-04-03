@@ -66,9 +66,13 @@ module ClusterTools
       File.write("cluster_tools.yml", ManifestTemplate.new().to_s)
     end
 
-    KubectlClient::Delete.file("cluster_tools.yml", namespace: self.namespace!)
-    #todo make this work with cluster-tools-host-namespace
-    KubectlClient::Wait.resource_wait_for_uninstall("Daemonset", "cluster-tools", namespace: self.namespace!)
+    begin
+      KubectlClient::Delete.file("cluster_tools.yml", namespace: self.namespace!)
+      #todo make this work with cluster-tools-host-namespace
+      KubectlClient::Wait.resource_wait_for_uninstall("Daemonset", "cluster-tools", namespace: self.namespace!)
+    rescue ex : KubectlClient::ShellCMD::NotFoundError
+      Log.info { "ClusterTools not present on the cluster" }
+    end
   end
 
   def self.exec(cli : String) : KubectlClient::CMDResult

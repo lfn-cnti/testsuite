@@ -13,7 +13,7 @@ namespace "setup" do
   task "cluster_api_install" do |_, args|
     current_dir = FileUtils.pwd
 
-    download(Setup::CLUSTER_API_URL, Setup::CLUSTERCTL_BINARY)
+    download(Setup::CLUSTER_API_URL, "./clusterctl")
 
     Process.run(
       "sudo chmod +x ./clusterctl",

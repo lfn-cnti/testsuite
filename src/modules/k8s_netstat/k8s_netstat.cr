@@ -117,7 +117,8 @@ module Netstat
         local_address: String,
         foreign_address: String,
         state: String)) do |acc, x|
-        ignored_ip = all_service_pod_ips[0]["pod_ips"].find { |i| x[:foreign_address].includes?(i["ip"].as_s) }
+        next acc if all_service_pod_ips.first?.nil?
+        ignored_ip = all_service_pod_ips.first["pod_ips"].find { |i| x[:foreign_address].includes?(i["ip"].as_s) }
         if ignored_ip
           Log.info { "dont add: #{x[:foreign_address]}" }
           acc
