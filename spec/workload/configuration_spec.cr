@@ -10,7 +10,7 @@ describe CnfTestSuite do
     Log.debug { result[:output] }
 
     result = ShellCmd.run_testsuite("setup")
-    result = ShellCmd.run_testsuite("configuration_file_setup")
+    result = ShellCmd.run_testsuite("setup:create_namespace")
   end
 
   it "'liveness' should pass when livenessProbe is set", tags: ["liveness"] do

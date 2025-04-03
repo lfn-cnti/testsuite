@@ -2,7 +2,7 @@ require "sam"
 require "../utils/utils.cr"
 
 namespace "setup" do
-  task "cnf_install", ["helm_local_install", "create_namespace"] do |_, args|
+  task "cnf_install", ["setup:helm_local_install", "setup:create_namespace"] do |_, args|
     logger = SLOG.for("cnf_install")
     logger.info { "Installing CNF to cluster" }
 
@@ -22,7 +22,7 @@ namespace "setup" do
     stdout_success "CNF installation start."
     CNFInstall.install_cnf(args)
     logger.info { "CNF installed successfuly" }
-    stdout_success "CNF installation ended."
+    stdout_success "CNF installation complete."
   end
 
   task "cnf_uninstall" do |_, args|

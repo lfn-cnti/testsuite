@@ -55,7 +55,7 @@ task "uninstall_sonobuoy" do |_, args|
     shell: true,
     output: stdout = IO::Memory.new,
     error: stderr = IO::Memory.new
-  )
+  ) if File.exists?(sonobuoy)
   Log.debug { stdout }
   FileUtils.rm_rf("#{tools_path}/sonobuoy")
 end

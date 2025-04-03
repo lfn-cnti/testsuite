@@ -30,7 +30,7 @@ enum StraceAttachResult
 end
 
 desc "To check if the CNF has multiple microservices that share a database"
-task "shared_database", ["install_cluster_tools"] do |t, args|
+task "shared_database", ["setup:install_cluster_tools"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config|
     # todo loop through local resources and see if db match found
     db_match = Netstat::Mariadb.match
@@ -711,7 +711,7 @@ task "service_discovery" do |t, args|
 end
 
 desc "To check if the CNF uses a specialized init system"
-task "specialized_init_system", ["install_cluster_tools"] do |t, args|
+task "specialized_init_system", ["setup:install_cluster_tools"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config|
     failed_cnf_resources = [] of InitSystems::InitSystemInfo
     resources_checked = false
