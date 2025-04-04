@@ -4,7 +4,7 @@
 
 * [**Category: Compatibility, Installability and Upgradability Tests**](#category-compatibility-installability-and-upgradability-tests)
 
-   [[Increase decrease capacity]](#increase-decrease-capacity) | [[Helm chart published]](#helm-chart-published) | [[Helm chart valid]](#helm-chart-valid) | [[Helm deploy]](#helm-deploy) | [[Rollback]](#rollback) | [[Rolling version change]](#rolling-version-change) | [[Rolling update]](#rolling-update) | [[Rolling downgrade]](#rolling-downgrade) | [[CNI compatible]](#cni-compatible)
+   [[Increase decrease capacity]](#increase-decrease-capacity) | [[Helm chart published]](#helm-chart-published) | [[Helm chart valid]](#helm-chart-valid) | [[Helm deploy]](#helm-deploy) | [[Rollback]](#rollback) | [[Rolling version change]](#rolling-version-change) | [[Rolling update]](#rolling-update) | [[Rolling downgrade]](#rolling-downgrade) | [[CNI compatible]](#cni-compatible) | [[Deprecated K8s Features](#deprecated-k8s-features)]
 
 * [**Category: Microservice Tests**](#category-microservice-tests)
 
@@ -249,6 +249,29 @@ Ensure that your CNF is compatible with Calico, Cilium and other available CNIs.
 #### Usage
 
 `./cnf-testsuite cni_compatible`
+
+----------
+
+### Deprecated K8s Features
+
+#### Overview
+
+This collects logs from the CNF installation (no matter if installed via Helm or Kubectl) and checks for usage of any
+deprecated Kubernetes features in CNF deployment, be it API versions, annotations, types etc.
+
+#### Rationale
+
+A CNF should not use any features that are deprecated and will be removed soon. It should migrate to stable and
+maintained counterparts.
+
+#### Remediation
+
+Ensure that your CNF is not using deprecated Kubernetes features. If any are detected, follow tips from warning message
+displayed by testsuite and/or consult [Deprecated API Migration Guide](https://kubernetes.io/docs/reference/using-api/deprecation-guide/).
+
+#### Usage
+
+`./cnf-testsuite deprecated_k8s_features`
 
 ----------
 
