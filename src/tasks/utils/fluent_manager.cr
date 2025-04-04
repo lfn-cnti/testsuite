@@ -23,7 +23,7 @@ module FluentManager
       begin
         Helm.install(flavor_name, chart, namespace: TESTSUITE_NAMESPACE, values: "--values #{values_file}")
         KubectlClient::Wait.resource_wait_for_install("Daemonset", flavor_name, namespace: TESTSUITE_NAMESPACE)
-      rescue Helm::CannotReuseReleaseNameError
+      rescue Helm::ShellCMD::CannotReuseReleaseNameError
         Log.info { "Release #{flavor_name} already installed" }
       end
     end

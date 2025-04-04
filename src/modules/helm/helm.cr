@@ -43,6 +43,8 @@ module Helm
           raise ReleaseNotFound.new(result[:error], result[:status].exit_code)
         when /#{REPO_NOT_FOUND}/i.match(result[:error])
           raise RepoNotFound.new(result[:error], result[:status].exit_code)
+        when /#{CANNOT_REUSE_RELEASE_NAME}/i.match(result[:error])
+          raise CannotReuseReleaseNameError.new(result[:error], result[:status].exit_code)
         else
           raise HelmCMDException.new(result[:error], result[:status].exit_code)
         end
@@ -63,6 +65,9 @@ module Helm
 
     class RepoNotFound < HelmCMDException
     end
+
+    class CannotReuseReleaseNameError < HelmCMDException
+    end
   end
 
   def self.generate_manifest(release_name : String, namespace : String) : String
@@ -72,11 +77,7 @@ module Helm
     helm = BinarySingleton.helm
 
     resp = ShellCMD.raise_exc_on_error { ShellCMD.run("#{helm} get manifest #{release_name} --namespace #{namespace}") }
-    if resp[:status].success? && !resp[:output].empty?
-      logger.info { "Manifest was generated successfully" }
-    else
-      raise ManifestGenerationError.new(resp[:error])
-    end
+    logger.info { "Manifest was generated successfully" } if resp[:status].success? && !resp[:output].empty?
     resp[:output]
   end
 
@@ -274,20 +275,7 @@ module Helm
     cmd = "#{cmd} -n #{namespace}" if namespace
     cmd = "#{cmd} --create-namespace" if create_namespace
     cmd = "#{cmd} #{values}" if values
-    resp = ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
-
-    raise CannotReuseReleaseNameError.new if CannotReuseReleaseNameError.error_text_content_match?(resp[:error])
-
-    # When calling Helm.install. Do not rescue from this error.
-    # This helps catch those one-off scenarios when helm install fails
-    #
-    # Examples:
-    # * https://github.com/helm/helm/issues/10285
-    # * Also check platform observability failure in this build -
-    #   https://github.com/cncf/cnf-testsuite/runs/5308701193?check_suite_focus=true
-    raise InstallationFailed.new("Helm install error: #{resp[:error]}") if InstallationFailed.error_text(resp[:error])
-
-    resp
+    ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
   end
 
   def self.uninstall(release_name, namespace = nil) : CMDResult
@@ -325,22 +313,6 @@ module Helm
     cmd = "#{cmd} --untar" if untar
     cmd = "#{cmd} --destination #{destination}" if destination
     ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
-  end
-
-  class CannotReuseReleaseNameError < Exception
-    def self.error_text_content_match?(str : String)
-      str.includes? "cannot re-use a name that is still in use"
-    end
-  end
-
-  class InstallationFailed < Exception
-    MESSAGE_REGEX = /Error: INSTALLATION FAILED: (.+)$/
-
-    def self.error_text(str : String) : String?
-      result = MESSAGE_REGEX.match(str)
-      return result[1] if result
-      nil
-    end
   end
 
   class ManifestGenerationError < Exception

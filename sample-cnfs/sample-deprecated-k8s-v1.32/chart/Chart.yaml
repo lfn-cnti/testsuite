@@ -1,0 +1,4 @@
+apiVersion: v2
+name: sample-deprecated-resources-chart
+version: 0.1.0
+description: CNTI test chart

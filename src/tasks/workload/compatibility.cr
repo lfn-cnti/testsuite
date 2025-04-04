@@ -8,7 +8,7 @@ require "../utils/utils.cr"
 
 
 desc "The CNF test suite checks to see if CNFs support horizontal scaling (across multiple machines) and vertical scaling (between sizes of machines) by using the native K8s kubectl"
-task "compatibility", ["helm_chart_valid", "helm_chart_published", "helm_deploy", "cni_compatible", "increase_decrease_capacity", "rollback"].concat(ROLLING_VERSION_CHANGE_TEST_NAMES) do |_, args|
+task "compatibility", ["helm_chart_valid", "helm_chart_published", "helm_deploy", "cni_compatible", "increase_decrease_capacity", "rollback", "deprecated_k8s_features"].concat(ROLLING_VERSION_CHANGE_TEST_NAMES) do |_, args|
   stdout_score("compatibility", "Compatibility, Installability, and Upgradeability")
   case "#{ARGV.join(" ")}" 
   when /compatibility/
@@ -583,6 +583,46 @@ task "cni_compatible" do |t, args|
       end
     else
       CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Docker not installed")
+    end
+  end
+end
+
+desc "CNF should not use any deprecated Kubernetes features"
+task "deprecated_k8s_features" do |t, args|
+  logger = WLOG.for("deprecated_k8s_features")
+  logger.info { "Testing CNF for usage of deprecated Kubernetes features" }
+
+  CNFManager::Task.task_runner(args, task: t) do |args, config|
+    skipped = false
+    passed = false
+
+    unless File.exists?(CNF_INSTALL_LOG_FILE)
+      logger.warn { "Installation log file not found, should be in: #{CNF_INSTALL_LOG_FILE}" }
+      skipped = true
+    end
+
+    unless skipped
+      pattern = /deprecated/
+      warnings = [] of String
+      File.each_line(CNF_INSTALL_LOG_FILE) { |line| warnings << line if pattern.match(line) }
+      logger.info { "Found #{warnings.size} deprecated feature warnings" }
+
+      if warnings.empty?
+        passed = true
+        logger.info { "CNF does not use any deprecated features" }
+      else
+        stdout_warning("Deprecated features warnings:\n#{warnings.join("\n")}")
+        logger.info { "Warnings:\n#{warnings.join("\n")}" }
+        passed = false
+      end
+    end
+
+    if skipped
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "CNF installation log file not found")
+    elsif passed
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "CNF does not use deprecated K8s features")
+    else
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "CNF uses deprecated K8s features")
     end
   end
 end
