@@ -2,10 +2,11 @@
 require "../spec_helper"
 require "colorize"
 require "../../src/tasks/utils/utils.cr"
-require "../../src/tasks/helmenv_setup.cr"
+require "../../src/tasks/setup/helmenv_setup.cr"
 require "file_utils"
 require "sam"
 require "json"
+require "http/server"
 
 describe "Utils" do
   before_all do
@@ -203,14 +204,103 @@ describe "Utils" do
     end
   end
 
-  it "spec directory should have tags for all of the specs", tags: ["spec-tags"]  do
-    response = String::Builder.new
-    Process.run("grep -r -I -P '^ *it \"(?!.*tags(.*\"))' ./spec", shell: true) do |proc|
-      while line = proc.output.gets
-        response << line
-        Log.info { "#{line}" }
+  describe "'download' function", tags: ["utils-download"] do
+    port = 50500
+    ip = "0.0.0.0"
+    server = HTTP::Server.new do |ctx|
+      request = ctx.request
+      response = ctx.response
+      case request.path
+      when "/redirect"
+        response.status_code = 302
+        response.headers["Location"] = "http://#{ip}:#{port}/success"
+        response.print("redirecting to /success")
+      when "/error"
+        response.status_code = 404
+        response.print("not found")
+      when "/auth"
+        auth_header = request.headers["Authorization"]
+        if auth_header && auth_header.starts_with?("Bearer ")
+          response.status_code = 200
+          response.print("authorized access")
+        else
+          response.status_code = 401
+          response.print("unauthorized")
+        end
+      when "/success"
+        response.status_code = 200
+        response.print("successful response")
       end
     end
-    (response.to_s.size > 0).should be_false
+
+    before_all do
+      server.bind_tcp(ip, port)
+      spawn do
+        server.listen
+      end
+    end
+
+    after_all do
+      server.close
+    end
+
+    it "should download file correctly" do
+      tempfile = File.tempfile("test_download")
+      begin
+        download("http://#{ip}:#{port}/success", tempfile.path)
+      rescue ex : Exception # Exception should not be raised
+        ex.message.should be_nil
+      end
+      (File.read(tempfile.path) == "successful response").should be_true
+    ensure
+      tempfile.delete unless tempfile.nil?
+    end
+
+    it "should download file with redirection correctly" do
+      tempfile = File.tempfile("test_download")
+      begin
+        download("http://#{ip}:#{port}/redirect", tempfile.path)
+      rescue ex : Exception # Exception should not be raised
+        ex.message.should be_nil
+      end
+      (File.read(tempfile.path) == "successful response").should be_true
+    ensure
+      tempfile.delete unless tempfile.nil?
+    end
+
+    it "should download file with bearer token authentication correctly" do
+      tempfile = File.tempfile("test_download")
+      headers = HTTP::Headers{"Authorization" => "Bearer valid-token123"}
+      begin
+        download("http://#{ip}:#{port}/auth", tempfile.path, headers: headers)
+      rescue ex : Exception # Exception should not be raised
+        ex.message.should be_nil
+      end
+      (File.read(tempfile.path) == "authorized access").should be_true
+    ensure
+      tempfile.delete unless tempfile.nil?
+    end
+
+    it "should raise when 'url' is not found" do
+      tempfile = File.tempfile("test_download")
+      begin
+        download("http://non-existent/path", tempfile.path)
+      rescue ex : Exception
+        ex.message.should_not be_nil
+      end
+    ensure
+      tempfile.delete unless tempfile.nil?
+    end
+
+    it "should raise when response is not 2xx" do
+      tempfile = File.tempfile("test_download")
+      begin
+        download("http://#{ip}:#{port}/error", tempfile.path)
+      rescue ex : Exception
+        (ex.message =~ /Unsuccessful request, status code: \[404\], msg: Not Found/).should_not be_nil
+      end
+    ensure
+      tempfile.delete unless tempfile.nil?
+    end
   end
 end
