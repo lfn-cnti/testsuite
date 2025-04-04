@@ -16,7 +16,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: cluster-tools
-          image: lfncnti/cluster-tools:v1.0.6
+          image: lalu211/cluster-tools:1.0.7
           imagePullPolicy: Always
           command: ["/bin/sh"]
           args: ["-c", "sleep infinity"]
@@ -28,8 +28,10 @@ spec:
             readOnly: true
           - mountPath: /proc
             name: proc
-          - mountPath: /run/dockershim.sock
+          - mountPath: /var/run/cri-dockerd.sock
             name: dockerd-volume
+          - mountPath: /var/run/crio/crio.sock
+            name: crio-volume
           securityContext:
             privileged: true
       volumes:
@@ -41,7 +43,10 @@ spec:
           path: /proc
       - name: dockerd-volume
         hostPath:
-          path: /run/dockershim.sock
+          path: /var/run/cri-dockerd.sock
+      - name: crio-volume
+        hostPath:
+          path: /var/run/crio/crio.sock
       - name: systemd
         hostPath:
           path: /run/systemd
