@@ -7,12 +7,12 @@ def helm_install(release_name : String, helm_chart_or_directory : String, helm_n
     resp = Helm.install(release_name, helm_chart_or_directory, helm_namespace_option, helm_values)
     Log.info { resp }
     install_success = (resp[:status].exit_status == 0)
-  rescue e : Helm::InstallationFailed
+  rescue e : Helm::ShellCMD::CannotReuseReleaseNameError
+    Log.info {"Release name #{release_name} has already been setup."}
+    install_success = false
+  rescue e : Helm::ShellCMD::HelmCMDException
     Log.fatal {"Helm installation failed"} 
     Log.fatal {"\t#{e.message}"} 
-    install_success = false
-  rescue e : Helm::CannotReuseReleaseNameError
-    Log.info {"Release name #{release_name} has already been setup."}
     install_success = false
   end
 
