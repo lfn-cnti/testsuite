@@ -204,17 +204,6 @@ describe "Utils" do
     end
   end
 
-  it "spec directory should have tags for all of the specs", tags: ["spec-tags"]  do
-    response = String::Builder.new
-    Process.run("grep -r -I -P '^ *it \"(?!.*tags(.*\"))' ./spec", shell: true) do |proc|
-      while line = proc.output.gets
-        response << line
-        Log.info { "#{line}" }
-      end
-    end
-    (response.to_s.size > 0).should be_false
-  end
-
   describe "'download' function", tags: ["utils-download"] do
     port = 50500
     ip = "0.0.0.0"

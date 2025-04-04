@@ -10,7 +10,7 @@ task "install_kubescape", ["kubescape_framework_download"] do |_, args|
   Log.info {"install_kubescape"}
 
   version_file = "#{tools_path}/kubescape/.kubescape_version"
-  installed_kubescape_version = File.read(version_file)
+  installed_kubescape_version = File.read(version_file) if File.exists?(version_file)
 
   FileUtils.mkdir_p("#{tools_path}/kubescape")
   if !File.exists?("#{tools_path}/kubescape/kubescape") || installed_kubescape_version != Setup::KUBESCAPE_VERSION
@@ -38,7 +38,7 @@ task "kubescape_framework_download" do |_, args|
   # Download framework file using Github token if the GITHUB_TOKEN env var is present
 
   version_file = "#{tools_path}/kubescape/.kubescape_framework_version"
-  installed_framework_version = File.read(version_file)
+  installed_framework_version = File.read(version_file) if File.exists?(version_file)
   FileUtils.mkdir_p("#{tools_path}/kubescape")
 
   framework_path = "#{tools_path}/kubescape/nsa.json"
