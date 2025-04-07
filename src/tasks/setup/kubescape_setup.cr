@@ -44,9 +44,13 @@ task "kubescape_framework_download" do |_, args|
   framework_path = "#{tools_path}/kubescape/nsa.json"
   if !File.exists?(framework_path) || installed_framework_version != Setup::KUBESCAPE_FRAMEWORK_VERSION
     asset_url = "https://github.com/armosec/regolibrary/releases/download/v#{Setup::KUBESCAPE_FRAMEWORK_VERSION}/nsa"
-
-    download(Setup::KUBESCAPE_URL, framework_path,
-    headers: HTTP::Headers{"Authorization" => "Bearer #{ENV["GITHUB_TOKEN"]}"})
+    
+    unless ENV["GITHUB_TOKEN"]?.nil?
+      download(Setup::KUBESCAPE_URL, framework_path,
+        headers: HTTP::Headers{"Authorization" => "Bearer #{ENV["GITHUB_TOKEN"]}"})
+    else
+      download(Setup::KUBESCAPE_URL, framework_path)
+    end
     File.write(version_file, Setup::KUBESCAPE_FRAMEWORK_VERSION)
   end
 end

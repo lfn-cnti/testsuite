@@ -22,7 +22,7 @@ namespace "setup" do
     stdout_success "CNF installation start."
     CNFInstall.install_cnf(args)
     logger.info { "CNF installed successfuly" }
-    stdout_success "CNF installation ended."
+    stdout_success "CNF installation complete."
   end
 
   task "cnf_uninstall" do |_, args|
