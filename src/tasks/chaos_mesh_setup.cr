@@ -82,7 +82,7 @@ module ChaosMeshSetup
       Log.debug { "resource file: #{resource_file}" }
       is_resource_created == true
     end
-    KubectlClient::Delete.file(resource_file)
+    begin KubectlClient::Delete.file(resource_file) rescue KubectlClient::ShellCMD::NotFoundError end
     execution_complete
   end
 end

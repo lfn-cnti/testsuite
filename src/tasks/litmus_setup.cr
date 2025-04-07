@@ -12,11 +12,11 @@ task "install_litmus" do |_, args|
   #todo download litmus file then modify it with add_node_selector
   #todo apply modified litmus file
   Log.info { "install litmus" }
-  KubectlClient::Apply.namespace(LitmusManager::LITMUS_NAMESPACE)
+  begin KubectlClient::Apply.namespace(LitmusManager::LITMUS_NAMESPACE) rescue KubectlClient::ShellCMD::AlreadyExistsError end
   cmd = "kubectl label namespace #{LitmusManager::LITMUS_NAMESPACE} pod-security.kubernetes.io/enforce=privileged"
   ShellCmd.run(cmd, "Label.namespace")
   Log.info { "install litmus operator"}
-  KubectlClient::Apply.file(LitmusManager::LITMUS_OPERATOR, namespace: LitmusManager::LITMUS_NAMESPACE)
+  KubectlClient::Apply.file(LitmusManager::LITMUS_OPERATOR, namespace: LitmusManager::LITMUS_NAMESPACE) 
 end
 
 desc "Uninstall LitmusChaos"
