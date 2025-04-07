@@ -564,7 +564,10 @@ task "pod_io_stress", ["install_litmus"] do |t, args|
 ensure
   # This ensures that no litmus-related resources are left behind after the test is run.
   # Only the default namespace is cleaned up.
-  KubectlClient::Delete.resource("all", labels: {"app.kubernetes.io/part-of" => "litmus"})
+  begin
+    KubectlClient::Delete.resource("all", labels: {"app.kubernetes.io/part-of" => "litmus"})
+  rescue KubectlClient::ShellCMD::NotFoundError
+  end 
 end
 
 
