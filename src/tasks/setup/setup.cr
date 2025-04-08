@@ -2,7 +2,7 @@ require "sam"
 
 desc "Sets up the CNF test suite, the K8s cluster, and upstream projects"
 task "setup", ["version", "setup:cnf_directory_setup", "setup:helm_local_install", "prereqs",
-               "setup:create_namespace", "setup:configuration_file_setup", "setup:install_apisnoop",
+               "setup:create_namespace", "setup:install_apisnoop",
                "setup:install_sonobuoy", "setup:install_kind"] do |_, args|
   stdout_success "Dependency installation complete"
 end
@@ -48,10 +48,5 @@ namespace "setup" do
       exit 1
     end
     stdout_success "Successfully created directories for cnf-testsuite"
-  end
-
-  task "configuration_file_setup" do |_, args|
-    logger = SLOG.for("configuration_file_setup").info { "Creating configuration file" }
-    CNFManager::Points.create_points_yml
   end
 end

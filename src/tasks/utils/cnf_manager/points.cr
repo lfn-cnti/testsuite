@@ -68,13 +68,10 @@ module CNFManager
       end
     end
 
+    # (rafal-lal) TODO: this should be read once and stored in-memory
     def self.points_yml
-      points = File.open("points.yml") { |f| YAML.parse(f) }
+      points = File.open("#{MANIFESTS_DIR}/points.yml") { |f| YAML.parse(f) }
       points.as_a
-    end
-
-    def self.create_points_yml
-      EmbeddedFileManager.points_yml_write_file
     end
 
     def self.create_final_results_yml_name

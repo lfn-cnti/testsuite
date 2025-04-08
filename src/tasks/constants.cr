@@ -1,5 +1,3 @@
-require "./utils/embedded_file_manager.cr"
-
 ESSENTIAL_PASSED_THRESHOLD = 15
 CNF_DIR = "installed_cnf_files"
 DEPLOYMENTS_DIR = File.join(CNF_DIR, "deployments")
@@ -31,21 +29,7 @@ DEFAULT_CNF_NAMESPACE = "cnf-default"
 # (kosstennbl) Needed only for manifest deployments, where we don't have control over installation namespace
 CLUSTER_DEFAULT_NAMESPACE = "default"
 
-#Embedded global text variables
-EmbeddedFileManager.node_failure_values
-EmbeddedFileManager.reboot_daemon
-EmbeddedFileManager.chaos_network_loss
-EmbeddedFileManager.chaos_cpu_hog
-EmbeddedFileManager.chaos_container_kill
-EmbeddedFileManager.points_yml
-EmbeddedFileManager.points_yml_write_file
-EmbeddedFileManager.enforce_image_tag
-EmbeddedFileManager.constraint_template
-EmbeddedFileManager.disable_cni
-EmbeddedFileManager.fluentd_values
-EmbeddedFileManager.fluentbit_values
-EmbeddedFileManager.fluentd_bitnami_values
-EmbeddedFileManager.ueransim_helmconfig
+MANIFESTS_DIR = "./embedded_files"
 
 EXCLUDE_NAMESPACES = [
   "kube-system",

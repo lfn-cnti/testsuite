@@ -5,11 +5,7 @@ require "../../src/tasks/utils/mysql.cr"
 require "file_utils"
 require "sam"
 
-describe "State" do
-  before_all do
-    result = ShellCmd.run_testsuite("setup:configuration_file_setup")
-  end
-  
+describe "State" do  
   it "'elastic_volumes' should fail if the cnf does not use volumes that are elastic volume", tags: ["elastic_volume"]  do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-elastic-volume/cnf-testsuite.yml", cmd_prefix: "LOG_LEVEL=info")

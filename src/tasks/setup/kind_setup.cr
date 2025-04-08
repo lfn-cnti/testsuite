@@ -90,7 +90,7 @@ class KindManager
   end
 
   def self.disable_cni_config
-    kind_config = "#{tools_path}/kind/disable_cni.yml"
+    kind_config = "#{MANIFESTS_DIR}/kind-disable-cni.yaml"
     unless File.exists?(kind_config)
       File.write(kind_config, DISABLE_CNI)
     end

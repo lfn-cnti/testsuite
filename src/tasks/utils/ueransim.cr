@@ -77,10 +77,8 @@ module UERANSIM
                                         ).to_s
       Log.info { "ue_values: #{ue_values}" }
       File.write("gnb-ues-values.yaml", ue_values)
-      # File.write("gnb-ues-values.yaml", UES_VALUES)
-      File.write("#{Dir.current}/ueransim-gnb/resources/ue.yaml", UERANSIM_HELMCONFIG)
       CNFManager.ensure_namespace_exists!("testsuite-5g")
-      Helm.install("ueransim", "#{Dir.current}/ueransim-gnb", namespace: "testsuite-5g", values: "--values ./gnb-ues-values.yaml")
+      Helm.install("ueransim", "#{Dir.current}/ueransim-gnb", namespace: "testsuite-5g", values: "--values #{MANIFESTS_DIR}/ue.yaml")
       Log.info { "after helm install" }
       KubectlClient::Wait.resource_wait_for_install("Pod", "ueransim", namespace: "testsuite-5g")
       true
