@@ -266,7 +266,7 @@ actively maintained alternatives.
 
 #### Remediation
 
-Ensure that the CNF is not using deprecated Kubernetes features. If any are detected, follow tips from warning message displayed by testsuite and/or consult [Deprecated API Migration Guide (https://kubernetes.io/docs/reference/using-api/deprecation-guide/).
+Ensure that the CNF is not using deprecated Kubernetes features. If any are detected, follow tips from warning message displayed by testsuite and/or consult [Deprecated API Migration Guide](https://kubernetes.io/docs/reference/using-api/deprecation-guide/).
 
 #### Usage
 
