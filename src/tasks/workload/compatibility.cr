@@ -310,7 +310,11 @@ def change_capacity(base_replicas, target_replica_count, args, config, resource 
   Log.trace { "increase_capacity args.named: #{args.named}" }
 
   initialization_time = base_replicas.to_i * 10
-  KubectlClient::Utils.scale("#{resource["kind"]}", "#{resource["metadata"]["name"]}", base_replicas.to_i, resource.dig("metadata", "namespace").as_s)
+
+  begin
+    KubectlClient::Utils.scale("#{resource["kind"]}", "#{resource["metadata"]["name"]}", base_replicas.to_i, resource.dig("metadata", "namespace").as_s)
+  rescue KubectlClient::ShellCMD::K8sClientCMDException end
+
   initialized_count = wait_for_scaling(resource, base_replicas, args)
   if initialized_count != base_replicas
     Log.debug { "#{resource["kind"]} initialized to #{initialized_count} and could not be set to #{base_replicas}" }
@@ -318,7 +322,10 @@ def change_capacity(base_replicas, target_replica_count, args, config, resource 
     Log.debug { "#{resource["kind"]} initialized to #{initialized_count}" }
   end
 
-  KubectlClient::Utils.scale("#{resource["kind"]}", "#{resource["metadata"]["name"]}", target_replica_count.to_i, resource.dig("metadata", "namespace").as_s)
+  begin
+    KubectlClient::Utils.scale("#{resource["kind"]}", "#{resource["metadata"]["name"]}", target_replica_count.to_i, resource.dig("metadata", "namespace").as_s)
+  rescue KubectlClient::ShellCMD::K8sClientCMDException end
+
   current_replicas = wait_for_scaling(resource, target_replica_count, args)
 
   current_replicas
