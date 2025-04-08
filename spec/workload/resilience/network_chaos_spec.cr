@@ -7,7 +7,6 @@ require "sam"
 describe "Resilience Network Chaos" do
   before_all do
     result = ShellCmd.run_testsuite("setup")
-    result = ShellCmd.run_testsuite("setup:configuration_file_setup")
     result[:status].success?.should be_true
   end
 end

@@ -43,7 +43,7 @@ module FluentManager
       super("fluentdbitnami",
             "https://charts.bitnami.com/bitnami",
             "fluentd-bitnami-values.yml",
-            FLUENTD_BITNAMI_VALUES,
+            "#{MANIFESTS_DIR}/fluentd-bitnami-values.yml",
             "bitnami/fluentd",
             "bitnami/fluentd")
     end
@@ -54,7 +54,7 @@ module FluentManager
       super("fluent-bit", 
             "https://fluent.github.io/helm-charts",
             "fluentbit-values.yml",
-            FLUENTBIT_VALUES,
+            "#{MANIFESTS_DIR}/fluentbit-values.yml",
             "fluent/fluent-bit",
             "fluent-bit/fluent-bit")
     end
