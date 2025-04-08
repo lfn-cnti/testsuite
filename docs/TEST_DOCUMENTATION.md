@@ -256,18 +256,17 @@ Ensure that your CNF is compatible with Calico, Cilium and other available CNIs.
 
 #### Overview
 
-This collects logs from the CNF installation (no matter if installed via Helm or Kubectl) and checks for usage of any
-deprecated Kubernetes features in CNF deployment, be it API versions, annotations, types etc.
+Checks whether any deprecated Kubernetes features (API versions, annotations, types etc.) are used by CNF. It is done
+by inspecting CNF installation logs.
 
 #### Rationale
 
-A CNF should not use any features that are deprecated and will be removed soon. It should migrate to stable and
-maintained counterparts.
+A CNF should avoid using any deprecated features that are scheduled for removal. It should transition to stable and
+actively maintained alternatives.
 
 #### Remediation
 
-Ensure that your CNF is not using deprecated Kubernetes features. If any are detected, follow tips from warning message
-displayed by testsuite and/or consult [Deprecated API Migration Guide](https://kubernetes.io/docs/reference/using-api/deprecation-guide/).
+Ensure that the CNF is not using deprecated Kubernetes features.
 
 #### Usage
 
