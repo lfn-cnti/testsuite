@@ -16,7 +16,6 @@ desc "Cleans up the CNF Test Suite helper tools and containers"
 task "tools_uninstall", [
     "_tools_uninstall_start",
     "setup:uninstall_sonobuoy",
-    "setup:uninstall_chaosmesh",
     "setup:uninstall_litmus",
     "setup:uninstall_dockerd",
     "setup:uninstall_kubescape",
@@ -31,7 +30,7 @@ task "tools_uninstall", [
 end
 
 desc "Cleans up the CNF Test Suite sample projects, helper tools, and containers"
-task "uninstall_all", ["cnf_uninstall", "tools_uninstall"] do |_, args|
+task "uninstall_all", ["setup:cnf_uninstall", "tools_uninstall"] do |_, args|
 end
 
 task "delete_results" do |_, args|
