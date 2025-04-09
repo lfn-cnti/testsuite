@@ -26,7 +26,6 @@ SPECIALIZED_INIT_SYSTEMS = ["tini", "dumb-init", "s6-svscan"]
 ROLLING_VERSION_CHANGE_TEST_NAMES = ["rolling_update", "rolling_downgrade", "rolling_version_change"]
 WORKLOAD_RESOURCE_KIND_NAMES = ["replicaset", "deployment", "statefulset", "pod", "daemonset"]
 
-# (rafal-lal)T TODO: why do we need 2 namespaces, trim that to 1
 TESTSUITE_NAMESPACE = "cnf-testsuite"
 DEFAULT_CNF_NAMESPACE = "cnf-default"
 # (kosstennbl) Needed only for manifest deployments, where we don't have control over installation namespace
