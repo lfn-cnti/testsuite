@@ -2,7 +2,7 @@ require "sam"
 require "file_utils"
 require "colorize"
 require "totem"
-require "./utils/utils.cr"
+require "../utils/utils.cr"
 require "http/client"
 
 def helm_arch
@@ -20,7 +20,7 @@ end
 ENV["CUSTOM_HELM_PATH"] = "#{helm_local_install_dir}/helm"
 
 desc "Sets up helm 3.8.2"
-task "helm_local_install", ["cnf_directory_setup"] do |_, args|
+task "helm_local_install", ["setup:cnf_directory_setup"] do |_, args|
   Log.debug { "helm_local_install" }
   # check if helm is installed
   # if proper version of helm installed, don't install
@@ -36,7 +36,7 @@ task "helm_local_install", ["cnf_directory_setup"] do |_, args|
       begin       
         Log.trace { "full path?: #{tools_path}/helm" }
 
-        HttpHelper.download("https://get.helm.sh/helm-v3.8.2-#{helm_arch}.tar.gz","#{tools_path}/helm/helm-v3.8.2-#{helm_arch}.tar.gz")
+        download("https://get.helm.sh/helm-v3.8.2-#{helm_arch}.tar.gz","#{tools_path}/helm/helm-v3.8.2-#{helm_arch}.tar.gz")
 
         TarClient.untar(
           "#{tools_path}/helm/helm-v3.8.2-#{helm_arch}.tar.gz",

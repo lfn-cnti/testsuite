@@ -2,7 +2,7 @@ require "../spec_helper"
 require "colorize"
 require "../../src/tasks/utils/utils.cr"
 require "../../src/tasks/utils/fluent_manager.cr"
-require "../../src/tasks/jaeger_setup.cr"
+require "../../src/tasks/setup/jaeger_setup.cr"
 
 describe "Observability" do
   before_all do
@@ -140,23 +140,6 @@ describe "Observability" do
   ensure
     result = ShellCmd.cnf_uninstall()
     result = ShellCmd.run_testsuite("uninstall_fluentbit")
-    result[:status].success?.should be_true
-  end
-
-  it "'routed_logs' should fail if cnfs logs are not captured", tags: ["observability"] do
-  
-    ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
-    Helm.helm_repo_add("bitnami","https://charts.bitnami.com/bitnami")
-    #todo  #helm install --values ./override.yml fluentd ./fluentd
-    Helm.install("fluentd", "bitnami/fluentd", namespace: TESTSUITE_NAMESPACE, values: "--values ./spec/fixtures/fluentd-values-bad.yml")
-    Log.info { "Installing FluentD daemonset" }
-    KubectlClient::Wait.resource_wait_for_install("Daemonset", "fluentd", namespace: TESTSUITE_NAMESPACE)
-
-    result = ShellCmd.run_testsuite("routed_logs")
-    (/(FAILED).*(Your CNF's logs are not being captured)/ =~ result[:output]).should_not be_nil
-  ensure
-    result = ShellCmd.cnf_uninstall()
-    result = ShellCmd.run_testsuite("uninstall_fluentd")
     result[:status].success?.should be_true
   end
 

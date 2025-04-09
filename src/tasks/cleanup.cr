@@ -4,7 +4,7 @@ require "colorize"
 require "totem"
 
 desc "Alias for cnf_uninstall"
-task "uninstall", ["cnf_uninstall"] do  |_, args|
+task "uninstall", ["cnf_uninstall"] do |_, args|
 end
 
 # Private task
@@ -14,19 +14,18 @@ end
 
 desc "Cleans up the CNF Test Suite helper tools and containers"
 task "tools_uninstall", [
-    "_tools_uninstall_start",
-    "uninstall_sonobuoy",
-    "uninstall_chaosmesh",
-    "uninstall_litmus",
-    "uninstall_dockerd",
-    "uninstall_kubescape",
-    "uninstall_cluster_tools",
-    "uninstall_opa",
- 
-    # Helm needs to be uninstalled last to allow other uninstalls to use helm if necessary.
-    # Check this issue for details - https://github.com/cncf/cnf-testsuite/issues/1586
-    "uninstall_local_helm"
-  ] do |_, args|
+  "_tools_uninstall_start",
+  "setup:uninstall_sonobuoy",
+  "setup:uninstall_litmus",
+  "setup:uninstall_kubescape",
+  "setup:uninstall_cluster_tools",
+  "setup:uninstall_opa",
+  # Helm needs to be uninstalled last to allow other uninstalls to use helm if necessary.
+  # Check this issue for details - https://github.com/cncf/cnf-testsuite/issues/1586
+  "uninstall_local_helm",
+] do |_, args|
+  # (rafal-lal) Temporary solution that will be replaced soon
+  Dockerd.uninstall
   stdout_success "Testsuite helper tools uninstalled."
 end
 

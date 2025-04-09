@@ -179,7 +179,7 @@ task "open_metrics", ["prometheus_traffic"] do |t, args|
 end
 
 desc "Are the CNF's logs captured by a logging system"
-task "routed_logs", ["install_cluster_tools"] do |t, args|
+task "routed_logs", ["setup:install_cluster_tools"] do |t, args|
   task_response = CNFManager::Task.task_runner(args, task: t) do |args, config|
     fluent_pods = FluentManager.find_active_match_pods()
     unless fluent_pods
