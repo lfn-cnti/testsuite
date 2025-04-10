@@ -597,7 +597,7 @@ task "alpha_k8s_apis" do |t, args|
       result = CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "CNF uses Kubernetes alpha APIs")
     end
   ensure
-    if cluster_name != nil
+    unless cluster_name.nil?
       KindManager.new.delete_cluster(cluster_name)
       ENV["KUBECONFIG"]="#{kubeconfig_orig}"
     end
