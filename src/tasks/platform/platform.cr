@@ -83,52 +83,47 @@ task "k8s_conformance" do |t, args|
   end
 end
 
-desc "Is Cluster Api available and managing a cluster?"
-task "clusterapi_enabled" do |t, args|
+desc "Is Cluster managed by Cluster API"
+task "cluster_api_enabled" do |t, args|
+  logger = PLOG.for("cluster_api_enabled")
+  logger.info { "Testing if cluster has nodes managed by Cluster API" }
+
   CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do
+    # (rafal-lal) TODO: should this still be POC after discussing task
     unless check_poc(args)
-      next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Cluster API not in poc mode")
+      next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Cluster API not in POC mode")
     end
 
-    Log.debug { "clusterapi_enabled" }
-    Log.info { "clusterapi_enabled args #{args.inspect}" }
+    begin
+      nodes = KubectlClient::Get.resource("nodes").dig("items").as_a
+    rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+      logger.error { "Error while getting cluster nodes: #{ex.message}" }
+      next
+    end
 
-    # We test that the namespaces for cluster resources exist by looking for labels
-    # I found those by running
-    # clusterctl init
-    # kubectl -n capi-system describe deployments.apps capi-controller-manager
-    # https://cluster-api.sigs.k8s.io/clusterctl/commands/init.html#additional-information
-
-    # this indicates that cluster-api is installed
-    clusterapi_namespaces_json = KubectlClient::Get.resource("namespace", selector: "clusterctl.cluster.x-k8s.io")
-    Log.info { "clusterapi_namespaces_json: #{clusterapi_namespaces_json}" }
-
-    # check that a node is actually being manageed
-    # TODO: suppress msg in the case that this resource does-not-exist which is what happens when cluster-api is not installed
-    cmd = "kubectl get kubeadmcontrolplanes.controlplane.cluster.x-k8s.io -o json"
-    Process.run(
-      cmd,
-      shell: true,
-      output: clusterapi_control_planes_output = IO::Memory.new,
-      error: stderr = IO::Memory.new
-    )
-
-    proc_clusterapi_control_planes_json = -> do
-      begin
-        JSON.parse(clusterapi_control_planes_output.to_s)
-      rescue JSON::ParseException
-        # resource does-not-exist rescue to empty json
-        JSON.parse("{}")
+    # Check if any of the cluster nodes have Cluster API annotations
+    capi_nodes = [] of String
+    capi_annotation_found = nodes.any? do |node|
+      annotations = node.dig?("metadata", "annotations")
+      if annotations.nil?
+        false
+      else
+        if !annotations.dig?("cluster.x-k8s.io/owner-name").nil? &&
+           !annotations.dig?("cluster.x-k8s.io/machine").nil? &&
+           !annotations.dig?("cluster.x-k8s.io/cluster-name").nil?
+          capi_nodes << node.dig("metadata", "name").as_s
+          true
+        end
       end
     end
+    logger.info { "#{capi_nodes.size} out of #{nodes.size} are managed by Cluster API" }
 
-    clusterapi_control_planes_json = proc_clusterapi_control_planes_json.call
-    Log.info { "clusterapi_control_planes_json: #{clusterapi_control_planes_json}" }
-
-    if clusterapi_namespaces_json["items"]? && clusterapi_namespaces_json["items"].as_a.size > 0 && clusterapi_control_planes_json["items"]? && clusterapi_control_planes_json["items"].as_a.size > 0
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Cluster API is enabled")
+    if capi_annotation_found
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed,
+        "At least one node in the cluster is managed by Cluster API")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Cluster API NOT enabled")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed,
+        "No nodes in the cluster are managed by Cluster API")
     end
   end
 end

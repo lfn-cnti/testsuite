@@ -1,85 +1,100 @@
 require "sam"
 require "file_utils"
-require "colorize"
-require "totem"
 require "http/client"
-require "halite"
 require "../utils/utils.cr"
-require "json"
-require "yaml"
 
 namespace "setup" do
   desc "Install Cluster API for Kind"
-  task "cluster_api_install" do |_, args|
-    current_dir = FileUtils.pwd
+  task "install_cluster_api" do |_, args|
+    logger = SLOG.for("install_cluster_api")
+    logger.info { "Installing Cluster API tool" }
+    failed_msg = "Task 'install_cluster_api' failed"
 
-    download(Setup::CLUSTER_API_URL, "./clusterctl")
-
-    Process.run(
-      "sudo chmod +x ./clusterctl",
-      shell: true,
-      output: stdout = IO::Memory.new,
-      error: stderr = IO::Memory.new
-    )
-    Process.run(
-      "sudo mv ./clusterctl /usr/local/bin/clusterctl",
-      shell: true,
-      output: stdout = IO::Memory.new,
-      error: stderr = IO::Memory.new
-    )
-
-    Log.info { "Completed downloading clusterctl" }
-
-    clusterctl = Path["~/.cluster-api"].expand(home: true)
-
-    FileUtils.mkdir_p("#{clusterctl}")
-
-    File.write("#{clusterctl}/clusterctl.yaml", "CLUSTER_TOPOLOGY: \"true\"")
-
-    cluster_init_cmd = "clusterctl init --infrastructure docker"
-    stdout = IO::Memory.new
-    Process.run(cluster_init_cmd, shell: true, output: stdout, error: stdout)
-    Log.for("clusterctl init").info { stdout }
-
-    create_cluster_file = "#{current_dir}/capi.yaml"
-
-    create_cluster_cmd = "clusterctl generate cluster capi-quickstart   --kubernetes-version v1.24.0   --control-plane-machine-count=3 --worker-machine-count=3  --flavor development > #{create_cluster_file} "
-
-    Process.run(
-      create_cluster_cmd,
-      shell: true,
-      output: create_cluster_stdout = IO::Memory.new,
-      error: create_cluster_stderr = IO::Memory.new
-    )
-
-    # TODO (rafal-lal): Connection error is expected in first couple tries, but it's not
-    # reasonable to rescue it inside 'wait_for_install_by_apply' method, hence the while
-    # loop here. Ideally this should be implemented in different way so we don't have to
-    # rescue NetworkError at all. 'loop_count' var added so testsuite won't hang
-    # indefinitely here.
-    loop_break = false
-    loop_count = 0
-    while !loop_break && loop_count < 10
-      begin
-        KubectlClient::Wait.wait_for_install_by_apply(create_cluster_file)
-        loop_break = true
-      rescue KubectlClient::ShellCMD::NetworkError
-        sleep 3.seconds
-        loop_count += 1
-      end
+    if Dir.exists?(Setup::CLUSTER_API_DIR)
+      logger.notice { "cluster api directory: '#{Setup::CLUSTER_API_DIR}' already exists, clusterctl should be available" }
+      next
     end
 
-    Log.for("clusterctl-create").info { create_cluster_stdout.to_s }
-    Log.info { "cluster api setup complete" }
+    FileUtils.mkdir_p(Setup::CLUSTER_API_DIR)
+    begin
+      download(Setup::CLUSTER_API_URL, Setup::CLUSTERCTL_BINARY)
+    rescue ex : Exception
+      logger.error { "Error while downloading clusterctl binary" }
+      stdout_error(failed_msg)
+      # (rafal-lal) TODO: SAM tasks error handling in setup, should we fail whole testsuite run / ignore
+      # or something else? Applicable to all Setup tasks.
+      next
+    end
+    logger.debug { "Downloaded clusterctl binary" }
+
+    resp = ShellCmd.run("chmod +x #{Setup::CLUSTERCTL_BINARY}")
+    unless resp[:status].success?
+      logger.error { "Error while making cluster api binary: '#{Setup::CLUSTERCTL_BINARY}' executable" }
+      stdout_error(failed_msg)
+      next
+    end
+
+    File.write("#{Setup::CLUSTER_API_DIR}/clusterctl.yaml", "CLUSTER_TOPOLOGY: \"true\"")
+    unless ShellCmd.run("#{Setup::CLUSTERCTL_BINARY} init --infrastructure docker")[:status].success?
+      logger.error { "Error while initializing Cluster API on the cluster" }
+      stdout_error(failed_msg)
+    end
+
+    cluster_name = "capi-quickstart"
+    cluster_tpl_file = "#{Setup::CLUSTER_API_DIR}/capi.yaml"
+    # (rafal-lal) TODO: add kubernetes version const to use widely in codebase
+    generate_cmd = "#{Setup::CLUSTERCTL_BINARY} generate cluster #{cluster_name}" +
+                   "--kubernetes-version v1.32.0" +
+                   "--control-plane-machine-count=1" +
+                   "--worker-machine-count=1" +
+                   "--flavor development" +
+                   "--target-namespace #{DEFAULT_CNF_NAMESPACE}" +
+                   "> #{cluster_tpl_file}"
+    unless ShellCmd.run(generate_cmd)[:status].success?
+      logger.error { "Error while generating workload cluster YAML template" }
+      stdout_error(failed_msg)
+    end
+
+    is_ready = false
+    begin
+      KubectlClient::Apply.file(cluster_tpl_file)
+      is_ready = KubectlClient::Wait.wait_for_resource_key_value("cluster", cluster_name,
+        {"status", "phase"}, "Provisioned", 300, DEFAULT_CNF_NAMESPACE)
+    rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+      logger.error { "Error while waiting for cluster to be Ready: #{ex.message}" }
+      stdout_error(failed_msg)
+    end
+
+    unless is_ready
+      logger.error { "Manifest apply not succesful or timed out while waiting for cluster to be Ready" }
+      stdout_error(failed_msg)
+      next
+    end
+
+    logger.info { "Cluster API provisioned cluster '#{cluster_name}' is ready to use" }
   end
 
   desc "Uninstall Cluster API"
-  task "cluster_api_uninstall" do |_, args|
-    current_dir = FileUtils.pwd
-    delete_cluster_file = "#{current_dir}/capi.yaml"
-    begin KubectlClient::Delete.file("#{delete_cluster_file}") rescue KubectlClient::ShellCMD::NotFoundError end
+  task "uninstall_cluster_api" do |_, args|
+    logger = SLOG.for("uninstall_cluster_api")
+    logger.info { "Uninstalling Cluster API tool" }
 
-    cmd = "clusterctl delete --all --include-crd --include-namespace"
-    Process.run(cmd, shell: true, output: stdout = IO::Memory.new, error: stderr = IO::Memory.new)
+    begin
+      KubectlClient::Delete.file("#{Setup::CLUSTER_API_DIR}/capi.yaml")
+    rescue KubectlClient::ShellCMD::NotFoundError
+      logger.debug { "Cluster API 'cluster' resource does not exists" }
+    rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+      logger.error { "Error while deleting Cluster API 'cluster' resource: #{ex.message}" }
+      stdout_error("Error while deleting Cluster API 'cluster' resource. Check logs for more info.")
+    end
+
+    response = ShellCmd.run("#{Setup::CLUSTERCTL_BINARY} delete --all --include-crd --include-namespace")
+    unless response[:status].success?
+      logger.error { "Error while deleting Cluster API from the cluster: #{response[:error]}" }
+      stdout_error("Error while deleting Cluster API 'cluster' resource. Check logs for more info.")
+      next
+    end
+
+    logger.info { "Cluster API uninstalled from the cluster" }
   end
 end
