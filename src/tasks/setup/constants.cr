@@ -4,6 +4,7 @@ module Setup
   KIND_VERSION                = "0.27.0"
   KUBESCAPE_VERSION           = "3.0.30"
   KUBESCAPE_FRAMEWORK_VERSION = "1.0.316"
+  HELM_VERSION = "3.17.3"
   # (rafal-lal) TODO: configure version of the gatekeeper
   GATEKEEPER_VERSION = "TODO: USE THIS"
 
@@ -27,4 +28,8 @@ module Setup
   SONOBUOY_URL    = "https://github.com/vmware-tanzu/sonobuoy/releases/download/" +
                             "v#{SONOBUOY_K8S_VERSION}/sonobuoy_#{SONOBUOY_K8S_VERSION}_#{SONOBUOY_OS}_amd64.tar.gz"
   SONOBUOY_BINARY = "#{SONOBUOY_DIR}/sonobuoy"
+
+  HELM_DIR = "#{tools_path}/helm"
+  HELM_URL = "https://get.helm.sh/helm-v#{HELM_VERSION}-linux-amd64.tar.gz"
+  HELM_BINARY = "#{HELM_DIR}/helm"
 end
