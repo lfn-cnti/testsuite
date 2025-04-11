@@ -66,6 +66,12 @@ jobs:
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_PASSWORD }}
+    - name: Sign in to Docker Hub with Helm
+      run: |
+        helm registry login \
+          --username ${{ secrets.DOCKERHUB_USERNAME }} \
+          --password ${{ secrets.DOCKERHUB_PASSWORD }} \
+          registry-1.docker.io
     - name: Cleanup Tmp DIR
       run: |
         sudo rm -rf /tmp/*
@@ -327,6 +333,12 @@ jobs:
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_PASSWORD }}
+    - name: Sign in to Docker Hub with Helm
+      run: |
+        helm registry login \
+          --username ${{ secrets.DOCKERHUB_USERNAME }} \
+          --password ${{ secrets.DOCKERHUB_PASSWORD }} \
+          registry-1.docker.io
     - name: Checkout code
       uses: actions/checkout@v4
       with:
@@ -427,6 +439,12 @@ jobs:
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_PASSWORD }}
+    - name: Sign in to Docker Hub with Helm
+      run: |
+        helm registry login \
+          --username ${{ secrets.DOCKERHUB_USERNAME }} \
+          --password ${{ secrets.DOCKERHUB_PASSWORD }} \
+          registry-1.docker.io
     - name: Checkout code
       uses: actions/checkout@v4
       with:
@@ -460,6 +478,12 @@ jobs:
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_PASSWORD }}
+    - name: Sign in to Docker Hub with Helm
+      run: |
+        helm registry login \
+          --username ${{ secrets.DOCKERHUB_USERNAME }} \
+          --password ${{ secrets.DOCKERHUB_PASSWORD }} \
+          registry-1.docker.io
     - name: Cleanup Tmp DIR
       run: |
         sudo rm -rf /tmp/*
@@ -557,6 +581,12 @@ jobs:
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_PASSWORD }}
+    - name: Sign in to Docker Hub with Helm
+      run: |
+        helm registry login \
+          --username ${{ secrets.DOCKERHUB_USERNAME }} \
+          --password ${{ secrets.DOCKERHUB_PASSWORD }} \
+          registry-1.docker.io
     - name: Cleanup Tmp DIR
       run: |
         sudo rm -rf /tmp/*
@@ -650,6 +680,12 @@ jobs:
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_PASSWORD }}
+    - name: Sign in to Docker Hub with Helm
+      run: |
+        helm registry login \
+          --username ${{ secrets.DOCKERHUB_USERNAME }} \
+          --password ${{ secrets.DOCKERHUB_PASSWORD }} \
+          registry-1.docker.io
     - name: Cleanup Tmp DIR
       run: |
         sudo rm -rf /tmp/*
