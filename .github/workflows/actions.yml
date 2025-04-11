@@ -133,10 +133,8 @@ jobs:
             readOnly: false
             selinuxRelabel: false
             propagation: None
-        containerdConfigPatches:
-        - |-
-          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
-            endpoint = ["https://mirror.gcr.io"]
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         EOF
     - name: sysctls specs kind config override
       if: matrix.spec == 'sysctls'
@@ -170,10 +168,8 @@ jobs:
             readOnly: false
             selinuxRelabel: false
             propagation: None
-        containerdConfigPatches:
-        - |-
-          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
-            endpoint = ["https://mirror.gcr.io"]
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         EOF
     - name: Mirror Override
       if: startsWith(matrix.spec, 'private_registry_')
@@ -202,10 +198,10 @@ jobs:
             readOnly: false
             selinuxRelabel: false
             propagation: None
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         containerdConfigPatches:
         - |-
-          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
-            endpoint = ["https://mirror.gcr.io"]
           [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry.default.svc.cluster.local:5000"]
             endpoint = ["http://localhost:5000"]
         EOF
@@ -218,10 +214,11 @@ jobs:
         apiVersion: kind.x-k8s.io/v1alpha4
         nodes:
         - role: control-plane
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         containerdConfigPatches:
         - |-
-          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
-            endpoint = ["https://mirror.gcr.io"]
           [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry.default.svc.cluster.local:5000"]
             endpoint = ["http://localhost:5000"]
         EOF
@@ -520,10 +517,9 @@ jobs:
         apiVersion: kind.x-k8s.io/v1alpha4
         nodes:
         - role: control-plane
-        containerdConfigPatches:
-        - |-
-          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
-            endpoint = ["https://mirror.gcr.io"]
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         EOF
         export CLUSTER=$(uuidgen)
         echo "export CLUSTER=$CLUSTER"
@@ -621,10 +617,11 @@ jobs:
         cat << EOF > /tmp/cluster.yml
         kind: Cluster
         apiVersion: kind.x-k8s.io/v1alpha4
-        containerdConfigPatches:
-        - |-
-          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
-            endpoint = ["https://mirror.gcr.io"]
+        nodes:
+        - role: control-plane
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         EOF
         export CLUSTER=$(uuidgen)
         echo "export CLUSTER=$CLUSTER" > cluster.env
@@ -720,10 +717,11 @@ jobs:
         cat << EOF > /tmp/cluster.yml
         kind: Cluster
         apiVersion: kind.x-k8s.io/v1alpha4
-        containerdConfigPatches:
-        - |-
-          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
-            endpoint = ["https://mirror.gcr.io"]
+        nodes:
+        - role: control-plane
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         EOF
         export CLUSTER=$(uuidgen)
         echo "export CLUSTER=$CLUSTER" > cluster.env
