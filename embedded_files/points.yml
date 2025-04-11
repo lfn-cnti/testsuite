@@ -356,6 +356,10 @@
   emoji: "🔓🔑"
   tags: ["platform", "platform:security", "dynamic"]
 
+- name: verify_secrets_encryption
+  emoji: "🔓🔑"
+  tags: ["platform", "platform:security", "dynamic"]
+
 - name: external_ips
   emoji: "🔓🔑"
   tags: [security, dynamic, workload, normal]
