@@ -4,8 +4,10 @@ require "colorize"
 require "totem"
 require "../utils/utils.cr"
 
-desc "Sets up api snoop"
-task "install_apisnoop" do |_, args|
-  Log.debug { "install_apisnoop" }
-  ApiSnoop.new().install()
+namespace "setup" do
+  desc "Sets up api snoop"
+  task "install_apisnoop" do |_, args|
+    SLOG.for("install_apisnoop").info { "Installing APISnoop tool" }
+    ApiSnoop.new.install
+  end
 end
