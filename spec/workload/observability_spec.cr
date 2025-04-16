@@ -2,7 +2,7 @@ require "../spec_helper"
 require "colorize"
 require "../../src/tasks/utils/utils.cr"
 require "../../src/tasks/utils/fluent_manager.cr"
-require "../../src/tasks/jaeger_setup.cr"
+require "../../src/tasks/setup/jaeger_setup.cr"
 
 describe "Observability" do
   before_all do
@@ -144,7 +144,6 @@ describe "Observability" do
   end
 
   it "'routed_logs' should fail if cnfs logs are not captured", tags: ["observability"] do
-  
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
     Helm.helm_repo_add("bitnami","https://charts.bitnami.com/bitnami")
     #todo  #helm install --values ./override.yml fluentd ./fluentd

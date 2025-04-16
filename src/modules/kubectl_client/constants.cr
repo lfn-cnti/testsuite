@@ -10,5 +10,5 @@ module KubectlClient
   # kubectl CMD errors
   ALREADY_EXISTS_ERR_MATCH = "AlreadyExists"
   NOT_FOUND_ERR_MATCH      = "NotFound|does not exist"
-  NETWORK_ERR_MATCH        = "Unable to connect to the server|connection refused"
+  NETWORK_ERR_MATCH        = "Unable to connect to the server|connection refused|request timed out"
 end
