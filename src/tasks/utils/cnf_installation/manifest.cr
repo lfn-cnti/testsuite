@@ -20,7 +20,7 @@ module CNFInstall
 
       logger.debug { "Look for manifest files in: '#{manifest_directory}'" }
       if manifest_directory && !manifest_directory.empty? && manifest_directory != "/"
-        manifests = find("#{manifest_directory}/", "\"*.yml\" -o -name \"*.yaml\"")
+        manifests = find_files("#{manifest_directory}/", "\"*.yml\" -o -name \"*.yaml\"")
         logger.debug { "Found manifests: #{manifests}" }
         if manifests.size == 0 && raise_ex
           raise "No manifest YAMLs found in the #{manifest_directory} directory!"

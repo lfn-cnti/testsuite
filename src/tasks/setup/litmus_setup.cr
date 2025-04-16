@@ -134,7 +134,7 @@ module LitmusManager
     filepath = "#{cmp}/#{filename}"
     Log.info {"filepath: #{filepath}"}
 
-    download(url, filepath)
+    download_file(url, filepath)
 
     filepath
   end

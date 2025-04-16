@@ -38,6 +38,17 @@ module FluentManager
     end
   end
 
+  class FluentD < FluentBase
+    def initialize
+      super("fluentd", 
+            "https://fluent.github.io/helm-charts", 
+            "fluentd-values.yml",
+            FLUENTD_VALUES,
+            "fluent/fluentd-kubernetes-daemonset",
+            "fluent/fluentd")
+    end
+  end
+
   class FluentDBitnami < FluentBase
     def initialize
       super("fluentdbitnami",
@@ -88,6 +99,6 @@ module FluentManager
   end
 
   def self.all_flavors : Array(FluentBase)
-    [FluentDBitnami.new, FluentBit.new]
+    [FluentD.new, FluentDBitnami.new, FluentBit.new]
   end
 end

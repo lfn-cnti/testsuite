@@ -3,6 +3,16 @@ require "file_utils"
 require "colorize"
 require "totem"
 
+desc "Install FluentD"
+task "install_fluentd" do |_, args|
+  FluentManager::FluentD.new.install
+end
+
+desc "Uninstall FluentD"
+task "uninstall_fluentd" do |_, args|
+  FluentManager::FluentD.new.uninstall
+end
+
 desc "Install FluentDBitnami"
 task "install_fluentdbitnami" do |_, args|
   FluentManager::FluentDBitnami.new.install

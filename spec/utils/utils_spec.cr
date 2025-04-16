@@ -247,7 +247,7 @@ describe "Utils" do
     it "should download file correctly" do
       tempfile = File.tempfile("test_download")
       begin
-        download("http://#{ip}:#{port}/success", tempfile.path)
+        download_file("http://#{ip}:#{port}/success", tempfile.path)
       rescue ex : Exception # Exception should not be raised
         ex.message.should be_nil
       end
@@ -259,7 +259,7 @@ describe "Utils" do
     it "should download file with redirection correctly" do
       tempfile = File.tempfile("test_download")
       begin
-        download("http://#{ip}:#{port}/redirect", tempfile.path)
+        download_file("http://#{ip}:#{port}/redirect", tempfile.path)
       rescue ex : Exception # Exception should not be raised
         ex.message.should be_nil
       end
@@ -272,7 +272,7 @@ describe "Utils" do
       tempfile = File.tempfile("test_download")
       headers = HTTP::Headers{"Authorization" => "Bearer valid-token123"}
       begin
-        download("http://#{ip}:#{port}/auth", tempfile.path, headers: headers)
+        download_file("http://#{ip}:#{port}/auth", tempfile.path, headers: headers)
       rescue ex : Exception # Exception should not be raised
         ex.message.should be_nil
       end
@@ -284,7 +284,7 @@ describe "Utils" do
     it "should raise when 'url' is not found" do
       tempfile = File.tempfile("test_download")
       begin
-        download("http://non-existent/path", tempfile.path)
+        download_file("http://non-existent/path", tempfile.path)
       rescue ex : Exception
         ex.message.should_not be_nil
       end
@@ -295,7 +295,7 @@ describe "Utils" do
     it "should raise when response is not 2xx" do
       tempfile = File.tempfile("test_download")
       begin
-        download("http://#{ip}:#{port}/error", tempfile.path)
+        download_file("http://#{ip}:#{port}/error", tempfile.path)
       rescue ex : Exception
         (ex.message =~ /Unsuccessful request, status code: \[404\], msg: Not Found/).should_not be_nil
       end

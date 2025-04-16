@@ -20,7 +20,7 @@ task "install_kubescape", ["kubescape_framework_download"] do |_, args|
     url = "https://github.com/armosec/kubescape/releases/download/v#{Setup::KUBESCAPE_VERSION}/kubescape-ubuntu-latest"
     Log.info { "url: #{url}" }
     Retriable.retry do
-      download("#{url}","#{write_file}")
+      download_file("#{url}","#{write_file}")
       stderr = IO::Memory.new
       status = Process.run("chmod +x #{write_file}", shell: true, output: stderr, error: stderr)
       success = status.success?
@@ -43,13 +43,11 @@ task "kubescape_framework_download" do |_, args|
 
   framework_path = "#{tools_path}/kubescape/nsa.json"
   if !File.exists?(framework_path) || installed_framework_version != Setup::KUBESCAPE_FRAMEWORK_VERSION
-    asset_url = "https://github.com/armosec/regolibrary/releases/download/v#{Setup::KUBESCAPE_FRAMEWORK_VERSION}/nsa"
-    
     unless ENV["GITHUB_TOKEN"]?.nil?
-      download(Setup::KUBESCAPE_URL, framework_path,
+      download_file(Setup::KUBESCAPE_FRAMEWORK_URL, framework_path,
         headers: HTTP::Headers{"Authorization" => "Bearer #{ENV["GITHUB_TOKEN"]}"})
     else
-      download(Setup::KUBESCAPE_URL, framework_path)
+      download_file(Setup::KUBESCAPE_FRAMEWORK_URL, framework_path)
     end
     File.write(version_file, Setup::KUBESCAPE_FRAMEWORK_VERSION)
   end

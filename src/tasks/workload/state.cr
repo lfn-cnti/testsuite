@@ -288,7 +288,7 @@ task "node_drain", ["install_litmus"] do |t, args|
             litmus_nodes = node_names - ["#{litmus_nodeName}"]
             Log.info { "Schedulable Litmus Nodes: #{litmus_nodes}" }
 
-            download("#{LitmusManager::LITMUS_OPERATOR}","#{LitmusManager::DOWNLOADED_LITMUS_FILE}")
+            download_file("#{LitmusManager::LITMUS_OPERATOR}","#{LitmusManager::DOWNLOADED_LITMUS_FILE}")
             Log.info {"Re-Schedule Litmus"}
             LitmusManager.add_node_selector(litmus_nodes[0])
             KubectlClient::Apply.file("#{LitmusManager::MODIFIED_LITMUS_FILE}")
