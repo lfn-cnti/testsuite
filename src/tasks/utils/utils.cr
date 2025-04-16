@@ -367,7 +367,7 @@ def with_kubeconfig(kube_config : String, &)
   end
 end
 
-def find(directory : String, wildcard : String)
+def find_files(directory : String, wildcard : String)
   Log.debug { "find command: find #{directory} -name #{wildcard}" }
   status = Process.run("find #{directory} -name #{wildcard}",
     shell: true,
@@ -380,7 +380,7 @@ def find(directory : String, wildcard : String)
   found_files
 end
 
-def download(url : String, output_path : String,
+def download_file(url : String, output_path : String,
                   redirect_limit : Int = 5, headers : HTTP::Headers? = nil)
   raise "Too many redirects" if redirect_limit == 0
 
@@ -388,7 +388,7 @@ def download(url : String, output_path : String,
   if response.status_code >= 300 && response.status_code < 400
     new_location = response.headers["Location"]
     raise "Status code 3xx, but redirect location missing" unless new_location
-    return download(new_location, output_path, redirect_limit - 1, headers)
+    return download_file(new_location, output_path, redirect_limit - 1, headers)
   end
 
   unless response.success?

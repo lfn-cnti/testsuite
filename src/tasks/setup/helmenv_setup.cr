@@ -36,7 +36,7 @@ task "helm_local_install", ["setup:cnf_directory_setup"] do |_, args|
       begin       
         Log.trace { "full path?: #{tools_path}/helm" }
 
-        download("https://get.helm.sh/helm-v3.8.2-#{helm_arch}.tar.gz","#{tools_path}/helm/helm-v3.8.2-#{helm_arch}.tar.gz")
+        download_file("https://get.helm.sh/helm-v3.8.2-#{helm_arch}.tar.gz","#{tools_path}/helm/helm-v3.8.2-#{helm_arch}.tar.gz")
 
         TarClient.untar(
           "#{tools_path}/helm/helm-v3.8.2-#{helm_arch}.tar.gz",

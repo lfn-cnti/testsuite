@@ -1,7 +1,7 @@
 require "./../spec_helper"
 require "colorize"
 require "./../../src/tasks/utils/utils.cr"
-require "../../src/tasks/kind_setup.cr"
+require "../../src/tasks/setup/kind_setup.cr"
 
 describe "Platform" do
   before_all do

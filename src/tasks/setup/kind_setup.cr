@@ -21,7 +21,7 @@ task "install_kind" do |_, args|
         Log.info { "#{ex.class}: '#{ex.message}' - #{attempt} attempt in #{elapsed_time} seconds and #{next_interval} seconds until the next try."}
     end
     Retriable.retry(on_retry: do_this_on_each_retry, times: 3, base_interval: 1.second) do
-      download("#{url}","#{write_file}")
+      download_file("#{url}","#{write_file}")
       stderr = IO::Memory.new
       status = Process.run("chmod +x #{write_file}", shell: true, output: stderr, error: stderr)
       success = status.success?

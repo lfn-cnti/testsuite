@@ -143,6 +143,22 @@ describe "Observability" do
     result[:status].success?.should be_true
   end
 
+  it "'routed_logs' should fail if cnfs logs are not captured", tags: ["observability"] do
+    ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
+    Helm.helm_repo_add("bitnami","https://charts.bitnami.com/bitnami")
+    #todo  #helm install --values ./override.yml fluentd ./fluentd
+    Helm.install("fluentd", "bitnami/fluentd", namespace: TESTSUITE_NAMESPACE, values: "--values ./spec/fixtures/fluentd-values-bad.yml")
+    Log.info { "Installing FluentD daemonset" }
+    KubectlClient::Wait.resource_wait_for_install("Daemonset", "fluentd", namespace: TESTSUITE_NAMESPACE)
+
+    result = ShellCmd.run_testsuite("routed_logs")
+    (/(FAILED).*(Your CNF's logs are not being captured)/ =~ result[:output]).should_not be_nil
+  ensure
+    result = ShellCmd.cnf_uninstall()
+    result = ShellCmd.run_testsuite("uninstall_fluentd")
+    result[:status].success?.should be_true
+  end
+
   it "'tracing' should fail if tracing is not used", tags: ["observability_jaeger_fail"] do
     # (kosstennbl) TODO: Test and specs for 'tracing' should be redesigned. Check #2153 for more info. Spec was using sample-coredns-cnf CNF.
   end

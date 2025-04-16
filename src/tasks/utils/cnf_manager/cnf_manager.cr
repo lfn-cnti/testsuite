@@ -118,7 +118,7 @@ module CNFManager
     logger = Log.for("cnf_config_list")
     logger.debug { "Retrieve CNF config file" }
 
-    cnf_testsuite = find("#{CNF_DIR}/*", "\"#{CONFIG_FILE}\"")
+    cnf_testsuite = find_files("#{CNF_DIR}/*", "\"#{CONFIG_FILE}\"")
     if cnf_testsuite.empty? && raise_exc
       logger.error { "CNF config file not found" }
       raise "No cnf_testsuite.yml found! Did you run the \"cnf_install\" task?"

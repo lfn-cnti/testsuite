@@ -17,9 +17,9 @@ module Setup
   KIND_DIR          = "#{tools_path}/kind"
 
   KUBESCAPE_DIR = "#{tools_path}/kubescape"
-  KUBESCAPE_URL = "https://github.com/armosec/kubescape/releases/download/" +
+  KUBESCAPE_URL = "https://github.com/kubescape/kubescape/releases/download/" +
                   "v#{KUBESCAPE_VERSION}/kubescape-ubuntu-latest"
-  KUBESCAPE_FRAMEWORK_URL = "https://github.com/armosec/regolibrary/releases/download/" +
+  KUBESCAPE_FRAMEWORK_URL = "https://github.com/kubescape/regolibrary/releases/download/" +
                             "v#{KUBESCAPE_FRAMEWORK_VERSION}/nsa"
 
   GATEKEEPER_REPO = "https://open-policy-agent.github.io/gatekeeper/charts"

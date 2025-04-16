@@ -30,3 +30,14 @@ task "cnf_uninstall" do |_, args|
   CNFInstall.uninstall_cnf
   logger.info { "CNF uninstallation ended" }
 end
+
+task "validate_config" do |_, args|
+  if args.named["cnf-config"]?
+    config = CNFInstall::Config.parse_cnf_config_from_file(args.named["cnf-config"].to_s)
+    stdout_success "Successfully validated CNF config"
+    SLOG.for("validate_config").info { "Config: #{config.inspect}" }
+  else
+    stdout_failure "cnf-config parameter needed"
+    exit 1
+  end
+end
