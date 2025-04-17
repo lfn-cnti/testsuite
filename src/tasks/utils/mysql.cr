@@ -9,7 +9,7 @@ module Mysql
   end
   def self.uninstall
     Log.debug { "uninstall_mysql" } 
-    KubectlClient::Delete.file("https://raw.githubusercontent.com/mysql/mysql-operator/trunk/samples/sample-cluster.yaml --wait=false")
+    begin KubectlClient::Delete.file("https://raw.githubusercontent.com/mysql/mysql-operator/trunk/samples/sample-cluster.yaml --wait=false") rescue KubectlClient::ShellCMD::NotFoundError end
     Helm.uninstall("mysql-operator", "mysql-operator")
   end
 
