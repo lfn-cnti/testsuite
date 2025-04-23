@@ -27,7 +27,7 @@ task "cnf_install", ["helm_local_install", "create_namespace"] do |_, args|
 end
 
 task "cnf_uninstall" do |_, args|
-  CNFInstall.uninstall_cnf()
+  exit(1) unless CNFInstall.uninstall_cnf(args)
 end
 
 def interactively_create_config

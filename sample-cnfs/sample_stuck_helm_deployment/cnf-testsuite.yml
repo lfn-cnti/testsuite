@@ -1,0 +1,9 @@
+# The deployment is not stuck immediately, but instead needs to be patched (done in spec test)
+---
+config_version: v2
+deployments:
+  helm_charts:
+  - name: stuck-nginx
+    helm_chart_name: nginx
+    helm_repo_name: bitnami
+    helm_repo_url: https://charts.bitnami.com/bitnami

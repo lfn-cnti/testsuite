@@ -219,4 +219,55 @@ describe "Installation" do
       (/CNF uninstallation skipped/ =~ result[:output]).should_not be_nil
     end
   end
+
+  it "cnf_uninstall should fail for a stuck manifest deployment" do
+    result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_stuck_finalizer/cnf-testsuite.yml")
+    result[:status].success?.should be_true
+
+    result = ShellCmd.cnf_uninstall(timeout: 60, expect_failure: true)
+    (/Some resources of "stuck_finalizer" did not finish deleting within the timeout/ =~ result[:output]).should_not be_nil
+  ensure
+    # Patch out finalizer
+    KubectlClient::Utils.patch(
+      "pod",
+      "stuck-pod",
+      "cnfspace",
+      "merge",
+      "{\"metadata\":{\"finalizers\":[]}}",
+    )
+    result = ShellCmd.cnf_uninstall
+    result[:status].success?.should be_true
+    (/CNF uninstallation skipped/ =~ result[:output]).should_not be_nil
+  end
+
+  it "cnf_uninstall should fail for a stuck helm deployment" do
+    result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_stuck_helm_deployment/")
+    result[:status].success?.should be_true
+
+    # Inject finalizer into Deployment pod template
+    KubectlClient::Utils.patch(
+      "deployment",
+      "stuck-nginx",
+      "cnf-default",
+      "json",
+      "[{\"op\":\"add\",\"path\":\"/spec/template/metadata/finalizers\",\"value\":[\"example.com/stuck\"]}]"
+    )
+
+    result = ShellCmd.cnf_uninstall(timeout: 60, expect_failure: true)
+    (/Some resources of "stuck-nginx" did not finish deleting within the timeout/ =~ result[:output]).should_not be_nil
+  ensure
+    # Patch out finalizer
+    KubectlClient::Utils.patch(
+      "pod",
+      nil,
+      "cnf-default",
+      "merge",
+      "{\"metadata\":{\"finalizers\":[]}}",
+      {"app.kubernetes.io/instance" => "stuck-nginx"}
+    )
+
+    result = ShellCmd.cnf_uninstall
+    result[:status].success?.should be_true
+    (/CNF uninstallation skipped/ =~ result[:output]).should_not be_nil
+  end
 end
