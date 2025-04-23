@@ -218,7 +218,7 @@ describe CnfTestSuite do
       result[:status].success?.should be_true
       (/(PASSED).*(Secrets defined and used)/ =~ result[:output]).should_not be_nil
     ensure
-      result = ShellCmd.cnf_uninstall("")
+      result = ShellCmd.cnf_uninstall()
     end
   end
 
@@ -229,7 +229,7 @@ describe CnfTestSuite do
       result[:status].success?.should be_true
       (/(SKIPPED).*(Secrets not used)/ =~ result[:output]).should_not be_nil
     ensure
-      result = ShellCmd.cnf_uninstall("")
+      result = ShellCmd.cnf_uninstall()
     end
   end
 
@@ -240,7 +240,7 @@ describe CnfTestSuite do
       result[:status].success?.should be_true
       (/(PASSED).*(Secrets defined and used)/ =~ result[:output]).should_not be_nil
     ensure
-      result = ShellCmd.cnf_uninstall("")
+      result = ShellCmd.cnf_uninstall()
     end
   end
 
@@ -251,7 +251,7 @@ describe CnfTestSuite do
       result[:status].success?.should be_true
       (/(SKIPPED).*(Secrets not used)/ =~ result[:output]).should_not be_nil
     ensure
-      result = ShellCmd.cnf_uninstall("")
+      result = ShellCmd.cnf_uninstall()
     end
   end
 
@@ -262,7 +262,7 @@ describe CnfTestSuite do
       result[:status].success?.should be_true
       (/(SKIPPED).*(Secrets not used)/ =~ result[:output]).should_not be_nil
     ensure
-      result = ShellCmd.cnf_uninstall("")
+      result = ShellCmd.cnf_uninstall()
     end
   end
 

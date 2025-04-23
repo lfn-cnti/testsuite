@@ -42,18 +42,17 @@ module CNFInstall
 
     def uninstall()
       begin
-        result = Helm.uninstall(get_deployment_name(), get_deployment_namespace())
+        result = Helm.uninstall(get_deployment_name(), get_deployment_namespace(), wait: false)
       rescue ex : Helm::ShellCMD::ReleaseNotFound
-        stdout_success "Helm deployment not installed \"#{deployment_name}\"."
+        stdout_warning "Helm deployment \"#{deployment_name}\" was not installed."
         true
       rescue ex : Helm::ShellCMD::HelmCMDException
-        stdout_failure "Error while uninstalling helm deployment \"#{deployment_name}\"."
+        stdout_failure "Error while uninstalling helm deployment \"#{deployment_name}\":"
         stdout_failure "\t#{ex.message}"
         false
-      else
-        stdout_success "Successfully uninstalled helm deployment \"#{deployment_name}\"."
-        true
       end
+
+      true
     end
 
     def generate_manifest()
