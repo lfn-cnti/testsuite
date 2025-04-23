@@ -290,7 +290,7 @@ jobs:
         #done
         crystal build src/cnf-testsuite.cr 
         ./cnf-testsuite setup 
-        LOG_LEVEL=info crystal spec --warnings none --tag ${{ matrix.spec }} -v
+        LOG_LEVEL=debug crystal spec --tag ${{ matrix.spec }} -v
         echo get ratelimit anonymously
         TOKEN=$(curl "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)
         curl --head -H "Authorization: Bearer $TOKEN" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest
