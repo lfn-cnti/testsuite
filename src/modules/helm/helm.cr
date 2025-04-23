@@ -278,13 +278,15 @@ module Helm
     ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
   end
 
-  def self.uninstall(release_name, namespace = nil) : CMDResult
+  def self.uninstall(release_name : String, namespace : String? = nil, wait : Bool = false) : CMDResult
     logger = Log.for("uninstall")
     logger.info { "Uninstalling helm chart: #{release_name}" }
 
     helm = BinarySingleton.helm
     cmd = "#{helm} uninstall #{release_name}"
     cmd = "#{cmd} -n #{namespace}" if namespace
+    cmd = "#{cmd} --wait" if wait
+  
     ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
   end
 

@@ -24,7 +24,7 @@ module Kyverno
   def self.uninstall
     FileUtils.rm_rf(binary_path)
     delete_policies_repo
-    KubectlClient::Wait.resource_wait_for_uninstall("deployment", "kyverno", 180, "kyverno")
+    KubectlClient::Wait.resource_wait_for_uninstall("deployment", "kyverno",  namespace: "kyverno", wait_count: 180)
   end
 
   def self.download_url

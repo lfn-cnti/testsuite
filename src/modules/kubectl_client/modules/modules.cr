@@ -79,16 +79,13 @@ module KubectlClient
       ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
     end
 
-    def self.file(file_name : String, namespace : String? = nil, wait : Bool = false)
+    def self.file(file_name : String, namespace : String? = nil, wait : Bool = true)
       logger = @@logger.for("file")
       logger.info { "Delete resources from file #{file_name}" }
 
       cmd = "kubectl delete -f #{file_name}"
       cmd = "#{cmd} -n #{namespace}" if namespace
-      if wait
-        cmd = "#{cmd} --wait=true"
-        logger.info { "Waiting until requested resource is deleted" }
-      end
+      cmd = "#{cmd} --wait=#{wait}"
 
       ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
     end
@@ -253,6 +250,42 @@ module KubectlClient
       cmd = "#{cmd} -n #{namespace}" if namespace
 
       ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+    end
+
+    def self.patch(
+      kind           : String,
+      resource_name  : String?               = nil,
+      namespace      : String?               = nil,
+      patch_type     : String                = "merge",
+      patch          : String                = "",
+      labels         : Hash(String, String)? = nil,
+      extra_opts     : String?               = nil
+    )
+      logger = @@logger.for("patch")
+
+      targets =
+        if resource_name
+          [resource_name]
+        elsif labels
+          selector = labels.map { |k,v| "#{k}=#{v}" }.join(",")
+          Get.resource(kind, namespace: namespace, selector: selector)["items"]
+            .as_a
+            .map { |item| item.dig("metadata","name").as_s }
+        else
+          raise ArgumentError.new("kubectl patch needs either resource_name or labels")
+        end
+
+      flag_parts = [] of String
+      flag_parts << "-n #{namespace}"           if namespace
+      flag_parts << "--type=#{patch_type}"
+      flag_parts << "-p '#{patch}'"
+      flag_parts << extra_opts                   if extra_opts
+
+      targets.each do |name|
+        cmd = ["kubectl patch #{kind}/#{name}", *flag_parts].join(" ")
+        logger.info { "Running: #{cmd}" }
+        ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+      end
     end
   end
 end
