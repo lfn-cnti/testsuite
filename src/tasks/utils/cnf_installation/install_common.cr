@@ -4,7 +4,7 @@ module CNFInstall
   Log = ::Log.for("CNFInstall")
 
   def self.install_cnf(cli_args)
-    parsed_args = parse_cli_args(cli_args)
+    parsed_args = parse_install_cli_args(cli_args)
     cnf_config_path = parsed_args[:config_path]
     if cnf_config_path.empty?
       stdout_failure "cnf-config or cnf-path parameter with valid CNF configuration should be provided."
@@ -20,26 +20,37 @@ module CNFInstall
     install_deployments(parsed_args: parsed_args, deployment_managers: deployment_managers)
   end
 
-  def self.parse_cli_args(cli_args)
-    logger = Log.for("parsed_cli_args")
-
+  def self.parse_install_cli_args(cli_args)
+    logger = Log.for("parsed_install_cli_args")
     logger.trace { "CLI args: #{cli_args.inspect}" }
-    cnf_config_path = ""
-    timeout = 1800
-    skip_wait_for_install = cli_args.raw.includes? "skip_wait_for_install"
+  
+    config_path = if cli_args.named.keys.includes?("cnf-config")
+                    cli_args.named["cnf-config"].as(String)
+                  elsif cli_args.named.keys.includes?("cnf-path")
+                    cli_args.named["cnf-path"].as(String)
+                  else
+                    ""
+                  end
 
-    if cli_args.named.keys.includes? "cnf-config"
-      cnf_config_path = cli_args.named["cnf-config"].as(String)
-    elsif cli_args.named.keys.includes? "cnf-path"
-      cnf_config_path = cli_args.named["cnf-path"].as(String)
-    end
-    cnf_config_path = self.ensure_cnf_config_path_file(cnf_config_path)
-
-    if cli_args.named.keys.includes? "timeout"
-      timeout = cli_args.named["timeout"].to_i
-    end
-    parsed_args = {config_path: cnf_config_path, timeout: timeout, skip_wait_for_install: skip_wait_for_install}
-    logger.debug { "Parsed args: #{parsed_args}" }
+    config_path = ensure_cnf_config_path_file(config_path)
+  
+    timeout = cli_args.named.keys.includes?("timeout") ? cli_args.named["timeout"].to_i : 1800
+    skip_wait_for_install = cli_args.raw.includes?("skip_wait_for_install")
+  
+    parsed_args = {config_path: config_path, timeout:timeout, skip_wait_for_install: skip_wait_for_install}
+    logger.debug { "Parsed install args: #{parsed_args}" }
+    parsed_args
+  end
+  
+  def self.parse_uninstall_cli_args(cli_args)
+    logger = Log.for("parsed_uninstall_cli_args")
+    logger.trace { "CLI args: #{cli_args.inspect}" }
+  
+    timeout = cli_args.named.keys.includes?("timeout") ? cli_args.named["timeout"].to_i : GENERIC_OPERATION_TIMEOUT
+    skip_wait_for_uninstall = cli_args.raw.includes?("skip_wait_for_uninstall")
+  
+    parsed_args = {timeout: timeout, skip_wait_for_uninstall: skip_wait_for_uninstall}
+    logger.debug { "Parsed uninstall args: #{parsed_args}" }
     parsed_args
   end
 
@@ -107,12 +118,44 @@ module CNFInstall
       Manifest.add_manifest_to_file(deployment_name, generated_deployment_manifest, COMMON_MANIFEST_FILE_PATH)
 
       if !parsed_args[:skip_wait_for_install]
-        wait_for_deployment_resources(deployment_name, generated_deployment_manifest, parsed_args[:timeout])
+        wait_for_deployment_installation(deployment_name, generated_deployment_manifest, parsed_args[:timeout])
       end
     end
   end
 
-  def self.wait_for_deployment_resources(deployment_name, deployment_manifest, timeout)
+  def self.uninstall_cnf(cli_args)
+    parsed_args = parse_uninstall_cli_args(cli_args)
+    cnf_config_path = File.join(CNF_DIR, CONFIG_FILE)
+    if !File.exists?(cnf_config_path)
+      stdout_warning "CNF uninstallation skipped. No CNF config found in #{CNF_DIR} directory. "
+      return
+    end
+    config = Config.parse_cnf_config_from_file(cnf_config_path)
+
+    deployment_managers = create_deployment_manager_list(config).reverse
+    uninstall_deployments(parsed_args, deployment_managers)
+
+    FileUtils.rm_rf(CNF_DIR)
+  end
+
+  def self.uninstall_deployments(parsed_args, deployment_managers)
+    all_uninstallations_successfull = true
+    deployment_managers.each do |deployment_manager|
+      uninstall_success = deployment_manager.uninstall(
+        wait: !parsed_args[:skip_wait_for_uninstall], 
+        timeout: parsed_args[:timeout]
+      )
+      all_uninstallations_successfull &&= uninstall_success
+    end
+  
+    if all_uninstallations_successfull
+      stdout_success "All CNF deployments were uninstalled, some time might be needed for all resources to be down."
+    else
+      stdout_failure "CNF uninstallation wasn't successfull, check logs for more info."
+    end
+  end
+
+  def self.wait_for_deployment_installation(deployment_name, deployment_manifest, timeout)
     resources_info = Helm.workload_resource_kind_names(Manifest.manifest_string_to_ymls(deployment_manifest))
     workload_resources_info = resources_info.select { |resource_info|
       ["replicaset", "deployment", "statefulset", "pod", "daemonset"].includes?(resource_info[:kind].downcase)
@@ -136,32 +179,5 @@ module CNFInstall
       current_resource_number += 1
     end
     stdout_success "All \"#{deployment_name}\" deployment resources are up.", same_line: true
-  end
-
-  def self.uninstall_cnf
-    cnf_config_path = File.join(CNF_DIR, CONFIG_FILE)
-    if !File.exists?(cnf_config_path)
-      stdout_warning "CNF uninstallation skipped. No CNF config found in #{CNF_DIR} directory. "
-      return
-    end
-    config = Config.parse_cnf_config_from_file(cnf_config_path)
-
-    deployment_managers = create_deployment_manager_list(config).reverse
-    uninstall_deployments(deployment_managers)
-
-    FileUtils.rm_rf(CNF_DIR)
-  end
-
-  def self.uninstall_deployments(deployment_managers)
-    all_uninstallations_successfull = true
-    deployment_managers.each do |deployment_manager|
-      uninstall_success = deployment_manager.uninstall
-      all_uninstallations_successfull = all_uninstallations_successfull && uninstall_success
-    end
-    if all_uninstallations_successfull
-      stdout_success "All CNF deployments were uninstalled, some time might be needed for all resources to be down."
-    else
-      stdout_failure "CNF uninstallation wasn't successfull, check logs for more info."
-    end
   end
 end

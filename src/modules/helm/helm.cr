@@ -278,13 +278,20 @@ module Helm
     ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
   end
 
-  def self.uninstall(release_name, namespace = nil) : CMDResult
+  def self.uninstall(
+    release_name : String, namespace = nil, wait : Bool = false, timeout : Int32 = GENERIC_OPERATION_TIMEOUT
+  ) : CMDResult
     logger = Log.for("uninstall")
     logger.info { "Uninstalling helm chart: #{release_name}" }
 
     helm = BinarySingleton.helm
     cmd = "#{helm} uninstall #{release_name}"
     cmd = "#{cmd} -n #{namespace}" if namespace
+    if wait
+      cmd = "#{cmd} --wait=true --timeout=#{timeout}s --cascade=foreground"
+      logger.info { "Waiting until requested resource is deleted, operation timeout: #{timeout}" }
+    end
+
     ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
   end
 

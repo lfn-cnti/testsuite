@@ -40,19 +40,24 @@ module CNFInstall
       true
     end
 
-    def uninstall()
+    def uninstall(wait : Bool, timeout : Int32) : Bool
       begin
-        result = Helm.uninstall(get_deployment_name(), get_deployment_namespace())
+        result = Helm.uninstall(get_deployment_name(), get_deployment_namespace(), wait: wait, timeout: timeout)
+        if result[:status].success?
+          stdout_success "Successfully uninstalled helm deployment \"#{deployment_name}\"."
+          true
+        else
+          stdout_failure "Uninstallation failed for helm deployment \"#{deployment_name}\":"
+          stdout_failure "\t#{result[:error]}"
+          false
+        end
       rescue ex : Helm::ShellCMD::ReleaseNotFound
-        stdout_success "Helm deployment not installed \"#{deployment_name}\"."
+        stdout_warning "Helm deployment \"#{deployment_name}\" was not installed."
         true
       rescue ex : Helm::ShellCMD::HelmCMDException
-        stdout_failure "Error while uninstalling helm deployment \"#{deployment_name}\"."
+        stdout_failure "Error while uninstalling helm deployment \"#{deployment_name}\":"
         stdout_failure "\t#{ex.message}"
         false
-      else
-        stdout_success "Successfully uninstalled helm deployment \"#{deployment_name}\"."
-        true
       end
     end
 

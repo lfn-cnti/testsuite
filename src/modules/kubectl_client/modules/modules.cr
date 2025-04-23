@@ -79,17 +79,17 @@ module KubectlClient
       ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
     end
 
-    def self.file(file_name : String, namespace : String? = nil, wait : Bool = false)
+    def self.file(file_name : String, namespace : String? = nil, wait : Bool = false, timeout : Int32 = GENERIC_OPERATION_TIMEOUT)
       logger = @@logger.for("file")
       logger.info { "Delete resources from file #{file_name}" }
-
       cmd = "kubectl delete -f #{file_name}"
       cmd = "#{cmd} -n #{namespace}" if namespace
       if wait
-        cmd = "#{cmd} --wait=true"
-        logger.info { "Waiting until requested resource is deleted" }
+        cmd = "#{cmd} --wait=true --timeout=#{timeout}s --cascade=foreground"
+        logger.info { "Waiting until requested resource is deleted, operation timeout: #{timeout}" }
       end
 
+      logger.info { "#{cmd}" }
       ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
     end
   end
