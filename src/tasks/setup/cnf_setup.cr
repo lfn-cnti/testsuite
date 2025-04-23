@@ -27,8 +27,15 @@ end
 task "cnf_uninstall" do |_, args|
   logger = SLOG.for("cnf_uninstall")
   logger.info { "Uninstalling CNF from cluster" }
-  CNFInstall.uninstall_cnf
-  logger.info { "CNF uninstallation ended" }
+
+  result = CNFInstall.uninstall_cnf(args)
+
+  if result
+    stdout_success "CNF uninstallation succeeded."
+  else
+    stdout_failure "CNF uninstallation failed."
+    exit(1)
+  end
 end
 
 task "validate_config" do |_, args|

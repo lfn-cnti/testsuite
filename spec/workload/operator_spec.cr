@@ -41,7 +41,7 @@ describe "Operator" do
         pod_name = pod.dig("metadata", "name")
         pod_namespace = pod.dig("metadata", "namespace")
         Log.info { "Wait for Uninstall on Pod Name: #{pod_name}, Namespace: #{pod_namespace}" }
-        KubectlClient::Wait.resource_wait_for_uninstall("Pod", "#{pod_name}", 180, "operator-lifecycle-manager")
+        KubectlClient::Wait.resource_wait_for_uninstall("Pod", "#{pod_name}", namespace: "operator-lifecycle-manager", wait_count: 180)
       end
 
       repeat_with_timeout(timeout: GENERIC_OPERATION_TIMEOUT, errormsg: "Namespace uninstallation has timed-out") do

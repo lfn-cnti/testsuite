@@ -42,9 +42,8 @@ module ShellCmd
     result
   end
 
-  def self.cnf_uninstall(uninstall_params="", cmd_prefix="", expect_failure=false)
-    timeout_parameter = uninstall_params.includes?("timeout") ? "" : "timeout=300"
-    result = run_testsuite("cnf_uninstall #{uninstall_params} #{timeout_parameter}", cmd_prefix)
+  def self.cnf_uninstall(timeout=300, cmd_prefix="", expect_failure=false)
+    result = run_testsuite("cnf_uninstall timeout=#{timeout}", cmd_prefix)
     if !expect_failure
       result[:status].success?.should be_true
     else

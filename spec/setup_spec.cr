@@ -119,9 +119,9 @@ describe "Installation" do
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
-      (/Successfully uninstalled helm deployment "coredns"/ =~ result[:output]).should_not be_nil
-      (/Successfully uninstalled helm deployment "memcached"/ =~ result[:output]).should_not be_nil
-      (/Successfully uninstalled helm deployment "nginx"/ =~ result[:output]).should_not be_nil
+      (/All "coredns" resources are gone/ =~ result[:output]).should_not be_nil
+      (/All "memcached" resources are gone/ =~ result[:output]).should_not be_nil
+      (/All "nginx" resources are gone/ =~ result[:output]).should_not be_nil
       (/All CNF deployments were uninstalled/ =~ result[:output]).should_not be_nil
     end
   end
@@ -134,8 +134,8 @@ describe "Installation" do
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
-      (/Successfully uninstalled helm deployment "nginx"/ =~ result[:output]).should_not be_nil
-      (/Successfully uninstalled manifest deployment "redis"/ =~ result[:output]).should_not be_nil
+      (/All "nginx" resources are gone/ =~ result[:output]).should_not be_nil
+      (/All "redis" resources are gone/ =~ result[:output]).should_not be_nil
       (/All CNF deployments were uninstalled/ =~ result[:output]).should_not be_nil
     end
   end
@@ -147,7 +147,8 @@ describe "Installation" do
       (/Deployment of "coredns" failed during CNF installation/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
-      (/Successfully uninstalled helm deployment "nginx"/ =~ result[:output]).should_not be_nil
+      (/All "nginx" resources are gone/ =~ result[:output]).should_not be_nil
+      (/Skipping uninstallation of deployment "coredns": no manifest/ =~ result[:output]).should_not be_nil
     end
   end
 
@@ -188,15 +189,15 @@ describe "Installation" do
       end
     ensure
       result = ShellCmd.cnf_uninstall()
-      result[:status].success?.should be_true
+
       (/All CNF deployments were uninstalled/ =~ result[:output]).should_not be_nil
   
       lines = result[:output].split('\n')
   
       uninstallation_order = [
-        /Successfully uninstalled helm deployment "kibana"/,
-        /Successfully uninstalled helm deployment "logstash"/,
-        /Successfully uninstalled helm deployment "elasticsearch"/
+        /All "kibana" resources are gone/,
+        /All "logstash" resources are gone/,
+        /All "elasticsearch" resources are gone/
       ]
   
       # Find line indices for each uninstallation regex
@@ -218,5 +219,56 @@ describe "Installation" do
       result = ShellCmd.cnf_uninstall()
       (/CNF uninstallation skipped/ =~ result[:output]).should_not be_nil
     end
+  end
+
+  it "cnf_uninstall should fail for a stuck manifest deployment" do
+    result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_stuck_finalizer/cnf-testsuite.yml")
+    result[:status].success?.should be_true
+
+    result = ShellCmd.cnf_uninstall(timeout: 60, expect_failure: true)
+    (/Some resources of "stuck_finalizer" did not finish deleting within the timeout/ =~ result[:output]).should_not be_nil
+  ensure
+    # Patch out finalizer
+    KubectlClient::Utils.patch(
+      "pod",
+      "stuck-pod",
+      "cnfspace",
+      "merge",
+      "{\"metadata\":{\"finalizers\":[]}}",
+    )
+    result = ShellCmd.cnf_uninstall
+    result[:status].success?.should be_true
+    (/CNF uninstallation skipped/ =~ result[:output]).should_not be_nil
+  end
+
+  it "cnf_uninstall should fail for a stuck helm deployment" do
+    result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_stuck_helm_deployment/")
+    result[:status].success?.should be_true
+
+    # Inject finalizer into Deployment pod template
+    KubectlClient::Utils.patch(
+      "deployment",
+      "stuck-nginx",
+      "cnf-default",
+      "json",
+      "[{\"op\":\"add\",\"path\":\"/spec/template/metadata/finalizers\",\"value\":[\"example.com/stuck\"]}]"
+    )
+
+    result = ShellCmd.cnf_uninstall(timeout: 60, expect_failure: true)
+    (/Some resources of "stuck-nginx" did not finish deleting within the timeout/ =~ result[:output]).should_not be_nil
+  ensure
+    # Patch out finalizer
+    KubectlClient::Utils.patch(
+      "pod",
+      nil,
+      "cnf-default",
+      "merge",
+      "{\"metadata\":{\"finalizers\":[]}}",
+      {"app.kubernetes.io/instance" => "stuck-nginx"}
+    )
+
+    result = ShellCmd.cnf_uninstall
+    result[:status].success?.should be_true
+    (/CNF uninstallation skipped/ =~ result[:output]).should_not be_nil
   end
 end

@@ -70,5 +70,30 @@ module CNFInstall
           "appended into #{destination_file} file" }
       end
     end
+
+    def self.find_resource(ymls : Array(YAML::Any), kind : String, name : String) : YAML::Any?
+      ymls.find do |r|
+        r["kind"].as_s == kind && r["metadata"]["name"].as_s == name
+      end
+    end
+
+    def self.extract_from_ymls(
+      ymls : Array(YAML::Any),
+      kind : String,
+      name : String,
+      path : Array(String)
+    )
+      resource = find_resource(ymls, kind, name)
+      return nil unless resource
+
+      node = resource
+      path.each do |key|
+        node = node[key]?
+        return nil if node.nil?
+      end
+
+      Log.debug { "Found node at #{path.join(".")}: #{node.as_s}"}
+      yield node
+    end
   end
 end
