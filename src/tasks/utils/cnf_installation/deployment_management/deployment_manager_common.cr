@@ -4,7 +4,7 @@ module CNFInstall
              deployment_priority : Int32
 
     abstract def install
-    abstract def uninstall
+    abstract def uninstall(wait : Bool, timeout : Int32)
     abstract def generate_manifest
     
     def initialize(deployment_name, deployment_priority)
