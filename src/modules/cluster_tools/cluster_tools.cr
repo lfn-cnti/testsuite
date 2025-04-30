@@ -14,13 +14,6 @@ module ClusterTools
     ECR.def_to_s("#{__DIR__}/templates/manifest.yml.ecr")
   end
 
-  class ManifestHostNamespaceTemplate
-    def initialize
-    end
-
-    ECR.def_to_s("#{__DIR__}/templates/manifest-host-pid.yml.ecr")
-  end
-
   def self.change_namespace(name)
     @@namespace = name
   end
@@ -47,24 +40,16 @@ module ClusterTools
     true
   end
 
-  def self.install(host_namespace = true)
+  def self.install()
     Log.info { "ClusterTools install" }
-    if host_namespace
-      File.write("cluster_tools.yml", ManifestHostNamespaceTemplate.new().to_s)
-    else
-      File.write("cluster_tools.yml", ManifestTemplate.new().to_s)
-    end
+    File.write("cluster_tools.yml", ManifestTemplate.new().to_s)
     KubectlClient::Apply.file("cluster_tools.yml", namespace: self.namespace!)
     wait_for_cluster_tools
   end
 
-  def self.uninstall(host_namespace = true)
+  def self.uninstall()
     Log.info { "ClusterTools uninstall" }
-    if host_namespace
-      File.write("cluster_tools.yml", ManifestHostNamespaceTemplate.new().to_s)
-    else
-      File.write("cluster_tools.yml", ManifestTemplate.new().to_s)
-    end
+    File.write("cluster_tools.yml", ManifestTemplate.new().to_s)
 
     begin
       KubectlClient::Delete.file("cluster_tools.yml", namespace: self.namespace!)
