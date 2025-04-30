@@ -11,35 +11,44 @@ spec:
       labels:
         name: cluster-tools
     spec:
+      hostPID: true
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: cluster-tools
-          image: lfncnti/cluster-tools:v1.0.7
+          image: lfncnti/cluster-tools:v1.0.8
           imagePullPolicy: Always
-          command: ["/bin/sh"]
-          args: ["-c", "sleep infinity"]
+          command:
+            - /bin/bash
+            - -c
+            - |
+              CONTAINERD_SOCKET_DIR=$(lsof -U | grep -E "/containerd\.sock\s" | awk '{print $9}' | head -n 1 | xargs -r dirname)
+              if [ -n "$CONTAINERD_SOCKET_DIR" ]; then
+                ln -s /host/$CONTAINERD_SOCKET_DIR /run/containerd
+              else
+                CRIO_SOCKET_DIR=$(lsof -U | grep -E "/crio\.sock\s" | awk '{print $9}' | head -n 1 | xargs -r dirname)
+                if [ -n "$CRIO_SOCKET_DIR" ]; then
+                  ln -s /host/$CRIO_SOCKET_DIR /var/run/crio
+                fi
+              fi
+              sleep infinity
           volumeMounts:
-          - mountPath: /run/containerd/containerd.sock
-            name: containerd-volume
-          - mountPath: /proc
-            name: proc
-          - mountPath: /var/run/cri-dockerd.sock
-            name: dockerd-volume
-          - mountPath: /var/run/crio/crio.sock
-            name: crio-volume
+          - name: systemd
+            mountPath: /run/systemd/
+            readOnly: true
+          - name: proc
+            mountPath: /proc
+          - name: hostfs
+            mountPath: /host
           securityContext:
             privileged: true
       volumes:
-      - name: containerd-volume
-        hostPath:
-          path: /var/run/containerd/containerd.sock
       - name: proc
         hostPath:
           path: /proc
-      - name: dockerd-volume
+      - name: systemd
         hostPath:
-          path: /var/run/cri-dockerd.sock
-      - name: crio-volume
+          path: /run/systemd
+      - name: hostfs
         hostPath:
-          path: /var/run/crio/crio.sock
+          path: /
