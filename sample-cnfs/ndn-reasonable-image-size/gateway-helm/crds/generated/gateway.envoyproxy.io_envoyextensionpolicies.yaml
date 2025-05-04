@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.17.3
   name: envoyextensionpolicies.gateway.envoyproxy.io
 spec:
   group: gateway.envoyproxy.io
@@ -49,7 +49,7 @@ spec:
               extProc:
                 description: |-
                   ExtProc is an ordered list of external processing filters
-                  that should added to the envoy filter chain
+                  that should be added to the envoy filter chain
                 items:
                   description: ExtProc defines the configuration for External Processing
                     filter.
@@ -58,7 +58,6 @@ spec:
                       description: |-
                         BackendRef references a Kubernetes object that represents the
                         backend server to which the authorization request will be sent.
-
 
                         Deprecated: Use BackendRefs instead.
                       properties:
@@ -76,9 +75,7 @@ spec:
                             Kind is the Kubernetes resource kind of the referent. For example
                             "Service".
 
-
                             Defaults to "Service" when not specified.
-
 
                             ExternalName services can refer to CNAME DNS records that may live
                             outside of the cluster and as such are difficult to reason about in
@@ -86,9 +83,7 @@ spec:
                             CVE-2021-25740 for more information). Implementations SHOULD NOT
                             support ExternalName Services.
 
-
                             Support: Core (Services with a type other than ExternalName)
-
 
                             Support: Implementation-specific (Services with type ExternalName)
                           maxLength: 63
@@ -105,12 +100,10 @@ spec:
                             Namespace is the namespace of the backend. When unspecified, the local
                             namespace is inferred.
 
-
                             Note that when a namespace different than the local namespace is specified,
                             a ReferenceGrant object is required in the referent namespace to allow that
                             namespace's owner to accept the reference. See the ReferenceGrant
                             documentation for details.
-
 
                             Support: Core
                           maxLength: 63
@@ -143,6 +136,15 @@ spec:
                         description: BackendRef defines how an ObjectReference that
                           is specific to BackendRef.
                         properties:
+                          fallback:
+                            description: |-
+                              Fallback indicates whether the backend is designated as a fallback.
+                              Multiple fallback backends can be configured.
+                              It is highly recommended to configure active or passive health checks to ensure that failover can be detected
+                              when the active backends become unhealthy and to automatically readjust once the primary backends are healthy again.
+                              The overprovisioning factor is set to 1.4, meaning the fallback backends will only start receiving traffic when
+                              the health of the active backends falls below 72%.
+                            type: boolean
                           group:
                             default: ""
                             description: |-
@@ -157,9 +159,7 @@ spec:
                               Kind is the Kubernetes resource kind of the referent. For example
                               "Service".
 
-
                               Defaults to "Service" when not specified.
-
 
                               ExternalName services can refer to CNAME DNS records that may live
                               outside of the cluster and as such are difficult to reason about in
@@ -167,9 +167,7 @@ spec:
                               CVE-2021-25740 for more information). Implementations SHOULD NOT
                               support ExternalName Services.
 
-
                               Support: Core (Services with a type other than ExternalName)
-
 
                               Support: Implementation-specific (Services with type ExternalName)
                             maxLength: 63
@@ -186,12 +184,10 @@ spec:
                               Namespace is the namespace of the backend. When unspecified, the local
                               namespace is inferred.
 
-
                               Note that when a namespace different than the local namespace is specified,
                               a ReferenceGrant object is required in the referent namespace to allow that
                               namespace's owner to accept the reference. See the ReferenceGrant
                               documentation for details.
-
 
                               Support: Core
                             maxLength: 63
@@ -272,6 +268,21 @@ spec:
                               maximum: 4294967295
                               minimum: 0
                               type: integer
+                            perEndpoint:
+                              description: PerEndpoint defines Circuit Breakers that
+                                will apply per-endpoint for an upstream cluster
+                              properties:
+                                maxConnections:
+                                  default: 1024
+                                  description: MaxConnections configures the maximum
+                                    number of connections that Envoy will establish
+                                    per-endpoint to the referenced backend defined
+                                    within a xRoute rule.
+                                  format: int64
+                                  maximum: 4294967295
+                                  minimum: 0
+                                  type: integer
+                              type: object
                           type: object
                         connection:
                           description: Connection includes backend connection settings.
@@ -313,6 +324,17 @@ spec:
                                 DNSRefreshRate specifies the rate at which DNS records should be refreshed.
                                 Defaults to 30 seconds.
                               type: string
+                            lookupFamily:
+                              description: |-
+                                LookupFamily determines how Envoy would resolve DNS for Routes where the backend is specified as a fully qualified domain name (FQDN).
+                                If set, this configuration overrides other defaults.
+                              enum:
+                              - IPv4
+                              - IPv6
+                              - IPv4Preferred
+                              - IPv6Preferred
+                              - IPv4AndIPv6
+                              type: string
                             respectDnsTtl:
                               description: |-
                                 RespectDNSTTL indicates whether the DNS Time-To-Live (TTL) should be respected.
@@ -327,6 +349,18 @@ spec:
                             active:
                               description: Active health check configuration
                               properties:
+                                grpc:
+                                  description: |-
+                                    GRPC defines the configuration of the GRPC health checker.
+                                    It's optional, and can only be used if the specified type is GRPC.
+                                  properties:
+                                    service:
+                                      description: |-
+                                        Service to send in the health check request.
+                                        If this is not specified, then the health check request applies to the entire
+                                        server and not to a specific service.
+                                      type: string
+                                  type: object
                                 healthyThreshold:
                                   default: 1
                                   description: HealthyThreshold defines the number
@@ -490,9 +524,11 @@ spec:
                                   - enum:
                                     - HTTP
                                     - TCP
+                                    - GRPC
                                   - enum:
                                     - HTTP
                                     - TCP
+                                    - GRPC
                                   description: Type defines the type of health checker.
                                   type: string
                                 unhealthyThreshold:
@@ -513,6 +549,19 @@ spec:
                               - message: If Health Checker type is TCP, tcp field
                                   needs to be set.
                                 rule: 'self.type == ''TCP'' ? has(self.tcp) : !has(self.tcp)'
+                              - message: The grpc field can only be set if the Health
+                                  Checker type is GRPC.
+                                rule: 'has(self.grpc) ? self.type == ''GRPC'' : true'
+                            panicThreshold:
+                              description: |-
+                                When number of unhealthy endpoints for a backend reaches this threshold
+                                Envoy will disregard health status and balance across all endpoints.
+                                It's designed to prevent a situation in which host failures cascade throughout the cluster
+                                as load increases. If not set, the default value is 50%. To disable panic mode, set value to `0`.
+                              format: int32
+                              maximum: 100
+                              minimum: 0
+                              type: integer
                             passive:
                               description: Passive passive check configuration
                               properties:
@@ -607,7 +656,7 @@ spec:
                         loadBalancer:
                           description: |-
                             LoadBalancer policy to apply when routing traffic from the gateway to
-                            the backend endpoints
+                            the backend endpoints. Defaults to `LeastRequest`.
                           properties:
                             consistentHash:
                               description: |-
@@ -740,6 +789,86 @@ spec:
                           required:
                           - version
                           type: object
+                        retry:
+                          description: |-
+                            Retry provides more advanced usage, allowing users to customize the number of retries, retry fallback strategy, and retry triggering conditions.
+                            If not set, retry will be disabled.
+                          properties:
+                            numRetries:
+                              default: 2
+                              description: NumRetries is the number of retries to
+                                be attempted. Defaults to 2.
+                              format: int32
+                              minimum: 0
+                              type: integer
+                            perRetry:
+                              description: PerRetry is the retry policy to be applied
+                                per retry attempt.
+                              properties:
+                                backOff:
+                                  description: |-
+                                    Backoff is the backoff policy to be applied per retry attempt. gateway uses a fully jittered exponential
+                                    back-off algorithm for retries. For additional details,
+                                    see https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/router_filter#config-http-filters-router-x-envoy-max-retries
+                                  properties:
+                                    baseInterval:
+                                      description: BaseInterval is the base interval
+                                        between retries.
+                                      format: duration
+                                      type: string
+                                    maxInterval:
+                                      description: |-
+                                        MaxInterval is the maximum interval between retries. This parameter is optional, but must be greater than or equal to the base_interval if set.
+                                        The default is 10 times the base_interval
+                                      format: duration
+                                      type: string
+                                  type: object
+                                timeout:
+                                  description: Timeout is the timeout per retry attempt.
+                                  format: duration
+                                  type: string
+                              type: object
+                            retryOn:
+                              description: |-
+                                RetryOn specifies the retry trigger condition.
+
+                                If not specified, the default is to retry on connect-failure,refused-stream,unavailable,cancelled,retriable-status-codes(503).
+                              properties:
+                                httpStatusCodes:
+                                  description: |-
+                                    HttpStatusCodes specifies the http status codes to be retried.
+                                    The retriable-status-codes trigger must also be configured for these status codes to trigger a retry.
+                                  items:
+                                    description: HTTPStatus defines the http status
+                                      code.
+                                    exclusiveMaximum: true
+                                    maximum: 600
+                                    minimum: 100
+                                    type: integer
+                                  type: array
+                                triggers:
+                                  description: Triggers specifies the retry trigger
+                                    condition(Http/Grpc).
+                                  items:
+                                    description: TriggerEnum specifies the conditions
+                                      that trigger retries.
+                                    enum:
+                                    - 5xx
+                                    - gateway-error
+                                    - reset
+                                    - connect-failure
+                                    - retriable-4xx
+                                    - refused-stream
+                                    - retriable-status-codes
+                                    - cancelled
+                                    - deadline-exceeded
+                                    - internal
+                                    - resource-exhausted
+                                    - unavailable
+                                    type: string
+                                  type: array
+                              type: object
+                          type: object
                         tcpKeepalive:
                           description: |-
                             TcpKeepalive settings associated with the upstream client connection.
@@ -785,6 +914,11 @@ spec:
                                     Default: unlimited.
                                   pattern: ^([0-9]{1,5}(h|m|s|ms)){1,4}$
                                   type: string
+                                requestTimeout:
+                                  description: RequestTimeout is the time until which
+                                    entire response is received from the upstream.
+                                  pattern: ^([0-9]{1,5}(h|m|s|ms)){1,4}$
+                                  type: string
                               type: object
                             tcp:
                               description: Timeout settings for TCP.
@@ -810,16 +944,58 @@ spec:
                         Default: 200ms
                       pattern: ^([0-9]{1,5}(h|m|s|ms)){1,4}$
                       type: string
+                    metadata:
+                      description: |-
+                        Metadata defines options related to the sending and receiving of dynamic metadata.
+                        These options define which metadata namespaces would be sent to the processor and which dynamic metadata
+                        namespaces the processor would be permitted to emit metadata to.
+                        Users can specify custom namespaces or well-known envoy metadata namespace (such as envoy.filters.http.ext_authz)
+                        documented here: https://www.envoyproxy.io/docs/envoy/latest/configuration/advanced/well_known_dynamic_metadata#well-known-dynamic-metadata
+                        Default: no metadata context is sent or received from the external processor
+                      properties:
+                        accessibleNamespaces:
+                          description: AccessibleNamespaces are metadata namespaces
+                            that are sent to the external processor as context
+                          items:
+                            type: string
+                          type: array
+                        writableNamespaces:
+                          description: WritableNamespaces are metadata namespaces
+                            that the external processor can write to
+                          items:
+                            type: string
+                          maxItems: 8
+                          type: array
+                          x-kubernetes-validations:
+                          - message: writableNamespaces cannot contain well-known
+                              Envoy HTTP filter namespaces
+                            rule: self.all(f, !f.startsWith('envoy.filters.http'))
+                      type: object
                     processingMode:
                       description: |-
                         ProcessingMode defines how request and response body is processed
                         Default: header and body are not sent to the external processor
                       properties:
+                        allowModeOverride:
+                          description: |-
+                            AllowModeOverride allows the external processor to override the processing mode set via the
+                            `mode_override` field in the gRPC response message. This defaults to false.
+                          type: boolean
                         request:
                           description: |-
                             Defines processing mode for requests. If present, request headers are sent. Request body is processed according
                             to the specified mode.
                           properties:
+                            attributes:
+                              description: |-
+                                Defines which attributes are sent to the external processor. Envoy Gateway currently
+                                supports only the following attribute prefixes: connection, source, destination,
+                                request, response, upstream and xds.route.
+                                https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/advanced/attributes
+                              items:
+                                pattern: ^(connection\.|source\.|destination\.|request\.|response\.|upstream\.|xds\.route_)[a-z_1-9]*$
+                                type: string
+                              type: array
                             body:
                               description: Defines body processing mode
                               enum:
@@ -833,6 +1009,16 @@ spec:
                             Defines processing mode for responses. If present, response headers are sent. Response body is processed according
                             to the specified mode.
                           properties:
+                            attributes:
+                              description: |-
+                                Defines which attributes are sent to the external processor. Envoy Gateway currently
+                                supports only the following attribute prefixes: connection, source, destination,
+                                request, response, upstream and xds.route.
+                                https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/advanced/attributes
+                              items:
+                                pattern: ^(connection\.|source\.|destination\.|request\.|response\.|upstream\.|xds\.route_)[a-z_1-9]*$
+                                type: string
+                              type: array
                             body:
                               description: Defines body processing mode
                               enum:
@@ -846,8 +1032,6 @@ spec:
                   x-kubernetes-validations:
                   - message: BackendRefs must be used, backendRef is not supported.
                     rule: '!has(self.backendRef)'
-                  - message: Exactly one backendRef can be specified in backendRefs.
-                    rule: has(self.backendRefs) && self.backendRefs.size()==1
                   - message: BackendRefs only supports Service and Backend kind.
                     rule: 'has(self.backendRefs) ? self.backendRefs.all(f, f.kind
                       == ''Service'' || f.kind == ''Backend'') : true'
@@ -857,12 +1041,78 @@ spec:
                       == "" || f.group == ''gateway.envoyproxy.io'')) : true'
                 maxItems: 16
                 type: array
+              lua:
+                description: |-
+                  Lua is an ordered list of Lua filters
+                  that should be added to the envoy filter chain
+                items:
+                  description: |-
+                    Lua defines a Lua extension
+                    Only one of Inline or ValueRef must be set
+                  properties:
+                    inline:
+                      description: Inline contains the source code as an inline string.
+                      type: string
+                    type:
+                      default: Inline
+                      description: |-
+                        Type is the type of method to use to read the Lua value.
+                        Valid values are Inline and ValueRef, default is Inline.
+                      enum:
+                      - Inline
+                      - ValueRef
+                      type: string
+                    valueRef:
+                      description: |-
+                        ValueRef has the source code specified as a local object reference.
+                        Only a reference to ConfigMap is supported.
+                        The value of key `lua` in the ConfigMap will be used.
+                        If the key is not found, the first value in the ConfigMap will be used.
+                      properties:
+                        group:
+                          description: |-
+                            Group is the group of the referent. For example, "gateway.networking.k8s.io".
+                            When unspecified or empty string, core API group is inferred.
+                          maxLength: 253
+                          pattern: ^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                          type: string
+                        kind:
+                          description: Kind is kind of the referent. For example "HTTPRoute"
+                            or "Service".
+                          maxLength: 63
+                          minLength: 1
+                          pattern: ^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$
+                          type: string
+                        name:
+                          description: Name is the name of the referent.
+                          maxLength: 253
+                          minLength: 1
+                          type: string
+                      required:
+                      - group
+                      - kind
+                      - name
+                      type: object
+                      x-kubernetes-validations:
+                      - message: Only a reference to an object of kind ConfigMap belonging
+                          to default v1 API group is supported.
+                        rule: self.kind == 'ConfigMap' && (self.group == 'v1' || self.group
+                          == '')
+                  required:
+                  - type
+                  type: object
+                  x-kubernetes-validations:
+                  - message: Exactly one of inline or valueRef must be set with correct
+                      type.
+                    rule: (self.type == 'Inline' && has(self.inline) && !has(self.valueRef))
+                      || (self.type == 'ValueRef' && !has(self.inline) && has(self.valueRef))
+                maxItems: 16
+                type: array
               targetRef:
                 description: |-
                   TargetRef is the name of the resource this policy is being attached to.
                   This policy and the TargetRef MUST be in the same namespace for this
                   Policy to have effect
-
 
                   Deprecated: use targetRefs/targetSelectors instead
                 properties:
@@ -888,11 +1138,9 @@ spec:
                       unspecified, this targetRef targets the entire resource. In the following
                       resources, SectionName is interpreted as the following:
 
-
                       * Gateway: Listener name
                       * HTTPRoute: HTTPRouteRule name
                       * Service: Port name
-
 
                       If a SectionName is specified, but does not exist on the targeted object,
                       the Policy must fail to attach, and the policy implementation should record
@@ -917,7 +1165,6 @@ spec:
                     target single resources. For more information on how this policy attachment
                     mode works, and a sample Policy resource, refer to the policy attachment
                     documentation for Gateway API.
-
 
                     Note: This should only be used for direct policy attachment when references
                     to SectionName are actually needed. In all other cases,
@@ -945,11 +1192,9 @@ spec:
                         unspecified, this targetRef targets the entire resource. In the following
                         resources, SectionName is interpreted as the following:
 
-
                         * Gateway: Listener name
                         * HTTPRoute: HTTPRouteRule name
                         * Service: Port name
-
 
                         If a SectionName is specified, but does not exist on the targeted object,
                         the Policy must fail to attach, and the policy implementation should record
@@ -982,6 +1227,39 @@ spec:
                       minLength: 1
                       pattern: ^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$
                       type: string
+                    matchExpressions:
+                      description: MatchExpressions is a list of label selector requirements.
+                        The requirements are ANDed.
+                      items:
+                        description: |-
+                          A label selector requirement is a selector that contains values, a key, and an operator that
+                          relates the key and values.
+                        properties:
+                          key:
+                            description: key is the label key that the selector applies
+                              to.
+                            type: string
+                          operator:
+                            description: |-
+                              operator represents a key's relationship to a set of values.
+                              Valid operators are In, NotIn, Exists and DoesNotExist.
+                            type: string
+                          values:
+                            description: |-
+                              values is an array of string values. If the operator is In or NotIn,
+                              the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                              the values array must be empty. This array is replaced during a strategic
+                              merge patch.
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: atomic
+                        required:
+                        - key
+                        - operator
+                        type: object
+                      type: array
+                      x-kubernetes-list-type: atomic
                     matchLabels:
                       additionalProperties:
                         type: string
@@ -990,7 +1268,6 @@ spec:
                       type: object
                   required:
                   - kind
-                  - matchLabels
                   type: object
                   x-kubernetes-validations:
                   - message: group must be gateway.networking.k8s.io
@@ -1006,7 +1283,6 @@ spec:
                   description: |-
                     Wasm defines a Wasm extension.
 
-
                     Note: at the moment, Envoy Gateway does not support configuring Wasm runtime.
                     v8 is used as the VM runtime for the Wasm extensions.
                   properties:
@@ -1017,17 +1293,71 @@ spec:
                           description: |-
                             HTTP is the HTTP URL containing the Wasm code.
 
-
                             Note that the HTTP server must be accessible from the Envoy proxy.
                           properties:
                             sha256:
                               description: |-
                                 SHA256 checksum that will be used to verify the Wasm code.
 
-
                                 If not specified, Envoy Gateway will not verify the downloaded Wasm code.
                                 kubebuilder:validation:Pattern=`^[a-f0-9]{64}$`
                               type: string
+                            tls:
+                              description: TLS configuration when connecting to the
+                                Wasm code source.
+                              properties:
+                                caCertificateRef:
+                                  description: |-
+                                    CACertificateRef contains a references to
+                                    Kubernetes objects that contain TLS certificates of
+                                    the Certificate Authorities that can be used
+                                    as a trust anchor to validate the certificates presented by the Wasm code source.
+
+                                    Kubernetes ConfigMap and Kubernetes Secret are supported.
+                                    Note: The ConfigMap or Secret must be in the same namespace as the EnvoyExtensionPolicy.
+                                  properties:
+                                    group:
+                                      default: ""
+                                      description: |-
+                                        Group is the group of the referent. For example, "gateway.networking.k8s.io".
+                                        When unspecified or empty string, core API group is inferred.
+                                      maxLength: 253
+                                      pattern: ^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                                      type: string
+                                    kind:
+                                      default: Secret
+                                      description: Kind is kind of the referent. For
+                                        example "Secret".
+                                      maxLength: 63
+                                      minLength: 1
+                                      pattern: ^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$
+                                      type: string
+                                    name:
+                                      description: Name is the name of the referent.
+                                      maxLength: 253
+                                      minLength: 1
+                                      type: string
+                                    namespace:
+                                      description: |-
+                                        Namespace is the namespace of the referenced object. When unspecified, the local
+                                        namespace is inferred.
+
+                                        Note that when a namespace different than the local namespace is specified,
+                                        a ReferenceGrant object is required in the referent namespace to allow that
+                                        namespace's owner to accept the reference. See the ReferenceGrant
+                                        documentation for details.
+
+                                        Support: Core
+                                      maxLength: 63
+                                      minLength: 1
+                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                      type: string
+                                  required:
+                                  - name
+                                  type: object
+                              required:
+                              - caCertificateRef
+                              type: object
                             url:
                               description: URL is the URL containing the Wasm code.
                               pattern: ^((https?:)(\/\/\/?)([\w]*(?::[\w]*)?@)?([\d\w\.-]+)(?::(\d+))?)?([\/\\\w\.()-]*)?(?:([?][^#]*)?(#.*)?)*
@@ -1038,7 +1368,6 @@ spec:
                         image:
                           description: |-
                             Image is the OCI image containing the Wasm code.
-
 
                             Note that the image must be accessible from the Envoy Gateway.
                           properties:
@@ -1073,12 +1402,10 @@ spec:
                                     Namespace is the namespace of the referenced object. When unspecified, the local
                                     namespace is inferred.
 
-
                                     Note that when a namespace different than the local namespace is specified,
                                     a ReferenceGrant object is required in the referent namespace to allow that
                                     namespace's owner to accept the reference. See the ReferenceGrant
                                     documentation for details.
-
 
                                     Support: Core
                                   maxLength: 63
@@ -1095,13 +1422,67 @@ spec:
                               description: |-
                                 SHA256 checksum that will be used to verify the OCI image.
 
-
                                 It must match the digest of the OCI image.
-
 
                                 If not specified, Envoy Gateway will not verify the downloaded OCI image.
                                 kubebuilder:validation:Pattern=`^[a-f0-9]{64}$`
                               type: string
+                            tls:
+                              description: TLS configuration when connecting to the
+                                Wasm code source.
+                              properties:
+                                caCertificateRef:
+                                  description: |-
+                                    CACertificateRef contains a references to
+                                    Kubernetes objects that contain TLS certificates of
+                                    the Certificate Authorities that can be used
+                                    as a trust anchor to validate the certificates presented by the Wasm code source.
+
+                                    Kubernetes ConfigMap and Kubernetes Secret are supported.
+                                    Note: The ConfigMap or Secret must be in the same namespace as the EnvoyExtensionPolicy.
+                                  properties:
+                                    group:
+                                      default: ""
+                                      description: |-
+                                        Group is the group of the referent. For example, "gateway.networking.k8s.io".
+                                        When unspecified or empty string, core API group is inferred.
+                                      maxLength: 253
+                                      pattern: ^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                                      type: string
+                                    kind:
+                                      default: Secret
+                                      description: Kind is kind of the referent. For
+                                        example "Secret".
+                                      maxLength: 63
+                                      minLength: 1
+                                      pattern: ^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$
+                                      type: string
+                                    name:
+                                      description: Name is the name of the referent.
+                                      maxLength: 253
+                                      minLength: 1
+                                      type: string
+                                    namespace:
+                                      description: |-
+                                        Namespace is the namespace of the referenced object. When unspecified, the local
+                                        namespace is inferred.
+
+                                        Note that when a namespace different than the local namespace is specified,
+                                        a ReferenceGrant object is required in the referent namespace to allow that
+                                        namespace's owner to accept the reference. See the ReferenceGrant
+                                        documentation for details.
+
+                                        Support: Core
+                                      maxLength: 63
+                                      minLength: 1
+                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                      type: string
+                                  required:
+                                  - name
+                                  type: object
+                              required:
+                              - caCertificateRef
+                              type: object
                             url:
                               description: |-
                                 URL is the URL of the OCI image.
@@ -1115,9 +1496,7 @@ spec:
                             PullPolicy is the policy to use when pulling the Wasm module by either the HTTP or Image source.
                             This field is only applicable when the SHA256 field is not set.
 
-
                             If not specified, the default policy is IfNotPresent except for OCI images whose tag is latest.
-
 
                             Note: EG does not update the Wasm module every time an Envoy proxy requests
                             the Wasm module even if the pull policy is set to Always.
@@ -1152,6 +1531,17 @@ spec:
                         Config is the configuration for the Wasm extension.
                         This configuration will be passed as a JSON string to the Wasm extension.
                       x-kubernetes-preserve-unknown-fields: true
+                    env:
+                      description: Env configures the environment for the Wasm extension
+                      properties:
+                        hostKeys:
+                          description: |-
+                            HostKeys is a list of keys for environment variables from the host envoy process
+                            that should be passed into the Wasm VM. This is useful for passing secrets to to Wasm extensions.
+                          items:
+                            type: string
+                          type: array
+                      type: object
                     failOpen:
                       default: false
                       description: |-
@@ -1174,7 +1564,6 @@ spec:
                         RootID is a unique ID for a set of extensions in a VM which will share a
                         RootContext and Contexts if applicable (e.g., an Wasm HttpFilter and an Wasm AccessLog).
                         If left blank, all extensions with a blank root_id with the same vm_id will share Context(s).
-
 
                         Note: RootID must match the root_id parameter used to register the Context in the Wasm code.
                       type: string
@@ -1219,26 +1608,21 @@ spec:
                   the controller first sees the policy and SHOULD update the entry as
                   appropriate when the relevant ancestor is modified.
 
-
                   Note that choosing the relevant ancestor is left to the Policy designers;
                   an important part of Policy design is designing the right object level at
                   which to namespace this status.
-
 
                   Note also that implementations MUST ONLY populate ancestor status for
                   the Ancestor resources they are responsible for. Implementations MUST
                   use the ControllerName field to uniquely identify the entries in this list
                   that they are responsible for.
 
-
                   Note that to achieve this, the list of PolicyAncestorStatus structs
                   MUST be treated as a map with a composite key, made up of the AncestorRef
                   and ControllerName fields combined.
 
-
                   A maximum of 16 ancestors will be represented in this list. An empty list
                   means the Policy is not relevant for any ancestors.
-
 
                   If this slice is full, implementations MUST NOT add further entries.
                   Instead they MUST consider the policy unimplementable and signal that
@@ -1251,7 +1635,6 @@ spec:
                     PolicyAncestorStatus describes the status of a route with respect to an
                     associated Ancestor.
 
-
                     Ancestors refer to objects that are either the Target of a policy or above it
                     in terms of object hierarchy. For example, if a policy targets a Service, the
                     Policy's Ancestors are, in order, the Service, the HTTPRoute, the Gateway, and
@@ -1260,27 +1643,22 @@ spec:
                     SHOULD use Gateway as the PolicyAncestorStatus object unless the designers
                     have a _very_ good reason otherwise.
 
-
                     In the context of policy attachment, the Ancestor is used to distinguish which
                     resource results in a distinct application of this policy. For example, if a policy
                     targets a Service, it may have a distinct result per attached Gateway.
-
 
                     Policies targeting the same resource may have different effects depending on the
                     ancestors of those resources. For example, different Gateways targeting the same
                     Service may have different capabilities, especially if they have different underlying
                     implementations.
 
-
                     For example, in BackendTLSPolicy, the Policy attaches to a Service that is
                     used as a backend in a HTTPRoute that is itself attached to a Gateway.
                     In this case, the relevant object for status is the Gateway, and that is the
                     ancestor object referred to in this status.
 
-
                     Note that a parent is also an ancestor, so for objects where the parent is the
                     relevant object for status, this struct SHOULD still be used.
-
 
                     This struct is intended to be used in a slice that's effectively a map,
                     with a composite key made up of the AncestorRef and the ControllerName.
@@ -1298,7 +1676,6 @@ spec:
                             To set the core API group (such as for a "Service" kind referent),
                             Group must be explicitly set to "" (empty string).
 
-
                             Support: Core
                           maxLength: 253
                           pattern: ^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
@@ -1308,13 +1685,10 @@ spec:
                           description: |-
                             Kind is kind of the referent.
 
-
                             There are two kinds of parent resources with "Core" support:
-
 
                             * Gateway (Gateway conformance profile)
                             * Service (Mesh conformance profile, ClusterIP Services only)
-
 
                             Support for other resources is Implementation-Specific.
                           maxLength: 63
@@ -1325,7 +1699,6 @@ spec:
                           description: |-
                             Name is the name of the referent.
 
-
                             Support: Core
                           maxLength: 253
                           minLength: 1
@@ -1335,19 +1708,16 @@ spec:
                             Namespace is the namespace of the referent. When unspecified, this refers
                             to the local namespace of the Route.
 
-
                             Note that there are specific rules for ParentRefs which cross namespace
                             boundaries. Cross-namespace references are only valid if they are explicitly
                             allowed by something in the namespace they are referring to. For example:
                             Gateway has the AllowedRoutes field, and ReferenceGrant provides a
                             generic way to enable any other kind of cross-namespace reference.
 
-
                             <gateway:experimental:description>
                             ParentRefs from a Route to a Service in the same namespace are "producer"
                             routes, which apply default routing rules to inbound connections from
                             any namespace to the Service.
-
 
                             ParentRefs from a Route to a Service in a different namespace are
                             "consumer" routes, and these routing rules are only applied to outbound
@@ -1355,7 +1725,6 @@ spec:
                             the intended destination of the connections are a Service targeted as a
                             ParentRef of the Route.
                             </gateway:experimental:description>
-
 
                             Support: Core
                           maxLength: 63
@@ -1367,7 +1736,6 @@ spec:
                             Port is the network port this Route targets. It can be interpreted
                             differently based on the type of parent resource.
 
-
                             When the parent resource is a Gateway, this targets all listeners
                             listening on the specified port that also support this kind of Route(and
                             select this Route). It's not recommended to set `Port` unless the
@@ -1376,18 +1744,15 @@ spec:
                             and SectionName are specified, the name and port of the selected listener
                             must match both specified values.
 
-
                             <gateway:experimental:description>
                             When the parent resource is a Service, this targets a specific port in the
                             Service spec. When both Port (experimental) and SectionName are specified,
                             the name and port of the selected port must match both specified values.
                             </gateway:experimental:description>
 
-
                             Implementations MAY choose to support other parent resources.
                             Implementations supporting other types of parent resources MUST clearly
                             document how/if Port is interpreted.
-
 
                             For the purpose of status, an attachment is considered successful as
                             long as the parent resource accepts it partially. For example, Gateway
@@ -1396,7 +1761,6 @@ spec:
                             from the referencing Route, the Route MUST be considered successfully
                             attached. If no Gateway listeners accept attachment from this Route,
                             the Route MUST be considered detached from the Gateway.
-
 
                             Support: Extended
                           format: int32
@@ -1408,7 +1772,6 @@ spec:
                             SectionName is the name of a section within the target resource. In the
                             following resources, SectionName is interpreted as the following:
 
-
                             * Gateway: Listener name. When both Port (experimental) and SectionName
                             are specified, the name and port of the selected listener must match
                             both specified values.
@@ -1416,11 +1779,9 @@ spec:
                             are specified, the name and port of the selected listener must match
                             both specified values.
 
-
                             Implementations MAY choose to support attaching Routes to other resources.
                             If that is the case, they MUST clearly document how SectionName is
                             interpreted.
-
 
                             When unspecified (empty string), this will reference the entire resource.
                             For the purpose of status, an attachment is considered successful if at
@@ -1430,7 +1791,6 @@ spec:
                             the referencing Route, the Route MUST be considered successfully
                             attached. If no Gateway listeners accept attachment from this Route, the
                             Route MUST be considered detached from the Gateway.
-
 
                             Support: Core
                           maxLength: 253
@@ -1444,18 +1804,8 @@ spec:
                       description: Conditions describes the status of the Policy with
                         respect to the given Ancestor.
                       items:
-                        description: "Condition contains details for one aspect of
-                          the current state of this API Resource.\n---\nThis struct
-                          is intended for direct use as an array at the field path
-                          .status.conditions.  For example,\n\n\n\ttype FooStatus
-                          struct{\n\t    // Represents the observations of a foo's
-                          current state.\n\t    // Known .status.conditions.type are:
-                          \"Available\", \"Progressing\", and \"Degraded\"\n\t    //
-                          +patchMergeKey=type\n\t    // +patchStrategy=merge\n\t    //
-                          +listType=map\n\t    // +listMapKey=type\n\t    Conditions
-                          []metav1.Condition `json:\"conditions,omitempty\" patchStrategy:\"merge\"
-                          patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"`\n\n\n\t
-                          \   // other fields\n\t}"
+                        description: Condition contains details for one aspect of
+                          the current state of this API Resource.
                         properties:
                           lastTransitionTime:
                             description: |-
@@ -1497,12 +1847,7 @@ spec:
                             - Unknown
                             type: string
                           type:
-                            description: |-
-                              type of condition in CamelCase or in foo.example.com/CamelCase.
-                              ---
-                              Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
-                              useful (see .node.status.conditions), the ability to deconflict is important.
-                              The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+                            description: type of condition in CamelCase or in foo.example.com/CamelCase.
                             maxLength: 316
                             pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
                             type: string
@@ -1525,14 +1870,11 @@ spec:
                         controller that wrote this status. This corresponds with the
                         controllerName field on GatewayClass.
 
-
                         Example: "example.net/gateway-controller".
-
 
                         The format of this field is DOMAIN "/" PATH, where DOMAIN and PATH are
                         valid Kubernetes names
                         (https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names).
-
 
                         Controllers MUST populate this field when writing status. Controllers should ensure that
                         entries to status populated with their ControllerName are cleaned up when they are no

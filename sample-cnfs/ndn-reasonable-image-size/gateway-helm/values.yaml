@@ -1,6 +1,13 @@
-# The global settings for the Envoy Gateway Helm chart.
-# These values will be used if the values are not overridden in the other sections.
+# Global settings
 global:
+  # If set, these take highest precedence and change both envoyGateway and ratelimit's container registry and pull secrets.
+  # -- Global override for image registry
+  imageRegistry: ""
+  # -- Global override for image pull secrets
+  imagePullSecrets: []
+
+  # If set, these override image-specific values: useful when installing the chart in a private registry environment.
+  # Override image-specific values directly if a global override is not desired.
   images:
     envoyGateway:
       # This is the full image name including the hub, repo, and tag.
@@ -18,22 +25,36 @@ global:
       pullPolicy: IfNotPresent
       # List of secrets in the same namespace of the component that can be used to pull images from private repositories.
       pullSecrets: []
+
 podDisruptionBudget:
   minAvailable: 0
+  # maxUnavailable: 1
+
 deployment:
   envoyGateway:
     image:
+      # if both this and global.imageRegistry are specified, this has to include both registry and repository explicitly, eg docker.io/envoyproxy/gateway
       repository: ""
       tag: ""
     imagePullPolicy: ""
     imagePullSecrets: []
     resources:
       limits:
-        cpu: 500m
         memory: 1024Mi
       requests:
         cpu: 100m
         memory: 256Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      privileged: false
+      runAsNonRoot: true
+      runAsGroup: 65532
+      runAsUser: 65532
+      seccompProfile:
+        type: RuntimeDefault
   ports:
     - name: grpc
       port: 18000
@@ -47,6 +68,7 @@ deployment:
     - name: metrics
       port: 19001
       targetPort: 19001
+  priorityClassName: null
   replicas: 1
   pod:
     affinity: {}
@@ -56,8 +78,22 @@ deployment:
     labels: {}
     topologySpreadConstraints: []
     tolerations: []
+    nodeSelector: {}
+
+service:
+  # If set to PreferClose, the Envoy fleet will prioritize connecting to the Envoy Gateway pods that are topologically closest to them.
+  trafficDistribution: ""
+  annotations: {}
+
+hpa:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 1
+  metrics: []
+  behavior: {}
 
 config:
+# -- EnvoyGateway configuration. Visit https://gateway.envoyproxy.io/docs/api/extension_types/#envoygateway to view all options.
   envoyGateway:
     gateway:
       controllerName: gateway.envoyproxy.io/gatewayclass-controller
@@ -66,6 +102,7 @@ config:
     logging:
       level:
         default: info
+    extensionApis: {}
 
 createNamespace: false
 
@@ -75,8 +112,28 @@ kubernetesClusterDomain: cluster.local
 certgen:
   job:
     annotations: {}
+    args: []
     resources: {}
+    affinity: {}
+    tolerations: []
+    nodeSelector: {}
     ttlSecondsAfterFinished: 30
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      privileged: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsGroup: 65532
+      runAsUser: 65532
+      seccompProfile:
+        type: RuntimeDefault
   rbac:
     annotations: {}
     labels: {}
+
+topologyInjector:
+  enabled: true
+  annotations: {}
