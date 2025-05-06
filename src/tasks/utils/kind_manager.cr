@@ -5,8 +5,7 @@ module KindManager
 
   Log = ::Log.for("KindManager")
 
-  def self.create_cluster(name : String, kind_config : String?,
-                          k8s_version : String = Setup::KIND_VERSION) : KindManager::Cluster?
+  def self.create_cluster(name : String, kind_config : String?, k8s_version : String?) : KindManager::Cluster?
     logger = Log.for("create_cluster")
     logger.info { "Creating Kind Cluster '#{name}'" }
 
@@ -35,7 +34,7 @@ module KindManager
   def self.delete_cluster(name : String) : Bool
     logger = Log.for("delete_cluster")
     logger.info { "Deleting Kind Cluster: #{name}" }
-
+    
     unless ShellCmd.run("#{KIND_BIN} delete cluster --name #{name}", "KindManager#delete_cluster")[:status].success?
       logger.error { "Error while deleting Kind Cluster" }
       return false

@@ -18,7 +18,7 @@ namespace "setup" do
     kind_binary = "#{Setup::KIND_DIR}/kind"
 
     begin
-      download_file(Setup::KIND_DOWNLOAD_URL, kind_binary)
+      download(Setup::KIND_DOWNLOAD_URL, kind_binary)
     rescue ex : Exception
       logger.error { "Error while downloading kind binary: #{ex.message}" }
       stdout_failure(failed_msg)
