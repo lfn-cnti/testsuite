@@ -564,7 +564,7 @@ task "alpha_k8s_apis" do |t, args|
     k8s_server_version = KubectlClient.server_version
 
     # Ensure any old cluster is deleted
-    KindManager.delete_cluster(cluster_name)
+    KindManager.new.delete_cluster(cluster_name)
     apisnoop = ApiSnoop.new()
     # FileUtils.cp("apisnoop-kind.yaml", "tools/apisnoop/kind/kind+apisnoop.yaml")
     cluster = apisnoop.setup_kind_cluster(cluster_name, k8s_server_version)
@@ -597,8 +597,8 @@ task "alpha_k8s_apis" do |t, args|
       result = CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "CNF uses Kubernetes alpha APIs")
     end
   ensure
-    unless cluster_name.nil?
-      KindManager.delete_cluster(cluster_name)
+    if cluster_name != nil
+      KindManager.new.delete_cluster(cluster_name)
       ENV["KUBECONFIG"]="#{kubeconfig_orig}"
     end
     result

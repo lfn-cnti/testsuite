@@ -1,7 +1,6 @@
 require "spec"
 require "colorize"
 require "../src/cnf_testsuite"
-require "../src/cnf-testsuite"
 require "../src/tasks/utils/utils.cr"
 require "../src/modules/tar"
 require "../src/modules/git"

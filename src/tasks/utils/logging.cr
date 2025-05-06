@@ -49,7 +49,7 @@ private def log_formatter
     msg = entry.source.empty? ? "#{progname}: #{entry.message}" : "#{progname}-#{entry.source}: #{entry.message}"
     timestamp = entry.timestamp.to_s("%Y-%m-%d %H:%M:%S")
     io << "[" << timestamp << "] "
-    io << label.rjust(6) << " -- " << msg
+    io << label.rjust(5) << " -- " << msg
   end
 end
 
