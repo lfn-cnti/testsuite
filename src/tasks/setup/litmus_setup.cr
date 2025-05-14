@@ -12,7 +12,11 @@ task "install_litmus" do |_, args|
   #todo download litmus file then modify it with add_node_selector
   #todo apply modified litmus file
   Log.info { "install litmus" }
-  KubectlClient::Apply.namespace(LitmusManager::LITMUS_NAMESPACE)
+  begin 
+    KubectlClient::Apply.namespace(LitmusManager::LITMUS_NAMESPACE)
+  rescue ex: KubectlClient::ShellCMD::AlreadyExistsError
+    Log.warn { "Cannot create #{LitmusManager::LITMUS_NAMESPACE}. Namespace already exists." }
+  end
   cmd = "kubectl label namespace #{LitmusManager::LITMUS_NAMESPACE} pod-security.kubernetes.io/enforce=privileged"
   ShellCmd.run(cmd, "Label.namespace")
   Log.info { "install litmus operator"}

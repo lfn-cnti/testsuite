@@ -80,7 +80,11 @@ namespace "platform" do
         CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Node came back online")
       ensure
         Log.info { "node_failure cleanup" }
-        delete_reboot_daemon = KubectlClient::Delete.file("reboot_daemon_pod.yml")
+        begin
+          delete_reboot_daemon = KubectlClient::Delete.file("reboot_daemon_pod.yml")
+        rescue ex: KubectlClient::ShellCMD::NotFoundError
+          Log.warn { "Cannot delete file \"reboot_daemon_pod.yml\". File not found." }
+        end
         delete_coredns = Helm.uninstall("node-failure")
         File.delete("reboot_daemon_pod.yml")
         File.delete("node_failure_values.yml")

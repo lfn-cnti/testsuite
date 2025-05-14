@@ -481,7 +481,11 @@ task "immutable_configmap" do |t, args|
       Log.for(t.name).info { "immutable configmaps supported, continuing with test" }
     else
       # Delete configmap immediately to avoid interfering with further tests
-      KubectlClient::Delete.file(test_config_map_filename)
+      begin
+        KubectlClient::Delete.file(test_config_map_filename)
+      rescue ex: KubectlClient::ShellCMD::NotFoundError
+        Log.warn { "Cannot delete #{test_config_map_filename}. File not found." }
+      end
 
       Log.for(t.name).info { "kubectl apply on immutable configmap succeeded for: #{test_config_map_filename}" }
       k8s_ver = KubectlClient.server_version

@@ -8,8 +8,12 @@ module Mysql
     # ClusterTools.local_match_by_image_name("bitnami/mysql")
   end
   def self.uninstall
-    Log.debug { "uninstall_mysql" } 
-    KubectlClient::Delete.file("https://raw.githubusercontent.com/mysql/mysql-operator/trunk/samples/sample-cluster.yaml --wait=false")
+    Log.debug { "uninstall_mysql" }
+    begin
+      KubectlClient::Delete.file("https://raw.githubusercontent.com/mysql/mysql-operator/trunk/samples/sample-cluster.yaml --wait=false")
+    rescue ex: KubectlClient::ShellCMD::NotFoundError
+      Log.warn { "Cannot delete \"https://raw.githubusercontent.com/mysql/mysql-operator/trunk/samples/sample-cluster.yaml\". File not found." }
+    end
     Helm.uninstall("mysql-operator", "mysql-operator")
   end
 
