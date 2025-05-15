@@ -91,6 +91,25 @@ module KubectlClient
     end
   end
 
+  module AssureDeleted
+    @@logger : ::Log = Log.for("AssureDelete")
+
+    def self.resource(kind : String, resource_name : String? = nil, namespace : String? = nil,
+                  labels : Hash(String, String) = {} of String => String, extra_opts : String? = nil)
+      begin
+        resource_info = KubectlClient::Get.resource(kind, resource_name, namespace)
+        if resource_info.empty?
+          logger.warn { "Resource #{kind}/#{resource_name} does not exist, skipping deletion." }
+          return
+        end
+      rescue ex : KubectlClient::ShellCMD::NotFoundError
+        logger.warn { "Failed to get resource #{kind}/#{resource_name}: #{ex.message}, skipping deletion." }
+        return
+      end
+      KubectlClient::Delete.resource(kind, resource_name, namespace, labels, extra_opts)
+    end
+  end
+
   module Utils
     @@logger : ::Log = Log.for("Utils")
 
