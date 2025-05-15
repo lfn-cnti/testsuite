@@ -146,11 +146,7 @@ module CNFManager
     logger = Log.for("ensure_namespace_exists!")
     logger.info { "Ensure that namespace: #{namespace} exists on the cluster for the CNF install" }
 
-    begin
-      KubectlClient::Apply.namespace(namespace)
-    rescue e : KubectlClient::ShellCMD::AlreadyExistsError
-      logger.info { "Namespace: #{namespace} already exists" }
-    end
+    KubectlClient::Apply.namespace(namespace)
 
     KubectlClient::Utils.label("namespace", namespace, ["pod-security.kubernetes.io/enforce=privileged"])
     true
