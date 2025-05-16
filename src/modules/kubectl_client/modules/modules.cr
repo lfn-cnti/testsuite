@@ -99,14 +99,32 @@ module KubectlClient
       begin
         resource_info = KubectlClient::Get.resource(kind, resource_name, namespace)
         if resource_info.empty?
-          logger.warn { "Resource #{kind}/#{resource_name} does not exist, skipping deletion." }
+          logger.warn { "Resource #{resource_name} does not exist, skipping deletion." }
           return
         end
       rescue ex : KubectlClient::ShellCMD::NotFoundError
-        logger.warn { "Failed to get resource #{kind}/#{resource_name}: #{ex.message}, skipping deletion." }
+        logger.warn { "Failed to get resource #{resource_name}: #{ex.message}, skipping deletion." }
         return
       end
       KubectlClient::Delete.resource(kind, resource_name, namespace, labels, extra_opts)
+    end
+
+    def self.file(file_name : String, namespace : String? = nil, wait : Bool = false)
+      cmd = "kubectl get -f #{file_name} -o name"
+      cmd = "#{cmd} -n #{namespace}" if namespace
+
+      begin
+        result = ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+        if result[:output].strip.empty?
+          logger.warn { "File #{file_name} does not exist, skipping deletion." }
+          return
+        end
+      rescue ex : KubectlClient::ShellCMD::NotFoundError
+        logger.warn { "Failed to get file #{file_name}: #{ex.message}, skipping deletion." }
+        return
+      end
+
+      KubectlClient::Delete.file(file_name, namespace, wait)
     end
   end
 
