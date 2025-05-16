@@ -94,6 +94,43 @@ module KubectlClient
     end
   end
 
+  module AssureDeleted
+    @@logger : ::Log = Log.for("AssureDelete")
+
+    def self.resource(kind : String, resource_name : String? = nil, namespace : String? = nil,
+                  labels : Hash(String, String) = {} of String => String, extra_opts : String? = nil)
+      begin
+        resource_info = KubectlClient::Get.resource(kind, resource_name, namespace)
+        if resource_info.empty?
+          logger.warn { "Resource #{resource_name} does not exist, skipping deletion." }
+          return
+        end
+      rescue ex : KubectlClient::ShellCMD::NotFoundError
+        logger.warn { "Failed to get resource #{resource_name}: #{ex.message}, skipping deletion." }
+        return
+      end
+      KubectlClient::Delete.resource(kind, resource_name, namespace, labels, extra_opts)
+    end
+
+    def self.file(file_name : String, namespace : String? = nil, wait : Bool = false)
+      cmd = "kubectl get -f #{file_name} -o name"
+      cmd = "#{cmd} -n #{namespace}" if namespace
+
+      begin
+        result = ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+        if result[:output].strip.empty?
+          logger.warn { "File #{file_name} does not exist, skipping deletion." }
+          return
+        end
+      rescue ex : KubectlClient::ShellCMD::NotFoundError
+        logger.warn { "Failed to get file #{file_name}: #{ex.message}, skipping deletion." }
+        return
+      end
+
+      KubectlClient::Delete.file(file_name, namespace, wait)
+    end
+  end
+
   module Utils
     @@logger : ::Log = Log.for("Utils")
 
