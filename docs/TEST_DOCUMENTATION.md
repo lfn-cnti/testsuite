@@ -291,15 +291,19 @@ All microservice: `./cnf-testsuite microservice`
 #### Overview
 
 Checks the size of the image used.
-Expectation: CNF image size is under 5 gigs
+Expectation: Images for a CNF are each under 500Mb.
 
 #### Rationale
 
-A CNF with a large image size of 5 gigabytes or more tends to indicate a monolithic application.
+A CNF with smaller image sizes provides for faster deployment and scaling (critical for functions like 5G control plane components), easier updates and rollbacks (important for CI/CD in telecom), and reduce attack surface (key for regulated telecom environments).  In addition, smaller image sizes are important in edge/disaggregated deployments common in Open RAN and MEC scenarios. 
 
 #### Remediation
 
-Ensure your CNF's image size is under 5GB.
+Audit your CNF's images:
+1. Identify and remove unused libraries, tools, and test artifacts.
+2. Seperate build-time from run-time dependancies
+3. Prefer distroless, alpine, or slim OS images
+4. Modularize large CNFs into seperate containers or microservices. 
 
 #### Usage
 
