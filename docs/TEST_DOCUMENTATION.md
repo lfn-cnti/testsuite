@@ -291,11 +291,11 @@ All microservice: `./cnf-testsuite microservice`
 #### Overview
 
 Checks the size of the image used.
-Expectation: Images for a CNF are each under 500Mb.
+Expectation: Each CNF image is under 500 MB.
 
 #### Rationale
 
-A CNF with smaller image sizes provides for faster deployment and scaling (critical for functions like 5G control plane components), easier updates and rollbacks (important for CI/CD in telecom), and reduce attack surface (key for regulated telecom environments).  In addition, smaller image sizes are important in edge/disaggregated deployments common in Open RAN and MEC scenarios. 
+A CNF with smaller image sizes provides faster deployment and scaling (critical for functions like 5G control plane components), enables faster updates, reduces the risk of timeouts, and reduces the attack surface (key for regulated telecom environments).  In addition, smaller image sizes are important in edge/disaggregated deployments common in Open RAN and MEC scenarios. 
 
 #### Remediation
 
