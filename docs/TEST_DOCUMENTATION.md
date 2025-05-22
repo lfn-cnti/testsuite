@@ -291,7 +291,7 @@ All microservice: `./cnf-testsuite microservice`
 #### Overview
 
 Checks the size of the image used.
-Expectation: Each CNF image is under 500 MB.
+Expectation: Each CNF image size is under 500 MB.
 
 #### Rationale
 
