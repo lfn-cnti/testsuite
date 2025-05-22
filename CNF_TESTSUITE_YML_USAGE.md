@@ -125,6 +125,8 @@ At least one deployment should exist in CNF config for it to be a proper config.
 All info for deployments is used in cnf_install and cnf_uninstall tasks.
 
 ```yaml
+---
+config_version: "v2"
 deployments:
   helm_charts:
   ...
@@ -139,6 +141,8 @@ deployments:
 To ensure deployments are executed in a specific order, you can use the `priority` parameter. Deployments are processed in ascending order of their `priority` values, starting with the lowest. During uninstallation, the order is reversed, processing from the highest `priority` value to the lowest. If the `priority` parameter is not specified, it defaults to 0.
 
 ```yaml
+---
+config_version: "v2"
 deployments:
   helm_dirs: 
     - name: envoy # deploys second
@@ -156,13 +160,16 @@ Helm repository name and url can be omitted if repository is already present loc
 Explanations with example:
 
 ```yaml
-helm_charts:
-  - name: coredns  # Name of the deployment
-    helm_repo_name: stable  # Name of the repository for the helm chart
-    helm_repo_url: https://cncf.gitlab.io/stable  # Repository URL
-    helm_chart_name: coredns  # Name of the helm chart in format repo_name/chart_name
-    helm_values: --set myvalue=42 # Additional values that would be used for helm installation
-    namespace: cnf-default # Namespace to which deployment would be installed (cnf-default is default)
+---
+config_version: "v2"
+deployments:
+  helm_charts:
+    - name: coredns  # Name of the deployment
+      helm_repo_name: stable  # Name of the repository for the helm chart
+      helm_repo_url: https://cncf.gitlab.io/stable  # Repository URL
+      helm_chart_name: coredns  # Name of the helm chart in format repo_name/chart_name
+      helm_values: --set myvalue=42 # Additional values that would be used for helm installation
+      namespace: cnf-default # Namespace to which deployment would be installed (cnf-default is default)
 ```
 
 ##### helm_dirs
@@ -170,11 +177,14 @@ helm_charts:
 Deployment, defined by directory with Chart.yaml file and all templates for resources.
 Explanations with example:
 ```yaml
-helm_dirs:
-  - name: envoy  # Name of the deployment
-    helm_directory: chart  # Path to the directory with Chart.yaml, relative to CNF configuration file
-    helm_values: --set myvalue=42 # Additional values that would be used for helm installation
-    namespace: cnf-default # Namespace to which deployment would be installed (cnf-default is default)
+---
+config_version: "v2"
+deployments:
+  helm_dirs:
+    - name: envoy  # Name of the deployment
+      helm_directory: chart  # Path to the directory with Chart.yaml, relative to CNF configuration file
+      helm_values: --set myvalue=42 # Additional values that would be used for helm installation
+      namespace: cnf-default # Namespace to which deployment would be installed (cnf-default is default)
 ```
 
 ##### manifests
@@ -182,9 +192,12 @@ helm_dirs:
 Deployment, defined by directory with manifest files, that are meant to be directly installed by Kubernetes.
 Explanations with example:
 ```yaml
-manifests:
-  - name: nginx  # Name of the deployment
-    manifest_directory: manifests  # Path to the directory with deployment manifests, relative to CNF configuration file
+---
+config_version: "v2"
+deployments:
+  manifests:
+    - name: nginx  # Name of the deployment
+      manifest_directory: manifests  # Path to the directory with deployment manifests, relative to CNF configuration file
 ```
 
 ### 5G Parameters

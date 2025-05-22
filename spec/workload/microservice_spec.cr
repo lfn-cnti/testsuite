@@ -238,7 +238,7 @@ describe "Microservice" do
 
   it "'sig_term_handled' should fail if SIGTERM isn't handled by child processes", tags: ["sig_term"]  do
     begin
-      #todo 1. Watch for signals for the containers pid one process, and the tree of all child processes ity manages
+      #todo 1. Watch for signals for the containers pid one process, and the tree of all child processes it manages
       #todo 2. Kill PID one / Uninstall the CNF
       #todo 3. Collect all signals sent, if SIGKILL is captured, application fails test because it doesn't exit child processes cleanly
       #todo 3. Collect all signals sent, if SIGTERM is captured, application pass test because it  exits child processes cleanly
