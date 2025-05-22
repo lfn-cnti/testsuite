@@ -110,12 +110,10 @@ module KubectlClient
     end
 
     def self.file(file_name : String, namespace : String? = nil, wait : Bool = false)
-      cmd = "kubectl get -f #{file_name} -o name"
-      cmd = "#{cmd} -n #{namespace}" if namespace
-
+      
       begin
-        result = ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
-        if result[:output].strip.empty?
+        file_resource_info = KubectlClient::Get.resource_names_from_file(file_name, namespace)
+        if file_resource_info.empty?
           logger.warn { "File #{file_name} does not exist, skipping deletion." }
           return
         end
