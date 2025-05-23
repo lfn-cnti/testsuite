@@ -18,7 +18,7 @@ describe "Resilience Disk Fill Chaos" do
       result[:status].success?.should be_true
       (/(PASSED).*(disk_fill chaos test passed)/ =~ result[:output]).should_not be_nil
     ensure
-      result = ShellCmd.cnf_uninstall("timeout=0")
+      result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
       result = ShellCmd.run_testsuite("uninstall_litmus")
       result[:status].success?.should be_true
