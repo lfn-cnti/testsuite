@@ -57,6 +57,26 @@ module KubectlClient
     end
   end
 
+  module AssureApplied
+    @@logger : ::Log = Log.for("AssureApplied")
+
+    def self.resource(kind : String, resource_name : String, namespace : String? = nil, values : String? = nil)
+      logger = @@logger.for("resource")
+
+      begin
+        resource_info = KubectlClient::Get.resource(kind, resource_name, namespace)
+        if resource_info.empty?
+          logger.warn { "Resource #{kind}/#{resource_name} does not exist." }
+        else
+          logger.warn { "Resource #{kind}/#{resource_name} does exist." }
+        end
+        KubectlClient::Apply.file(manifest_file, namespace)
+      rescue ex : KubectlClient::ShellCMD::NotFoundError
+        logger.warn { "Resource not found (#{kind}/#{resource_name}): #{ex.message}." }
+      end
+    end
+  end
+
   module Delete
     @@logger : ::Log = Log.for("Delete")
 
