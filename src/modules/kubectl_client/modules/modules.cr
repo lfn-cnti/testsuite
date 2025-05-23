@@ -57,6 +57,26 @@ module KubectlClient
     end
   end
 
+  module AssureApplied
+    @@logger : ::Log = Log.for("AssureApplied")
+
+    def self.resource(kind : String, resource_name : String, namespace : String? = nil, values : String? = nil)
+      logger = @@logger.for("resource")
+
+      begin
+        resource_info = KubectlClient::Get.resource(kind, resource_name, namespace)
+        if resource_info.empty?
+          logger.warn { "Resource #{kind}/#{resource_name} does not exist." }
+        else
+          logger.warn { "Resource #{kind}/#{resource_name} does exist." }
+        end
+        KubectlClient::Apply.file(manifest_file, namespace)
+      rescue ex : KubectlClient::ShellCMD::NotFoundError
+        logger.warn { "Resource not found (#{kind}/#{resource_name}): #{ex.message}." }
+      end
+    end
+  end
+
   module Delete
     @@logger : ::Log = Log.for("Delete")
 
@@ -91,6 +111,41 @@ module KubectlClient
       end
 
       ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+    end
+  end
+
+  module AssureDeleted
+    @@logger : ::Log = Log.for("AssureDelete")
+
+    def self.resource(kind : String, resource_name : String? = nil, namespace : String? = nil,
+                  labels : Hash(String, String) = {} of String => String, extra_opts : String? = nil)
+      begin
+        resource_info = KubectlClient::Get.resource(kind, resource_name, namespace)
+        if resource_info.empty?
+          logger.warn { "Resource #{resource_name} does not exist, skipping deletion." }
+          return
+        end
+      rescue ex : KubectlClient::ShellCMD::NotFoundError
+        logger.warn { "Failed to get resource #{resource_name}: #{ex.message}, skipping deletion." }
+        return
+      end
+      KubectlClient::Delete.resource(kind, resource_name, namespace, labels, extra_opts)
+    end
+
+    def self.file(file_name : String, namespace : String? = nil, wait : Bool = false)
+      
+      begin
+        file_resource_info = KubectlClient::Get.resource_names_from_file(file_name, namespace)
+        if file_resource_info.empty?
+          logger.warn { "File #{file_name} does not exist, skipping deletion." }
+          return
+        end
+      rescue ex : KubectlClient::ShellCMD::NotFoundError
+        logger.warn { "Failed to get file #{file_name}: #{ex.message}, skipping deletion." }
+        return
+      end
+
+      KubectlClient::Delete.file(file_name, namespace, wait)
     end
   end
 
