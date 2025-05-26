@@ -2,6 +2,7 @@ require "sam"
 require "file_utils"
 require "colorize"
 require "totem"
+require "../utils/logging.cr"
 
 namespace "setup" do
   desc "Install Jaeger"
