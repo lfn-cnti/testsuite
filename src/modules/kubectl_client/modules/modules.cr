@@ -82,13 +82,13 @@ module KubectlClient
       begin
         file_info = KubectlClient::Get.resource_names_from_file(file_name, namespace)
         if file_info.empty?
-          logger.info( "Resources from #{file_name} do not exist. Applying .." )
+          logger.info{ "Resources from #{file_name} do not exist. Applying .." }
         else
           logger.warn { "Resources from #{file_name} already exist." }
         end
         KubectlClient::Apply.file(file_name, namespace)
       rescue ex : KubectlClient::ShellCMD::AlreadyExistsError
-        logger.warn { "Resources from #{resource_name} already exist: #{ex.message}." }
+        logger.warn { "Resources from #{file_name} already exist: #{ex.message}." }
       end
     end
 
@@ -145,7 +145,7 @@ module KubectlClient
 
       begin
         resource_info = KubectlClient::Get.resource(kind, resource_name, namespace)
-        if resource_info.empty?
+        if resource_info.as_h?.try(&.empty?) || false
           logger.warn { "Resource #{resource_name} does not exist." }
         else
           logger.info { "Resource #{resource_name} exists. Deleting ..." }
