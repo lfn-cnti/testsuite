@@ -91,11 +91,7 @@ namespace "platform" do
       end
     end
 
-    begin
-      KubectlClient::Delete.resource("cm", cm_name)
-    rescue ex : KubectlClient::ShellCMD::K8sClientCMDException 
-      logger.error { "Failed to delete ConfigMap #{cm_name}: #{ex.message}" }
-    end
+    KubectlClient::AssureDeleted.resource("cm", cm_name)
   end
 end
 
@@ -120,7 +116,7 @@ end
       file.flush
 
       KubectlClient::Apply.file(file.path)
-
+      KubectlClient::AssureApplied.file(file.path)
       file.delete
       return true
   end
