@@ -420,14 +420,9 @@ task "zombie_handled" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args,config|
     task_response = CNFManager.workload_resource_test(args, config, check_containers:false ) do |resource, container, initialized|
       ClusterTools.all_containers_by_resource?(resource, resource[:namespace], only_container_pids:false) do | container_id, container_pid_on_node, node, container_proctree_statuses, container_status| 
-        resp = ClusterTools.exec_by_node("runc --root /run/containerd/runc/k8s.io/ state #{container_id}", node)
-        Log.for(t.name).info { "resp[:output] #{resp[:output]}" }
-        bundle_path = JSON.parse(resp[:output].to_s)
-        Log.for(t.name).info { "bundle path: #{bundle_path["bundle"]} "}
         ClusterTools.exec_by_node("nerdctl --namespace=k8s.io cp /zombie #{container_id}:/zombie", node)
         ClusterTools.exec_by_node("nerdctl --namespace=k8s.io cp /sleep #{container_id}:/sleep", node)
-        # ClusterTools.exec_by_node("ctools --bundle_path <bundle_path > --container_id <container_id>")
-        ClusterTools.exec_by_node("runc --root /run/containerd/runc/k8s.io/ exec --pid-file #{bundle_path["bundle"]}/init.pid #{container_id} /zombie", node)
+        ClusterTools.exec_by_node("nerdctl --namespace=k8s.io exec #{container_id} /zombie", node)
       end
     end
 
