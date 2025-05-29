@@ -203,7 +203,7 @@ module ClusterTools
 
 						container_proctree_statuses = KernelIntrospection::K8s::Node.proctree_by_pid(container_pid_on_node, node, proc_statuses)
 
-						yield container_id, container_pid_on_node, node, container_proctree_statuses, container_status 
+						yield container_id, container_pid_on_node, node, container_proctree_statuses, container_status, pod_name
 					end
           Log.info { "container_status_result.all?(true): #{container_status_result.all?(true)}" }
           container_status_result.all?(true)
