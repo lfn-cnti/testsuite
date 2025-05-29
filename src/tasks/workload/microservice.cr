@@ -433,8 +433,10 @@ task "zombie_handled" do |t, args|
 
     sleep 10.0
 
+    pods_to_restart = Set(Tuple(String, String)).new
+    containers_to_restart = Set(Tuple(String, JSON::Any)).new
     task_response = CNFManager.workload_resource_test(args, config, check_containers:false ) do |resource, container, initialized|
-      ClusterTools.all_containers_by_resource?(resource, resource[:namespace], only_container_pids:false) do | container_id, container_pid_on_node, node, container_proctree_statuses, container_status| 
+      ClusterTools.all_containers_by_resource?(resource, resource[:namespace], only_container_pids:false) do | container_id, container_pid_on_node, node, container_proctree_statuses, container_status, pod_name| 
 
         zombies = container_proctree_statuses.map do |status|
           Log.for(t.name).debug { "status: #{status}" }
@@ -447,7 +449,9 @@ task "zombie_handled" do |t, args|
           Log.for(t.name).info { "state: #{state}" }
           Log.for(t.name).info { "(state =~ /zombie/): #{(state =~ /zombie/)}" }
           if (state =~ /zombie/) != nil
-            puts "Process #{status_name} has a state of #{state}".colorize(:red)
+            puts "Process #{status_name} in container #{container_id} of pod #{pod_name.as_s} has a state of #{state}".colorize(:red)
+            containers_to_restart << {container_id, node}
+            pods_to_restart << {pod_name.as_s, resource[:namespace]}
             true
           else 
             nil
@@ -456,6 +460,20 @@ task "zombie_handled" do |t, args|
         Log.for(t.name).info { "zombies.all?(nil): #{zombies.all?(nil)}" }
         zombies.all?(nil)
       end
+    end
+
+    containers_to_restart.each do |container_id, node|
+      Log.for(t.name).info { "Shutting down container #{container_id}" }
+      ClusterTools.exec_by_node("ctr -n=k8s.io task kill --signal 9 #{container_id}", node)
+    end
+
+    if !pods_to_restart.empty?
+      sleep 20.0
+    end
+
+    pods_to_restart.each do |pod_name, namespace|
+      Log.for(t.name).info { "Waiting for pod #{pod_name} in namespace #{namespace} to become Ready..." }
+      KubectlClient::Wait.wait_for_resource_availability("pod", pod_name, namespace, GENERIC_OPERATION_TIMEOUT)
     end
 
     if task_response
