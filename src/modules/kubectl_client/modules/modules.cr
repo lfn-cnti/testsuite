@@ -57,6 +57,54 @@ module KubectlClient
     end
   end
 
+  module AssureApplied
+    @@logger : ::Log = Log.for("AssureApplied")
+
+    def self.resource(kind : String, resource_name : String, namespace : String? = nil, values : String? = nil)
+      logger = @@logger.for("resource")
+
+      begin
+        resource_info = KubectlClient::Get.resource(kind, resource_name, namespace)
+        if resource_info.empty?
+          logger.info { "Resource #{resource_name} does not exist. Applying ..." }
+        else
+          logger.warn { "Resource #{resource_name} already exists." }
+        end
+        KubectlClient::Apply.resource(kind, resource_name, namespace, values)
+      rescue ex : KubectlClient::ShellCMD::AlreadyExistsError
+        logger.warn { "Resource #{resource_name} already exists: #{ex.message}." }
+      end
+      logger.info { "Resource #{resource_name} applied." }
+    end
+
+    def self.file(file_name : String?, namespace : String? = nil)
+      logger = @@logger.for("file")
+
+      begin
+        file_info = KubectlClient::Get.resource_names_from_file(file_name, namespace)
+        if file_info.empty?
+          logger.info{ "Resources from #{file_name} do not exist. Applying .." }
+        else
+          logger.warn { "Resources from #{file_name} already exist." }
+        end
+        KubectlClient::Apply.file(file_name, namespace)
+      rescue ex : KubectlClient::ShellCMD::AlreadyExistsError
+        logger.warn { "Resources from #{file_name} already exist: #{ex.message}." }
+      end
+      logger.info { "Resources from #{file_name} applied." }
+    end
+
+    def self.namespace(name : String)
+      logger = @@logger.for("namespace")
+      begin
+        KubectlClient::Apply.namespace(name)
+      rescue ex : KubectlClient::ShellCMD::AlreadyExistsError
+        logger.warn { "Namespace #{name} already exist: #{ex.message}." }
+      end
+      logger.info { "Namespace #{name} created." }
+    end
+  end
+
   module Delete
     @@logger : ::Log = Log.for("Delete")
 
@@ -91,6 +139,45 @@ module KubectlClient
       end
 
       ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+    end
+  end
+
+  module AssureDeleted
+    @@logger : ::Log = Log.for("AssureDeleted")
+
+    def self.resource(kind : String, resource_name : String? = nil, namespace : String? = nil,
+                  labels : Hash(String, String) = {} of String => String, extra_opts : String? = nil)
+      logger = @@logger.for("resource")
+
+      begin
+        resource_info = KubectlClient::Get.resource(kind, resource_name, namespace)
+        if resource_info.as_h?.try(&.empty?) || false
+          logger.warn { "Resource #{resource_name} does not exist." }
+        else
+          logger.info { "Resource #{resource_name} exists. Deleting ..." }
+        end
+        KubectlClient::Delete.resource(kind, resource_name, namespace, labels, extra_opts)
+      rescue ex : KubectlClient::ShellCMD::NotFoundError
+        logger.warn { "Failed to delete resource #{resource_name}: #{ex.message}." }
+      end
+      logger.info { "Resource #{resource_name} deleted. " }
+    end
+
+    def self.file(file_name : String, namespace : String? = nil, wait : Bool = false)
+      logger = @@logger.for("file")
+
+      begin
+        file_resource_info = KubectlClient::Get.resource_names_from_file(file_name, namespace)
+        if file_resource_info.empty?
+          logger.warn { "Resources from file #{file_name} do not exist." }
+        else
+          logger.info { "Resources from file #{file_name} exist. Deleting ..." }
+        end
+        KubectlClient::Delete.file(file_name, namespace, wait)
+      rescue ex : KubectlClient::ShellCMD::NotFoundError
+        logger.warn { "Failed to delete resources from file #{file_name}: #{ex.message}." }
+      end
+      logger.info { "Resources from #{file_name} deleted. " }
     end
   end
 
