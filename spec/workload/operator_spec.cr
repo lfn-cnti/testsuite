@@ -32,10 +32,7 @@ describe "Operator" do
         KubectlClient::Get.pods_by_resource_labels(KubectlClient::Get.resource("deployment", "packageserver", "operator-lifecycle-manager"), "operator-lifecycle-manager")
 
       Helm.uninstall("operator")
-      begin
-        KubectlClient::Delete.resource("csv", "prometheusoperator.0.47.0")
-      rescue KubectlClient::ShellCMD::NotFoundError
-      end
+      KubectlClient::AssureDeleted.resource("csv", "prometheusoperator.0.47.0")
 
       pods.map do |pod| 
         pod_name = pod.dig("metadata", "name")
