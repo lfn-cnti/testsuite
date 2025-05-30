@@ -58,10 +58,7 @@ describe "Microservice" do
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
-      begin
-        KubectlClient::Delete.resource("pvc", "data-test-mariadb-0", "wordpress")
-      rescue KubectlClient::ShellCMD::NotFoundError
-      end
+      KubectlClient::AssureDeleted.resource("pvc", "data-test-mariadb-0", "wordpress")
     end
   end
 
@@ -83,10 +80,7 @@ describe "Microservice" do
       (/(PASSED).*(No shared database found)/ =~ result[:output]).should_not be_nil
     ensure
       Helm.uninstall("multi-db", DEFAULT_CNF_NAMESPACE)
-      begin
-        KubectlClient::Delete.resource("pvc", "data-multi-db-mariadb-0")
-      rescue KubectlClient::ShellCMD::NotFoundError
-      end
+      KubectlClient::AssureDeleted.resource("pvc", "data-multi-db-mariadb-0")
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
     end

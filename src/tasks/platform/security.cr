@@ -116,7 +116,7 @@ end
       file.flush
 
       KubectlClient::Apply.file(file.path)
-      KubectlClient::AssureApplied.file(file.path)
+      
       file.delete
       return true
   end
