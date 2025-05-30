@@ -30,11 +30,8 @@ describe "netstat" do
 
   after_all do
     # Cleanup logic after all tests have run
-    begin
-      KubectlClient::Delete.resource("pvc", "data-wordpress-mariadb-0")
-      KubectlClient::Delete.resource("pvc", "wordpress")
-    rescue ex : KubectlClient::ShellCMD::NotFoundError
-    end
+    KubectlClient::AssureDeleted.resource("pvc", "data-wordpress-mariadb-0")
+    KubectlClient::AssureDeleted.resource("pvc", "wordpress")
     Log.info { "Cleanup complete" }
   end
 
