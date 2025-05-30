@@ -14,12 +14,7 @@ namespace "setup" do
 
     ensure_kubeconfig!
     begin
-      KubectlClient::Apply.namespace(TESTSUITE_NAMESPACE)
-      stdout_success "Created #{TESTSUITE_NAMESPACE} namespace on the Kubernetes cluster"
-      logger.info { "#{TESTSUITE_NAMESPACE} namespace created" }
-    rescue ex : KubectlClient::ShellCMD::AlreadyExistsError
-      stdout_success "#{TESTSUITE_NAMESPACE} namespace already exists on the Kubernetes cluster"
-      logger.info { "#{TESTSUITE_NAMESPACE} namespace already exists, not creating" }
+      KubectlClient::AssureApplied.namespace(TESTSUITE_NAMESPACE)
     rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
       stdout_failure "Could not create #{TESTSUITE_NAMESPACE} namespace on the Kubernetes cluster"
       logger.error { "Failed to create #{TESTSUITE_NAMESPACE} namespace: #{ex.message}" }

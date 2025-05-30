@@ -116,7 +116,6 @@ end
       file.flush
 
       KubectlClient::Apply.file(file.path)
-      
       file.delete
       return true
   end
