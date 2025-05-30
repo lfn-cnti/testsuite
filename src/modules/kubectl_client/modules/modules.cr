@@ -74,6 +74,7 @@ module KubectlClient
       rescue ex : KubectlClient::ShellCMD::AlreadyExistsError
         logger.warn { "Resource #{resource_name} already exists: #{ex.message}." }
       end
+      logger.info { "Resource #{resource_name} applied." }
     end
 
     def self.file(file_name : String?, namespace : String? = nil)
@@ -90,6 +91,7 @@ module KubectlClient
       rescue ex : KubectlClient::ShellCMD::AlreadyExistsError
         logger.warn { "Resources from #{file_name} already exist: #{ex.message}." }
       end
+      logger.info { "Resources from #{file_name} applied." }
     end
 
     def self.namespace(name : String)
@@ -99,6 +101,7 @@ module KubectlClient
       rescue ex : KubectlClient::ShellCMD::AlreadyExistsError
         logger.warn { "Namespace #{name} already exist: #{ex.message}." }
       end
+      logger.info { "Namespace #{name} created." }
     end
   end
 
@@ -153,9 +156,8 @@ module KubectlClient
         KubectlClient::Delete.resource(kind, resource_name, namespace, labels, extra_opts)
       rescue ex : KubectlClient::ShellCMD::NotFoundError
         logger.warn { "Failed to delete resource #{resource_name}: #{ex.message}." }
-        return
       end
-      
+      logger.info { "Resource #{resource_name} deleted. " }
     end
 
     def self.file(file_name : String, namespace : String? = nil, wait : Bool = false)
@@ -171,8 +173,8 @@ module KubectlClient
         KubectlClient::Delete.file(file_name, namespace, wait)
       rescue ex : KubectlClient::ShellCMD::NotFoundError
         logger.warn { "Failed to delete resources from file #{file_name}: #{ex.message}." }
-        return
       end
+      logger.info { "Resources from #{file_name} deleted. " }
     end
   end
 

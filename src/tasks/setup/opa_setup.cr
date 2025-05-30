@@ -39,5 +39,4 @@ task "uninstall_opa" do |_, args|
   begin Helm.uninstall("opa-gatekeeper", TESTSUITE_NAMESPACE) rescue Helm::ShellCMD::ReleaseNotFound end
   KubectlClient::AssureDeleted.file("enforce-image-tag.yml")
   KubectlClient::AssureDeleted.file("constraint_template.yml")
-  
 end
