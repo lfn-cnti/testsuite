@@ -28,8 +28,7 @@ module UERANSIM
     emergency = config.common.five_g_parameters.emergency 
 
     if core 
-      all_pods = KubectlClient::Get.pods_by_nodes(KubectlClient::Get.schedulable_nodes_list)
-      ueran_pods = KubectlClient::Get.pods_by_labels(all_pods, {"app.kubernetes.io/name" => "ueransim-gnb"})
+      ueran_pods = KubectlClient::Get.pods_by_nodes(KubectlClient::Get.schedulable_nodes_list, label: {"app.kubernetes.io/name" => "ueransim-gnb"})
 
       Log.info { "ueran_pods: #{ueran_pods}" }
       unless ueran_pods[0]? == nil

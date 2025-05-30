@@ -61,10 +61,7 @@ module ClusterTools
   end
 
   def self.exec(cli : String) : KubectlClient::CMDResult
-    # todo change to get all pods, schedulable nodes is slow
-    pods = KubectlClient::Get.pods_by_nodes(KubectlClient::Get.schedulable_nodes_list)
-    pods = KubectlClient::Get.pods_by_labels(pods, {"name" => "cluster-tools"})
-
+    pods = KubectlClient::Get.pods_by_nodes(KubectlClient::Get.schedulable_nodes_list, namespace: self.namespace, label: {"name" => "cluster-tools"})
     cluster_tools_pod_name = pods[0].dig?("metadata", "name") if pods[0]?
     Log.info { "cluster_tools_pod_name: #{cluster_tools_pod_name}"}
 
@@ -86,8 +83,7 @@ module ClusterTools
   end
   
   private def self.get_cluster_tools_pod_on_node(node : JSON::Any)
-    pods = KubectlClient::Get.pods_by_nodes([node])
-    pods = KubectlClient::Get.pods_by_labels(pods, {"name" => "cluster-tools"})
+    pods = KubectlClient::Get.pods_by_nodes([node], namespace: self.namespace, label: {"name" => "cluster-tools"})
 
     cluster_tools_pod_name = pods[0].dig?("metadata", "name") if pods[0]?
     Log.debug { "cluster_tools_pod_name: #{cluster_tools_pod_name}"}
@@ -97,8 +93,6 @@ module ClusterTools
 
   def self.exec_by_node(cli : String, node : JSON::Any) : KubectlClient::CMDResult
     Log.info { "exec_by_node: Called with JSON" }
-    # 'pods_by_nodes' fetches pods from all namespaces so they
-    # do not have to be passed the namespace to perform operations.
     pod_name = get_cluster_tools_pod_on_node(node)
     exec = KubectlClient::Utils.exec("#{pod_name}", cli, namespace: self.namespace)
     Log.debug { "ClusterTools exec: #{exec}" }
@@ -106,8 +100,6 @@ module ClusterTools
   end
 
   def self.exec_by_node_bg(cli : String, node : JSON::Any) : KubectlClient::BackgroundCMDResult
-    # 'pods_by_nodes' fetches pods from all namespaces so they
-    # do not have to be passed the namespace to perform operations.
     pod_name = get_cluster_tools_pod_on_node(node)
     exec = KubectlClient::Utils.exec_bg("#{pod_name}", cli, namespace: self.namespace)
     Log.debug { "ClusterTools exec: #{exec}" }
@@ -139,7 +131,7 @@ module ClusterTools
     pid 
   end
   #each_container_by_resource(resource, namespace) do | container_id, container_pid_on_node, node, container_proctree_statuses, container_status|
-  def self.all_containers_by_resource?(resource, namespace, only_container_pids : Bool = false, &block) 
+  def self.all_containers_by_resource?(resource, namespace, only_container_pids : Bool = false, include_proctree : Bool = true, &block) 
 		kind = resource["kind"].downcase
 		case kind
 		when  "deployment","statefulset","pod","replicaset", "daemonset"
@@ -186,23 +178,26 @@ module ClusterTools
 
 						node_name = node.dig("metadata", "name").as_s
 						Log.info { "node name : #{node_name}" }
-						if only_container_pids 
-              pids = KernelIntrospection::K8s::Node.pids_by_container(container_id, node)
+            if include_proctree
+              if only_container_pids 
+                pids = KernelIntrospection::K8s::Node.pids_by_container(container_id, node)
+              else
+                pids = KernelIntrospection::K8s::Node.pids(node)
+              end
+
+              if pids.empty?
+                Log.info { "pids empty #{pids}" }
+                false
+                next
+              end
+
+              Log.info { "parsed pids: #{pids}" }
+              proc_statuses = KernelIntrospection::K8s::Node.all_statuses_by_pids(pids, node)
+
+              container_proctree_statuses = KernelIntrospection::K8s::Node.proctree_by_pid(container_pid_on_node, node, proc_statuses)
             else
-              pids = KernelIntrospection::K8s::Node.pids(node)
+              container_proctree_statuses = [] of Hash(String, String)
             end
-
-            if pids.empty?
-              Log.info { "pids empty #{pids}" }
-              false
-              next
-            end
-
-						Log.info { "parsed pids: #{pids}" }
-						proc_statuses = KernelIntrospection::K8s::Node.all_statuses_by_pids(pids, node)
-
-						container_proctree_statuses = KernelIntrospection::K8s::Node.proctree_by_pid(container_pid_on_node, node, proc_statuses)
-
 						yield container_id, container_pid_on_node, node, container_proctree_statuses, container_status, pod_name
 					end
           Log.info { "container_status_result.all?(true): #{container_status_result.all?(true)}" }
