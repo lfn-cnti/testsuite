@@ -193,20 +193,18 @@ module KubectlClient
       nodes
     end
 
-    def self.pods_by_nodes(nodes_json : Array(JSON::Any))
+    def self.pods_by_nodes(nodes_json : Array(JSON::Any), namespace : String? = nil, label : Hash(String, String) = Hash(String, String).new)
       logger = @@logger.for("pods_by_nodes")
       logger.debug { "Creating list of pods found on nodes" }
 
+      selector_string = label.empty? ? nil : label.map { |key, value| "#{key}=#{value}" }.join(",")
       pods_a = nodes_json.flat_map do |item|
         node_name = item.dig?("metadata", "labels", "kubernetes.io/hostname")
-        pods = resource("pods", all_namespaces: true)
+        next [] of JSON::Any unless node_name
+
+        pods = resource("pods", all_namespaces: namespace.nil?, namespace: namespace, selector: selector_string)
         pods = pods.as_h["items"].as_a.select do |pod|
-          if pod.dig?("spec", "nodeName") == "#{node_name}"
-            pod_name = pod.dig?("metadata", "name")
-            true
-          else
-            false
-          end
+          pod.dig?("spec", "nodeName") == node_name
         end
       end
       logger.info { "Found #{pods_a.size} pods: #{KubectlClient.names_from_json_array_to_s(pods_a)}" }
