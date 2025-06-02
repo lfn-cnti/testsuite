@@ -2,7 +2,10 @@ require "../spec_helper.cr"
 
 describe "KernelIntrospection" do
   before_all do
-    KubectlClient::AssureApplied.namespace("cnf-testsuite")
+    begin
+      KubectlClient::Apply.namespace("cnf-testsuite")
+    rescue e : KubectlClient::ShellCMD::AlreadyExistsError
+    end
     ClusterTools.install
   end
 

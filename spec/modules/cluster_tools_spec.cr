@@ -2,7 +2,12 @@ require "../spec_helper.cr"
 
 describe "ClusterTools" do
   before_all do
-    KubectlClient::AssureApplied.namespace(ClusterTools.namespace)
+    begin
+      KubectlClient::Apply.namespace(ClusterTools.namespace)
+      Log.info { "#{ClusterTools.namespace} namespace created" }
+    rescue e : KubectlClient::ShellCMD::AlreadyExistsError
+      Log.info { "#{ClusterTools.namespace} namespace already exists on the Kubernetes cluster" }
+    end
   end
 
   after_all do
