@@ -45,7 +45,7 @@
 
 ## Category: Compatibility, Installability and Upgradability Tests
 
-CNFs should work with any Certified Kubernetes product and any CNI-compatible network that meet their functionality requirements. The CNTI Test Catalog will check for usage of standard, in-band deployment tools such as Helm (version 3) charts. The CNTI Test Catalog checks to see if CNFs support horizontal scaling (across multiple machines) and vertical scaling (between sizes of machines) by using the native K8s [kubectl](https://kubernetes.io/docs/reference/kubectl/cheatsheet/#scaling-resources).
+CNFs should work with any Certified Kubernetes product and any CNI-compatible network that meet their functionality requirements. The CNTI Test Suite will check for usage of standard, in-band deployment tools such as Helm (version 3) charts. The CNTI Test Suite checks to see if CNFs support horizontal scaling (across multiple machines) and vertical scaling (between sizes of machines) by using the native K8s [kubectl](https://kubernetes.io/docs/reference/kubectl/cheatsheet/#scaling-resources).
 
 Service providers have historically had issues with the installability of vendor network functions. This category tests the installability and lifecycle management (the create, update, and delete of network applications) against widely used K8s installation solutions such as Helm.
 
@@ -276,7 +276,7 @@ Ensure that the CNF is not using deprecated Kubernetes features. If any are dete
 
 ## Category: Microservice Tests
 
-The CNF should be developed and delivered as a microservice. The CNTI Test Catalog tests to determine the organizational structure and rate of change of the CNF being tested. Once these are known we can detemine whether or not the CNF is a microservice. See: [Microservice-Principles](https://networking.cloud-native-principles.org/cloud-native-microservice-principles)
+The CNF should be developed and delivered as a microservice. The CNTI Test Suite tests to determine the organizational structure and rate of change of the CNF being tested. Once these are known we can detemine whether or not the CNF is a microservice. See: [Microservice-Principles](https://networking.cloud-native-principles.org/cloud-native-microservice-principles)
 
 [Good microservice practices](https://vmblog.com/archive/2022/01/04/the-zeitgeist-of-cloud-native-microservices.aspx) promote agility which means less time will occur between deployments.  One benefit of more agility is it allows for different organizations and teams to deploy at the rate of change that they build out features, instead of deploying in lock step with other teams. This is very important when it comes to changes that are time sensitive like security patches.
 
@@ -461,7 +461,7 @@ Make the PID 1 container process to handle/reap zombie processes; enable process
 
 ## Category: State Tests
 
-The CNTI Test Catalog checks if state is stored in a [custom resource definition](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) or a separate database (e.g. [etcd](https://github.com/etcd-io/etcd)) rather than requiring local storage. It also checks to see if state is resilient to node failure
+The CNTI Test Suite checks if state is stored in a [custom resource definition](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) or a separate database (e.g. [etcd](https://github.com/etcd-io/etcd)) rather than requiring local storage. It also checks to see if state is resilient to node failure
 
 If infrastructure is immutable, it is easily reproduced, consistent, disposable, will have a repeatable deployment process, and will not have configuration or artifacts that are modifiable in place.
 This ensures that all *configuration* is stateless.
@@ -914,7 +914,7 @@ Ensure that your CNF is both using & publishing traces to Jaeger.
 
 ## Category: Security Tests
 
-CNF containers should be isolated from one another and the host. The CNTI Test Catalog uses tools like [OPA Gatekeeper](https://github.com/open-policy-agent/gatekeeper) and [Armosec Kubescape](https://github.com/armosec/kubescape)
+CNF containers should be isolated from one another and the host. The CNTI Test Suite uses tools like [OPA Gatekeeper](https://github.com/open-policy-agent/gatekeeper) and [Armosec Kubescape](https://github.com/armosec/kubescape)
 
 > "Cloud native security is a [...] mutifaceted topic [...] with multiple, diverse components that need to be secured. The cloud platform, the underlying host operating system, the container runtime, the container orchestrator,and then the applications themselves each require specialist security attention" -- Chris Binne, Rory Mccune. Cloud Native Security. (Wiley, 2021)(pp. xix)
 

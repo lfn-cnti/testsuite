@@ -16,7 +16,7 @@ The information in the cnf-testsuite.yml is also used for additional configurati
 
 ### Overview of all cnf-testsuite.yml
 
-The following is a basic working example cnf-testsuite.yml file that can be found in the cnf-testcatalog respository: [cnf-testcatalog/spec/fixtures/cnf-testsuite-v2-example.yml](https://github.com/lfn-cnti/testsuite/blob/main/spec/fixtures/cnf-testsuite-v2-example.yml)
+The following is a basic working example cnf-testsuite.yml file that can be found in the CNTi Test Suite respository: [/spec/fixtures/cnf-testsuite-v2-example.yml](https://github.com/lfn-cnti/testsuite/blob/main/spec/fixtures/cnf-testsuite-v2-example.yml)
 
 ```yaml=
 ---

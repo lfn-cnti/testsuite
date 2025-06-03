@@ -2,7 +2,7 @@
 
 Welcome! We gladly accept contributions on new tests, example CNFs, updates to documentation, enhancements, bug reports and more.
 
-The CNTI Test Catalog is [Apache 2.0 licensed](LICENSE) and accepts contributions via GitHub pull requests. Please read the following guidelines carefully to make it easier to get your contribution accepted.
+The CNTI Test Suite is [Apache 2.0 licensed](LICENSE) and accepts contributions via GitHub pull requests. Please read the following guidelines carefully to make it easier to get your contribution accepted.
 
 ## Support Channels:
 
@@ -17,7 +17,7 @@ Before starting work on a major feature, please reach out to us via [GitHub Issu
 
 ## Issues
 
-GitHub Issues are used as the primary method for tracking items for the CNTI Test Catalog. Please self-assign an issue to yourself when you start to work on it so we don't duplicate work :)
+GitHub Issues are used as the primary method for tracking items for the CNTI Test Suite. Please self-assign an issue to yourself when you start to work on it so we don't duplicate work :)
 
 - [Issues](../../issues)
   - [Good first issues](https://github.com/lfn-cnti/testsuite/labels/good%20first%20issue)
@@ -46,7 +46,7 @@ LOGLEVEL=DEBUG ./cnf-testsuite test
 
 Check [usage documentation](USAGE.md) for more info about invoking commands and loggin
 
-**3. New CNTI Test Catalog Tests:**
+**3. New CNTI Test Suite Tests:**
 
 - To request a new workload test, please create a new issue using the [**New Workload Test**](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=workload&template=new-workload-test.md&title=%5BWorkload%5D) Template
 - To request a new platform test, please create a new issue using the [**New Platform Test**](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=platform&template=new-platform-test.md&title=%5BPlatform%5D) Template
@@ -54,7 +54,7 @@ Check [usage documentation](USAGE.md) for more info about invoking commands and 
 **4. New CNF Example:**
 To suggest a new CNF, please create a GitHub issue using the [New Example CNF template](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=example+CNF&template=new-example-cnf.md&title=%5BCNF%5D).
 
-To install the CNTI Test Catalog and run a CNF, follow instructions at:
+To install the CNTI Test Suite and run a CNF, follow instructions at:
 
 - [CNF Developer Install and Usage Guide](SOURCE_INSTALL.md)
 
@@ -113,7 +113,7 @@ For general advice on how to submit a pull request, please see [Creating a pull 
 
 ## Community Meeting:
 
-The CNTI Test Catalog community meets weekly on Tuesdays at 8:00 - 9:00 AM Pacific Time
+The CNTI community meets weekly on Tuesdays at 8:00 - 9:00 AM Pacific Time
 
 - Meeting minutes are [here](https://docs.google.com/document/d/1yjL079TR0L1q__BRuhREeXfx5MtAmjPzbFZlZUeBsK4/edit)
 
