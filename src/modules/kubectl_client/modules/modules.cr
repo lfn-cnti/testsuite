@@ -49,12 +49,14 @@ module KubectlClient
 
     def self.namespace(namespace : String)
       logger = @@logger.for("namespace")
+      file : File? = nil
 
       if namespace.ends_with?(".yaml")
         logger.info { "Applying namespace from file: #{namespace}" }
         cmd = "kubectl apply -f #{namespace}"
       else
         logger.info { "Applying namespace: #{namespace}" }
+
         yaml = <<-YAML
         apiVersion: v1
         kind: Namespace
@@ -62,13 +64,17 @@ module KubectlClient
           name: #{namespace}
         YAML
 
-        file = File.tempfile(namespace, ".yaml")
+        file = File.tempfile("#{namespace}", ".yaml")
         file.puts yaml
         file.flush
         cmd = "kubectl apply -f #{file.path}"
-        file.delete
       end
-      ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+
+      begin
+        ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+      ensure
+        file.try(&.delete)
+      end
     end
   end
 
