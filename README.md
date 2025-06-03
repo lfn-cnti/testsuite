@@ -1,16 +1,16 @@
-# CNTi Test Catalog
+# CNTi Test Suite
 
 | Main                                                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | [![Build Status](https://github.com/lfn-cnti/testsuite/workflows/Crystal%20Specs/badge.svg)](https://github.com/lfn-cnti/testsuite/actions) |
 
-The CNTi Test Catalog is an open source and vendor neutral tool that can be used to validate a telco application's adherence to [cloud native principles](https://networking.cloud-native-principles.org/) and best practices. 
+The CNTi Test Suite is an open source and vendor neutral tool that can be used to validate a telco application's adherence to [cloud native principles](https://networking.cloud-native-principles.org/) and best practices. 
 
-This Test Catalog focus area is one part of LF Networking's [Cloud Native Telecom Initiative (CNTi)](https://wiki.lfnetworking.org/pages/viewpage.action?pageId=113213592) and works closely with the [CNTi Best Practices](https://wiki.lfnetworking.org/display/LN/Best+Practices) and [CNTi Certification](https://wiki.lfnetworking.org/display/LN/Certification) focus areas.
+This Test Suite focus area is one part of LF Networking's [Cloud Native Telecom Initiative (CNTi)](https://wiki.lfnetworking.org/pages/viewpage.action?pageId=113213592) and works closely with the [CNTi Best Practices](https://wiki.lfnetworking.org/display/LN/Best+Practices) and [CNTi Certification](https://wiki.lfnetworking.org/display/LN/Certification) focus areas.
 
 ## Installation and Usage
 
-To get the CNTi Test Catalog up and running, see the [Installation Guide](INSTALL.md).
+To get the CNTi Test Suite up and running, see the [Installation Guide](INSTALL.md).
 
 #### To give it a try immediately you can use these quick install steps
 
@@ -28,7 +28,7 @@ Check out the [usage documentation](USAGE.md) for more info about invoking comma
 
 ## Cloud Native Test Categories
 
-The CNTi Test Catalog will inspect CNFs for the following characteristics:
+The CNTi Test Suite will inspect CNFs for the following characteristics:
 
 - **Configuration** - The CNF's configuration should be managed in a declarative manner, using ConfigMaps, Operators, or other declarative interfaces.
 - **Compatibility, Installability & Upgradability** - CNFs should work with any Certified Kubernetes product and any CNI-compatible network that meet their functionality requirements while using standard, in-band deployment tools such as Helm (version 3) charts.
@@ -51,8 +51,8 @@ Welcome! We gladly accept contributions on new tests, example CNFs, updates to d
 ## Communication and Community Meetings
 
 - Join the conversation on [LFN Tech's Slack](https://lfntech.slack.com/) channel [#cnti](https://lfntech.slack.com/archives/C06HQGWK4NL)
-- Join the weekly CNTi Test Catalog meeting
-  - [Meeting details](https://lf-networking.atlassian.net/wiki/spaces/CNTi/pages/130416641/Cloud+Native+Telecom+Initiative+CNTi#Test-Catalog) 
+- Join the weekly CNTi Community meeting
+  - [Meeting details](https://lf-networking.atlassian.net/wiki/spaces/CNTi/pages/130416641/Cloud+Native+Telecom+Initiative+CNTi#Community-Meetings) 
   - [Meeting minutes](https://docs.google.com/document/d/1yjL079TR0L1q__BRuhREeXfx5MtAmjPzbFZlZUeBsK4/edit)
 
 
@@ -62,4 +62,4 @@ The CNTi community follows the [LF's Code of Conduct](https://lfprojects.org/pol
 
 ## License Terms
 
-The CNTi Test Catalog is available under the [Apache 2 license](LICENSE.md).
+The CNTi Test Suite is available under the [Apache 2 license](LICENSE.md).

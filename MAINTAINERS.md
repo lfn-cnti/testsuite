@@ -1,4 +1,4 @@
-# CNTi Test Catalog Maintainers
+# CNTi Test Suite Maintainers
 
 | Name            | GitHub ID                                   | Company Name                            |
 | --------------- | ------------------------------------------- | --------------------------------------- |

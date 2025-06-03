@@ -1,4 +1,4 @@
-## Installing the CNTI Test Catalog from Source
+## Installing the CNTI Test Suite from Source
 
 ### Overview
 
@@ -139,7 +139,7 @@ source test.sh
 
 <details><summary>Other Information on Crystal Builds</summary>
 <p>
-The CNTI Test Catalog is modeled after make, or if you're familiar with Ruby, [rake](https://github.com/ruby/rake). Tests are created via tasks using the Crystal library, [SAM.cr](https://github.com/imdrasil/sam.cr).
+The CNTI Test Suite is modeled after make, or if you're familiar with Ruby, [rake](https://github.com/ruby/rake). Tests are created via tasks using the Crystal library, [SAM.cr](https://github.com/imdrasil/sam.cr).
 
 To run the automated test suite within the source clone:
 

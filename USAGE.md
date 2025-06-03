@@ -1,4 +1,4 @@
-# CNTI Test Catalog CLI Usage Documentation
+# CNTI Test Suite CLI Usage Documentation
 
 ### Table of Contents
 
@@ -9,7 +9,7 @@
 
 ### Overview
 
-The CNTI Test Catalog can be run in production mode (using an executable) or in developer mode (using [crystal lang directly](INSTALL.md#source-install)). See the [pseudo code documentation](PSEUDO-CODE.md) for examples of how the internals of WIP tests might work.
+The CNTI Test Suite can be run in production mode (using an executable) or in developer mode (using [crystal lang directly](INSTALL.md#source-install)). See the [pseudo code documentation](PSEUDO-CODE.md) for examples of how the internals of WIP tests might work.
 
 ### Syntax for running any of the tests
 
@@ -117,7 +117,7 @@ cnf-config=<path_to_your_config_file>/cnf-testsuite.yml
 ./cnf-testsuite help
 ```
 
-#### Clean up the CNTI Test Catalog, the K8s cluster, and upstream projects:
+#### Clean up the CNTI Test Suite, the K8s cluster, and upstream projects:
 
 ```
 ./cnf-testsuite uninstall_all
