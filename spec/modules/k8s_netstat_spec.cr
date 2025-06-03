@@ -21,10 +21,7 @@ end
 
 describe "netstat" do
   before_all do
-    begin
-      KubectlClient::Apply.namespace("cnf-testsuite")
-    rescue e : KubectlClient::ShellCMD::AlreadyExistsError
-    end
+    KubectlClient::Apply.namespace("cnf-testsuite")
     ClusterTools.install
   end
 
