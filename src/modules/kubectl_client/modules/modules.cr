@@ -47,63 +47,31 @@ module KubectlClient
       ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
     end
 
-    def self.namespace(name : String)
+    def self.namespace(namespace : String)
       logger = @@logger.for("namespace")
-      logger.info { "Create a namespace: #{name}" }
 
-      cmd = "kubectl create namespace #{name}"
+      if namespace.ends_with?(".yaml")
+        logger.info { "Applying namespace from file: #{namespace}" }
+        cmd = "kubectl apply -f #{namespace}"
+      else
+        logger.info { "Applying namespace: #{namespace}" }
+        yaml = <<-YAML
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: #{namespace}
+        YAML
 
+        file = File.tempfile(namespace, ".yaml")
+        file.puts yaml
+        file.flush
+        cmd = "kubectl apply -f #{file.path}"
+        file.delete
+      end
       ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
     end
   end
 
-  module AssureApplied
-    @@logger : ::Log = Log.for("AssureApplied")
-
-    def self.resource(kind : String, resource_name : String, namespace : String? = nil, values : String? = nil)
-      logger = @@logger.for("resource")
-
-      begin
-        resource_info = KubectlClient::Get.resource(kind, resource_name, namespace)
-        if resource_info.empty?
-          logger.info { "Resource #{resource_name} does not exist. Applying ..." }
-        else
-          logger.warn { "Resource #{resource_name} already exists." }
-        end
-        KubectlClient::Apply.resource(kind, resource_name, namespace, values)
-      rescue ex : KubectlClient::ShellCMD::AlreadyExistsError
-        logger.warn { "Resource #{resource_name} already exists: #{ex.message}." }
-      end
-      logger.info { "Resource #{resource_name} applied." }
-    end
-
-    def self.file(file_name : String?, namespace : String? = nil)
-      logger = @@logger.for("file")
-
-      begin
-        file_info = KubectlClient::Get.resource_names_from_file(file_name, namespace)
-        if file_info.empty?
-          logger.info{ "Resources from #{file_name} do not exist. Applying .." }
-        else
-          logger.warn { "Resources from #{file_name} already exist." }
-        end
-        KubectlClient::Apply.file(file_name, namespace)
-      rescue ex : KubectlClient::ShellCMD::AlreadyExistsError
-        logger.warn { "Resources from #{file_name} already exist: #{ex.message}." }
-      end
-      logger.info { "Resources from #{file_name} applied." }
-    end
-
-    def self.namespace(name : String)
-      logger = @@logger.for("namespace")
-      begin
-        KubectlClient::Apply.namespace(name)
-      rescue ex : KubectlClient::ShellCMD::AlreadyExistsError
-        logger.warn { "Namespace #{name} already exist: #{ex.message}." }
-      end
-      logger.info { "Namespace #{name} created." }
-    end
-  end
 
   module Delete
     @@logger : ::Log = Log.for("Delete")

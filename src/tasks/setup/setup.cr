@@ -14,7 +14,7 @@ namespace "setup" do
 
     ensure_kubeconfig!
     begin
-      KubectlClient::AssureApplied.namespace(TESTSUITE_NAMESPACE)
+      KubectlClient::Apply.namespace(TESTSUITE_NAMESPACE)
     rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
       stdout_failure "Could not create #{TESTSUITE_NAMESPACE} namespace on the Kubernetes cluster"
       logger.error { "Failed to create #{TESTSUITE_NAMESPACE} namespace: #{ex.message}" }
