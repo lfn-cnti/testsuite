@@ -28,10 +28,10 @@ module Dockerd
 
   def self.uninstall
     Log.info { "Uninstall dockerd from manifest" }
-    KubectlClient::AssureDeleted.file(dockerd_manifest_file, namespace: TESTSUITE_NAMESPACE)
+    KubectlClient::Delete.file(dockerd_manifest_file, namespace: TESTSUITE_NAMESPACE)
 
     Log.info { "Uninstall docker-config from manifest" }
-    KubectlClient::AssureDeleted.resource("configmaps", "docker-config", TESTSUITE_NAMESPACE)
+    KubectlClient::Delete.resource("configmaps", "docker-config", TESTSUITE_NAMESPACE)
   end
 
   def self.exec(cli)
