@@ -546,21 +546,5 @@ module KubectlClient
 
       runtimes.uniq
     end
-
-    def self.resource_names_from_file(file_name : String, namespace : String? = nil) : Array(String)
-      logger = @@logger.for("resource_names_from_file")
-      logger.debug { "Getting resource names from file: #{file_name}" }
-
-      cmd = "kubectl get -f #{file_name} -o name"
-      cmd = "#{cmd} -n #{namespace}" if namespace
-      result = ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
-
-      if result[:status].success?
-        result[:output].strip.split('\n')
-      else
-        logger.warn { "kubectl get failed for file: #{file_name}" }
-        [] of String
-      end
-    end
   end
 end
