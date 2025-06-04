@@ -91,7 +91,7 @@ namespace "platform" do
       end
     end
 
-    KubectlClient::Delete.resource("cm", cm_name)
+      KubectlClient::Delete.resource("cm", cm_name)
   end
 end
 
@@ -116,6 +116,7 @@ end
       file.flush
 
       KubectlClient::Apply.file(file.path)
+
       file.delete
       return true
   end

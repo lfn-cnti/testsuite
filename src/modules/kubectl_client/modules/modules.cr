@@ -63,11 +63,13 @@ module KubectlClient
       manifest_file.flush
       cmd = "kubectl apply -f #{manifest_file.path}"
   
-      ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
-      manifest_file.delete
+      begin
+        ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+      ensure
+        manifest_file.delete
+      end
     end
   end
-
 
   module Delete
     @@logger : ::Log = Log.for("Delete")
