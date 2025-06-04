@@ -246,7 +246,7 @@ task "hardcoded_ip_addresses_in_k8s_runtime_configuration" do |t, args|
   rescue
     CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "unknown exception")
   ensure
-    KubectlClient::AssureDeleted.resource("namespace", "hardcoded-ip-test", extra_opts: "--force --grace-period 0")
+    KubectlClient::Delete.resource("namespace", "hardcoded-ip-test", extra_opts: "--force --grace-period 0")
   end
 end
 

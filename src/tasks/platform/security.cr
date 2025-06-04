@@ -91,7 +91,7 @@ namespace "platform" do
       end
     end
 
-    KubectlClient::AssureDeleted.resource("cm", cm_name)
+    KubectlClient::Delete.resource("cm", cm_name)
   end
 end
 

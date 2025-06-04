@@ -39,10 +39,7 @@ module CNFInstall
 
     def uninstall()
       begin
-        result = KubectlClient::Delete.file(@manifest_directory_path, wait: false)
-      rescue KubectlClient::ShellCMD::NotFoundError
-        stdout_warning "Manifest deployment \"#{deployment_name}\" was not found."
-        true
+        result = KubectlClient::Delete.file(@manifest_directory_path, wait: true)
       rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
         stdout_failure "Error while uninstalling manifest deployment \"#{@manifest_config.name}\":"
         stdout_failure "\t#{ex.message}"
