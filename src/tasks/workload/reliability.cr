@@ -27,60 +27,79 @@ desc "The CNF test suite checks to see if the CNFs are resilient to failures."
   end
 end
 
-desc "Is there a liveness entry in the helm chart?"
+desc "Check that at least one container has a livenessProbe defined"
 task "liveness" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config|
-    resp = ""
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, initialized|
-      test_passed = true
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers|
       resource_ref = "#{resource[:kind]}/#{resource[:name]}"
-      begin
-        Log.for(t.name).trace { container.as_h["name"].as_s }
-        container.as_h["livenessProbe"].as_h
-      rescue ex
-        Log.for(t.name).error { ex.message }
-        test_passed = false
-        stdout_failure("No livenessProbe found for container #{container.as_h["name"].as_s} part of #{resource_ref} in #{resource[:namespace]} namespace")
+
+      has_any_probe = containers.as_a.any? do |container|
+        begin
+          Log.for(t.name).trace { container.as_h["name"].as_s }
+          container.as_h["livenessProbe"].as_h
+        rescue ex
+          false
+          Log.for(t.name).error { ex.message }
+        end
       end
-      Log.for(t.name).info { "Resource #{resource_ref} passed liveness?: #{test_passed}" }
-      test_passed
+
+      unless has_any_probe
+        stdout_failure("No livenessProbe found for any container in #{resource_ref} in #{resource[:namespace]} namespace")
+      end
+  
+      Log.for(t.name).info { "Resource #{resource_ref} has livenessProbe?: #{has_any_probe}" }
+      has_any_probe
     end
-    Log.for(t.name).info { "Workload resource task response: #{task_response}" }
+
+    Log.for(t.name).debug { "Workload resource task response: #{task_response}" }
     if task_response
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Helm liveness probe found")
+      CNFManager::TestCaseResult.new(
+        CNFManager::ResultStatus::Passed, "All workload resources have at least one container with a livenessProbe"
+      )
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "No livenessProbe found")
+      CNFManager::TestCaseResult.new(
+        CNFManager::ResultStatus::Failed, "One or more workload resources have no containers with a livenessProbe"
+      )
     end
   end
 end
 
-desc "Is there a readiness entry in the helm chart?"
+desc "Check that at least one container has a readinessProbe defined"
 task "readiness" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config|
-    resp = ""
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, initialized|
-      test_passed = true
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers|
       resource_ref = "#{resource[:kind]}/#{resource[:name]}"
-      begin
-        Log.for(t.name).debug { container.as_h["name"].as_s }
-        container.as_h["readinessProbe"].as_h
-      rescue ex
-        Log.for(t.name).error { ex.message }
-        test_passed = false
-        stdout_failure("No readinessProbe found for container #{container.as_h["name"].as_s} part of #{resource_ref} in #{resource[:namespace]} namespace")
+
+      has_any_probe = containers.as_a.any? do |container|
+        begin
+          Log.for(t.name).trace { container.as_h["name"].as_s }
+          container.as_h["readinessProbe"].as_h
+        rescue ex
+          false
+          Log.for(t.name).error { ex.message }
+        end
       end
-      Log.for(t.name).info { "Resource #{resource_ref} passed liveness?: #{test_passed}" }
-      test_passed
+
+      unless has_any_probe
+        stdout_failure("No readinessProbe found for any container in #{resource_ref} in #{resource[:namespace]} namespace")
+      end
+
+      Log.for(t.name).info { "Resource #{resource_ref} has readinessProbe?: #{has_any_probe}" }
+      has_any_probe
     end
-    Log.for(t.name).info { "Workload resource task response: #{task_response}" }
+
+    Log.for(t.name).debug { "Workload resource task response: #{task_response}" }
     if task_response
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Helm readiness probe found")
+      CNFManager::TestCaseResult.new(
+        CNFManager::ResultStatus::Passed, "All workload resources have at least one container with a readinessProbe"
+      )
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "No readinessProbe found")
+      CNFManager::TestCaseResult.new(
+        CNFManager::ResultStatus::Failed, "One or more workload resources have no containers with a readinessProbe"
+      )
     end
   end
 end
-
 
 desc "Does the CNF crash when network latency occurs"
 task "pod_network_latency", ["install_litmus"] do |t, args|
