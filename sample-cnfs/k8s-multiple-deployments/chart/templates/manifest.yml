@@ -23,45 +23,19 @@ spec:
         args: ["-c", "while true; do echo echo $(date -u) 'Hi I am from Sidecar container 1' >> /var/log/index.html; sleep 5;done"]
         name: sidecar-container1
         resources: {}
-        livenessProbe:
-          exec:
-            command:
-            - touch
-            - /tmp/healthy
-          initialDelaySeconds: 5
-          periodSeconds: 5
-        readinessProbe:
-          exec:
-            command:
-            - touch
-            - /tmp/healthy
-          initialDelaySeconds: 5
-          periodSeconds: 5
         volumeMounts:
           - name: var-logs
             mountPath: /var/log
+
       - image: busybox
         command: ["/bin/sh"]
         args: ["-c", "while true; do echo echo $(date -u) 'Hi I am from Sidecar container 2' >> /var/log/index.html; sleep 5;done"]
         name: sidecar-container2
         resources: {}
-        livenessProbe:
-          exec:
-            command:
-            - touch
-            - /tmp/healthy
-          initialDelaySeconds: 5
-          periodSeconds: 5
-        readinessProbe:
-          exec:
-            command:
-            - touch
-            - /tmp/healthy
-          initialDelaySeconds: 5
-          periodSeconds: 5
         volumeMounts:
           - name: var-logs
             mountPath: /var/log
+
       - image: nginx
         name: main-container
         resources: {}
@@ -116,23 +90,10 @@ spec:
         args: ["-c", "while true; do echo echo $(date -u) 'Hi I am from Sidecar container 1' >> /var/log/index.html; sleep 5;done"]
         name: sidecar-container3
         resources: {}
-        livenessProbe:
-          exec:
-            command:
-            - touch
-            - /tmp/healthy
-          initialDelaySeconds: 5
-          periodSeconds: 5
-        readinessProbe:
-          exec:
-            command:
-            - touch
-            - /tmp/healthy
-          initialDelaySeconds: 5
-          periodSeconds: 5
         volumeMounts:
           - name: var-logs
             mountPath: /var/log
+
       - image: busybox
         command: ["/bin/sh"]
         args: ["-c", "while true; do echo echo $(date -u) 'Hi I am from Sidecar container 2' >> /var/log/index.html; sleep 5;done"]
@@ -141,20 +102,7 @@ spec:
         volumeMounts:
           - name: var-logs
             mountPath: /var/log
-        livenessProbe:
-          exec:
-            command:
-            - touch
-            - /tmp/healthy
-          initialDelaySeconds: 5
-          periodSeconds: 5
-        readinessProbe:
-          exec:
-            command:
-            - touch
-            - /tmp/healthy
-          initialDelaySeconds: 5
-          periodSeconds: 5
+
       - image: nginx
         name: main-container2
         resources: {}

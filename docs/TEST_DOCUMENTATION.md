@@ -16,7 +16,7 @@
 
 * [**Category: Reliability, Resilience and Availability Tests**](#category-reliability-resilience-and-availability-tests)
 
-   [[CNF under network latency]](#cnf-under-network-latency) | [[CNF with host disk fill]](#cnf-with-host-disk-fill) | [[Pod delete]](#pod-delete) | [[Memory hog]](#memory-hog) | [[IO Stress]](#io-stress) | [[Network corruption]](#network-corruption) | [[Network duplication]](#network-duplication) | [[Pod DNS errors]](#pod-dns-errors) | [[Helm chart liveness entry]](#helm-chart-liveness-entry) | [[Helm chart readiness entry]](#helm-chart-readiness-entry)
+   [[CNF under network latency]](#cnf-under-network-latency) | [[CNF with host disk fill]](#cnf-with-host-disk-fill) | [[Pod delete]](#pod-delete) | [[Memory hog]](#memory-hog) | [[IO Stress]](#io-stress) | [[Network corruption]](#network-corruption) | [[Network duplication]](#network-duplication) | [[Pod DNS errors]](#pod-dns-errors) | [[Liveness probe]](#liveness-probe) | [[Readiness probe]](#readiness-probe)
 
 * [**Category: Observability and Diagnostic Tests**](#category-observability-and-diagnostic-tests)
 
@@ -749,12 +749,12 @@ Ensure that your CNF is resilient to DNS resolution failures can maintain a leve
 
 ----------
 
-### Helm chart liveness entry
+### Liveness probe
 
 #### Overview
 
-This test scans all of the CNFs workload resources and check if a Liveness Probe has been configuered for each container.
-Expectation: The Helm chart should have a liveness probe configured.
+This test verifies that each workload resource includes at least one container with a liveness probe configured.
+Expectation: Each workload resource should have at least one container with a liveness probe defined.
 
 #### Rationale
 
@@ -774,12 +774,12 @@ Ensure that your CNF has a [Liveness Probe](https://kubernetes.io/docs/tasks/con
 
 ----------
 
-### Helm chart readiness entry
+### Readiness probe
 
 #### Overview
 
-This test scans all of the CNFs workload resources and check if a Readiness Probe has been configuered for each container.
-Expectation: The Helm chart should have a readiness probe configured.
+This test verifies that each workload resource includes at least one container with a readiness probe configured.
+Expectation: Each workload resource should have at least one container with a readiness probe defined.
 
 #### Rationale
 

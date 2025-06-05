@@ -18,7 +18,7 @@ describe CnfTestSuite do
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/k8s-multiple-deployments/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("liveness", cmd_prefix:"LOG_LEVEL=debug")
       result[:status].success?.should be_true
-      (/(PASSED).*(Helm liveness probe)/ =~ result[:output]).should_not be_nil
+      (/(PASSED).*(All workload resources have at least one container with a liveness probe)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -29,7 +29,7 @@ describe CnfTestSuite do
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_coredns_bad_liveness/cnf-testsuite.yml skip_wait_for_install")
       result = ShellCmd.run_testsuite("liveness")
       result[:status].success?.should be_true
-      (/(FAILED).*(No livenessProbe found)/ =~ result[:output]).should_not be_nil
+      (/(FAILED).*(One or more workload resources have no containers with a liveness probe)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -40,7 +40,7 @@ describe CnfTestSuite do
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/k8s-multiple-deployments/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("readiness", cmd_prefix: "LOG_LEVEL=debug")
       result[:status].success?.should be_true
-      (/(PASSED).*(Helm readiness probe)/ =~ result[:output]).should_not be_nil
+      (/(PASSED).*(All workload resources have at least one container with a readiness probe)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -51,7 +51,7 @@ describe CnfTestSuite do
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_coredns_bad_liveness/cnf-testsuite.yml skip_wait_for_install")
       result = ShellCmd.run_testsuite("readiness")
       result[:status].success?.should be_true
-      (/(FAILED).*(No readinessProbe found)/ =~ result[:output]).should_not be_nil
+      (/(FAILED).*(One or more workload resources have no containers with a readiness probe)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end
