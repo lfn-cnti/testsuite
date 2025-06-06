@@ -135,6 +135,14 @@ jobs:
             propagation: None
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         EOF
     - name: sysctls specs kind config override
       if: matrix.spec == 'sysctls'
@@ -170,6 +178,14 @@ jobs:
             propagation: None
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         EOF
     - name: Mirror Override
       if: startsWith(matrix.spec, 'private_registry_')
@@ -200,6 +216,14 @@ jobs:
             propagation: None
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         containerdConfigPatches:
         - |-
           [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry.default.svc.cluster.local:5000"]
@@ -214,6 +238,14 @@ jobs:
         apiVersion: kind.x-k8s.io/v1alpha4
         nodes:
         - role: control-plane
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
@@ -364,6 +396,17 @@ jobs:
         apiVersion: kind.x-k8s.io/v1alpha4
         nodes:
         - role: control-plane
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         EOF
         export CLUSTER=$(uuidgen)
         echo "export CLUSTER=$CLUSTER" > cluster.env
@@ -520,6 +563,14 @@ jobs:
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         EOF
         export CLUSTER=$(uuidgen)
         echo "export CLUSTER=$CLUSTER"
@@ -622,6 +673,14 @@ jobs:
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         EOF
         export CLUSTER=$(uuidgen)
         echo "export CLUSTER=$CLUSTER" > cluster.env
@@ -719,6 +778,14 @@ jobs:
         apiVersion: kind.x-k8s.io/v1alpha4
         nodes:
         - role: control-plane
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
