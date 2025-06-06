@@ -58,15 +58,12 @@ module KubectlClient
           name: #{namespace}
         YAML
 
-      manifest_file = File.tempfile("#{namespace}", ".yaml")
-      manifest_file.puts namespace_manifest
-      manifest_file.flush
-      cmd = "kubectl apply -f #{manifest_file.path}"
-  
-      begin
+      File.tempfile("#{namespace}", ".yaml") do |manifest_file|
+        manifest_file.puts(namespace_manifest)
+        manifest_file.flush
+
+        cmd = "kubectl apply -f #{manifest_file.path}"
         ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
-      ensure
-        manifest_file.delete
       end
     end
   end
