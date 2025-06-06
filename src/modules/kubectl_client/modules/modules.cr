@@ -47,13 +47,24 @@ module KubectlClient
       ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
     end
 
-    def self.namespace(name : String)
+    def self.namespace(namespace : String)
       logger = @@logger.for("namespace")
-      logger.info { "Create a namespace: #{name}" }
+      logger.info { " Apply namespace: #{namespace}" }
 
-      cmd = "kubectl create namespace #{name}"
+      namespace_manifest = <<-YAML
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: #{namespace}
+        YAML
 
-      ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+      File.tempfile("#{namespace}", ".yaml") do |manifest_file|
+        manifest_file.puts(namespace_manifest)
+        manifest_file.flush
+
+        cmd = "kubectl apply -f #{manifest_file.path}"
+        ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+      end
     end
   end
 
@@ -76,7 +87,11 @@ module KubectlClient
       end
       cmd = "#{cmd} #{extra_opts}" if extra_opts
 
-      ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+      begin
+        ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+      rescue ex : KubectlClient::ShellCMD::NotFoundError
+        logger.warn{ "Failed to delete resource #{resource_name}: #{ex.message}" }
+      end
     end
 
     def self.file(file_name : String, namespace : String? = nil, wait : Bool = true)
