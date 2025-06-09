@@ -98,7 +98,7 @@ module KubectlClient
       logger = @@logger.for("file")
       logger.info { "Delete resources from file #{file_name}" }
 
-      cmd = "kubectl delete -f #{file_name}"
+      cmd = "kubectl delete -f #{file_name} --ignore-not-found=true"
       cmd = "#{cmd} -n #{namespace}" if namespace
       cmd = "#{cmd} --wait=#{wait}"
 
