@@ -123,23 +123,23 @@ describe "Observability" do
 
   it "'routed_logs' should pass if cnfs logs are captured by fluentd bitnami", tags: ["observability"] do
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
-    result = ShellCmd.run_testsuite("install_fluentdbitnami")
+    result = ShellCmd.run_testsuite("setup:install_fluentdbitnami")
     result = ShellCmd.run_testsuite("routed_logs")
     (/(PASSED).*(Your CNF's logs are being captured)/ =~ result[:output]).should_not be_nil
   ensure
     result = ShellCmd.cnf_uninstall()
-    result = ShellCmd.run_testsuite("uninstall_fluentdbitnami")
+    result = ShellCmd.run_testsuite("setup:uninstall_fluentdbitnami")
     result[:status].success?.should be_true
   end
 
   it "'routed_logs' should pass if cnfs logs are captured by fluentbit", tags: ["observability"] do
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-fluentbit")
-    result = ShellCmd.run_testsuite("install_fluentbit")
+    result = ShellCmd.run_testsuite("setup:install_fluentbit")
     result = ShellCmd.run_testsuite("routed_logs")
     (/(PASSED).*(Your CNF's logs are being captured)/ =~ result[:output]).should_not be_nil
   ensure
     result = ShellCmd.cnf_uninstall()
-    result = ShellCmd.run_testsuite("uninstall_fluentbit")
+    result = ShellCmd.run_testsuite("setup:uninstall_fluentbit")
     result[:status].success?.should be_true
   end
 
@@ -155,7 +155,7 @@ describe "Observability" do
     (/(FAILED).*(Your CNF's logs are not being captured)/ =~ result[:output]).should_not be_nil
   ensure
     result = ShellCmd.cnf_uninstall()
-    result = ShellCmd.run_testsuite("uninstall_fluentd")
+    result = ShellCmd.run_testsuite("setup:uninstall_fluentd")
     result[:status].success?.should be_true
   end
 

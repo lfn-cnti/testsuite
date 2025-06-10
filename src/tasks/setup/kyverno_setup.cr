@@ -1,28 +1,32 @@
 require "sam"
-require "file_utils"
-require "colorize"
-require "totem"
 require "../utils/utils.cr"
-require "../../modules/tar"
 
-desc "Install Kyverno"
-task "install_kyverno" do |_, args|
-  install_status = Kyverno.install
+namespace "setup" do
+  desc "Install Kyverno"
+  task "install_kyverno" do |_, args|
+    logger = SLOG.for("install_kyverno")
+    logger.info { "Installing Kyverno tool" }
 
-  if install_status
-    stdout_success "Kyverno successfully installed"
-  else
-    stdout_success "Kyverno installation failed"
+    unless Kyverno.install
+      logger.error { "Error while installing Kyverno tool" }
+      stdout_failure("Task 'install_kyverno' failed")
+      exit(1)
+    end
+
+    logger.info { "Kyverno tool has been installed" }
   end
-end
 
-desc "Uninstall Kyverno"
-task "uninstall_kyverno" do |_, args|
-  uninstall_status = Kyverno.uninstall
+  desc "Uninstall Kyverno"
+  task "uninstall_kyverno" do |_, args|
+    logger = SLOG.for("uninstall_kyverno")
+    logger.info { "Uninstalling Kyverno tool" }
 
-  if uninstall_status
-    stdout_success "Kyverno was uninstalled successfully"
-  else
-    stdout_failure "Kyverno could not be uninstalled."
+    unless Kyverno.uninstall
+      logger.error { "Error while uninstalling Kyverno tool" }
+      stdout_failure("Task 'uninstall_kyverno' failed")
+      exit(1)
+    end
+
+    logger.info { "Kyverno tool has been uninstalled" }
   end
 end
