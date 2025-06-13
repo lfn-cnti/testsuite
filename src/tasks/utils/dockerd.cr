@@ -28,16 +28,10 @@ module Dockerd
 
   def self.uninstall
     Log.info { "Uninstall dockerd from manifest" }
-    begin
-      KubectlClient::Delete.file(dockerd_manifest_file, namespace: TESTSUITE_NAMESPACE)
-    rescue KubectlClient::ShellCMD::NotFoundError
-    end
+    KubectlClient::Delete.file(dockerd_manifest_file, namespace: TESTSUITE_NAMESPACE)
 
     Log.info { "Uninstall docker-config from manifest" }
-    begin
-      KubectlClient::Delete.resource("configmaps", "docker-config", TESTSUITE_NAMESPACE)
-    rescue KubectlClient::ShellCMD::NotFoundError
-    end
+    KubectlClient::Delete.resource("configmaps", "docker-config", TESTSUITE_NAMESPACE)
   end
 
   def self.exec(cli)
