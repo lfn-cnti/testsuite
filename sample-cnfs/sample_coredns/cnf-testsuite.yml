@@ -5,3 +5,7 @@ deployments:
   - name: coredns
     helm_directory: chart
     namespace: cnfspace
+common:
+  hardcoded_ip_exceptions:
+    - ip: 8.8.8.8
+    - ip: 4.4.4.4
