@@ -213,26 +213,24 @@ desc "Does the CNF have hardcoded IPs in the K8s resource configuration"
 task "hardcoded_ip_addresses_in_k8s_runtime_configuration" do |t, args|
   task_response = CNFManager::Task.task_runner(args, task: t) do |args, config|
     current_dir = FileUtils.pwd
-    allowed_ip_adresses = [
+    allowed_ip_addresses = [
       "127.0.0.1",
       "0.0.0.0"
     ]
+    hardcoded_ip_exceptions = config.common.hardcoded_ip_exceptions
 
     found_violations = [] of NamedTuple(line_number: Int32, line: String)
     line_number = 1
     File.open(COMMON_MANIFEST_FILE_PATH) do |file|
       file.each_line do |line|
         ip_adress_regex = /((?:\d{1,3}\.){3}\d{1,3})(?:\/(\d{1,2}))?/
-
         if line.matches?(/NOTES:/)
           break
         elsif matches = line.scan(ip_adress_regex)
           matches.each do |match|
             ip = match[1]
             cidr_suffix = match[2]?
-
-            next if allowed_ip_adresses.includes?(ip) || cidr_suffix
-          
+            next if allowed_ip_addresses.includes?(ip) || hardcoded_ip_exceptions.any? { |e| e.ip == ip } || cidr_suffix
             found_violations << {line_number: line_number, line: line.strip}
           end
         end

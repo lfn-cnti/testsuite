@@ -89,6 +89,22 @@ Example setting:
 
 `white_list_container_names: [coredns]`
 
+##### hardcoded_ip_exceptions 
+
+The values of this optional key are the IP addresses that are allowed to appear as hardcoded values in the configuration of the CNF.
+This value is used to allow particular hardcoded IPs to be exempted from the `hardcoded_ip_adresses_in_k8s_runtime_configuration` test when the CNF is being validated.
+The reason this is needed is because the CNF Testsuite checks all configuration files and manifests used by the CNF for the presence of hardcoded IP addresses.
+While hardcoding IPs is generally discouraged in cloud-native environments, there may be cases where certain addresses are justified and cannot be avoided.
+This exception list can be used to explicitly allow such IPs and prevent them from being reported as violations.
+
+````yaml
+config_version: v2
+common:
+  hardcoded_ip_exceptions:
+    - ip: 8.8.8.8
+    - ip: 4.4.4.4
+````
+
 ##### `docker_insecure_registries`
 
 The docker client expects the image registries to be using an HTTPS API endpoint. This option is used to configure insecure registries that the docker client should be allowed to access.
