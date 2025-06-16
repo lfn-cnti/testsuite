@@ -216,18 +216,27 @@ task "hardcoded_ip_addresses_in_k8s_runtime_configuration" do |t, args|
     current_dir = FileUtils.pwd
     helm = Helm::BinarySingleton.helm
     Log.debug { "Helm Path: #{helm}" }
+    allowed_ip_adresses = [
+      "127.0.0.1",
+      "0.0.0.0"
+    ]
 
     found_violations = [] of NamedTuple(line_number: Int32, line: String)
     line_number = 1
     File.open(COMMON_MANIFEST_FILE_PATH) do |file|
       file.each_line do |line|
+        ip_adress_regex = /((?:\d{1,3}\.){3}\d{1,3})(?:\/(\d{1,2}))?/
+
         if line.matches?(/NOTES:/)
           break
-        elsif matches = line.scan(/([0-9]{1,3}[\.]){3}[0-9]{1,3}/)
+        elsif matches = line.scan(ip_adress_regex)
           matches.each do |match|
-            unless match[0] == "0.0.0.0" || match[0] == "127.0.0.1"
-              found_violations << {line_number: line_number, line: line.strip}
-            end
+            ip = match[1]
+            cidr_suffix = match[2]?
+
+            next if allowed_ip_adresses.includes?(ip) || cidr_suffix
+          
+            found_violations << {line_number: line_number, line: line.strip}
           end
         end
         line_number += 1
