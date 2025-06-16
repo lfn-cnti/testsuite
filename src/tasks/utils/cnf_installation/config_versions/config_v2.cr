@@ -17,7 +17,8 @@ module CNFInstall
              white_list_container_names = [] of String,
              docker_insecure_registries = [] of String,
              image_registry_fqdns = {} of String => String,
-             five_g_parameters = FiveGParameters.new()
+             five_g_parameters = FiveGParameters.new(),
+             hardcoded_ip_exceptions = [] of HardcodedIPsAllowed
       def initialize()
       end
     end
@@ -124,6 +125,10 @@ module CNFInstall
           raise ArgumentError.new("Incorrect tag name for container configuration: #{tag_name}")
         end
       end
+    end
+
+    class HardcodedIPsAllowed < CNFInstall::Config::ConfigBase
+      getter ip : String
     end
   end
 end
