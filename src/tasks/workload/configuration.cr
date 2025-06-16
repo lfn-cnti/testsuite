@@ -223,9 +223,16 @@ task "hardcoded_ip_addresses_in_k8s_runtime_configuration" do |t, args|
       file.each_line do |line|
         if line.matches?(/NOTES:/)
           break
-        elsif matches = line.scan(/([0-9]{1,3}[\.]){3}[0-9]{1,3}/)
+        elsif matches = line.scan(/((?:[0-9]{1,3}\.){3}[0-9]{1,3})(\/[0-9]{1,2})?/)
           matches.each do |match|
-            unless match[0] == "0.0.0.0" || match[0] == "127.0.0.1"
+            ip_adress = match[0]
+            if ip_adress == "127.0.0.1" || ip_adress == "0.0.0.0"
+              next
+            end
+            
+            ip_adress_with_mask = ip_adress.includes?("/")
+            
+            unless ip_adress_with_mask
               found_violations << {line_number: line_number, line: line.strip}
             end
           end
