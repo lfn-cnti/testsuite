@@ -679,17 +679,9 @@ end
 desc "Are any of the containers exposed as a service?"
 task "service_discovery" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args,config|
-    # Get all resources for the CNF
-    resource_ymls = CNFManager.cnf_workload_resources(args, config) { |resource| resource }
-    resources = Helm.workload_resource_kind_names(resource_ymls)
-
     # Collect service names from the CNF resource list
-    cnf_service_names = [] of String
-    resources.each do |resource|
-      case resource[:kind].downcase
-      when "service"
-        cnf_service_names.push(resource[:name])
-      end
+    cnf_service_names = CNFManager.resource_refs(args, config, ["service"]) do |service|
+      service[:name]
     end
 
     # Get all the pods in the cluster
