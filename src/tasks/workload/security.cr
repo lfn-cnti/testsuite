@@ -63,7 +63,10 @@ task "external_ips" do |t, args|
     policy_path = Kyverno.best_practice_policy("restrict-service-external-ips/restrict-service-external-ips.yaml")
     failures = Kyverno::PolicyAudit.run(policy_path, EXCLUDE_NAMESPACES)
 
-    resource_keys = CNFManager.workload_resource_keys(args, config)
+    resource_keys = CNFManager.resource_refs(args, config, ["service"]) do |service|
+      "#{service[:namespace]},#{service[:kind]}/#{service[:name]}".downcase
+    end    
+
     failures = Kyverno.filter_failures_for_cnf_resources(resource_keys, failures)
     
     if failures.size == 0
@@ -249,7 +252,9 @@ task "service_account_mapping", ["setup:kubescape_scan"] do |t, args|
     results_json = Kubescape.parse
     test_json = Kubescape.test_by_test_name(results_json, "Automatic mapping of service account")
     test_report = Kubescape.parse_test_report(test_json)
-    resource_keys = CNFManager.workload_resource_keys(args, config)
+    resource_keys = CNFManager.resource_refs(args, config, ["serviceAccount"]) do |serviceAccount|
+      "#{serviceAccount[:namespace]},#{serviceAccount[:kind]}/#{serviceAccount[:name]}".downcase
+    end.compact   
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
     if test_report.failed_resources.size == 0

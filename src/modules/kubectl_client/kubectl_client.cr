@@ -13,12 +13,10 @@ module KubectlClient
   alias BackgroundCMDResult = NamedTuple(process: Process, output: String, error: String)
 
   WORKLOAD_RESOURCES = {deployment:      "Deployment",
-                        service:         "Service",
                         pod:             "Pod",
                         replicaset:      "ReplicaSet",
                         statefulset:     "StatefulSet",
-                        daemonset:       "DaemonSet",
-                        service_account: "ServiceAccount"}
+                        daemonset:       "DaemonSet"}
 
   module ShellCMD
     # logger should have method name (any other scopes, if necessary) that is calling attached using .for() method.

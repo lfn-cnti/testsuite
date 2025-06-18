@@ -144,24 +144,23 @@ desc "Does the CNF use NodePort"
 task "nodeport_not_used" do |t, args|
   # TODO rename task_runner to multi_cnf_task_runner
   CNFManager::Task.task_runner(args, task: t) do |args, config|
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false, check_service: true) do |resource, container, initialized|
+    test_passed = true
+
+    CNFManager.resource_refs(args, config, ["service"]) do |resource|
       Log.for(t.name).info { "nodeport_not_used resource: #{resource}" }
-      if resource["kind"].downcase == "service"
-        Log.for(t.name).info { "resource kind: #{resource}" }
-        service = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
-        Log.for(t.name).debug { "service: #{service}" }
-        service_type = service.dig?("spec", "type")
-        Log.for(t.name).info { "service_type: #{service_type}" }
-        if service_type == "NodePort"
-          #TODO make a service selector and display the related resources
-          # that are tied to this service
-          stdout_failure("Resource #{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]} namespace is using a NodePort")
-          test_passed=false
-        end
-        test_passed
+      service = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+      Log.for(t.name).debug { "service: #{service}" }
+      service_type = service.dig?("spec", "type")
+      Log.for(t.name).info { "service_type: #{service_type}" }
+      if service_type == "NodePort"
+        #TODO make a service selector and display the related resources
+        # that are tied to this service
+        stdout_failure("Resource #{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]} namespace is using a NodePort")
+        test_passed = false
       end
     end
-    if task_response
+
+    if test_passed
       CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "NodePort is not used")
     else
       CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "NodePort is being used")
@@ -172,7 +171,7 @@ end
 desc "Does the CNF use HostPort"
 task "hostport_not_used" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config|
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false, check_service: true) do |resource, container, initialized|
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, container, initialized|
       Log.for(t.name).info { "hostport_not_used resource: #{resource}" }
       test_passed=true
       Log.for(t.name).info { "resource kind: #{resource}" }
@@ -499,7 +498,7 @@ task "immutable_configmap" do |t, args|
     volumes_test_results = [] of MutableConfigMapsVolumesResult
     envs_with_mutable_configmap = [] of MutableConfigMapsInEnvResult
 
-    cnf_manager_workload_resource_task_response = CNFManager.workload_resource_test(args, config, check_containers: false, check_service: true) do |resource, containers, volumes, initialized|
+    cnf_manager_workload_resource_task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, volumes, initialized|
       Log.for(t.name).info { "resource: #{resource}" }
       Log.for(t.name).info { "volumes: #{volumes}" }
 

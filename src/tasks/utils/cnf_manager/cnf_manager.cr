@@ -59,58 +59,55 @@ module CNFManager
     resource_resp
   end
 
-  # test_passes_completely = workload_resource_test do | cnf_config, resource, container, initialized |
-  def self.workload_resource_test(args, config,
-                                  check_containers = true,
-                                  check_service = false,
-                                  &block : (NamedTuple(kind: String, name: String, namespace: String),
-                                    JSON::Any, JSON::Any, Bool?) -> Bool?
-  )
+  def self.resource_refs(args, config, resource_kinds, &block : NamedTuple(kind: String, name: String, namespace: String) -> )
+    kinds_filter = resource_kinds.map(&.downcase)
+
+    cnf_resources(args, config) do |resource|
+      kind = resource.dig("kind").as_s
+      next unless kinds_filter.empty? || kinds_filter.includes?(kind.downcase)
+
+      ref = {
+        kind:      kind,
+        name:      resource["metadata"]["name"].as_s,
+        namespace: (resource.dig?("metadata", "namespace") || CLUSTER_DEFAULT_NAMESPACE).to_s,
+      }
+
+      yield ref
+    end
+  end
+
+  def self.workload_resource_test(
+    args, config, check_containers = true,
+    &block : (NamedTuple(kind: String, name: String, namespace: String),
+      JSON::Any, JSON::Any, Bool) -> Bool?
+  ) : Bool
     logger = Log.for("workload_resource_test")
     logger.info { "Start resources test" }
 
     test_passed = true
-    resource_ymls = cnf_workload_resources(args, config) { |resource| resource }
-    resource_names = Helm.workload_resource_kind_names(resource_ymls, default_namespace: CLUSTER_DEFAULT_NAMESPACE)
-    if resource_names.size > 0
-      logger.info { "Found #{resource_names.size} resources to test: #{resource_names}" }
-      initialized = true
-    else
-      logger.error { "No resources found" }
-      initialized = false
+
+    resources = [] of NamedTuple(kind: String, name: String, namespace: String)
+    resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |ref|
+      resources << ref
     end
 
-    resource_names.each do |resource|
-      logger.trace { resource.inspect }
+    resources.each do |resource|
       logger.info { "Testing #{resource[:kind]}/#{resource[:name]}" }
+      logger.trace { resource.inspect }
 
-      case resource[:kind].downcase
-      when "service"
-        if check_service
-          resp = yield resource, JSON.parse(%([{}])), JSON.parse(%([{}])), initialized
-          # if any response is false, the test fails
-          test_passed = false if resp == false
-        end
-      else
-        volumes = KubectlClient::Get.resource_volumes(resource[:kind], resource[:name], resource[:namespace])
-        containers = KubectlClient::Get.resource_containers(resource[:kind], resource[:name], resource[:namespace])
+      volumes = KubectlClient::Get.resource_volumes(resource[:kind], resource[:name], resource[:namespace])
+      containers = KubectlClient::Get.resource_containers(resource[:kind], resource[:name], resource[:namespace])
 
-        if check_containers
-          containers.as_a.each do |container|
-            resp = yield resource, container, volumes, initialized
-            logger.debug { "Container #{container.dig?("metadata", "name")} result: #{resp}" }
-            # if any response is false, the test fails
-            test_passed = false if resp == false
-          end
-        else
-          resp = yield resource, containers, volumes, initialized
-          # if any response is false, the test fails
-          test_passed = false if resp == false
-        end
+      # yields containers individually or all at once
+      targets = check_containers ? containers.as_a : [containers]
+      targets.each do |target|
+        resp = yield resource, target, volumes, true
+        test_passed = false if resp == false
       end
     end
-    logger.info { "Workload resource test intialized: #{initialized}, test passed: #{test_passed}" }
 
+    initialized = resources.size > 0
+    logger.info { "Workload resource test intialized: #{initialized}, test passed: #{test_passed}" }
     initialized && test_passed
   end
 
