@@ -45,7 +45,7 @@ task "helm_local_install", ["setup:cnf_directory_setup"] do |_, args|
 
         helm = Helm::BinarySingleton.helm
         stdout = IO::Memory.new
-        status = Process.run("#{helm} version", output: stdout, error: stdout)
+        status = Process.run("#{helm} version", shell: true, output: stdout, error: stdout)
         Log.trace { stdout }
 
         #TODO what is this for?
