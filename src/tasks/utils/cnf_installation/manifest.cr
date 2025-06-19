@@ -92,7 +92,7 @@ module CNFInstall
         return nil if node.nil?
       end
 
-      Log.debug { "Found node at #{path.join(".")}: #{node.as_s}"}
+      Log.debug { "Found node at #{path.join(".")}:\n #{node.as_s? || node.to_yaml}"}
       yield node
     end
   end
