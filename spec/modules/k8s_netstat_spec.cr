@@ -21,20 +21,14 @@ end
 
 describe "netstat" do
   before_all do
-    begin
-      KubectlClient::Apply.namespace("cnf-testsuite")
-    rescue e : KubectlClient::ShellCMD::AlreadyExistsError
-    end
+    KubectlClient::Apply.namespace("cnf-testsuite")
     ClusterTools.install
   end
 
   after_all do
     # Cleanup logic after all tests have run
-    begin
-      KubectlClient::Delete.resource("pvc", "data-wordpress-mariadb-0")
-      KubectlClient::Delete.resource("pvc", "wordpress")
-    rescue ex : KubectlClient::ShellCMD::NotFoundError
-    end
+    KubectlClient::Delete.resource("pvc", "data-wordpress-mariadb-0")
+    KubectlClient::Delete.resource("pvc", "wordpress")
     Log.info { "Cleanup complete" }
   end
 
