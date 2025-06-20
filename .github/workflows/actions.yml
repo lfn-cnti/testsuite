@@ -135,6 +135,14 @@ jobs:
             propagation: None
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         EOF
     - name: sysctls specs kind config override
       if: matrix.spec == 'sysctls'
@@ -168,6 +176,14 @@ jobs:
             readOnly: false
             selinuxRelabel: false
             propagation: None
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
         EOF
@@ -217,6 +233,14 @@ jobs:
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         containerdConfigPatches:
         - |-
           [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry.default.svc.cluster.local:5000"]
@@ -224,7 +248,7 @@ jobs:
         EOF
     - name: Install Latest Kind
       env:
-        KIND_VERSION: v0.27.0
+        KIND_VERSION: v0.29.0
         KIND_URL: https://kind.sigs.k8s.io/dl
       run: |
         echo "Existing kind binary path: $(which kind)"
@@ -237,9 +261,9 @@ jobs:
       run: |
         cat /tmp/cluster.yml
         source cluster.env
-        echo kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig ./$CLUSTER.conf --retain
+        echo kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig ./$CLUSTER.conf --retain --wait 5m
         kind --version
-        kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig ./$CLUSTER.conf --retain
+        kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig ./$CLUSTER.conf --retain --wait 5m
         export KUBECONFIG=$(pwd)/$CLUSTER.conf
         kubectl get nodes 
     - name: Cache crystal shards
@@ -290,7 +314,7 @@ jobs:
         #done
         crystal build src/cnf-testsuite.cr 
         ./cnf-testsuite setup 
-        LOG_LEVEL=info crystal spec --warnings none --tag ${{ matrix.spec }} -v
+        LOG_LEVEL=debug crystal spec --tag ${{ matrix.spec }} -v
         echo get ratelimit anonymously
         TOKEN=$(curl "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)
         curl --head -H "Authorization: Bearer $TOKEN" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest
@@ -342,7 +366,7 @@ jobs:
         fetch-depth: 0
     - name: Install Latest Kind
       env:
-        KIND_VERSION: v0.27.0
+        KIND_VERSION: v0.29.0
         KIND_URL: https://kind.sigs.k8s.io/dl
       run: |
         echo "Existing kind binary path: $(which kind)"
@@ -364,12 +388,15 @@ jobs:
         apiVersion: kind.x-k8s.io/v1alpha4
         nodes:
         - role: control-plane
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         EOF
         export CLUSTER=$(uuidgen)
         echo "export CLUSTER=$CLUSTER" > cluster.env
-        echo kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig ./$CLUSTER.conf --retain
+        echo kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig ./$CLUSTER.conf --retain --wait 5m
         kind --version
-        kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig ./$CLUSTER.conf --retain
+        kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig ./$CLUSTER.conf --retain --wait 5m
         export KUBECONFIG=$(pwd)/$CLUSTER.conf
         kubectl get nodes 
 
@@ -404,7 +431,7 @@ jobs:
             echo "Waiting for kindnet"
             sleep 1
         done
-        LOG_LEVEL=info crystal spec --warnings none --tag ${{ matrix.tag }} -v
+        LOG_LEVEL=debug crystal spec --tag ${{ matrix.tag }} -v
         echo get ratelimit anonymously
         TOKEN=$(curl "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)
         curl --head -H "Authorization: Bearer $TOKEN" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest
@@ -459,7 +486,7 @@ jobs:
       run: |
         docker pull $CRYSTAL_IMAGE
         docker run --rm -v $PWD:/workspace -w /workspace $CRYSTAL_IMAGE shards install
-        docker run --rm -v $PWD:/workspace -w /workspace $CRYSTAL_IMAGE crystal build --warnings none src/cnf-testsuite.cr --release --static --link-flags '-lxml2 -llzma'
+        docker run --rm -v $PWD:/workspace -w /workspace $CRYSTAL_IMAGE crystal build src/cnf-testsuite.cr --release --static --link-flags '-lxml2 -llzma'
     - name: upload artifact
       uses: actions/upload-artifact@v4
       with:
@@ -499,7 +526,7 @@ jobs:
           lib-
     - name: Install Latest Kind
       env:
-        KIND_VERSION: v0.27.0
+        KIND_VERSION: v0.29.0
         KIND_URL: https://kind.sigs.k8s.io/dl
       run: |
         echo "Existing kind binary path: $(which kind)"
@@ -511,7 +538,7 @@ jobs:
     - name: Build cnf-testsuite & Create Kind Cluster 
       run: |
         shards install
-        crystal build src/cnf-testsuite.cr --warnings none 
+        crystal build src/cnf-testsuite.cr
         cat << EOF > /tmp/cluster.yml
         kind: Cluster
         apiVersion: kind.x-k8s.io/v1alpha4
@@ -520,12 +547,20 @@ jobs:
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         EOF
         export CLUSTER=$(uuidgen)
         echo "export CLUSTER=$CLUSTER"
         echo "export CLUSTER=$CLUSTER" > cluster.env
         kind --version
-        kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig /tmp/$CLUSTER.conf --retain
+        kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig /tmp/$CLUSTER.conf --retain --wait 5m
         export KUBECONFIG=/tmp/$CLUSTER.conf
         kubectl get nodes 
     - name: Run Test Suite without source(config_lifecycle)
@@ -546,7 +581,7 @@ jobs:
         ./cnf-testsuite setup
         wget -O cnf-testsuite.yml https://raw.githubusercontent.com/lfn-cnti/testsuite/${GITHUB_SHA}/example-cnfs/coredns/cnf-testsuite.yml
         ./cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml
-        LOG_LEVEL=info ./cnf-testsuite all ~compatibility ~resilience ~reasonable_startup_time ~reasonable_image_size ~platform ~increase_capacity ~decrease_capacity ~install_script_helm ~helm_chart_valid ~helm_chart_published
+        LOG_LEVEL=debug ./cnf-testsuite all ~compatibility ~resilience ~reasonable_startup_time ~reasonable_image_size ~platform ~increase_capacity ~decrease_capacity ~install_script_helm ~helm_chart_valid ~helm_chart_published
         echo get ratelimit anonymously
         TOKEN=$(curl "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)
         curl --head -H "Authorization: Bearer $TOKEN" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest
@@ -601,7 +636,7 @@ jobs:
           lib-
     - name: Install Latest Kind
       env:
-        KIND_VERSION: v0.27.0
+        KIND_VERSION: v0.29.0
         KIND_URL: https://kind.sigs.k8s.io/dl
       run: |
         echo "Existing kind binary path: $(which kind)"
@@ -613,7 +648,7 @@ jobs:
     - name: Build cnf-testsuite & Create Kind Cluster 
       run: |
         shards install
-        crystal build src/cnf-testsuite.cr --warnings none 
+        crystal build src/cnf-testsuite.cr
         cat << EOF > /tmp/cluster.yml
         kind: Cluster
         apiVersion: kind.x-k8s.io/v1alpha4
@@ -622,11 +657,19 @@ jobs:
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         EOF
         export CLUSTER=$(uuidgen)
         echo "export CLUSTER=$CLUSTER" > cluster.env
         kind --version
-        kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig /tmp/$CLUSTER.conf --retain
+        kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig /tmp/$CLUSTER.conf --retain --wait 5m
         export KUBECONFIG=/tmp/$CLUSTER.conf
         kubectl get nodes 
     - name: Run Test Suite without source(microservice)
@@ -646,7 +689,7 @@ jobs:
         ./cnf-testsuite setup
         wget -O cnf-testsuite.yml https://raw.githubusercontent.com/lfn-cnti/testsuite/${GITHUB_SHA}/example-cnfs/coredns/cnf-testsuite.yml
         ./cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml
-        LOG_LEVEL=info ./cnf-testsuite all ~resilience ~compatibility ~pod_network_latency ~platform ~increase_capacity ~decrease_capacity ~liveness ~readiness ~rolling_update ~rolling_downgrade ~rolling_version_change ~nodeport_not_used ~hostport_not_used ~hardcoded_ip_addresses_in_k8s_runtime_configuration ~install_script_helm ~helm_chart_valid ~helm_chart_published ~rollback ~secrets_used ~immutable_configmap
+        LOG_LEVEL=debug ./cnf-testsuite all ~resilience ~compatibility ~pod_network_latency ~platform ~increase_capacity ~decrease_capacity ~liveness ~readiness ~rolling_update ~rolling_downgrade ~rolling_version_change ~nodeport_not_used ~hostport_not_used ~hardcoded_ip_addresses_in_k8s_runtime_configuration ~install_script_helm ~helm_chart_valid ~helm_chart_published ~rollback ~secrets_used ~immutable_configmap
         echo get ratelimit anonymously
         TOKEN=$(curl "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)
         curl --head -H "Authorization: Bearer $TOKEN" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest
@@ -701,7 +744,7 @@ jobs:
           lib-
     - name: Install Latest Kind
       env:
-        KIND_VERSION: v0.27.0
+        KIND_VERSION: v0.29.0
         KIND_URL: https://kind.sigs.k8s.io/dl
       run: |
         echo "Existing kind binary path: $(which kind)"
@@ -713,7 +756,7 @@ jobs:
     - name: Build cnf-testsuite & Create Kind Cluster 
       run: |
         shards install
-        crystal build src/cnf-testsuite.cr --warnings none 
+        crystal build src/cnf-testsuite.cr
         cat << EOF > /tmp/cluster.yml
         kind: Cluster
         apiVersion: kind.x-k8s.io/v1alpha4
@@ -722,11 +765,19 @@ jobs:
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
+        - role: worker
+          extraMounts:
+          - containerPath: /var/lib/kubelet/config.json
+            hostPath: $HOME/.docker/config.json
         EOF
         export CLUSTER=$(uuidgen)
         echo "export CLUSTER=$CLUSTER" > cluster.env
         kind --version
-        kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig /tmp/$CLUSTER.conf --retain
+        kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig /tmp/$CLUSTER.conf --retain --wait 5m
         export KUBECONFIG=/tmp/$CLUSTER.conf
         kubectl get nodes 
     - name: Run Test Suite without source(all)
@@ -746,7 +797,7 @@ jobs:
         ./cnf-testsuite setup
         wget -O cnf-testsuite.yml https://raw.githubusercontent.com/lfn-cnti/testsuite/${GITHUB_SHA}/example-cnfs/coredns/cnf-testsuite.yml
         ./cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml
-        LOG_LEVEL=info ./cnf-testsuite all ~resilience ~platform ~liveness ~readiness ~rolling_update ~rolling_downgrade ~rolling_version_change ~nodeport_not_used ~hostport_not_used ~hardcoded_ip_addresses_in_k8s_runtime_configuration ~rollback ~secrets_used ~immutable_configmap ~reasonable_startup_time ~reasonable_image_size
+        LOG_LEVEL=debug ./cnf-testsuite all ~resilience ~platform ~liveness ~readiness ~rolling_update ~rolling_downgrade ~rolling_version_change ~nodeport_not_used ~hostport_not_used ~hardcoded_ip_addresses_in_k8s_runtime_configuration ~rollback ~secrets_used ~immutable_configmap ~reasonable_startup_time ~reasonable_image_size
         echo get ratelimit anonymously
         TOKEN=$(curl "https://auth.docker.io/token?service=registry.docker.io&scope=repository:ratelimitpreview/test:pull" | jq -r .token)
         curl --head -H "Authorization: Bearer $TOKEN" https://registry-1.docker.io/v2/ratelimitpreview/test/manifests/latest
