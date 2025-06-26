@@ -144,7 +144,7 @@ task "privileged_containers" do |t, args|
     white_list_container_names = config.common.white_list_container_names
     Log.debug { "white_list_container_names #{white_list_container_names.inspect}" }
     violation_list = [] of NamedTuple(kind: String, name: String, container: String, namespace: String)
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, initialized|
+    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
       privileged_list = KubectlClient::Get.privileged_containers(all_namespaces: true).map { |container| container.dig("name") }.uniq
       resource_containers = KubectlClient::Get.resource_containers(resource["kind"],resource["name"],resource["namespace"])
       resource_containers_list = resource_containers.as_a.map { |element| element["name"] }

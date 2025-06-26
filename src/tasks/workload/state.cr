@@ -219,7 +219,8 @@ desc "Does the CNF crash when node-drain occurs"
 task "node_drain", ["install_litmus"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config|
     skipped = false
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, initialized|
+    task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
+      test_passed = true
       app_namespace = resource[:namespace]
       Log.info { "Current Resource Name: #{resource["kind"]}/#{resource["name"]} Namespace: #{resource["namespace"]}" }
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
@@ -359,11 +360,12 @@ task "elastic_volumes" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config|
     all_volumes_elastic = true
     volumes_used = false
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, volumes, initialized|
+
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, volumes|
       Log.for("elastic_volumes:test_resource").info { resource.inspect }
       Log.for("elastic_volumes:volumes").info { volumes.inspect }
 
-      next if volumes.size == 0
+      next true if volumes.size == 0
       volumes_used = true
 
       # todo use workload resource
@@ -373,14 +375,16 @@ task "elastic_volumes" do |t, args|
       elastic_result = WorkloadResource.elastic?(full_resource, volumes.as_a, resource["namespace"])
       Log.for("#{t.name}:elastic_result").info {elastic_result}
       unless elastic_result
-        all_volumes_elastic = false
+        stdout_failure("Resource #{resource["kind"]}/#{resource["name"]} in #{resource["namespace"]} uses non-elastic volumes: #{volumes.as_a.map(&.dig("name")).join(", ")}")
       end
+    
+      elastic_result
     end
 
     Log.for("elastic_volumes:result").info { "Volumes used: #{volumes_used}; Elastic?: #{all_volumes_elastic}" }
-    if volumes_used == false
+    if !volumes_used
       CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "No volumes are used")
-    elsif all_volumes_elastic
+    elsif task_response
       CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "All used volumes are elastic")
     else
       CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Some of the used volumes are not elastic")
@@ -402,41 +406,44 @@ task "database_persistence" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config|
     # Log.debug { "database_persistence" }
     # todo K8s Database persistence test: if a mysql (or any popular database) image is installed:
-    statefulset_found = false
     non_elastic_database_statefulset_found = false
     match = Mysql.match
     Log.info {"database_persistence mysql: #{match}"}
-    if match && match[:found]
-      task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, volumes, initialized|
-        # Skip resources that do not have containers with mysql image
-        images = containers.as_a.map {|container| container["image"]}
-        next unless images.any? do |image| 
-          Mysql::MYSQL_IMAGES.any? do |mysql_image|
-            image.as_s.includes?(mysql_image) 
-          end
-        end
-        # Skip non-statefulset resources
-        next if resource["kind"].downcase != "statefulset"
-        
-        statefulset_found = true
-        namespace = resource["namespace"]
-        Log.info {"database_persistence namespace: #{namespace}"}
-        Log.info {"database_persistence resource: #{resource}"}
-        Log.info {"database_persistence volumes: #{volumes}"}
-        full_resource = KubectlClient::Get.resource(resource["kind"], resource["name"], namespace)
-        elastic_volume = WorkloadResource.elastic?(full_resource, volumes.as_a, namespace)
-        Log.info {"database_persistence elastic_volume: #{elastic_volume}"}
-        unless elastic_volume
-          non_elastic_database_statefulset_found = true
+
+    unless match && match[:found]
+      next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "CNF does not use database")
+    end
+
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, volumes|
+      # Skip resources that do not have containers with mysql image
+      images = containers.as_a.map {|container| container["image"]}
+      next true unless images.any? do |image| 
+        Mysql::MYSQL_IMAGES.any? do |mysql_image|
+          image.as_s.includes?(mysql_image) 
         end
       end
-      if statefulset_found && !non_elastic_database_statefulset_found
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Pass5, "CNF uses database with cloud-native persistence")
-      else
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "CNF uses database without cloud-native persistence (ভ_ভ) ރ 💾")
+      # Skip non-statefulset resources
+      next true if resource["kind"].downcase != "statefulset"
+
+      namespace = resource["namespace"]
+      Log.info {"database_persistence namespace: #{namespace}"}
+      Log.info {"database_persistence resource: #{resource}"}
+      Log.info {"database_persistence volumes: #{volumes}"}
+      full_resource = KubectlClient::Get.resource(resource["kind"], resource["name"], namespace)
+      elastic_volume = WorkloadResource.elastic?(full_resource, volumes.as_a, namespace)
+      Log.info {"database_persistence elastic_volume: #{elastic_volume}"}
+
+      unless elastic_volume
+        stdout_failure("StatefulSet #{resource["name"]} in #{resource["namespace"]} uses non-elastic volumes: #{volumes.as_a.map(&.dig("name")).join(", ")}")
       end
+
+      elastic_volume
+    end
+
+    if task_response
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Pass5, "CNF uses database with cloud-native persistence")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "CNF does not use database")
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "CNF uses database without cloud-native persistence (ভ_ভ) ރ 💾")
     end
   end
 

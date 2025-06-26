@@ -104,28 +104,28 @@ desc "Do all cnf images have versioned tags?"
 task "versioned_tag", ["install_opa"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args,config|
     fail_msgs = [] of String
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, initialized|
+    task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
       test_passed = true
-      kind = resource["kind"].downcase
-      case kind
-      when .in?(WORKLOAD_RESOURCE_KIND_NAMES)
-        resource_yaml = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
-        pods = KubectlClient::Get.pods_by_resource_labels(resource_yaml, namespace: resource[:namespace])
-        pods.map do |pod|
-          pod_name = pod.dig("metadata", "name")
-          if OPA.find_non_versioned_pod(pod_name.as_s)
-            if kind == "pod"
-              fail_msg = "Pod/#{resource[:name]} in #{resource[:namespace]} namespace does not use a versioned image"
-            else
-              fail_msg = "Pod/#{pod_name} in #{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]} namespace does not use a versioned image"
-            end
-            unless fail_msgs.find{|x| x== fail_msg}
-              fail_msgs << fail_msg
-            end
-            test_passed=false
+      resource_yaml = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+      pods = KubectlClient::Get.pods_by_resource_labels(resource_yaml, namespace: resource[:namespace])
+      pods.map do |pod|
+        pod_name = pod.dig("metadata", "name")
+
+        if OPA.find_non_versioned_pod(pod_name.as_s)
+          if resource[:kind] == "pod"
+            fail_msg = "Pod/#{resource[:name]} in #{resource[:namespace]} namespace does not use a versioned image"
+          else
+            fail_msg = "Pod/#{pod_name} in #{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]} namespace does not use a versioned image"
           end
-       end
+
+          unless fail_msgs.find{|x| x== fail_msg}
+            fail_msgs << fail_msg
+          end
+
+          test_passed = false
+        end
       end
+
       test_passed
     end
 
@@ -171,7 +171,7 @@ end
 desc "Does the CNF use HostPort"
 task "hostport_not_used" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config|
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, container, initialized|
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
       Log.for(t.name).info { "hostport_not_used resource: #{resource}" }
       test_passed=true
       Log.for(t.name).info { "resource kind: #{resource}" }
@@ -257,7 +257,7 @@ task "secrets_used" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config|
     # Parse the cnf-testsuite.yml
     resp = ""
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, volumes, initialized|
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, volumes|
       Log.for(t.name).info { "resource: #{resource}" }
       Log.for(t.name).info { "volumes: #{volumes}" }
 
@@ -498,7 +498,7 @@ task "immutable_configmap" do |t, args|
     volumes_test_results = [] of MutableConfigMapsVolumesResult
     envs_with_mutable_configmap = [] of MutableConfigMapsInEnvResult
 
-    cnf_manager_workload_resource_task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, volumes, initialized|
+    cnf_manager_workload_resource_task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, volumes|
       Log.for(t.name).info { "resource: #{resource}" }
       Log.for(t.name).info { "volumes: #{volumes}" }
 
