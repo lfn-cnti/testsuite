@@ -60,6 +60,8 @@ module CNFManager
   end
 
   def self.resource_refs(args, config, resource_kinds, &block : NamedTuple(kind: String, name: String, namespace: String) -> )
+    logger = Log.for("resource_refs")
+    logger.info { "Yielding resources: #{resource_kinds}" }
     kinds_filter = resource_kinds.map(&.downcase)
 
     cnf_resources(args, config) do |resource|
@@ -78,11 +80,10 @@ module CNFManager
 
   def self.workload_resource_test(
     args, config, check_containers = true,
-    &block : (NamedTuple(kind: String, name: String, namespace: String),
-      JSON::Any, JSON::Any, Bool) -> Bool?
+    &block : (NamedTuple(kind: String, name: String, namespace: String), JSON::Any, JSON::Any) -> Bool
   ) : Bool
     logger = Log.for("workload_resource_test")
-    logger.info { "Start resources test" }
+    logger.info { "Starting test" }
 
     test_passed = true
 
@@ -92,7 +93,7 @@ module CNFManager
     end
 
     resources.each do |resource|
-      logger.info { "Testing #{resource[:kind]}/#{resource[:name]}" }
+      logger.debug { "Testing #{resource[:kind]}/#{resource[:name]}" }
       logger.trace { resource.inspect }
 
       volumes = KubectlClient::Get.resource_volumes(resource[:kind], resource[:name], resource[:namespace])
@@ -101,8 +102,8 @@ module CNFManager
       # yields containers individually or all at once
       targets = check_containers ? containers.as_a : [containers]
       targets.each do |target|
-        resp = yield resource, target, volumes, true
-        test_passed = false if resp == false
+        resp = yield resource, target, volumes
+        test_passed &&= resp
       end
     end
 

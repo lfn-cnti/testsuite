@@ -248,7 +248,7 @@ task "reasonable_image_size" do |t, args|
     end
 
     Log.for(t.name).debug { "cnf_config: #{config}" }
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, initialized|
+    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
 
       image_secrets_config_path = File.join(CNF_TEMP_FILES_DIR, "config.json")
 
@@ -418,8 +418,8 @@ end
 desc "Are the zombie processes handled?"
 task "zombie_handled" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args,config|
-    task_response = CNFManager.workload_resource_test(args, config, check_containers:false ) do |resource, container, initialized|
-            ClusterTools.all_containers_by_resource?(resource, resource[:namespace], include_proctree: false) do | container_id, container_pid_on_node, node| 
+    CNFManager.resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |resource|
+      ClusterTools.all_containers_by_resource?(resource, resource[:namespace], include_proctree: false) do |container_id, container_pid_on_node, node|
         ClusterTools.exec_by_node("nerdctl --namespace=k8s.io cp /zombie #{container_id}:/zombie", node)
         ClusterTools.exec_by_node("nerdctl --namespace=k8s.io cp /sleep #{container_id}:/sleep", node)
         ClusterTools.exec_by_node("nerdctl --namespace=k8s.io exec #{container_id} /zombie", node)
@@ -430,7 +430,7 @@ task "zombie_handled" do |t, args|
 
     pods_to_restart = Set(Tuple(String, String)).new
     containers_to_restart = Set(Tuple(String, JSON::Any)).new
-    task_response = CNFManager.workload_resource_test(args, config, check_containers:false ) do |resource, container, initialized|
+    task_response = CNFManager.workload_resource_test(args, config, check_containers:false ) do |resource, _, _|
       ClusterTools.all_containers_by_resource?(resource, resource[:namespace], only_container_pids:true) do | container_id, container_pid_on_node, node, container_proctree_statuses, container_status, pod_name| 
 
         zombies = container_proctree_statuses.map do |status|
@@ -523,7 +523,7 @@ task "sig_term_handled" do |t, args|
     )
 
     # Iterate over all resources
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, container, initialized|
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, container, _|
       kind = resource["kind"].downcase
 
       # Early skip if this is not a relevant workload resource
@@ -718,29 +718,49 @@ end
 desc "To check if the CNF uses a specialized init system"
 task "specialized_init_system", ["setup:install_cluster_tools"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config|
-    failed_cnf_resources = [] of InitSystems::InitSystemInfo
+    error_occurred    = false
     resources_checked = false
-    error_occurred = false
-    CNFManager.workload_resource_test(args, config) do |resource, container, initialized|
-      kind = resource["kind"].downcase
-      case kind 
-      when .in?(WORKLOAD_RESOURCE_KIND_NAMES)
-        namespace = resource[:namespace]
-        Log.for(t.name).info { "Checking resource #{resource[:kind]}/#{resource[:name]} in #{namespace}" }
-        resource_yaml = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
-        pods = KubectlClient::Get.pods_by_resource_labels(resource_yaml, namespace)
-        Log.for(t.name).info { "Pod count for resource #{resource[:kind]}/#{resource[:name]} in #{namespace}: #{pods.size}" }
-        pods.each do |pod|
-          Log.for(t.name).info { "Inspecting pod: #{pod}" }
-          resources_checked = true
-          results = InitSystems.scan(pod)
-          Log.for(t.name).info { "Pod scan result: #{results}" }
-          if !results
-            error_occurred = true
-          else
-            failed_cnf_resources = failed_cnf_resources + results
-          end
+
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
+      Log.for(t.name).info { "Checking #{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}" }
+
+      # Try to list pods for this resource; on error => mark skip
+      yaml = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+      pods = begin
+        KubectlClient::Get.pods_by_resource_labels(yaml, resource[:namespace])
+      rescue ex
+        stdout_warning("Could not list pods for #{resource[:kind]}/#{resource[:name]}: #{ex.message}")
+        error_occurred = true
+        next false
+      end
+
+      resources_checked = true
+
+      pods.all? do |pod|
+        pod_name = pod.dig("metadata", "name").as_s
+        Log.for(t.name).info { "Inspecting pod #{pod_name}" }
+
+        results = InitSystems.scan(pod)
+
+        # Scan error => skip this resource
+        if results.nil?
+          stdout_warning("Error scanning init system in pod #{pod_name}")
+          error_occurred = true
+          next false
         end
+
+        # No failures => this pod passes
+        if results.empty?
+          next true
+        end
+
+        # Report failures
+        results.each do |info|
+          stdout_failure("#{info.kind}/#{info.name} container '#{info.container}' uses non-specialized init '#{info.init_cmd}'")
+        end
+
+        # mark this resource as failing
+        next false
       end
     end
 
@@ -748,10 +768,7 @@ task "specialized_init_system", ["setup:install_cluster_tools"] do |t, args|
       CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "An error occurred during container inspection")
     elsif !resources_checked
       CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Container checks not executed")
-    elsif failed_cnf_resources.size > 0
-      failed_cnf_resources.each do |init_info|
-        stdout_failure "#{init_info.kind}/#{init_info.name} has container '#{init_info.container}' with #{init_info.init_cmd} as init process"
-      end
+    elsif !task_response
       CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Containers do not use specialized init systems (ভ_ভ) ރ")
     else
       CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Containers use specialized init systems 🖥️")
