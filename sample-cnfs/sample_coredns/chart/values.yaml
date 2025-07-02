@@ -80,6 +80,8 @@ servers:
     parameters: 0.0.0.0:9153
   - name: forward
     parameters: . /etc/resolv.conf
+    configBlock: |-
+      allowed_networks 1.1.1.0/24
   - name: cache
     parameters: 30
   - name: loop
