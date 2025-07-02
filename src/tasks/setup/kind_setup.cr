@@ -45,14 +45,10 @@ end
 #     kind_manager.create_cluster("hello", nil, false)
 #
 class KindManager
-  # Path to helm
-  property helm : String
-
   # Path to kind
   property kind : String
 
   def initialize
-    @helm = Helm::BinarySingleton.helm
     @kind = "#{tools_path}/kind/kind"
   end
 
