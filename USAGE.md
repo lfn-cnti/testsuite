@@ -65,9 +65,29 @@ crystal build src/cnf-testsuite.cr
 ./cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml
 ```
 
+##### Specify a timeout for resource readiness during installation:
+```
+./cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml timeout=1800
+```
+
 ##### Skip waiting for resource readiness during installation:
 ```
 ./cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml skip_wait_for_install
+```
+
+#### Uninstalling a cnf:
+```
+./cnf-testsuite cnf_uninstall
+```
+
+##### Specify timeout for resource removal during uninstallation
+```
+./cnf-testsuite cnf_uninstall timeout=60
+```
+
+##### Skip waiting for resource removal during uninstallation:
+```
+./cnf-testsuite cnf_uninstall skip_wait_for_uninstall
 ```
 
 #### Running all of the platform and workload tests:
