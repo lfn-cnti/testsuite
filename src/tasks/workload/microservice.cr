@@ -388,7 +388,20 @@ task "single_process_type" do |t, args|
             verified = KernelIntrospection::K8s::Node.verify_single_proc_tree(ppid, status_name, container_proctree_statuses, SPECIALIZED_INIT_SYSTEMS)
             unless verified
               Log.for(t.name).info { "multiple proc types detected verified: #{verified}" }
-              fail_msg = "resource: #{resource} has more than one process type (#{container_proctree_statuses.map { |x| x["cmdline"]? }.compact.uniq.join(", ")})"
+
+              proc_list = container_proctree_statuses.map do |proc|
+                proc_name = proc["Name"]?
+                proc_pid  = proc["Pid"]?
+                proc_ppid = proc["PPid"]?
+                proc_cmd_array = proc["cmdline"]?.to_s.split('\0')
+                proc_cmd = proc_cmd_array.join(" ").gsub("\n", "\\n").strip if proc_cmd_array
+                "NAME=#{proc_name}, PID=#{proc_pid}, PPID=#{proc_ppid}, CMD=#{proc_cmd}"
+              end.join("\n")
+
+              fail_msg = "#{kind} in #{namespace} namespace, named #{name} has more than one process type.\n"
+              fail_msg += "Currently running processes:\n"
+              fail_msg += "#{proc_list}"
+
               unless fail_msgs.find { |x| x == fail_msg }
                 puts fail_msg.colorize(:red)
                 fail_msgs << fail_msg
@@ -396,7 +409,6 @@ task "single_process_type" do |t, args|
               test_passed = false
             end
           end
-
           previous_process_type = status_name
         end
       end
