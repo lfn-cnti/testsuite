@@ -351,7 +351,7 @@ end
 desc "Do the containers in a pod have only one process type?"
 task "single_process_type" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config|
-    fail_msgs = [] of String
+    fail_msgs = Set(String).new
     resources_checked = false
     test_passed = true
 
@@ -374,6 +374,7 @@ task "single_process_type" do |t, args|
       # Iterate over every container and verify there is only one process type
       ClusterTools.all_containers_by_resource?(resource_named_tuple, namespace, only_container_pids:true) do |container_id, container_pid_on_node, node, container_proctree_statuses, container_status|
         previous_process_type = "initial_name"
+        container_name = container_status["name"]?
 
         container_proctree_statuses.each do |status|
           status_name = status["Name"].strip
@@ -386,15 +387,25 @@ task "single_process_type" do |t, args|
             verified = KernelIntrospection::K8s::Node.verify_single_proc_tree(ppid, status_name, container_proctree_statuses, SPECIALIZED_INIT_SYSTEMS)
             unless verified
               Log.for(t.name).info { "multiple proc types detected verified: #{verified}" }
-              fail_msg = "resource: #{resource} has more than one process type (#{container_proctree_statuses.map { |x| x["cmdline"]? }.compact.uniq.join(", ")})"
-              unless fail_msgs.find { |x| x == fail_msg }
-                puts fail_msg.colorize(:red)
-                fail_msgs << fail_msg
-              end
+
+              proc_list = container_proctree_statuses.map do |proc|
+                proc_name = proc["Name"]?
+                proc_pid  = proc["Pid"]?
+                proc_ppid = proc["PPid"]?
+                proc_cmd = proc["cmdline"]?.try do |cmd|
+                  cmd.split("\0").join(" ").gsub("\n", "\\n").strip
+                end || "N/A"
+                "NAME=#{proc_name}, PID=#{proc_pid}, PPID=#{proc_ppid}, CMD=#{proc_cmd}"
+              end.join("\n")
+              
+              fail_msg = "Container `#{container_name}` in `#{kind}`: `#{name}` (namespace: `#{namespace}`) has multiple process types.\n"
+              fail_msg += "Running processes detected:\n"
+              fail_msg += "#{proc_list}"
+
+              stdout_failure(fail_msg) if fail_msgs.add?(fail_msg)
               test_passed = false
             end
           end
-
           previous_process_type = status_name
         end
       end
