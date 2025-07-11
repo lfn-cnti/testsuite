@@ -6,10 +6,16 @@ module CNFInstall
     @[YAML::Serializable::Options(emit_nulls: true)]
     alias AnyDeploymentConfig = HelmChartConfig | HelmDirectoryConfig | ManifestDirectoryConfig
 
+    class HardcodedIPException
+      include YAML::Serializable
+      getter ip : String
+    end
+
     class Config < CNFInstall::Config::ConfigBase
       getter config_version : String,
              common = CommonParameters.new(),
-             deployments : DeploymentsConfig
+             deployments : DeploymentsConfig,
+             hardcoded_ip_exceptions = [] of HardcodedIPException
     end
 
     class CommonParameters < CNFInstall::Config::ConfigBase
