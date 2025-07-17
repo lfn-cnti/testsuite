@@ -213,8 +213,6 @@ desc "Does the CNF have hardcoded IPs in the K8s resource configuration"
 task "hardcoded_ip_addresses_in_k8s_runtime_configuration" do |t, args|
   task_response = CNFManager::Task.task_runner(args, task: t) do |args, config|
     current_dir = FileUtils.pwd
-    helm = Helm::BinarySingleton.helm
-    Log.debug { "Helm Path: #{helm}" }
     allowed_ip_adresses = [
       "127.0.0.1",
       "0.0.0.0"
