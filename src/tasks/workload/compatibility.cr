@@ -388,9 +388,9 @@ task "helm_deploy" do |t, args|
   end
 end
 
-task "helm_chart_published", ["setup:helm_local_install"] do |t, args|
+task "helm_chart_published", ["setup:install_local_helm"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config|
-    helm = Helm::BinarySingleton.helm
+    helm = Helm::Binary.get
 
     # Store chart search commands in an array
     chart_searches = [] of String
@@ -437,10 +437,10 @@ task "helm_chart_published", ["setup:helm_local_install"] do |t, args|
   end
 end
 
-task "helm_chart_valid", ["setup:helm_local_install"] do |t, args|
+task "helm_chart_valid", ["setup:install_local_helm"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config|
     current_dir = FileUtils.pwd
-    helm = Helm::BinarySingleton.helm
+    helm = Helm::Binary.get
     Log.info { "Current directory: #{current_dir}" }
 
     # Store chart locations and helm values

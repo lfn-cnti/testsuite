@@ -1,7 +1,7 @@
 require "sam"
 require "../utils/utils.cr"
 
-task "cnf_install", ["setup:helm_local_install", "setup:create_namespace"] do |_, args|
+task "cnf_install", ["setup:install_local_helm", "setup:create_namespace"] do |_, args|
   logger = SLOG.for("cnf_install")
   logger.info { "Installing CNF to cluster" }
 
