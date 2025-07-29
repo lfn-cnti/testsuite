@@ -546,5 +546,46 @@ module KubectlClient
 
       runtimes.uniq
     end
+
+    def self.resource_uid(kind : String, resource_name : String, namespace : String? = nil) : String?
+      logger = @@logger.for("resource_uid")
+      logger.debug { "Get uid of #{kind}/#{resource_name}" }
+      begin
+        resource_json = resource(kind, resource_name, namespace)
+        resource_json.dig?("metadata", "uid").try &.as_s?
+      rescue KubectlClient::ShellCMD::NotFoundError
+        nil
+      end
+    end
+
+    def self.resources_by_owner_uid(kind : String, owner_uid : String, namespace : String? = nil) : Array(JSON::Any)
+      logger = @@logger.for("resources_by_owner_uid")
+      logger.debug { "Get #{kind} owned by #{owner_uid}" }
+  
+      resources_json = resource(kind, namespace: namespace, all_namespaces: namespace.nil?)
+      items = (resources_json.dig?("items").try &.as_a?) || [] of JSON::Any
+
+      items.select do |item|
+        refs = (item.dig?("metadata", "ownerReferences").try &.as_a?) || [] of JSON::Any
+        refs.any? { |ref| ref["uid"].as_s == owner_uid }
+      end
+    end
+
+    def self.descendant_resources_exist?(owner_uid : String, namespace : String? = nil, seen_uids = Set(String).new) : Bool
+      return false if owner_uid.empty? || seen_uids.includes?(owner_uid)
+      seen_uids.add(owner_uid)
+
+      %w[pods replicasets statefulsets daemonsets jobs cronjobs].each do |kind|
+        children = resources_by_owner_uid(kind, owner_uid, namespace)
+        return true unless children.empty?
+
+        children.each do |child|
+          child_uid = child.dig("metadata", "uid").as_s
+          return true if descendant_resources_exist?(child_uid, namespace, seen_uids)
+        end
+      end
+
+      false
+    end
   end
 end

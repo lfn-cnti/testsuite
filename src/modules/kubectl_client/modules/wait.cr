@@ -143,62 +143,40 @@ module KubectlClient
     def self.resource_wait_for_uninstall(
       kind          : String,
       resource_name : String,
-      labels        : Hash(String, String) = {} of String => String,
       namespace     : String? = "default",
-      wait_count    : Int32   = GENERIC_OPERATION_TIMEOUT
+      wait_count    : Int32   = GENERIC_OPERATION_TIMEOUT,
+      owner_uid     : String  = ""
     ) : Bool
       logger = @@logger.for("resource_wait_for_uninstall")
       logger.info { "Waiting for resource #{kind}/#{resource_name} to uninstall" }
     
       seconds_count = 0
-      deleted_once = false
-    
-      # Initial fetch (marks deleted_once if missing up front)
-      resource =
-        begin
-          KubectlClient::Get.resource(kind, resource_name, namespace)
-        rescue KubectlClient::ShellCMD::NotFoundError
-          deleted_once = true
-          EMPTY_JSON
-        end
-    
+      present = true
+
       until seconds_count > wait_count
         if seconds_count % RESOURCE_WAIT_LOG_INTERVAL == 0
           logger.info { "seconds elapsed while waiting: #{seconds_count}" }
         end
     
         # Only call Get.resource until we see it NotFound
-        present = if !deleted_once
-          begin
-            KubectlClient::Get.resource(kind, resource_name, namespace)
-            true
-          rescue KubectlClient::ShellCMD::NotFoundError
-            deleted_once = true
-            false
+        if present
+          present = 
+            begin
+              KubectlClient::Get.resource(kind, resource_name, namespace)
+              true
+            rescue KubectlClient::ShellCMD::NotFoundError
+              false
+            end
+        end
+    
+        # Once parent is gone, check for presence of descendants
+        unless present
+          if owner_uid.empty? || !KubectlClient::Get.descendant_resources_exist?(owner_uid, namespace)
+            logger.info { "#{kind}/#{resource_name} fully deleted" }
+            return true
           end
-        else
-          false
         end
-    
-        # Once parent is gone, look for any leftover pods
-        pods = if !present
-          all_pods = KubectlClient::Get.resource("pods", nil, namespace).dig("items").as_a
-          KubectlClient::Get.pods_by_labels(all_pods, labels)
-        elsif resource != EMPTY_JSON
-          begin
-            KubectlClient::Get.pods_by_resource_labels(resource, namespace)
-          rescue KubectlClient::ShellCMD::NotFoundError
-            [] of JSON::Any
-          end
-        else
-          [] of JSON::Any
-        end
-    
-        if !present && pods.empty?
-          logger.info { "#{kind}/#{resource_name} fully deleted" }
-          return true
-        end
-    
+
         sleep 1.second
         seconds_count += 1
       end
