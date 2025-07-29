@@ -546,5 +546,71 @@ module KubectlClient
 
       runtimes.uniq
     end
+
+    def self.resource_uid(kind : String, resource_name : String, namespace : String? = nil) : String?
+      logger = @@logger.for("resource_uid")
+      logger.debug { "Get uid of #{kind}/#{resource_name} in #{namespace || "default"}" }
+
+      begin
+        resource_json = resource(kind, resource_name, namespace)
+        resource_json.dig?("metadata", "uid").try &.as_s?
+      rescue KubectlClient::ShellCMD::NotFoundError
+        nil
+      end
+    end
+
+    def self.resources_by_owner_uid(kind : String, owner_uid : String, namespace : String? = nil) : Array(JSON::Any)
+      logger = @@logger.for("resources_by_owner_uid")
+      logger.debug { "Looking for #{kind} owned by #{owner_uid} in #{namespace || "all namespaces"}" }
+
+      resources_json = resource(kind, namespace: namespace, all_namespaces: namespace.nil?)
+      items = (resources_json.dig?("items").try &.as_a?) || [] of JSON::Any
+
+      matched = items.select do |item|
+        refs = (item.dig?("metadata", "ownerReferences").try &.as_a?) || [] of JSON::Any
+        refs.any? { |ref| ref["uid"].as_s == owner_uid }
+      end
+
+      matched
+    end
+
+    # find all descendant uids (BFS)
+    def self.descendants(
+      root_kind      : String,
+      root_name      : String,
+      root_namespace : String? = nil
+    ) : Array(ResourceDescendant)
+      seen_uids = Set(String).new
+      queue     = [] of ResourceDescendant
+      results   = [] of ResourceDescendant
+
+      queue << { kind: root_kind, name: root_name, namespace: root_namespace, uid: "" }
+
+      while current = queue.shift?
+        kind      = current[:kind]
+        name      = current[:name]
+        namespace = current[:namespace]
+
+        uid = resource_uid(kind, name, namespace)
+        next unless uid
+
+        if seen_uids.includes?(uid)
+          next
+        end
+
+        seen_uids.add(uid)
+        results << { kind: kind, name: name, namespace: namespace, uid: uid }
+
+        # enqueue its direct children
+        WORKLOAD_RESOURCES.values.each do |child_kind|
+          resources_by_owner_uid(child_kind, uid, namespace).each do |child|
+            child_name = child.dig("metadata", "name").as_s
+            queue << { kind: child_kind, name: child_name, namespace: namespace, uid: "" }
+          end
+        end
+      end
+
+      results
+    end
   end
 end

@@ -143,67 +143,80 @@ module KubectlClient
     def self.resource_wait_for_uninstall(
       kind          : String,
       resource_name : String,
-      labels        : Hash(String, String) = {} of String => String,
-      namespace     : String? = "default",
-      wait_count    : Int32   = GENERIC_OPERATION_TIMEOUT
+      namespace     : String?                   = "default",
+      wait_count    : Int32                     = GENERIC_OPERATION_TIMEOUT,
+      descendants   : Array(ResourceDescendant) = [] of ResourceDescendant
     ) : Bool
-      logger = @@logger.for("resource_wait_for_uninstall")
-      logger.info { "Waiting for resource #{kind}/#{resource_name} to uninstall" }
-    
-      seconds_count = 0
-      deleted_once = false
-    
-      # Initial fetch (marks deleted_once if missing up front)
-      resource =
-        begin
-          KubectlClient::Get.resource(kind, resource_name, namespace)
-        rescue KubectlClient::ShellCMD::NotFoundError
-          deleted_once = true
-          EMPTY_JSON
+      logger     = @@logger.for("resource_wait_for_uninstall")
+      logger.info { "Waiting up to #{wait_count}s for #{kind}/#{resource_name} to uninstall" }
+
+      # Make a mutable copy of the descendant list
+      pending    = descendants.dup
+      seconds    = 0
+      root_alive = true
+
+      while seconds <= wait_count
+        if (seconds % RESOURCE_WAIT_LOG_INTERVAL).zero?
+          logger.info { "#{seconds}s elapsed, pending descendants=#{pending.size}" }
         end
-    
-      until seconds_count > wait_count
-        if seconds_count % RESOURCE_WAIT_LOG_INTERVAL == 0
-          logger.info { "seconds elapsed while waiting: #{seconds_count}" }
-        end
-    
-        # Only call Get.resource until we see it NotFound
-        present = if !deleted_once
+
+        # Check whether the root resource still exists
+        if root_alive
           begin
             KubectlClient::Get.resource(kind, resource_name, namespace)
-            true
           rescue KubectlClient::ShellCMD::NotFoundError
-            deleted_once = true
-            false
+            root_alive = false
+            logger.info { "Root resource #{kind}/#{resource_name} is gone" }
           end
-        else
-          false
         end
-    
-        # Once parent is gone, look for any leftover pods
-        pods = if !present
-          all_pods = KubectlClient::Get.resource("pods", nil, namespace).dig("items").as_a
-          KubectlClient::Get.pods_by_labels(all_pods, labels)
-        elsif resource != EMPTY_JSON
-          begin
-            KubectlClient::Get.pods_by_resource_labels(resource, namespace)
-          rescue KubectlClient::ShellCMD::NotFoundError
-            [] of JSON::Any
+
+        # Once the root is gone, prune descendants by UID
+        unless root_alive
+          pending.clone.each do |descendant|
+            begin
+              data = KubectlClient::Get.resource(
+                descendant[:kind],
+                nil,
+                descendant[:namespace],
+                descendant[:namespace].nil?,
+              )
+
+              items = data["items"].as_a? || [] of JSON::Any
+              exists = items.any? do |obj|
+                obj["metadata"]["uid"].as_s == descendant[:uid]
+              end
+            rescue KubectlClient::ShellCMD::NotFoundError
+              exists = false
+            end
+
+            unless exists
+              pending.delete(descendant)
+              logger.info { "Descendant #{descendant[:kind]}/#{descendant[:name]} (uid=#{descendant[:uid]}) deleted, #{pending.size} remaining" }
+            end
           end
-        else
-          [] of JSON::Any
+
+          if pending.empty?
+            logger.info { "#{kind}/#{resource_name} and all descendants are deleted" }
+            return true
+          end
         end
-    
-        if !present && pods.empty?
-          logger.info { "#{kind}/#{resource_name} fully deleted" }
-          return true
-        end
-    
-        sleep 1.second
-        seconds_count += 1
+
+        sleep 1
+        seconds += 1
       end
-    
-      logger.warn { "#{kind}/#{resource_name} still present after #{wait_count}s" }
+
+      # If we reach here, we timed out
+      leftovers = [] of String
+      leftovers << "root=#{kind}/#{resource_name}" if root_alive
+
+      unless pending.empty?
+        details = pending.map do |desc|
+          "#{desc[:kind]}/#{desc[:name]}(namespace=#{desc[:namespace]})"
+        end.join(", ")
+        leftovers << "pending=#{details}"
+      end
+
+      logger.warn { "Timeout after #{wait_count}s; still present: #{leftovers.join(" & ")}" }
       false
     end
 
