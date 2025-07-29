@@ -2,6 +2,7 @@ require "../utils.cr"
 
 module CNFInstall
   Log = ::Log.for("CNFInstall")
+  alias ResourceInfo = NamedTuple(kind: String, name: String, namespace: String )
 
   def self.install_cnf(cli_args)
     parsed_args = parse_install_cli_args(cli_args)
@@ -145,25 +146,19 @@ module CNFInstall
 
     deployment_managers.each do |deployment_manager|
       deployment_name = deployment_manager.deployment_name
+
+      resources, resource_uids = load_resources_and_uids(deployment_name)
+
       uninstall_success = deployment_manager.uninstall
       all_uninstallations_successfull &&= uninstall_success
-      manifest_path = File.join(DEPLOYMENTS_DIR, deployment_name, DEPLOYMENT_MANIFEST_FILE_NAME)
-      
+
       # early exit
-      next unless uninstall_success && !parsed_args[:skip_wait_for_uninstall]
+      next unless uninstall_success && !parsed_args[:skip_wait_for_uninstall] && !resources.empty?
 
-      unless File.exists?(manifest_path)
-        stdout_warning "Skipping uninstallation of deployment \"#{deployment_name}\": no manifest at #{manifest_path}."
-        next
-      end
-
-      manifest = 
-        Manifest.combine_ymls_as_manifest_string(
-          Manifest.manifest_path_to_ymls(manifest_path)
+      all_uninstallations_successfull &&= 
+        wait_for_deployment_uninstallation(
+          deployment_name, resources, resource_uids, parsed_args[:timeout],
         )
-      
-      timeout = parsed_args[:timeout]
-      all_uninstallations_successfull &&= wait_for_deployment_uninstallation(deployment_name, manifest, timeout)
     end
   
     if all_uninstallations_successfull
@@ -177,6 +172,39 @@ module CNFInstall
     end
 
     all_uninstallations_successfull
+  end
+
+  private def self.load_resources_and_uids(deployment_name : String) : Tuple(Array(ResourceInfo), Hash(String, String))
+    manifest_path = File.join(DEPLOYMENTS_DIR, deployment_name, DEPLOYMENT_MANIFEST_FILE_NAME)
+
+    unless File.exists?(manifest_path)
+      stdout_warning "Skipping uninstallation of deployment \"#{deployment_name}\": no manifest at #{manifest_path}."
+      return [] of ResourceInfo, {} of String => String
+    end
+
+    manifest = Manifest.combine_ymls_as_manifest_string(
+      Manifest.manifest_path_to_ymls(manifest_path)
+    )
+
+    infos = Helm.workload_resource_kind_names(
+      Manifest.manifest_string_to_ymls(manifest)
+    )
+
+    resources     = [] of ResourceInfo
+    resource_uids = {} of String => String
+
+    infos.each do |info|
+      kind      = info[:kind]
+      name      = info[:name]
+      namespace = info[:namespace]
+      resources << { kind: kind, name: name, namespace: namespace }
+
+      if uid = KubectlClient::Get.resource_uid(kind, name, namespace)
+        resource_uids["#{kind}/#{name}"] = uid
+      end
+    end
+
+    return resources, resource_uids
   end
 
   def self.wait_for_deployment_installation(deployment_name, deployment_manifest, timeout)
@@ -205,9 +233,12 @@ module CNFInstall
     stdout_success "All \"#{deployment_name}\" deployment resources are up.", same_line: true
   end
 
-  def self.wait_for_deployment_uninstallation(deployment_name, deployment_manifest, timeout)
-    ymls        = Manifest.manifest_string_to_ymls(deployment_manifest)
-    resources   = Helm.workload_resource_kind_names(ymls)
+  def self.wait_for_deployment_uninstallation(
+    deployment_name : String,
+    resources : Array(ResourceInfo),
+    resource_uids : Hash(String, String),
+    timeout : Int32
+  )
     total       = resources.size
     all_deleted = true
 
@@ -221,14 +252,9 @@ module CNFInstall
         same_line: true
       )
 
-      labels = Manifest.extract_from_ymls(
-        ymls, kind, name, ["spec", "selector", "matchLabels"]
-      ) do |node|
-          node.as_h.transform_keys(&.as_s).transform_values(&.as_s)
-        end || {} of String => String
-
+      uid = resource_uids["#{kind}/#{name}"] || ""
       ok = KubectlClient::Wait.resource_wait_for_uninstall(
-        kind, name, labels, namespace, timeout
+        kind, name, namespace, timeout, uid
       )
 
       unless ok
