@@ -3,6 +3,9 @@ require "../utils.cr"
 module CNFInstall
   Log = ::Log.for("CNFInstall")
 
+  alias ResourceInfo  = NamedTuple(kind: String, name: String, namespace: String?)
+  alias DescendantMap = Hash(ResourceInfo, Array(KubectlClient::ResourceDescendant))
+
   def self.install_cnf(cli_args)
     parsed_args = parse_install_cli_args(cli_args)
     cnf_config_path = parsed_args[:config_path]
@@ -145,38 +148,59 @@ module CNFInstall
 
     deployment_managers.each do |deployment_manager|
       deployment_name = deployment_manager.deployment_name
-      uninstall_success = deployment_manager.uninstall
-      all_uninstallations_successfull &&= uninstall_success
       manifest_path = File.join(DEPLOYMENTS_DIR, deployment_name, DEPLOYMENT_MANIFEST_FILE_NAME)
-      
-      # early exit
-      next unless uninstall_success && !parsed_args[:skip_wait_for_uninstall]
 
       unless File.exists?(manifest_path)
         stdout_warning "Skipping uninstallation of deployment \"#{deployment_name}\": no manifest at #{manifest_path}."
         next
       end
 
-      manifest = 
-        Manifest.combine_ymls_as_manifest_string(
-          Manifest.manifest_path_to_ymls(manifest_path)
-        )
-      
-      timeout = parsed_args[:timeout]
-      all_uninstallations_successfull &&= wait_for_deployment_uninstallation(deployment_name, manifest, timeout)
-    end
-  
-    if all_uninstallations_successfull
-      if (parsed_args[:skip_wait_for_uninstall])
-        stdout_success "All CNF deployments were uninstalled, some time might be needed for all resources to be removed."
-      else
-        stdout_success "All CNF deployments were uninstalled."
+      # discover resources
+      resources = load_resources(manifest_path)
+
+      # make a snapshot of descendant relations for each resource
+      descendant_map = build_descendant_map(resources)
+
+      uninstall_success = deployment_manager.uninstall
+      all_uninstallations_successfull &&= uninstall_success
+
+      if uninstall_success && !parsed_args[:skip_wait_for_uninstall] && !descendant_map.empty?
+        all_uninstallations_successfull &&= wait_for_deployment_uninstallation(deployment_name, descendant_map, parsed_args[:timeout])
       end
+    end
+
+    if all_uninstallations_successfull
+      msg = parsed_args[:skip_wait_for_uninstall] ?
+        "All CNF deployments were uninstalled; resources will continue deleting in background." :
+        "All CNF deployments were uninstalled."
+      stdout_success msg
     else
-      stdout_failure "CNF uninstallation wasn't successfull, check logs for more info."
+      stdout_failure "CNF uninstallation wasn't successful; check logs for details."
     end
 
     all_uninstallations_successfull
+  end
+
+  private def self.load_resources(manifest_path : String) : Array(ResourceInfo)
+    manifest = Manifest.combine_ymls_as_manifest_string(
+      Manifest.manifest_path_to_ymls(manifest_path)
+    )
+
+    resources = Helm.workload_resource_kind_names(
+      Manifest.manifest_string_to_ymls(manifest)
+    )
+
+    resources.map do |ref|
+      { kind: ref[:kind], name: ref[:name], namespace: ref[:namespace].as(String?) }
+    end
+  end
+
+  private def self.build_descendant_map(resources : Array(ResourceInfo)) : DescendantMap
+    resources.each_with_object({} of ResourceInfo => Array(KubectlClient::ResourceDescendant)) do |res, map|
+      if root_uid = KubectlClient::Get.resource_uid(res[:kind], res[:name], res[:namespace])
+        map[res] = KubectlClient::Get.descendants(res[:kind], res[:name], res[:namespace])
+      end
+    end
   end
 
   def self.wait_for_deployment_installation(deployment_name, deployment_manifest, timeout)
@@ -205,30 +229,29 @@ module CNFInstall
     stdout_success "All \"#{deployment_name}\" deployment resources are up.", same_line: true
   end
 
-  def self.wait_for_deployment_uninstallation(deployment_name, deployment_manifest, timeout)
-    ymls        = Manifest.manifest_string_to_ymls(deployment_manifest)
-    resources   = Helm.workload_resource_kind_names(ymls)
-    total       = resources.size
-    all_deleted = true
+  def self.wait_for_deployment_uninstallation(
+    deployment_name : String,
+    descendant_map  : Hash(ResourceInfo, Array(KubectlClient::ResourceDescendant)),
+    timeout         : Int32
+  ) : Bool
+    # Separate normal resources vs. namespaces so namespaces run last
+    roots, namespaces = descendant_map.partition { |res, _| res[:kind].downcase != "namespace" }
+    ordered           = roots + namespaces
+    total             = ordered.size
+    all_deleted       = true
 
-    resources.each_with_index do |info, idx|
-      kind      = info[:kind]
-      name      = info[:name]
-      namespace = info[:namespace]
+    ordered.each_with_index do |(res, descendants), idx|
+      kind      = res[:kind]
+      name      = res[:name]
+      namespace = res[:namespace]
 
       stdout_success(
         "Waiting deletion for \"#{deployment_name}\" (#{idx+1}/#{total}): [#{kind}] #{name}",
         same_line: true
       )
 
-      labels = Manifest.extract_from_ymls(
-        ymls, kind, name, ["spec", "selector", "matchLabels"]
-      ) do |node|
-          node.as_h.transform_keys(&.as_s).transform_values(&.as_s)
-        end || {} of String => String
-
       ok = KubectlClient::Wait.resource_wait_for_uninstall(
-        kind, name, labels, namespace, timeout
+        kind, name, namespace, timeout, descendants
       )
 
       unless ok
