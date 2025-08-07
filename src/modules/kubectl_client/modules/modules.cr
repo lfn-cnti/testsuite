@@ -21,6 +21,16 @@ module KubectlClient
 
       ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
     end
+
+    def self.restart(kind : String, resource_name : String, namespace : String? = nil)
+      logger = @@logger.for("restart")
+      logger.info { "Restarting #{kind}/#{resource_name}" }
+
+      cmd = "kubectl rollout restart #{kind}/#{resource_name}"
+      cmd = "#{cmd} -n #{namespace}" if namespace
+
+      ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+    end
   end
 
   module Apply
