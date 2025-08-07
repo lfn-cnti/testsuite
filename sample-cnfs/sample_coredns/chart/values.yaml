@@ -32,6 +32,7 @@ service:
   annotations:
     prometheus.io/scrape: "true"
     prometheus.io/port: "9153"
+    hardcodedIpTest: "8.8.8.8 4.4.4.4"
 
 serviceAccount:
   create: false
