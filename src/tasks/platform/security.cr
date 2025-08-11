@@ -180,7 +180,7 @@ end
   end
 
   desc "Verify if Secrets are encrypted"
-  task "verify_secrets_encryption", ["kubescape_scan"] do |t, args|
+  task "verify_secrets_encryption", ["setup:kubescape_scan"] do |t, args|
     CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config|
       namespace="kube-system"
       Kubescape.scan(namespace: namespace)
