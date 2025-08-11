@@ -65,10 +65,26 @@ task "k8s_conformance" do |t, args|
     results = results_stdout.to_s
     Log.debug { results }
 
-    # Grab the failed line from the results
+    failed_count = nil
+    if failed_match_data = results.match(/Failed:\s+(\S+)/)
+      failed_raw_value = failed_match_data[1]
+      if failed_integer = failed_raw_value.to_i?
+        Log.debug { "Sonobuoy summary: Failed=#{failed_raw_value}" }
+        failed_count = failed_integer
+      else
+        Log.warn {
+          "Matched non-numeric 'Failed:' value #{failed_raw_value.inspect} — cannot determine result.\nRaw results:\n#{results}"
+        }
+      end
+    else
+      Log.warn {
+        "No 'Failed:' line found in Sonobuoy results — cannot determine result.\nRaw results:\n#{results}"
+      }
+    end
 
-    failed_count = ((results.match(/Failed: (.*)/)).try &.[1]) 
-    if failed_count.to_s.to_i > 0
+    if failed_count.nil?
+      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Error, "Unable to determine failure count from Sonobuoy results")
+    elsif failed_count > 0
       CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "K8s conformance test has #{failed_count} failure(s)!")
     else
       CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "K8s conformance test has no failures")
