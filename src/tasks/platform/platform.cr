@@ -22,64 +22,117 @@ desc "Does the platform pass the K8s conformance tests?"
 task "k8s_conformance" do |t, args|
   CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do
     current_dir = FileUtils.pwd
-    Log.for(t.name).debug { "current dir: #{current_dir}" }
+    stdout_warning "k8s_conformance: starting in #{current_dir}"
     sonobuoy = "#{tools_path}/sonobuoy/sonobuoy"
 
-    # Clean up old results
+    # --- Clean up old results
     delete_cmd = "#{sonobuoy} delete --all --wait"
-    Process.run(
+    stdout_warning "delete_cmd: #{delete_cmd.inspect}"
+    delete_stdout = IO::Memory.new
+    delete_stderr = IO::Memory.new
+    delete_status = Process.run(
       delete_cmd,
-      shell: true,
-      output: delete_stdout = IO::Memory.new,
-      error: delete_stderr = IO::Memory.new
+      shell:  true,
+      output: delete_stdout,
+      error:  delete_stderr
     )
-    Log.for(t.name).debug { "sonobuoy delete output: #{delete_stdout}" }
-
-    # Run the tests
-    testrun_stdout = IO::Memory.new
-    Log.debug { "CRYSTAL_ENV: #{ENV["CRYSTAL_ENV"]?}" }
-    if ENV["CRYSTAL_ENV"]? == "TEST"
-      Log.info { "Running Sonobuoy using Quick Mode" }
-      cmd = "#{sonobuoy} run --wait --mode quick"
-      Process.run(
-        cmd,
-        shell: true,
-        output: testrun_stdout,
-        error: testrun_stderr = IO::Memory.new
-      )
-    else
-      Log.info { "Running Sonobuoy Conformance" }
-      cmd = "#{sonobuoy} run --wait"
-      Process.run(
-        cmd,
-        shell: true,
-        output: testrun_stdout,
-        error: testrun_stderr = IO::Memory.new
-      )
+    stdout_warning "delete: success?=#{delete_status.success?} stdout.bytes=#{delete_stdout.to_s.bytesize} stderr.bytes=#{delete_stderr.to_s.bytesize}"
+    unless delete_stderr.to_s.empty?
+      stderr_preview = delete_stderr.to_s.lines.first(10).join("\n")
+      stdout_warning "delete stderr preview:\n#{stderr_preview}"
     end
-    Log.debug { testrun_stdout.to_s }
 
-    cmd = "results=$(#{sonobuoy} retrieve); #{sonobuoy} results $results"
-    results_stdout = IO::Memory.new
-    Process.run(cmd, shell: true, output: results_stdout, error: results_stdout)
-    results = results_stdout.to_s
-    Log.debug { results }
+    # --- Run the tests
+    testrun_stdout = IO::Memory.new
+    testrun_stderr = IO::Memory.new
+    env = ENV["CRYSTAL_ENV"]?
+    stdout_warning "CRYSTAL_ENV=#{env.inspect}"
 
-    # Grab the failed line from the results
-
-    failed_count = ((results.match(/Failed: (.*)/)).try &.[1]) 
-    if failed_count.to_s.to_i > 0
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "K8s conformance test has #{failed_count} failure(s)!")
+    if env == "TEST"
+      cmd = "#{sonobuoy} run --wait --mode quick"
+      stdout_warning "run_cmd(quick): #{cmd.inspect}"
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "K8s conformance test has no failures")
+      cmd = "#{sonobuoy} run --wait"
+      stdout_warning "run_cmd(conformance): #{cmd.inspect}"
+    end
+
+    t0 = Time.utc
+    testrun_status = Process.run(
+      cmd,
+      shell:  true,
+      output: testrun_stdout,
+      error:  testrun_stderr
+    )
+    dt = (Time.utc - t0)
+    stdout_warning "run: success?=#{testrun_status.success?} elapsed=#{dt} stdout.bytes=#{testrun_stdout.to_s.bytesize} stderr.bytes=#{testrun_stderr.to_s.bytesize}"
+    unless testrun_stderr.to_s.empty?
+      preview = testrun_stderr.to_s.lines.first(10).join("\n")
+      stdout_warning "run stderr preview:\n#{preview}"
+    end
+
+    # --- Retrieve results + print report
+    cmd = "results=$(#{sonobuoy} retrieve); #{sonobuoy} results $results"
+    stdout_warning "retrieve+results cmd: #{cmd.inspect}"
+    results_stdout = IO::Memory.new
+    results_status = Process.run(cmd, shell: true, output: results_stdout, error: results_stdout)
+    results = results_stdout.to_s
+    stdout_warning "results: success?=#{results_status.success?} bytes=#{results.bytesize}"
+
+    # Results head/tail previews (trim output volume)
+    lines = results.lines
+    head  = lines.first(15).join("\n")
+    tail  = lines.last(10).join("\n")
+    stdout_warning "results HEAD(15):\n#{head}"
+    stdout_warning "results TAIL(10):\n#{tail}"
+    stdout_warning "results contains 'Failed:'? -> #{results.includes?("Failed:")}"
+
+    # --- Parse the Failed count (robust; no exception on bad/missing)
+    failed_count = nil
+    if failed_match_data = results.match(/Failed:\s+(\S+)/)
+      failed_raw_value = failed_match_data[1]
+      stdout_warning "regex matched. raw Failed value=#{failed_raw_value.inspect}"
+      if failed_integer = failed_raw_value.to_i?
+        stdout_warning "parsed Failed integer=#{failed_integer}"
+        failed_count = failed_integer
+      else
+        stdout_warning "to_i? returned nil for Failed value=#{failed_raw_value.inspect}"
+        stdout_warning "RAW RESULTS (full) begin\n#{results}\nRAW RESULTS end"
+      end
+    else
+      stdout_warning "no 'Failed:' line matched in results"
+      stdout_warning "RAW RESULTS (full) begin\n#{results}\nRAW RESULTS end"
+    end
+
+    # --- Decide result
+    if failed_count.nil?
+      stdout_warning "decision: ERROR (unable to determine failures)"
+      CNFManager::TestCaseResult.new(
+        CNFManager::ResultStatus::Error,
+        "Unable to determine failure count from Sonobuoy results"
+      )
+    elsif failed_count > 0
+      stdout_warning "decision: FAILED (#{failed_count} > 0)"
+      CNFManager::TestCaseResult.new(
+        CNFManager::ResultStatus::Failed,
+        "K8s conformance test has #{failed_count} failure(s)!"
+      )
+    else
+      stdout_warning "decision: PASSED (0 failures)"
+      CNFManager::TestCaseResult.new(
+        CNFManager::ResultStatus::Passed,
+        "K8s conformance test has no failures"
+      )
     end
   rescue ex
-    Log.error { ex.message }
-    ex.backtrace.each do |x|
-      Log.error { x }
-    end
+    stdout_warning "EXCEPTION: #{ex.message}"
+    ex.backtrace.each { |x| stdout_warning x }
+    CNFManager::TestCaseResult.new(
+      CNFManager::ResultStatus::Error,
+      "Exception while running Sonobuoy: #{ex.message}"
+    )
   ensure
     FileUtils.rm_rf(Dir.glob("*sonobuoy*.tar.gz"))
+    stdout_warning "k8s_conformance: cleanup complete"
   end
 end
 
