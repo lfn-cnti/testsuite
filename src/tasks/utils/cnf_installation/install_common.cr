@@ -61,8 +61,11 @@ module CNFInstall
   def self.ensure_cnf_config_path_file(path)
     if CNFManager.path_has_yml?(path)
       yml = path
-    else
+    elsif File.directory?(path)
       yml = File.join(path, CONFIG_FILE)
+    else
+      stdout_failure "Invalid CNF configuration file: #{path}."
+      exit(1)
     end
   end
 
