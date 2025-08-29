@@ -165,6 +165,7 @@ module CNFInstall
       all_uninstallations_successfull &&= uninstall_success
 
       if uninstall_success && !parsed_args[:skip_wait_for_uninstall] && !descendant_map.empty?
+        puts ""
         all_uninstallations_successfull &&= wait_for_deployment_uninstallation(deployment_name, descendant_map, parsed_args[:timeout])
       end
     end
