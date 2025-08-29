@@ -247,7 +247,7 @@ module CNFInstall
 
       stdout_success(
         "Waiting deletion for \"#{deployment_name}\" (#{idx+1}/#{total}): [#{kind}] #{name}",
-        same_line: true
+        same_line: idx > 0
       )
 
       ok = KubectlClient::Wait.resource_wait_for_uninstall(
