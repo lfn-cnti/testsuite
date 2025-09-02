@@ -46,23 +46,46 @@ This will detail the required minimum requirements needed in order to support cn
 
 - Follow the [kind install](KIND-INSTALL.md) instructions to setup a cluster in [kind](https://kind.sigs.k8s.io/).
 
-##### CNF-Testbed
+##### AWS EKS
 
-- You can clone the CNF-Testbed project if you have an account at Equinix Metal (formerly Packet.net). Get the code by running the following:
+- [EKSCTL](https://eksctl.io/installation) can be used to create an AWS EKS cluster.
 
+Sample manifest `testsuite-eksctl-manifest.yaml`:
+``` yaml
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: cnti-testsuite
+  region: us-west-2
+  version: "1.33"
+
+addonsConfig:
+  autoApplyPodIdentityAssociations: true
+
+addons:
+  - name: eks-pod-identity-agent
+  - name: aws-ebs-csi-driver
+    version: latest
+    resolveConflicts: overwrite
+    useDefaultPodIdentityAssociations: true
+    configurationValues: |-
+      defaultStorageClass:
+        enabled: true
+
+nodeGroups:
+  - name: ng-1
+    instanceType: m5.2xlarge
+    amiFamily: AmazonLinux2023
+    desiredCapacity: 4
 ```
-git clone https://github.com/cncf/cnf-testbed.git
+
+To create the cluster, run:
+
+``` bash
+eksctl create cluster -f testsuite-eksctl-manifest.yaml
 ```
 
-- Clone the k8s-infra repo then follow the [prerequisites](https://github.com/cncf/cnf-testbed/tree/master/tools#pre-requisites) for [deploying a K8s cluster](https://github.com/cncf/cnf-testbed/tree/master/tools#deploying-a-kubernetes-cluster-using-the-makefile--ci-tools) for a Equinix Metal host.
-- If you already have IP addresses for your provider, and you want to manually install a K8s cluster, you can use k8s-infra to do this within your cnf-testbed repo clone.
-
-```
-cd tools/ && git clone https://github.com/crosscloudci/k8s-infra.git
-```
-
-- Now follow the [k8s-infra quick start](https://github.com/crosscloudci/k8s-infra/blob/master/README.md#quick-start) for instructions on how to install.
-
+For more customization options and best practices, see the [EKS Cluster Creation User Guide](https://eksctl.io/usage/creating-and-managing-clusters/).
 </p>
 </details>
 
@@ -78,7 +101,6 @@ We support the following methods of installing the cnf-testsuite:
 - [Curl installation](#Curl-Binary-Installation) (via latest binary release)
 - [Latest Binary](https://github.com/lfn-cnti/testsuite/releases/latest) (manual download)
 - From [**Source**](#Source-Install) on github.
-- [Air Gapped](#Air-Gapped)
 
 
 #### Curl Binary Installation
