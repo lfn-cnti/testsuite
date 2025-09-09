@@ -38,9 +38,19 @@ describe "Installation" do
     (/All CNF deployments were uninstalled/ =~ result[:output]).should_not be_nil
   end
 
-  it "'cnf_install/cnf_uninstall' should install/uninstall with cnf-path arg as an alias for cnf-config", tags: ["cnf_installation"] do
+  it "'cnf_install/cnf_uninstall' should install/uninstall with cnf-path arg as an alias for cnf-config (.yml)", tags: ["cnf_installation"] do
     begin
       result = ShellCmd.cnf_install("cnf-path=example-cnfs/coredns/cnf-testsuite.yml")
+      (/CNF installation complete/ =~ result[:output]).should_not be_nil
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      (/All CNF deployments were uninstalled/ =~ result[:output]).should_not be_nil
+    end
+  end
+
+  it "'cnf_install/cnf_uninstall' should install/uninstall with cnf-path arg as an alias for cnf-config (.yaml)", tags: ["cnf_installation"] do
+    begin
+      result = ShellCmd.cnf_install("cnf-path=spec/fixtures/cnf-testsuite.yaml")
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -52,6 +62,15 @@ describe "Installation" do
     begin
       result = ShellCmd.cnf_install("cnf-path=spec/fixtures/sample-bad-config.yml", expect_failure: true)
       (/Error during parsing CNF config/ =~ result[:output]).should_not be_nil
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'cnf_install/cnf_uninstall' should fail on invalid config path", tags: ["cnf_installation"] do
+    begin
+      result = ShellCmd.cnf_install("cnf-path=spec/fixtures/bad-config-path", expect_failure: true)
+      (/Invalid CNF configuration file: spec\/fixtures\/bad-config-path\./ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end

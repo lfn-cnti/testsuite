@@ -1,0 +1,6 @@
+---
+release_name: coredns
+helm_repository:
+  name: stable
+  repo_url: https://cncf.gitlab.io/stable
+helm_chart: stable/coredns
