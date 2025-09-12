@@ -12,7 +12,6 @@ namespace "setup" do
     logger = SLOG.for("create_namespace")
     logger.info { "Creating namespace for CNTI testsuite" }
 
-    ensure_kubeconfig!
     begin
       KubectlClient::Apply.namespace(TESTSUITE_NAMESPACE)
     rescue ex : KubectlClient::ShellCMD::K8sClientCMDException

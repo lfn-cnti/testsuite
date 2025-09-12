@@ -6,8 +6,8 @@ require "../../modules/helm"
 
 namespace "setup" do
   task "prereqs" do |_, args|
-    helm_ok = Helm.installation_found?
     kubectl_ok = KubectlClient.installation_found?
+    helm_ok = Helm.installation_found?
     git_ok = GitClient.installation_found?
 
     if [helm_ok, kubectl_ok, git_ok].includes?(false)

@@ -141,12 +141,12 @@ module Helm
       combined  = resp[:output] + resp[:error]
 
       if combined =~ /WARNING: Kubernetes configuration file is/
-        return {"For this version of Helm you must set your K8s config file permissions to chmod 700", nil}
+        return { "For this version of Helm you must set your K8s config file permissions to chmod 700", nil }
       end
 
       {nil, nil}
     rescue
-      {nil, "Please use newer version of Helm"}
+        { "Helm was found, but it could not be executed successfully. Please use newer version of Helm or check your Kubernetes configuration.", nil }
     end
   end
 
