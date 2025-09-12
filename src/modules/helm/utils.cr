@@ -145,8 +145,8 @@ module Helm
       end
 
       {nil, nil}
-    rescue
-      {nil, "Please use newer version of Helm"}
+    rescue ex
+        { "Helm was found, but it could not be executed successfully. Please use newer version of Helm or check your Kubernetes configuration.", nil }
     end
   end
 
