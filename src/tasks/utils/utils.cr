@@ -60,7 +60,7 @@ def ensure_kubeconfig!
   begin
     KubectlClient::Get.resource("nodes")
   rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
-    stdout_failure "Cluster liveness check failed: '#{ex.message}'. Check the cluster and/or KUBECONFIG environment variable."
+    stdout_failure "Cluster liveness check failed. Check the cluster and/or KUBECONFIG environment variable."
     exit 1
   end
 end

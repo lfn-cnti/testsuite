@@ -49,6 +49,8 @@ def kubectl_installation(verbose = false, offline_mode = false)
     stdout_warning lmsg
   end
 
+  ensure_kubeconfig! unless global_kubectl_version.empty? && local_kubectl_version.empty?
+
   # uncomment to fail the installation check
   # global_kubectl_version = nil
   # local_kubectl_version = nil
