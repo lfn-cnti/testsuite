@@ -64,35 +64,150 @@ module CNFInstall
 
   class HelmChartDeploymentManager < HelmDeploymentManager
     @helm_chart_config : ConfigV2::HelmChartConfig
+    @common : ConfigV2::CommonParameters
     
-    def initialize(helm_chart_config)
+    def initialize(helm_chart_config : ConfigV2::HelmChartConfig, @common : ConfigV2::CommonParameters)
       super(helm_chart_config.name, helm_chart_config.priority)
       @helm_chart_config = helm_chart_config
+      @common = common
     end
 
     def install()
-      helm_repo_url = @helm_chart_config.helm_repo_url
-      helm_repo_name = @helm_chart_config.helm_repo_name
-      helm_chart_name = @helm_chart_config.helm_chart_name
+      skip_tls_verify = @helm_chart_config.skip_tls_verify
 
-      if !helm_repo_url.empty?
-        Helm.helm_repo_add(helm_repo_name, helm_repo_url)
-      end
-      helm_pull_destination = File.join(DEPLOYMENTS_DIR, @deployment_name)
-      begin
-        Helm.pull(helm_repo_name, helm_chart_name, destination: helm_pull_destination)
-      rescue ex : Helm::ShellCMD::RepoNotFound
-        stdout_failure "Helm pull failed for deployment \"#{get_deployment_name()}\": #{ex.message}"
-        return false
+      ca_file   : String? = nil
+      cert_file : String? = nil
+      key_file  : String? = nil
+
+      if tls = resolve_tls(@helm_chart_config.tls_profile)
+        ca_file   = tls.ca_file.empty?   ? nil : tls.ca_file
+        cert_file = tls.cert_file.empty? ? nil : tls.cert_file
+        key_file  = tls.key_file.empty?  ? nil : tls.key_file
       end
 
-      chart_path = File.join(helm_pull_destination, helm_chart_name)
+      pull_destination = File.join(DEPLOYMENTS_DIR, @deployment_name)
+
+      ok = 
+        if !@helm_chart_config.registry_url.empty?
+          prepare_oci_install(pull_destination, ca_file, cert_file, key_file, skip_tls_verify)
+        else
+          prepare_classic_install(pull_destination, ca_file, cert_file, key_file, skip_tls_verify)
+        end
+      
+      return false unless ok
+      
+      chart_path = File.join(pull_destination, @helm_chart_config.helm_chart_name)
       install_from_folder(chart_path, get_deployment_namespace(), @helm_chart_config.helm_values)
-      true
     end
 
     def get_deployment_config() : ConfigV2::HelmDeploymentConfig
       @helm_chart_config
+    end
+
+    private def prepare_oci_install(
+      pull_destination : String,
+      ca_file : String?,
+      cert_file : String?,
+      key_file : String?,
+      skip_tls_verify : Bool
+    ) : Bool
+      registry_host      = oci_host(@helm_chart_config.registry_url)
+      username, password = resolve_credentials(
+        @helm_chart_config.auth,
+        @common.auth_defaults.oci_registries[registry_host]?
+      )
+
+      Helm.registry_login(
+        registry_host,
+        username: username, password: password,
+        ca_file: ca_file, cert_file: cert_file, key_file: key_file,
+        insecure: skip_tls_verify
+      )
+
+      begin
+        Helm.pull_oci(
+          @helm_chart_config.registry_url,
+          version: @helm_chart_config.chart_version,
+          destination: pull_destination,
+          untar: true,
+          ca_file: ca_file, cert_file: cert_file, key_file: key_file,
+          insecure_skip_tls_verify: skip_tls_verify,
+          plain_http: @helm_chart_config.plain_http
+        )
+      rescue ex : Helm::ShellCMD::HelmCMDException
+        stdout_failure "Helm OCI pull failed for deployment \"#{get_deployment_name()}\": #{ex.message}"
+        return false
+      end
+
+      true
+    end
+
+    private def prepare_classic_install(
+      pull_destination : String,
+      ca_file : String?,
+      cert_file : String?,
+      key_file : String?,
+      skip_tls_verify : Bool
+    ) : Bool
+      repo_name  = @helm_chart_config.helm_repo_name
+      repo_url   = @helm_chart_config.helm_repo_url
+      chart_name = @helm_chart_config.helm_chart_name
+
+      username, password = resolve_credentials(
+        @helm_chart_config.auth,
+        @common.auth_defaults.helm_repos[repo_name]?
+      )
+
+      unless repo_url.empty?
+        Helm.helm_repo_add(
+          repo_name, repo_url,
+          username: username, password: password,
+          ca_file: ca_file, cert_file: cert_file, key_file: key_file,
+          insecure_skip_tls_verify: skip_tls_verify,
+          pass_credentials: @helm_chart_config.pass_credentials
+        )
+      end
+
+      begin
+        Helm.pull(
+          repo_name, chart_name,
+          version: @helm_chart_config.chart_version.empty? ? nil : @helm_chart_config.chart_version,
+          destination: pull_destination,
+          untar: true
+        )
+      rescue ex : Helm::ShellCMD::HelmCMDException
+        stdout_failure "Helm pull failed for deployment \"#{get_deployment_name()}\": #{ex.message}"
+        return false
+      end
+
+      true
+    end
+
+    private def oci_host(oci_url : String) : String
+      stripped = oci_url.sub(/^oci:\/\//, "")
+      stripped.split('/').first
+    end
+
+    private def resolve_tls(profile_name : String) : ConfigV2::TLSConfig?
+      return nil if profile_name.empty?
+      @common.tls_profiles[profile_name]?
+    end
+
+    # Returns {username, password} (may be empty strings if not provided).
+    private def resolve_credentials(override : ConfigV2::AuthCredentials?, defaults : ConfigV2::AuthCredentials?) : {String, String}
+      if override
+        username = override.username
+        password = !override.token.empty? ? override.token : override.password
+        return {username, password}
+      end
+
+      if defaults
+        username = defaults.username
+        password = !defaults.token.empty? ? defaults.token : defaults.password
+        return {username, password}
+      end
+
+      {"", ""}
     end
   end
 

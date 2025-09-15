@@ -1,0 +1,14 @@
+# registry config with clientcas (mTLS)
+version: 0.1
+log:
+  level: info
+storage:
+  filesystem:
+    rootdirectory: /var/lib/registry
+http:
+  addr: :5000
+  tls:
+    certificate: /certs/server.crt
+    key: /certs/server.key
+    clientcas:
+      - /certs/ca.crt

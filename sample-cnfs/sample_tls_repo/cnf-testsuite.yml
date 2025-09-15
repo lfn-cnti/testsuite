@@ -1,0 +1,21 @@
+config_version: v2
+common:
+  tls_profiles:
+    # certificates created programmatically in spec
+    mtls:
+      ca_file: "sample-cnfs/sample_tls_repo/tls/ca.crt"
+      cert_file: "sample-cnfs/sample_tls_repo/tls/client.crt"
+      key_file: "sample-cnfs/sample_tls_repo/tls/client.key"
+  auth_defaults:
+    oci_registries:
+      127.0.0.1.nip.io:54125:
+        username: "dummy"
+        password: "secret"
+deployments:
+  helm_charts:
+    - name: nginx-oci-mtls
+      namespace: cnf-default
+      registry_url: "oci://127.0.0.1.nip.io:54125/helm/nginx"
+      chart_version: "15.10.0"
+      tls_profile: "mtls"
+      plain_http: false
