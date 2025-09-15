@@ -12,6 +12,4 @@ module CNFInstall
       @deployment_priority = deployment_priority
     end
   end
-
-  
 end

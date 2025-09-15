@@ -13,6 +13,8 @@ targets:
 crystal: '>= 1.6.0'
 
 dependencies:
+  crinja:
+    github: straight-shoota/crinja
   sam:
     github: vulk/sam.cr
     commit: 4e3b271d31d7

@@ -1,0 +1,17 @@
+config_version: v2
+common:
+  auth_defaults:
+    helm_repos:
+      cm:
+        username: "dummy"
+        password: "secret"
+deployments:
+  helm_charts:
+    - name: nginx-private
+      namespace: cnf-default
+      helm_repo_name: cm
+      helm_repo_url: "http://localhost:53124"
+      helm_chart_name: "nginx"
+      chart_version: "15.10.0"
+      skip_tls_verify: true
+      pass_credentials: true
