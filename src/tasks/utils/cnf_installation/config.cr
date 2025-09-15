@@ -1,4 +1,5 @@
 require "yaml"
+require "crinja"
 require "../utils.cr"
 require "./config_versions/config_versions.cr"
 require "./config_updater/config_updater.cr"
@@ -14,6 +15,7 @@ module CNFInstall
         exit 1
       end
       yaml_content = File.read(path_to_config)
+      yaml_content = render_jinja_template(yaml_content)
       begin
         parse_cnf_config_from_yaml(yaml_content)
       rescue exception
@@ -32,6 +34,33 @@ module CNFInstall
         yaml_content = updater.serialize_to_string
       end
       config = Config.from_yaml(yaml_content)
+    end
+
+    def self.render_jinja_template(yaml_content : String) : String
+      logger = Log.for("render_jinja_template")
+
+      # Render only if we see Jinja markers:
+      #  - {{ ENV. ... }}  (explicit ENV interpolation)
+      #  - {% ... %}       (Jinja control tags)
+      needs_render = yaml_content.includes?("{{ ENV.") || yaml_content.includes?("{%")
+      return yaml_content unless needs_render
+
+      logger.info { "Jinja template detected in config" }
+      
+      # Heads-up if something looks like Helm/Go templates (e.g. {{ .Release.Namespace }})
+      if /\{\{\s*-?\s*\./.match(yaml_content)
+        logger.warn { "Config appears to contain Helm/Go templates (e.g. {{ .Release.* }}). " \
+                      "These are NOT supported by Jinja rendering and may break parsing. " \
+                      "Avoid mixing Helm templates with Jinja or quote them so they stay literal." }
+      end
+
+      # Expose ENV as String=>String
+      env_map = {} of String => String
+      ENV.each { |k, v| env_map[k] = v }
+
+      engine   = Crinja.new
+      template = engine.from_string(yaml_content)
+      template.render({ "ENV" => env_map })
     end
 
     # Detects the config version.

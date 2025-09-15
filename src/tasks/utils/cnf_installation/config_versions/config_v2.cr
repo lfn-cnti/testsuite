@@ -18,9 +18,10 @@ module CNFInstall
              docker_insecure_registries = [] of String,
              image_registry_fqdns = {} of String => String,
              five_g_parameters = FiveGParameters.new(),
-             hardcoded_ip_exceptions = [] of HardcodedIPsAllowed
-      def initialize()
-      end
+             hardcoded_ip_exceptions = [] of HardcodedIPsAllowed,
+             tls_profiles = {} of String => TLSConfig,
+             auth_defaults = AuthDefaults.new
+      def initialize; end
     end
 
     class DeploymentsConfig < CNFInstall::Config::ConfigBase
@@ -57,13 +58,61 @@ module CNFInstall
 
     class HelmDeploymentConfig < DeploymentConfig
       getter helm_values = "",
-             namespace = ""
+             namespace = "",
+             tls_profile = "",
+             skip_tls_verify = false
     end
 
     class HelmChartConfig < HelmDeploymentConfig
-      getter helm_repo_name : String,
-             helm_chart_name : String,
-             helm_repo_url = ""
+      # Classic repo fields
+      getter helm_repo_name = "",
+             helm_chart_name = "",
+             helm_repo_url = "",
+
+             # OCI field
+             registry_url = "", # oci://host/org/chart
+             plain_http = false, 
+
+             # Common
+             chart_version = "", # required for OCI; optional for classic
+             pass_credentials = false, # forward creds across redirects
+             auth : AuthCredentials? = nil  # optional per-chart override
+
+      def after_initialize
+        is_oci     = !@registry_url.empty?
+        is_classic = !@helm_chart_name.empty? || !@helm_repo_name.empty? || !@helm_repo_url.empty?
+
+        if is_oci && is_classic
+          raise YAML::Error.new("Chart \"#{name}\": specify either OCI (registry_url) OR classic (helm_repo_* + helm_chart_name), not both")
+        elsif !is_oci && !is_classic
+          raise YAML::Error.new("Chart \"#{name}\": missing source. Provide registry_url for OCI or helm_repo_url/name + helm_chart_name for classic")
+        end
+
+        if is_oci
+          unless @registry_url.starts_with?("oci://")
+            raise YAML::Error.new("Chart \"#{name}\": registry_url must start with \"oci://\"")
+          end
+          if @chart_version.empty?
+            raise YAML::Error.new("Chart \"#{name}\": chart_version is required for OCI charts")
+          end
+
+          derived = @registry_url.sub(/^oci:\/\//, "").split("/").last
+          if !@helm_chart_name.empty?
+            Log.warn { "Chart \"#{name}\": helm_chart_name is ignored for OCI charts; using \"#{derived}\" derived from registry_url." }
+          end
+          @helm_chart_name = derived
+        else # classic
+          if @helm_chart_name.empty?
+            raise YAML::Error.new("Chart \"#{name}\": helm_chart_name is required for classic repos")
+          end
+          if !@helm_repo_url.empty? && @helm_repo_name.empty?
+            raise YAML::Error.new(
+              "Chart \"#{name}\": helm_repo_url is set but helm_repo_name is empty. " \
+              "Provide an alias in helm_repo_name so the repository can be added."
+            )
+          end
+        end
+      end
     end
 
     class HelmDirectoryConfig < HelmDeploymentConfig
@@ -99,8 +148,7 @@ module CNFInstall
              apn = "",
              emergency = ""
 
-      def initialize()
-      end
+      def initialize; end
     end
     
     class ContainerParameters < CNFInstall::Config::ConfigBase
@@ -129,6 +177,26 @@ module CNFInstall
 
     class HardcodedIPsAllowed < CNFInstall::Config::ConfigBase
       getter ip : String
+    end
+
+    class TLSConfig < CNFInstall::Config::ConfigBase
+      getter ca_file = "",
+             cert_file = "",
+             key_file = ""
+      def initialize; end
+    end
+
+    class AuthDefaults < CNFInstall::Config::ConfigBase
+      getter oci_registries = {} of String => AuthCredentials,
+             helm_repos     = {} of String => AuthCredentials
+      def initialize; end
+    end
+      
+    class AuthCredentials < CNFInstall::Config::ConfigBase
+      getter token = "",
+             username = "",
+             password = ""
+      def initialize; end
     end
   end
 end

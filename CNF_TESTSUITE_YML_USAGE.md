@@ -59,6 +59,23 @@ New releases may change the format of cnf-testsuite.yml. To update your older co
 
 ### Keys and Values
 
+#### Environment variables (Jinja)
+
+You can reference environment variables with Crinja syntax: {{ ENV.VAR_NAME }}. Rendering is applied only if the config contains {{ ENV. or {% … %}. Avoid mixing Helm/Go templates (e.g., {{ .Release.Namespace }}) with Crinja; quote them to keep them literal.
+
+```yaml
+config_version: v2
+deployments:
+  helm_charts:
+    - name: private-chart
+      helm_repo_name: corp
+      helm_repo_url: "https://charts.example.com"
+      helm_chart_name: awesome
+      auth:
+        username: "{{ ENV.REPO_USER }}"
+        password: "{{ ENV.REPO_PASS }}"
+```
+
 #### Config version
 
 Current config version is `"v2"`
@@ -134,6 +151,58 @@ image_registry_fqdns:
 
 Described below: [link](#5G-parameters)
 
+
+##### tls_profiles
+
+Define reusable TLS bundles (CA/cert/key) that deployments can reference. Useful for private Helm repos and OCI registries.
+
+```yaml
+config_version: v2
+common:
+  tls_profiles:
+    corp_ca:
+      ca_file:   /path/to/ca.crt
+      cert_file: /path/to/client.crt
+      key_file:  /path/to/client.key
+deployments:
+  helm_charts:
+    - name: web-frontend
+      tls_profile: corp_ca
+      ...
+```
+
+##### auth_defaults
+
+Optional default credentials for private repositories and registries. Keys are hosts; values are credentials. Per-chart auth can override these.
+
+```yaml
+config_version: v2
+common:
+  auth_defaults:
+    oci_registries:
+      "registry.example.com":
+        token: "{{ ENV.OCI_TOKEN }}"      # or username/password
+    helm_repos:
+      "charts.example.com":
+        username: "my_username554"
+        password: "{{ ENV.REPO_PASS }}"
+helm_charts:
+  # Classic Helm repo – uses auth_defaults.
+  - name: web-frontend
+    helm_repo_name: corp
+    helm_repo_url: "https://charts.example.com"
+    helm_chart_name: web-frontend
+    ...
+  - name: web-backend
+    registry_url: "oci://registry.example.com/team/nginx"
+    chart_version: 1.0.2
+    auth:
+      token: "{{ ENV.TOKEN_OVERRIDE }}
+
+```
+
+**Note:** If you pre-login (e.g., helm registry login … or helm repo add … with credentials), you don’t need to specify auth in the config.
+
 #### Deployments
 
 Deployments are defined as three arrays, each for different installation method. Each array element represents one deployment, and they are meant to represent a single CNF together.
@@ -171,22 +240,63 @@ deployments:
 
 ##### helm_charts
 
-Deployment, defined by helm chart and helm repository.
-Helm repository name and url can be omitted if repository is already present locally. 
-Explanations with example:
+Deployment from either a classic Helm repository or an OCI registry.
+
+###### Classic Helm repositories
 
 ```yaml
 ---
 config_version: "v2"
 deployments:
   helm_charts:
-    - name: coredns  # Name of the deployment
-      helm_repo_name: stable  # Name of the repository for the helm chart
-      helm_repo_url: https://cncf.gitlab.io/stable  # Repository URL
-      helm_chart_name: coredns  # Name of the helm chart in format repo_name/chart_name
-      helm_values: --set myvalue=42 # Additional values that would be used for helm installation
-      namespace: cnf-default # Namespace to which deployment would be installed (cnf-default is default)
+    - name: coredns                                 # Name of the deployment
+      helm_repo_name: stable                        # Name of the repository for the helm chart
+      helm_repo_url: https://cncf.gitlab.io/stable  # Required if helm_repo_url is set
+      helm_chart_name: coredns                      # Name of the helm chart in format repo_name/chart_name
+
+      # Optional keys
+      chart_version: 10.2.1
+      helm_values: --set myvalue=42                 # Additional values that would be used for helm installation
+      namespace: cnf-default                        # Defaults to cnf-default
+      skip_tls_verify: false                        # Disable TLS verification
+      pass_credentials: false                       # Pass creds on redirects
+      auth:                                         # Optional per-chart override
+        username: "{{ ENV.REPO_USER }}"
+        password: "{{ ENV.REPO_PASS }}"
 ```
+
+**Notes:**`
+- If the repo was already added locally, you may omit `helm_repo_url`.
+- `tls_profile` attaches `ca_file`/`cert_file`/`key_file` to Helm operations against that repo.
+- `skip_tls_verify` disables certificate verification (use with care).
+- `pass_credentials` forwards auth across redirects.
+- Auth may be a bearer token or username/password. If you already added the repo with `helm repo add`, you do not need to set auth.
+
+###### OCI registries
+
+```yaml
+---
+config_version: "v2"
+deployments:
+  helm_charts:
+    - name: nginx-oci                                        # Name of the deployment
+      registry_url: "oci://registry.example.com/team/nginx"  # must start with oci://
+      chart_version: "15.10.0"                               # required for OCI
+
+      # Optional keys
+      helm_values: --set myvalue=42                          # Additional values that would be used for helm installation
+      namespace: cnf-default                                 # Defaults to cnf-default
+      skip_tls_verify: false                                 # Disable TLS verification
+      plain_http: false                                      # optional: use HTTP instead of HTTPS
+      auth:                                                  # optional per-chart override
+        token: "{{ ENV.OCI_TOKEN }}"
+```
+
+**Notes:**
+- For OCI, `chart_version` is required.
+- `registry_url` determines the chart name automatically (last path segment).
+- Set plain_http: true only if your registry is HTTP.
+- Auth may be a bearer token or username/password. If you already logged in with `helm registry login`, you do not need to set auth.
 
 ##### helm_dirs
 
@@ -197,10 +307,10 @@ Explanations with example:
 config_version: "v2"
 deployments:
   helm_dirs:
-    - name: envoy  # Name of the deployment
-      helm_directory: chart  # Path to the directory with Chart.yaml, relative to CNF configuration file
-      helm_values: --set myvalue=42 # Additional values that would be used for helm installation
-      namespace: cnf-default # Namespace to which deployment would be installed (cnf-default is default)
+    - name: envoy                     # Name of the deployment
+      helm_directory: chart           # Path to the directory with Chart.yaml, relative to CNF configuration file
+      helm_values: --set myvalue=42   # Additional values that would be used for helm installation
+      namespace: cnf-default          # Namespace to which deployment would be installed (cnf-default is default)
 ```
 
 ##### manifests
