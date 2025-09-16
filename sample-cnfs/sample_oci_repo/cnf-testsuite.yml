@@ -1,0 +1,14 @@
+config_version: v2
+common:
+  auth_defaults:
+    oci_registries:
+      localhost:53123:
+        username: "dummy"
+        password: "secret"
+deployments:
+  helm_charts:
+    - name: nginx-oci
+      namespace: cnf-default
+      registry_url: "oci://localhost:53123/helm/nginx"
+      chart_version: "15.10.0"
+      plain_http: true

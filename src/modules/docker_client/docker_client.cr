@@ -45,6 +45,17 @@ module DockerClient
     Log.info { "Docker.save stderr: #{stderr.to_s}" }
     {status: status, output: output, error: stderr}
   end
+
+  def self.run(args)
+  Log.info { "Docker.run: docker #{args}" }
+  status = Process.run("docker #{args}",
+                       shell: true,
+                       output: output = IO::Memory.new,
+                       error:  stderr = IO::Memory.new)
+  Log.info { "Docker.run output: #{output.to_s}" }
+  Log.info { "Docker.run stderr: #{stderr.to_s}" }
+  {status: status, output: output, error: stderr}
+  end
   ##############################################
   # All docker images can have one, two, three, or more segments. The docker images that have 
   # multiple segments are separated by a slash.
