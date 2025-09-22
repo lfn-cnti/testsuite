@@ -164,7 +164,7 @@ describe "Installation" do
   it "'cnf_install' should correctly handle deployment priority", tags: ["cnf_installation"] do
     # (kosstennbl) ELK stack requires to be installed with specific order, otherwise it would give errors
     begin
-      result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-elk-stack/cnf-testsuite.yml timeout=600")
+      result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-elk-stack/cnf-testsuite.yml", timeout: 600)
       result[:status].success?.should be_true
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
   
