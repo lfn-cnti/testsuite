@@ -31,9 +31,8 @@ module ShellCmd
     run(cmd, log_prefix: "ShellCmd.run_testsuite", force_output: true, joined_output: true)
   end
 
-  def self.cnf_install(install_params, cmd_prefix="", expect_failure=false)
-    timeout_parameter = install_params.includes?("timeout") ? "" : "timeout=300"
-    result = run_testsuite("cnf_install #{install_params} #{timeout_parameter}", cmd_prefix)
+  def self.cnf_install(install_params, timeout=300, cmd_prefix="", expect_failure=false)
+    result = run_testsuite("cnf_install #{install_params} timeout=#{timeout}", cmd_prefix)
     if !expect_failure
       result[:status].success?.should be_true
     else
