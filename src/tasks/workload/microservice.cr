@@ -488,33 +488,58 @@ task "zombie_handled" do |t, args|
   end
 end
 
-# Attach strace to a PID in background
+# Attach strace to a PID in background, following all threads
 def attach_strace(pid : String, node : JSON::Any)
-  path = "/tmp/#{pid}-strace"
+  main_log_path = "/tmp/#{pid}-strace.#{pid}"
 
+  # Start strace in background for all threads
   # Using timeout here is a small hack to avoid endless strace execution on unexpected failures
-  cmd = "timeout #{GENERIC_OPERATION_TIMEOUT}s strace -p #{pid} -e 'trace=!all' 2>&1 | tee #{path}"
+  cmd = "timeout #{GENERIC_OPERATION_TIMEOUT}s strace -ff -p #{pid} -o /tmp/#{pid}-strace"
   ClusterTools.exec_by_node_bg(cmd, node)
 
   # Ensure strace logging begins
-  unless repeat_with_timeout(10, "Waiting for strace log file #{path} timed out", delay: 1) { File.exists?(path) }
+  unless repeat_with_timeout(10, "Waiting for strace log file for PID #{pid} timed out", delay: 1) do
+    result = ClusterTools.exec_by_node("ls /tmp | grep #{pid}-strace.#{pid} || true", node)
+    !result[:output].strip.empty?
+  end
     return StraceAttachResult::NoSuchProcess
   end
 
-  contents = File.read(path)
+  # Read only the main process log
+  contents = ClusterTools.exec_by_node("cat #{main_log_path} || true", node)[:output]
   return StraceAttachResult::NoSuchProcess if contents.empty? ||
                                               contents.includes?("No such process") ||
                                               contents.includes?("ptrace(PTRACE_SEIZE)")
-  return StraceAttachResult::NotPermitted  if contents.includes?("Operation not permitted")
+  return StraceAttachResult::NotPermitted if contents.includes?("Operation not permitted")
 
   StraceAttachResult::Attached
 end
 
-# Checks if SIGTERM appears in the PID's strace log
-def check_sigterm_in_strace_logs(pid : String) : Bool
-  path = "/tmp/#{pid}-strace"
-  return false unless File.exists?(path)
-  File.read(path).includes?("SIGTERM")
+# Check if SIGTERM appears in all strace log files
+def check_sigterm_in_strace_logs(pid : String, node : JSON::Any) : Bool
+  # List all thread log files for this PID on the remote node
+  result = ClusterTools.exec_by_node("ls /tmp | grep #{pid}-strace || true", node)
+  files = result[:output].split("\n").reject(&.empty?).map { |f| "/tmp/#{f}" }
+
+  if files.empty?
+    Log.warn { "No strace log files found for PID #{pid} on node." }
+    return false
+  end
+
+  begin
+    files.each do |file|
+      contents = ClusterTools.exec_by_node("cat #{file} || true", node)[:output]
+      next if contents.empty?
+
+      if contents.includes?("SIGTERM")
+        Log.info { "SIGTERM found in #{file}" }
+        return true
+      end
+    end
+    false
+  ensure
+    ClusterTools.exec_by_node("rm -f /tmp/#{pid}-strace*", node)
+  end
 end
 
 desc "Are the SIGTERM signals handled?"
@@ -650,7 +675,7 @@ task "sig_term_handled" do |t, args|
 
           # Check each attached process's log for SIGTERM
           results = attached_pids.map do |p|
-            found = check_sigterm_in_strace_logs(p)
+            found = check_sigterm_in_strace_logs(p, node)
             logger.info {"PID #{p} => SIGTERM captured? #{found}"}
             found
           end
