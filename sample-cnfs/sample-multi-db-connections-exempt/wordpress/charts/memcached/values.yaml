@@ -40,7 +40,7 @@ extraDeploy: []
 ## @section Memcached parameters
 
 ## Bitnami Memcached image version
-## ref: https://hub.docker.com/r/bitnami/memcached/tags/
+## ref: https://hub.docker.com/r/bitnamilegacy/memcached/tags/
 ## @param image.registry Memcached image registry
 ## @param image.repository Memcached image repository
 ## @param image.tag Memcached image tag (immutable tags are recommended)
@@ -50,7 +50,7 @@ extraDeploy: []
 ##
 image:
   registry: docker.io
-  repository: bitnami/memcached
+  repository: bitnamilegacy/memcached
   tag: 1.6.12-debian-10-r50
   ## Specify a imagePullPolicy
   ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
@@ -310,7 +310,7 @@ metrics:
   ##
   enabled: false
   ## Bitnami Memcached Prometheus Exporter image
-  ## ref: https://hub.docker.com/r/bitnami/memcached-exporter/tags/
+  ## ref: https://hub.docker.com/r/bitnamilegacy/memcached-exporter/tags/
   ## @param metrics.image.registry Memcached exporter image registry
   ## @param metrics.image.repository Memcached exporter image repository
   ## @param metrics.image.tag Memcached exporter image tag (immutable tags are recommended)
@@ -319,7 +319,7 @@ metrics:
   ##
   image:
     registry: docker.io
-    repository: bitnami/memcached-exporter
+    repository: bitnamilegacy/memcached-exporter
     tag: 0.9.0-debian-10-r221
     pullPolicy: IfNotPresent
     ## Optionally specify an array of imagePullSecrets.
@@ -472,7 +472,7 @@ volumePermissions:
   ##
   image:
     registry: docker.io
-    repository: bitnami/bitnami-shell
+    repository: bitnamilegacy/bitnami-shell
     tag: 10-debian-10-r260
     ## Specify a imagePullPolicy
     ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'

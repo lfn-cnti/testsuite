@@ -69,7 +69,7 @@ diagnosticMode:
 ##
 image:
   registry: docker.io
-  repository: bitnami/mariadb
+  repository: bitnamilegacy/mariadb
   tag: 10.5.13-debian-10-r0
   ## Specify a imagePullPolicy
   ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
@@ -860,7 +860,7 @@ volumePermissions:
   ##
   image:
     registry: docker.io
-    repository: bitnami/bitnami-shell
+    repository: bitnamilegacy/bitnami-shell
     tag: 10-debian-10-r247
     pullPolicy: IfNotPresent
     ## Optionally specify an array of imagePullSecrets (secrets must be manually created in the namespace)
@@ -893,7 +893,7 @@ metrics:
   ##
   image:
     registry: docker.io
-    repository: bitnami/mysqld-exporter
+    repository: bitnamilegacy/mysqld-exporter
     tag: 0.13.0-debian-10-r150
     pullPolicy: IfNotPresent
     ## Optionally specify an array of imagePullSecrets (secrets must be manually created in the namespace)

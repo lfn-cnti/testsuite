@@ -59,7 +59,7 @@ diagnosticMode:
 ## @section MariaDB common parameters
 
 ## Bitnami MariaDB image
-## ref: https://hub.docker.com/r/bitnami/mariadb/tags/
+## ref: https://hub.docker.com/r/bitnamilegacy/mariadb/tags/
 ## @param image.registry MariaDB image registry
 ## @param image.repository MariaDB image repository
 ## @param image.tag MariaDB image tag (immutable tags are recommended)
@@ -69,7 +69,7 @@ diagnosticMode:
 ##
 image:
   registry: docker.io
-  repository: bitnami/mariadb
+  repository: bitnamilegacy/mariadb
   tag: 10.5.13-debian-10-r0
   ## Specify a imagePullPolicy
   ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
@@ -353,7 +353,7 @@ primary:
   ##
   customReadinessProbe: {}
   ## @param primary.startupWaitOptions Override default builtin startup wait check options for MariaDB primary containers
-  ## `bitnami/mariadb` Docker image has built-in startup check mechanism,
+  ## `bitnamilegacy/mariadb` Docker image has built-in startup check mechanism,
   ## which periodically checks if MariaDB service has started up and stops it
   ## if all checks have failed after X tries. Use these to control these checks.
   ## ref: https://github.com/bitnami/bitnami-docker-mariadb/pull/240
@@ -691,7 +691,7 @@ secondary:
   ##
   customReadinessProbe: {}
   ## @param secondary.startupWaitOptions Override default builtin startup wait check options for MariaDB secondary containers
-  ## `bitnami/mariadb` Docker image has built-in startup check mechanism,
+  ## `bitnamilegacy/mariadb` Docker image has built-in startup check mechanism,
   ## which periodically checks if MariaDB service has started up and stops it
   ## if all checks have failed after X tries. Use these to control these checks.
   ## ref: https://github.com/bitnami/bitnami-docker-mariadb/pull/240
@@ -860,7 +860,7 @@ volumePermissions:
   ##
   image:
     registry: docker.io
-    repository: bitnami/bitnami-shell
+    repository: bitnamilegacy/bitnami-shell
     tag: 10-debian-10-r247
     pullPolicy: IfNotPresent
     ## Optionally specify an array of imagePullSecrets (secrets must be manually created in the namespace)
@@ -893,7 +893,7 @@ metrics:
   ##
   image:
     registry: docker.io
-    repository: bitnami/mysqld-exporter
+    repository: bitnamilegacy/mysqld-exporter
     tag: 0.13.0-debian-10-r150
     pullPolicy: IfNotPresent
     ## Optionally specify an array of imagePullSecrets (secrets must be manually created in the namespace)

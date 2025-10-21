@@ -7,6 +7,7 @@ deployments:
       helm_repo_url: https://charts.bitnami.com/bitnami
       helm_chart_name: nginx
       helm_values: --set replicaCount=1
+        --set global.security.allowInsecureImages=true --set image.repository=bitnamilegacy/nginx
   manifests:
     - name: redis
       manifest_directory: redis-manifests

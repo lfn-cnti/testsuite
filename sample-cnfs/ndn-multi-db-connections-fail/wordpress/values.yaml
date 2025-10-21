@@ -58,7 +58,7 @@ diagnosticMode:
 ## @section WordPress Image parameters
 
 ## Bitnami WordPress image
-## ref: https://hub.docker.com/r/bitnami/wordpress/tags/
+## ref: https://hub.docker.com/r/bitnamilegacy/wordpress/tags/
 ## @param image.registry WordPress image registry
 ## @param image.repository WordPress image repository
 ## @param image.tag WordPress image tag (immutable tags are recommended)
@@ -68,7 +68,7 @@ diagnosticMode:
 ##
 image:
   registry: docker.io
-  repository: bitnami/wordpress
+  repository: bitnamilegacy/wordpress
   tag: 5.8.2-debian-10-r34
   ## Specify a imagePullPolicy
   ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
@@ -649,7 +649,7 @@ volumePermissions:
   ##
   enabled: false
   ## Bitnami Shell image
-  ## ref: https://hub.docker.com/r/bitnami/bitnami-shell/tags/
+  ## ref: https://hub.docker.com/r/bitnamilegacy/bitnami-shell/tags/
   ## @param volumePermissions.image.registry Bitnami Shell image registry
   ## @param volumePermissions.image.repository Bitnami Shell image repository
   ## @param volumePermissions.image.tag Bitnami Shell image tag (immutable tags are recommended)
@@ -658,7 +658,7 @@ volumePermissions:
   ##
   image:
     registry: docker.io
-    repository: bitnami/bitnami-shell
+    repository: bitnamilegacy/bitnami-shell
     tag: 10-debian-10-r280
     pullPolicy: IfNotPresent
     ## Optionally specify an array of imagePullSecrets.
@@ -723,7 +723,7 @@ metrics:
   ##
   enabled: false
   ## Bitnami Apache Exporter image
-  ## ref: https://hub.docker.com/r/bitnami/apache-exporter/tags/
+  ## ref: https://hub.docker.com/r/bitnamilegacy/apache-exporter/tags/
   ## @param metrics.image.registry Apache Exporter image registry
   ## @param metrics.image.repository Apache Exporter image repository
   ## @param metrics.image.tag Apache Exporter image tag (immutable tags are recommended)
@@ -732,7 +732,7 @@ metrics:
   ##
   image:
     registry: docker.io
-    repository: bitnami/apache-exporter
+    repository: bitnamilegacy/apache-exporter
     tag: 0.10.1-debian-10-r83
     pullPolicy: IfNotPresent
     ## Optionally specify an array of imagePullSecrets.
