@@ -2,13 +2,13 @@
 config_version: v2
 common:
   container_names:
-  # Default container image bitnami/wordpress:6.0.2-debian-11-r0
+  # Default container image bitnamilegacy/wordpress:6.0.2-debian-11-r0
   - name: wordpress
     rollback_from_tag: 6.0.1-debian-11-r21
     rolling_update_test_tag: 6.0.2-debian-11-r0
     rolling_downgrade_test_tag: 6.0.1-debian-11-r21
     rolling_version_change_test_tag: 6.0.2-debian-11-r0
-  # Default container image bitnami/mariadb:10.6.9-debian-11-r0
+  # Default container image bitnamilegacy/mariadb:10.6.9-debian-11-r0
   - name: mariadb
     rollback_from_tag: 10.6.8-debian-11-r2
     rolling_update_test_tag: 10.6.9-debian-11-r0
