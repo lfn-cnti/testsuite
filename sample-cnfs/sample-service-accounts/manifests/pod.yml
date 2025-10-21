@@ -24,7 +24,7 @@ spec:
   serviceAccount: build-robot
   serviceAccountName: build-robot
   containers:
-  - image: bitnami/nginx:1.20
+  - image: bitnamilegacy/nginx:1.20
     name: nginx
     command:
       - /opt/bitnami/scripts/nginx/entrypoint.sh

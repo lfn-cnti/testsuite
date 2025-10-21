@@ -210,7 +210,7 @@ spec:
         fsGroup: 1001
       containers:
         - name: wordpress
-          image: docker.io/bitnami/wordpress:5.7.2-debian-10-r35
+          image: docker.io/bitnamilegacy/wordpress:5.7.2-debian-10-r35
           imagePullPolicy: "IfNotPresent"
           securityContext:
             runAsNonRoot: true
@@ -361,7 +361,7 @@ spec:
         fsGroup: 1001
       containers:
         - name: mariadb
-          image: docker.io/bitnami/mariadb:10.5.11-debian-10-r0
+          image: docker.io/bitnamilegacy/mariadb:10.5.11-debian-10-r0
           imagePullPolicy: "IfNotPresent"
           securityContext:
             runAsUser: 1001
@@ -456,7 +456,7 @@ spec:
     fsGroup: 1001
   containers:
     - name: wordpress-credentials-test
-      image: docker.io/bitnami/wordpress:5.7.2-debian-10-r35
+      image: docker.io/bitnamilegacy/wordpress:5.7.2-debian-10-r35
       imagePullPolicy: "IfNotPresent"
       securityContext:
         runAsNonRoot: true
