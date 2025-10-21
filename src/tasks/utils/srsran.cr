@@ -2,8 +2,8 @@ require "../../modules/cluster_tools"
 module SRSRAN 
   # MYSQL_PORT = "3306" 
   # def self.match()
-  #   ClusterTools.local_match_by_image_name(["mysql/mysql-server","bitnami/mysql"])
-  #   # ClusterTools.local_match_by_image_name("bitnami/mysql")
+  #   ClusterTools.local_match_by_image_name(["mysql/mysql-server","bitnamilegacy/mysql"])
+  #   # ClusterTools.local_match_by_image_name("bitnamilegacy/mysql")
   # end
 
   def self.uninstall

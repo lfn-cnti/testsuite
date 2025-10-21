@@ -1,2 +1,11 @@
 aggregator:
   enabled: false
+
+image:
+  registry: docker.io
+  repository: bitnamilegacy/fluentd
+  tag: 1.19.0-debian-12-r1
+
+global:
+  security:
+    allowInsecureImages: true

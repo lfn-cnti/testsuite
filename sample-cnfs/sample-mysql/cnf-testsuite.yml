@@ -6,3 +6,4 @@ deployments:
     helm_chart_name: mysql
     helm_repo_name: bitnami
     helm_repo_url: https://charts.bitnami.com/bitnami
+    helm_values: --set global.security.allowInsecureImages=true --set image.repository=bitnamilegacy/mysql

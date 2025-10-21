@@ -69,7 +69,7 @@ diagnosticMode:
 ## @section Memcached parameters
 
 ## Bitnami Memcached image version
-## ref: https://hub.docker.com/r/bitnami/memcached/tags/
+## ref: https://hub.docker.com/r/bitnamilegacy/memcached/tags/
 ## @param image.registry [default: REGISTRY_NAME] Memcached image registry
 ## @param image.repository [default: REPOSITORY_NAME/memcached] Memcached image repository
 ## @skip image.tag Memcached image tag (immutable tags are recommended)
@@ -80,7 +80,7 @@ diagnosticMode:
 ##
 image:
   registry: docker.io
-  repository: bitnami/memcached
+  repository: bitnamilegacy/memcached
   tag: 1.6.32-debian-12-r0
   digest: ""
   ## Specify a imagePullPolicy
@@ -619,7 +619,7 @@ volumePermissions:
   ##
   image:
     registry: docker.io
-    repository: bitnami/os-shell
+    repository: bitnamilegacy/os-shell
     tag: 12-debian-12-r31
     digest: ""
     pullPolicy: IfNotPresent
@@ -664,7 +664,7 @@ metrics:
   ##
   enabled: false
   ## Bitnami Memcached Prometheus Exporter image
-  ## ref: https://hub.docker.com/r/bitnami/memcached-exporter/tags/
+  ## ref: https://hub.docker.com/r/bitnamilegacy/memcached-exporter/tags/
   ## @param metrics.image.registry [default: REGISTRY_NAME] Memcached exporter image registry
   ## @param metrics.image.repository [default: REPOSITORY_NAME/memcached-exporter] Memcached exporter image repository
   ## @skip metrics.image.tag Memcached exporter image tag (immutable tags are recommended)
@@ -674,7 +674,7 @@ metrics:
   ##
   image:
     registry: docker.io
-    repository: bitnami/memcached-exporter
+    repository: bitnamilegacy/memcached-exporter
     tag: 0.14.4-debian-12-r9
     digest: ""
     pullPolicy: IfNotPresent

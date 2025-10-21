@@ -16,7 +16,7 @@ metadata:
     app: nginx
 spec:
   containers:
-  - image: bitnami/nginx:1.20
+  - image: bitnamilegacy/nginx:1.20
     name: nginx
     command:
       - /opt/bitnami/scripts/nginx/entrypoint.sh

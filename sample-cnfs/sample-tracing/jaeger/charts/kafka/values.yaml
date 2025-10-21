@@ -13,7 +13,7 @@
 ##
 image:
   registry: docker.io
-  repository: bitnami/kafka
+  repository: bitnamilegacy/kafka
   tag: 2.8.0-debian-10-r30
   ## Specify a imagePullPolicy
   ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
@@ -648,7 +648,7 @@ externalAccess:
     ##
     image:
       registry: docker.io
-      repository: bitnami/kubectl
+      repository: bitnamilegacy/kubectl
       tag: 1.19.11-debian-10-r14
       ## Specify a imagePullPolicy
       ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
@@ -802,7 +802,7 @@ volumePermissions:
     runAsUser: 0
   image:
     registry: docker.io
-    repository: bitnami/bitnami-shell
+    repository: bitnamilegacy/bitnami-shell
     tag: 10-debian-10-r98
     ## Specify a imagePullPolicy
     ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
@@ -863,7 +863,7 @@ provisioning:
 
   image:
     registry: docker.io
-    repository: bitnami/kafka
+    repository: bitnamilegacy/kafka
     tag: 2.8.0-debian-10-r29
     ## Specify a imagePullPolicy
     ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
@@ -934,7 +934,7 @@ metrics:
     ##
     image:
       registry: docker.io
-      repository: bitnami/kafka-exporter
+      repository: bitnamilegacy/kafka-exporter
       tag: 1.3.1-debian-10-r14
       ## Specify a imagePullPolicy
       ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
@@ -1072,7 +1072,7 @@ metrics:
     ##
     image:
       registry: docker.io
-      repository: bitnami/jmx-exporter
+      repository: bitnamilegacy/jmx-exporter
       tag: 0.15.0-debian-10-r121
       ## Specify a imagePullPolicy
       ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'

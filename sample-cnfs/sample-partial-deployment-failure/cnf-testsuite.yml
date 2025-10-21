@@ -7,6 +7,7 @@ deployments:
       helm_repo_url: https://charts.bitnami.com/bitnami
       helm_chart_name: nginx
       helm_values: --set replicaCount=1
+        --set global.security.allowInsecureImages=true --set image.repository=bitnamilegacy/nginx
     - name: coredns
       helm_chart_name: coredns
       helm_repo_name: badrepo

@@ -4,7 +4,7 @@ module Netstat
   module Mariadb
     MYSQL_PORT = "3306" 
     def self.match()
-      ClusterTools.local_match_by_image_name("bitnami/mariadb")
+      ClusterTools.local_match_by_image_name("bitnamilegacy/mariadb")
     end
     # def self.uninstall
     #   Log.for("verbose").info { "uninstall_mysql" } 

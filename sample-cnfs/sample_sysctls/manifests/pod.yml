@@ -18,7 +18,7 @@ spec:
       - name: kernel.msgmax
         value: "60000"
   containers:
-  - image: bitnami/nginx:latest
+  - image: bitnamilegacy/nginx:latest
     name: nginx
     command:
       - /opt/bitnami/scripts/nginx/entrypoint.sh

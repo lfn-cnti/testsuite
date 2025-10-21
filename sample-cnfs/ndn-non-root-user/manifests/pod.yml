@@ -14,7 +14,7 @@ metadata:
   namespace: nginx-stuff
 spec:
   containers:
-  - image: bitnami/nginx:1.20
+  - image: bitnamilegacy/nginx:1.20
     name: main-container
     command:
       - /opt/bitnami/scripts/nginx/entrypoint.sh

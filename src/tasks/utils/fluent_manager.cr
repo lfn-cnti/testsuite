@@ -55,7 +55,7 @@ module FluentManager
             "https://charts.bitnami.com/bitnami",
             "fluentd-bitnami-values.yml",
             FLUENTD_BITNAMI_VALUES,
-            "bitnami/fluentd",
+            "bitnamilegacy/fluentd",
             "bitnami/fluentd")
     end
   end
