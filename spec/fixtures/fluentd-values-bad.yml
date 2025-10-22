@@ -1,3 +1,8 @@
+global:
+  security:
+    allowInsecureImages: true
+image:
+  repository: bitnamilegacy/fluentd
 aggregator:
   enabled: false
 forwarder:
