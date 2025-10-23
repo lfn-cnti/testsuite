@@ -22,15 +22,8 @@ spec:
             - /bin/bash
             - -c
             - |
-              CONTAINERD_SOCKET_DIR=$(lsof -U | grep -E "/containerd\.sock\s" | awk '{print $9}' | head -n 1 | xargs -r dirname)
-              if [ -n "$CONTAINERD_SOCKET_DIR" ]; then
-                ln -s /host/$CONTAINERD_SOCKET_DIR /run/containerd
-              else
-                CRIO_SOCKET_DIR=$(lsof -U | grep -E "/crio\.sock\s" | awk '{print $9}' | head -n 1 | xargs -r dirname)
-                if [ -n "$CRIO_SOCKET_DIR" ]; then
-                  ln -s /host/$CRIO_SOCKET_DIR /var/run/crio
-                fi
-              fi
+              [ -S /host/run/containerd/containerd.sock ] && ln -s /host/run/containerd /run/containerd
+              [ -S /host/run/crio/crio.sock ] && ln -s /host/run/crio /run/crio
               sleep infinity
           volumeMounts:
           - name: systemd
