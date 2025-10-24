@@ -135,6 +135,7 @@ describe "Observability" do
   it "'routed_logs' should pass if cnfs logs are captured by fluentbit", tags: ["observability"] do
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-fluentbit")
     result = ShellCmd.run_testsuite("setup:install_fluentbit")
+    sleep 60
     result = ShellCmd.run_testsuite("routed_logs")
     (/(PASSED).*(Your CNF's logs are being captured)/ =~ result[:output]).should_not be_nil
   ensure
@@ -150,7 +151,7 @@ describe "Observability" do
     Helm.install("fluentd", "bitnami/fluentd", namespace: TESTSUITE_NAMESPACE, values: "--values ./spec/fixtures/fluentd-values-bad.yml")
     Log.info { "Installing FluentD daemonset" }
     KubectlClient::Wait.resource_wait_for_install("Daemonset", "fluentd", namespace: TESTSUITE_NAMESPACE)
-
+    sleep 60
     result = ShellCmd.run_testsuite("routed_logs")
     (/(FAILED).*(Your CNF's logs are not being captured)/ =~ result[:output]).should_not be_nil
   ensure
