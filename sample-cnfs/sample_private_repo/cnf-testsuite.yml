@@ -15,3 +15,4 @@ deployments:
       chart_version: "15.10.0"
       skip_tls_verify: true
       pass_credentials: true
+      helm_values: --set global.security.allowInsecureImages=true --set image.repository=bitnamilegacy/nginx

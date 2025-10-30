@@ -12,3 +12,4 @@ deployments:
       registry_url: "oci://localhost:53123/helm/nginx"
       chart_version: "15.10.0"
       plain_http: true
+      helm_values: --set global.security.allowInsecureImages=true --set image.repository=bitnamilegacy/nginx
