@@ -458,8 +458,6 @@ describe "Installation" do
           false
         end
       end
-      puts DockerClient.run("logs --tail=200 oci-reg-mtls")[:output].to_s unless ok
-      ok.should be_true
 
       # Negative login (no client certs) must fail
       Helm.registry_login(reg_host_port, username: "dummy", password: "secret", insecure: false).should be_false

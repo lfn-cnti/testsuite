@@ -19,3 +19,4 @@ deployments:
       chart_version: "15.10.0"
       tls_profile: "mtls"
       plain_http: false
+      helm_values: --set global.security.allowInsecureImages=true --set image.repository=bitnamilegacy/nginx
