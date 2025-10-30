@@ -8,15 +8,29 @@ module Helm
 
   module ShellCMD
     # logger should have method name (any other scopes, if necessary) that is calling attached using .for() method.
-    def self.run(cmd, logger : ::Log = Log, force_output = false) : CMDResult
+    def self.run(cmd, logger : ::Log = Log, force_output = false, stdin : String? = nil) : CMDResult
       logger = logger.for("cmd")
       logger.debug { "command: #{cmd}" }
-      status = Process.run(
-        cmd,
-        shell: true,
-        output: output = IO::Memory.new,
-        error: stderr = IO::Memory.new
-      )
+
+      input_io = stdin ? IO::Memory.new(stdin) : nil
+
+      status = if input_io
+        Process.run(
+          cmd,
+          shell: true,
+          input: input_io,                     # ← send secrets via STDIN
+          output: output = IO::Memory.new,
+          error:  stderr = IO::Memory.new
+        )
+      else
+        Process.run(
+          cmd,
+          shell: true,
+          output: output = IO::Memory.new,
+          error:  stderr = IO::Memory.new
+        )
+      end
+
       if force_output == false
         logger.trace { "output: #{output}" }
       else
@@ -199,41 +213,120 @@ module Helm
     found
   end
 
-  def self.helm_repo_add(helm_repo_name, helm_repo_url) : Bool
-    logger = Log.for("helm_repo_add")
-    logger.info { "Adding helm repository: #{helm_repo_name}" }
+  private def self.tls_flags(
+    ca_file : String? = nil,
+    cert_file : String? = nil,
+    key_file : String? = nil
+  ) : String
+    flags = [] of String
+    flags << "--ca-file '#{ca_file}'"   if ca_file && !ca_file.empty?
+    flags << "--cert-file '#{cert_file}'" if cert_file && !cert_file.empty?
+    flags << "--key-file '#{key_file}'"   if key_file && !key_file.empty?
+    flags.join(" ")
+  end
+
+  def self.registry_login(
+    host : String,
+    username : String? = nil,
+    password : String? = nil,   # token or password; sent via STDIN
+    ca_file : String? = nil,
+    cert_file : String? = nil,
+    key_file : String? = nil,
+    insecure : Bool = false
+  ) : Bool
+    logger = Log.for("registry_login")
+
+    # If no creds are supplied, assume pre-login
+    unless (username && !username.empty?) || (password && !password.empty?)
+      logger.debug { "Skipping registry login for #{host}: no credentials provided (assuming pre-login)" }
+      return true
+    end
+
+    cmd = "#{Binary.get} registry login #{host}"
+    cmd = "#{cmd} --username '#{username}'" if username && !username.empty?
+    cmd = "#{cmd} --password-stdin"          if password && !password.empty?
+
+    f_tls = tls_flags(ca_file, cert_file, key_file)
+    cmd = "#{cmd} #{f_tls}" unless f_tls.empty?
+    cmd = "#{cmd} --insecure" if insecure
 
     resp = nil
     begin
-      resp = ShellCMD.raise_exc_on_error do
-        ShellCMD.run("#{Binary.get} repo add #{helm_repo_name} #{helm_repo_url}", logger)
-      end
-    rescue ex : ShellCMD::RepoNotFound
-      logger.error { "Failed to add helm repository, exception msg: #{ex.message}" }
+      resp = ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger, false, stdin: password) }
+    rescue ex : ShellCMD::HelmCMDException
+      logger.error { "Registry login failed for #{host}: #{ex.message}" }
     end
 
-    # Helm version v3.3.3 gave us a surprise
-    if resp.nil?
-      false
-    else
-      resp[:output] =~ /has been added|already exists/ ||
-        resp[:error] =~ /has been added|already exists/ ? true : false
+    resp ? resp[:status].success? : false
+  end
+
+  def self.helm_repo_add(
+    helm_repo_name : String,
+    helm_repo_url  : String,
+    username : String? = nil,
+    password : String? = nil,
+    ca_file : String? = nil,
+    cert_file : String? = nil,
+    key_file : String? = nil,
+    insecure_skip_tls_verify : Bool = false,
+    pass_credentials : Bool = false
+  ) : Bool
+    logger = Log.for("helm_repo_add")
+    logger.info { "Adding helm repository: #{helm_repo_name}" }
+
+    cmd = "#{Binary.get} repo add #{helm_repo_name} #{helm_repo_url}"
+    cmd = "#{cmd} --username '#{username}'" if username && !username.empty?
+    cmd = "#{cmd} --password-stdin"         if password && !password.empty?
+
+    f_tls = tls_flags(ca_file, cert_file, key_file)
+    cmd = "#{cmd} #{f_tls}" unless f_tls.empty?
+    cmd = "#{cmd} --insecure-skip-tls-verify" if insecure_skip_tls_verify
+    cmd = "#{cmd} --pass-credentials"         if pass_credentials
+
+    resp = nil
+    begin
+      resp = ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger, false, stdin: password) }
+    rescue ex : ShellCMD::RepoNotFound
+      logger.error { "Failed to add helm repository '#{helm_repo_name}': #{ex.message}" }
+    rescue ex : ShellCMD::HelmCMDException
+      # Some Helm versions print "already exists" with non-zero or on stderr;
+      # treat that specific text as success.
+      output = resp ? "#{resp[:output]} #{resp[:error]}" : ex.message
+      if output =~ /already exists/i
+        logger.info { "Helm repo '#{helm_repo_name}' already exists; continuing." }
+        return true
+      else
+        logger.error { "Repo add failed for '#{helm_repo_name}': #{ex.message}" }
+        return false
+      end
     end
+
+    return false if resp.nil?
+
+    added = /has been added|already exists/i
+    added.matches?(resp[:output]) ||
+      added.matches?(resp[:error]) ||
+      resp[:status].success?
   end
 
   def self.chart_name(helm_chart_repo) : String
     helm_chart_repo.split("/").last
   end
 
-  def self.template(release_name, helm_chart_or_directory,
-                    output_file : String = "cnfs/temp_template.yml",
-                    namespace : String? = nil,
-                    values : String? = nil) : CMDResult
+  def self.template(
+    release_name : String,
+    helm_chart_or_directory : String,
+    output_file : String = "cnfs/temp_template.yml",
+    namespace : String? = nil,
+    values : String? = nil
+  ) : CMDResult
     logger = Log.for("template")
 
     cmd = "#{Binary.get} template"
-    cmd = "#{cmd} -n #{namespace}" if namespace != nil
-    cmd = "#{cmd} #{release_name} #{values} #{helm_chart_or_directory} > #{output_file}"
+    cmd = "#{cmd} -n #{namespace}" if namespace
+    cmd = "#{cmd} #{release_name}"
+    cmd = "#{cmd} #{values}" if values
+    cmd = "#{cmd} #{helm_chart_or_directory} > #{output_file}"
 
     ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
   end
@@ -243,16 +336,21 @@ module Helm
   # or
   # coredns --set test.value.test=new_value --set test.value.anothertest=new_value)
   def self.install(
-    release_name : String, helm_chart : String, namespace : String? = nil, create_namespace = false, values = nil
+    release_name : String, 
+    helm_chart : String,
+    namespace : String? = nil,
+    create_namespace = false,
+    values = nil
   ) : CMDResult
     logger = Log.for("install")
     logger.info { "Installing helm chart: #{helm_chart}" }
     logger.debug { "Values: #{values}" }
 
-    cmd = "#{Binary.get} install #{release_name} #{values} #{helm_chart}"
+    cmd = "#{Binary.get} install #{release_name} #{helm_chart}"
     cmd = "#{cmd} -n #{namespace}" if namespace
     cmd = "#{cmd} --create-namespace" if create_namespace
     cmd = "#{cmd} #{values}" if values
+
     ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
   end
 
@@ -267,28 +365,88 @@ module Helm
     ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
   end
 
-  def self.pull(helm_repo_name, helm_chart_name, version = nil, destination = nil, untar = true) : CMDResult
+  def self.pull(
+    helm_repo_name : String,
+    helm_chart_name : String,
+    version : String? = nil,
+    destination : String? = nil,
+    untar : Bool = true
+  ) : CMDResult
     logger = Log.for("pull")
-    full_chart_name = "#{helm_repo_name}/#{helm_chart_name}"
+    full_chart_name = helm_repo_name.empty? ? helm_chart_name : "#{helm_repo_name}/#{helm_chart_name}"
     logger.info { "Pulling helm chart: #{full_chart_name}" }
 
     cmd = "#{Binary.get} pull #{full_chart_name}"
-    cmd = "#{cmd} --version" if version
+    cmd = "#{cmd} --version #{version}" if version
     cmd = "#{cmd} --untar" if untar
     cmd = "#{cmd} --destination #{destination}" if destination
+
     ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
   end
 
-  # This method could be overloaded but there is a trap - if calling this method without all args provided,
-  # to make use of default values for them, both method could be easily matched.
-  def self.pull_oci(oci_address, version = nil, destination = nil, untar = true) : CMDResult
-    logger = Log.for("pull")
+  def self.pull_oci(
+    oci_address : String,
+    version : String? = nil,
+    destination : String? = nil,
+    untar : Bool = true,
+    ca_file : String? = nil,
+    cert_file : String? = nil,
+    key_file : String? = nil,
+    insecure_skip_tls_verify : Bool = false,
+    plain_http : Bool = false
+  ) : CMDResult
+    logger = Log.for("pull_oci")
     logger.info { "Pulling helm chart from OCI registry: #{oci_address}" }
 
     cmd = "#{Binary.get} pull #{oci_address}"
-    cmd = "#{cmd} --version" if version
-    cmd = "#{cmd} --untar" if untar
+    cmd = "#{cmd} --version #{version}"         if version
+    cmd = "#{cmd} --untar"                      if untar
     cmd = "#{cmd} --destination #{destination}" if destination
+    cmd = "#{cmd} --ca-file '#{ca_file}'"       if ca_file  && !ca_file.empty?
+    cmd = "#{cmd} --cert-file '#{cert_file}'"   if cert_file && !cert_file.empty?
+    cmd = "#{cmd} --key-file '#{key_file}'"     if key_file  && !key_file.empty?
+    cmd = "#{cmd} --insecure-skip-tls-verify"   if insecure_skip_tls_verify
+    cmd = "#{cmd} --plain-http"                 if plain_http
+
+    ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+  end
+
+  # Create a new chart directory
+  def self.create_chart(path : String) : CMDResult
+    logger = Log.for("create_chart")
+
+    cmd = "#{Binary.get} create #{path}"
+
+    ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+  end
+
+  # Package a chart
+  def self.package_chart(chart_dir : String, destination : String, version : String? = nil) : CMDResult
+    logger = Log.for("package_chart")
+
+    cmd = "#{Binary.get} package #{chart_dir} -d #{destination}"
+    cmd = "#{cmd} --version #{version}" if version && !version.empty?
+
+    ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+  end
+
+  # Push a packaged chart to an OCI repo
+  def self.push_oci(
+    tgz_path : String,
+    oci_repo : String,
+    plain_http : Bool = false,
+    ca_file : String? = nil,
+    cert_file : String? = nil,
+    key_file : String? = nil
+  ) : CMDResult
+    logger = Log.for("push_oci")
+
+    cmd = "#{Binary.get} push #{tgz_path} #{oci_repo}"
+    cmd = "#{cmd} --plain-http"                         if plain_http
+    cmd = "#{cmd} --ca-file '#{ca_file}'"               if ca_file  && !ca_file.empty?
+    cmd = "#{cmd} --cert-file '#{cert_file}'"           if cert_file && !cert_file.empty?
+    cmd = "#{cmd} --key-file '#{key_file}'"             if key_file  && !key_file.empty?
+
     ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
   end
 

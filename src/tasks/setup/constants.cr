@@ -7,7 +7,7 @@ module Setup
   KIND_VERSION                = "0.27.0"
   KUBESCAPE_VERSION           = "3.0.30"
   KUBESCAPE_FRAMEWORK_VERSION = "1.0.316"
-  HELM_VERSION                = "3.17.3"
+  HELM_VERSION                = "3.19.0"
   # (rafal-lal) TODO: configure version of the gatekeeper
   GATEKEEPER_VERSION          = "TODO: USE THIS"
 

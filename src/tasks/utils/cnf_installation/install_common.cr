@@ -97,7 +97,7 @@ module CNFInstall
   def self.create_deployment_manager_list(config)
     deployment_managers = [] of DeploymentManager
     config.deployments.helm_charts.each do |helm_chart_config|
-      deployment_managers << HelmChartDeploymentManager.new(helm_chart_config)
+      deployment_managers << HelmChartDeploymentManager.new(helm_chart_config, config.common)
     end
     config.deployments.helm_dirs.each do |helm_directory_config|
       deployment_managers << HelmDirectoryDeploymentManager.new(helm_directory_config)
