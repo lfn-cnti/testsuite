@@ -233,18 +233,8 @@ jobs:
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
-        - role: worker
-          extraMounts:
-          - containerPath: /var/lib/kubelet/config.json
-            hostPath: $HOME/.docker/config.json
-        - role: worker
-          extraMounts:
-          - containerPath: /var/lib/kubelet/config.json
-            hostPath: $HOME/.docker/config.json
-        containerdConfigPatches:
-        - |-
-          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry.default.svc.cluster.local:5000"]
-            endpoint = ["http://localhost:5000"]
+          - hostPath: /var/run/docker.sock
+            containerPath: /var/run/docker.sock
         EOF
     - name: Install Latest Kind
       env:
