@@ -36,7 +36,7 @@ namespace "setup" do
 
     File.write("#{clusterctl}/clusterctl.yaml", "CLUSTER_TOPOLOGY: \"true\"")
 
-    cluster_init_cmd = "clusterctl init --infrastructure docker"
+    cluster_init_cmd = "clusterctl init --infrastructure docker --wait-providers"
     stdout = IO::Memory.new
     Process.run(cluster_init_cmd, shell: true, output: stdout, error: stdout)
     Log.for("clusterctl init").info { stdout }
