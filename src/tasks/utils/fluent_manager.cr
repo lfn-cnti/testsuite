@@ -23,7 +23,6 @@ module FluentManager
       begin
         Helm.install(flavor_name, chart, namespace: TESTSUITE_NAMESPACE, values: "--values #{values_file}")
         KubectlClient::Wait.resource_wait_for_install("Daemonset", flavor_name, namespace: TESTSUITE_NAMESPACE)
-        FluentManager.wait_for_digest(image_name)
       rescue Helm::ShellCMD::CannotReuseReleaseNameError
         Log.info { "Release #{flavor_name} already installed" }
       end
@@ -75,7 +74,7 @@ module FluentManager
   def self.find_active_match_pods : Array(JSON::Any)?
     all_flavors.each do |flavor|
       # Look for images of all flavors stored on node.
-      matching_image = ClusterTools.local_match_by_image_name(flavor.image_name)
+      matching_image = ClusterTools.local_match_by_image_name_with_retries(flavor.image_name)
       # When image name found on any of the nodes, check if any
       # pod with this image is currently running on the cluster.
       matching_pods = KubectlClient::Get.pods_by_digest(matching_image[:digest]) if matching_image[:found]
@@ -102,18 +101,5 @@ module FluentManager
   def self.all_flavors : Array(FluentBase)
     [FluentD.new, FluentDBitnami.new, FluentBit.new]
   end
-
-  def self.wait_for_digest(image_name)
-  20.times do |i|
-    result = ClusterTools.local_match_by_image_name(image_name)
-    if result[:found]
-      Log.info { "sha256 for #{image_name} found on node after #{i*5}s" }
-      return
-    end
-    Log.info { "Waiting for sha256 of #{image_name} (attempt #{i+1})..." }
-    sleep 5
-  end
-  Log.warn { "sha256 for #{image_name} not found after waiting." }
-end
 
 end

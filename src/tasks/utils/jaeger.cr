@@ -4,7 +4,7 @@ module JaegerManager
   # JAEGER_PORT = "14271" # agent port
   JAEGER_PORT = "14269" # collector port
   def self.match()
-    ClusterTools.local_match_by_image_name("jaegertracing/jaeger-collector")
+    ClusterTools.local_match_by_image_name_with_retries("jaegertracing/jaeger-collector")
   end
   def self.uninstall
     Log.debug { "uninstall_jaeger" } 
@@ -26,9 +26,9 @@ module JaegerManager
   end
 
 
-  def self.jaeger_pods(nodes)
-    match = ClusterTools.local_match_by_image_name("jaegertracing/jaeger-collector", nodes)
-    KubectlClient::Get.pods_by_digest_and_nodes(match[:digest], nodes)
+  def self.jaeger_pods()
+    match = ClusterTools.local_match_by_image_name_with_retries("jaegertracing/jaeger-collector")
+    KubectlClient::Get.pods_by_digest_and_nodes(match[:digest], KubectlClient::Get.resource("nodes")["items"].as_a)
   end
 
   def self.jaeger_metrics_by_pods(jaeger_pods)
@@ -66,8 +66,7 @@ module JaegerManager
   end
 
   def self.connected_clients_total
-    nodes = KubectlClient::Get.resource("nodes")
-    pods = jaeger_pods(nodes["items"].as_a)
+    pods = jaeger_pods()
     metrics = jaeger_metrics_by_pods(pods)
     total_clients = metrics.reduce(0) do |acc, metric|
       connected_clients = metric.match(/jaeger_agent_client_stats_connected_clients \K[0-9]{1,20}/)

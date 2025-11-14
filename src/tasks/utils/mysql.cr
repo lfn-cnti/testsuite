@@ -2,10 +2,9 @@ require "../../modules/cluster_tools"
 
 module Mysql
   MYSQL_PORT = "3306" 
-  MYSQL_IMAGES = ["mysql/mysql-server","bitnamilegacy/mysql"]
+  MYSQL_IMAGES = ["mysql/mysql-server", "bitnami/mysql", "bitnamilegacy/mysql"]
   def self.match()
-    ClusterTools.local_match_by_image_name(MYSQL_IMAGES)
-    # ClusterTools.local_match_by_image_name("bitnamilegacy/mysql")
+    ClusterTools.local_match_by_image_name_with_retries(MYSQL_IMAGES)
   end
   def self.uninstall
     Log.debug { "uninstall_mysql" }
