@@ -127,6 +127,9 @@ jobs:
                   mountPath: /shared/pss
                   readOnly: false
                   pathType: "DirectoryOrCreate"
+            etcd:
+              local:
+                dataDir: /tmp/etcd
           extraMounts:
           - hostPath: /shared/pss
             containerPath: /shared/pss
@@ -170,6 +173,9 @@ jobs:
                   mountPath: /shared/pss
                   readOnly: false
                   pathType: "DirectoryOrCreate"
+            etcd:
+              local:
+                dataDir: /tmp/etcd
           extraMounts:
           - hostPath: /shared/pss
             containerPath: /shared/pss
@@ -208,6 +214,9 @@ jobs:
                   mountPath: /shared/pss
                   readOnly: false
                   pathType: "DirectoryOrCreate"
+            etcd:
+              local:
+                dataDir: /tmp/etcd
           extraMounts:
           - hostPath: /shared/pss
             containerPath: /shared/pss
@@ -230,6 +239,12 @@ jobs:
         apiVersion: kind.x-k8s.io/v1alpha4
         nodes:
         - role: control-plane
+          kubeadmConfigPatches:
+          - |
+            kind: ClusterConfiguration
+            etcd:
+              local:
+                dataDir: /tmp/etcd
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
@@ -378,6 +393,12 @@ jobs:
         apiVersion: kind.x-k8s.io/v1alpha4
         nodes:
         - role: control-plane
+          kubeadmConfigPatches:
+          - |
+            kind: ClusterConfiguration
+            etcd:
+              local:
+                dataDir: /tmp/etcd
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
@@ -534,6 +555,12 @@ jobs:
         apiVersion: kind.x-k8s.io/v1alpha4
         nodes:
         - role: control-plane
+          kubeadmConfigPatches:
+          - |
+            kind: ClusterConfiguration
+            etcd:
+              local:
+                dataDir: /tmp/etcd
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
@@ -644,6 +671,12 @@ jobs:
         apiVersion: kind.x-k8s.io/v1alpha4
         nodes:
         - role: control-plane
+          kubeadmConfigPatches:
+          - |
+            kind: ClusterConfiguration
+            etcd:
+              local:
+                dataDir: /tmp/etcd
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
@@ -752,6 +785,12 @@ jobs:
         apiVersion: kind.x-k8s.io/v1alpha4
         nodes:
         - role: control-plane
+          kubeadmConfigPatches:
+          - |
+            kind: ClusterConfiguration
+            etcd:
+              local:
+                dataDir: /tmp/etcd
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
