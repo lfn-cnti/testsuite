@@ -240,6 +240,7 @@ module ClusterTools
   def self.local_match_by_image_name(image_names : Array(String), nodes=KubectlClient::Get.resource("nodes")["items"].as_a )
     image_names.map{|x| local_match_by_image_name(x, nodes)}.flatten.find{|m|m[:found]==true}
   end
+
   def self.local_match_by_image_name(image_name, nodes=KubectlClient::Get.resource("nodes")["items"].as_a )
     Log.info { "local_match_by_image_name image_name: #{image_name}" }
     nodes = KubectlClient::Get.nodes["items"].as_a
@@ -279,6 +280,7 @@ module ClusterTools
         next
       end
     end
+    Log.info { "local_match_by_image_name imageIDs : #{imageIDs}" }
 
     if !tag.empty?
       Log.info { "container tag: #{tag}" }
@@ -295,7 +297,35 @@ module ClusterTools
     Log.info { "local_match_by_image_name match: #{match}" }
     match
   end
-  
+
+  def self.local_match_by_image_name_with_retries(image_names : Array(String), nodes=KubectlClient::Get.resource("nodes")["items"].as_a )
+    image_names.map{|x| local_match_by_image_name_with_retries(x, nodes)}.flatten.find{|m|m[:found]==true}
+  end
+
+  def self.local_match_by_image_name_with_retries(image_name, nodes=KubectlClient::Get.resource("nodes")["items"].as_a )
+    Log.info { "local_match_by_image_names_with_retries image_name: #{image_name}" }
+    nodes = KubectlClient::Get.nodes["items"].as_a
+    local_match_by_image_name_with_retries(image_name, nodes)
+  end
+
+  def self.local_match_by_image_name_with_retries(image_name, nodes : Array(JSON::Any))
+    # Retry up to 60 seconds because kubectl get nodes -o json can return
+    # the image digest with a delay.
+    # See https://github.com/lfn-cnti/testsuite/issues/2337
+    match = Hash{:found => false, :digest => "", :release_name => ""}
+    20.times do |i|
+      match = local_match_by_image_name(image_name, nodes)
+      if match[:found]
+        Log.info { "sha256 for #{image_name} found on node after #{i*5}s" }
+        return match
+      end
+      Log.debug { "Waiting for sha256 of #{image_name} (attempt #{i+1})..." }
+      sleep 3
+    end
+    Log.warn { "sha256 for #{image_name} not found after waiting." }
+    match
+  end
+
   def self.pod_name()
     KubectlClient::Get.match_pods_by_prefix("cluster-tools", namespace: self.namespace!).first?
   end

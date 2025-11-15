@@ -4,7 +4,7 @@ module JaegerManager
   # JAEGER_PORT = "14271" # agent port
   JAEGER_PORT = "14269" # collector port
   def self.match()
-    ClusterTools.local_match_by_image_name("jaegertracing/jaeger-collector")
+    ClusterTools.local_match_by_image_name_with_retries("jaegertracing/jaeger-collector")
   end
   def self.uninstall
     Log.debug { "uninstall_jaeger" } 
@@ -27,7 +27,7 @@ module JaegerManager
 
 
   def self.jaeger_pods(nodes)
-    match = ClusterTools.local_match_by_image_name("jaegertracing/jaeger-collector", nodes)
+    match = ClusterTools.local_match_by_image_name_with_retries("jaegertracing/jaeger-collector", nodes)
     KubectlClient::Get.pods_by_digest_and_nodes(match[:digest], nodes)
   end
 
