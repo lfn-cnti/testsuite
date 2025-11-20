@@ -167,7 +167,7 @@ describe CnfTestSuite do
     end
   end
 
-  it "'hostport_not_used' should fail when a node port is being used", tags: ["hostport_not_used"] do
+  it "'hostport_not_used' should fail when a host port is being used", tags: ["hostport_not_used"] do
     begin
       ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_hostport")
       result = ShellCmd.run_testsuite("hostport_not_used")

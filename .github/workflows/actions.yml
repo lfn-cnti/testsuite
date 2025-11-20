@@ -113,6 +113,9 @@ jobs:
         cat << EOF > /tmp/cluster.yml
         kind: Cluster
         apiVersion: kind.x-k8s.io/v1alpha4
+        containerdConfigPatches:
+        - |-
+          root = "/tmp/containerd"
         nodes:
         - role: control-plane
           kubeadmConfigPatches:
@@ -154,8 +157,9 @@ jobs:
         cat << EOF > /tmp/cluster.yml
         kind: Cluster
         apiVersion: kind.x-k8s.io/v1alpha4
-
-        # Enabled additional unsafe sysctls to support the negative spec test for sysctls
+        containerdConfigPatches:
+        - |-
+          root = "/tmp/containerd"
         nodes:
         - role: control-plane
           kubeadmConfigPatches:
@@ -200,6 +204,11 @@ jobs:
         cat << EOF > /tmp/cluster.yml
         kind: Cluster
         apiVersion: kind.x-k8s.io/v1alpha4
+        containerdConfigPatches:
+        - |-
+          root = "/tmp/containerd"
+          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry.default.svc.cluster.local:5000"]
+            endpoint = ["http://localhost:5000"]
         nodes:
         - role: control-plane
           kubeadmConfigPatches:
@@ -225,10 +234,6 @@ jobs:
             propagation: None
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
-        containerdConfigPatches:
-        - |-
-          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry.default.svc.cluster.local:5000"]
-            endpoint = ["http://localhost:5000"]
         EOF
     - name: Cluster API Override
       if: matrix.spec == 'cluster-api' || matrix.spec == 'platform'
@@ -237,6 +242,9 @@ jobs:
         cat << EOF > /tmp/cluster.yml
         kind: Cluster
         apiVersion: kind.x-k8s.io/v1alpha4
+        containerdConfigPatches:
+        - |-
+          root = "/tmp/containerd"
         nodes:
         - role: control-plane
           kubeadmConfigPatches:
@@ -270,7 +278,7 @@ jobs:
         kind --version
         kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig ./$CLUSTER.conf --retain --wait 5m
         export KUBECONFIG=$(pwd)/$CLUSTER.conf
-        kubectl get nodes 
+        kubectl get nodes
     - name: Cache crystal shards
       uses: actions/cache@v4
       env:
@@ -393,12 +401,6 @@ jobs:
         apiVersion: kind.x-k8s.io/v1alpha4
         nodes:
         - role: control-plane
-          kubeadmConfigPatches:
-          - |
-            kind: ClusterConfiguration
-            etcd:
-              local:
-                dataDir: /tmp/etcd
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
@@ -409,8 +411,7 @@ jobs:
         kind --version
         kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig ./$CLUSTER.conf --retain --wait 5m
         export KUBECONFIG=$(pwd)/$CLUSTER.conf
-        kubectl get nodes 
-
+        kubectl get nodes
     - name: Cache crystal shards
       uses: actions/cache@v4
       env:
@@ -553,6 +554,9 @@ jobs:
         cat << EOF > /tmp/cluster.yml
         kind: Cluster
         apiVersion: kind.x-k8s.io/v1alpha4
+        containerdConfigPatches:
+        - |-
+          root = "/tmp/containerd"
         nodes:
         - role: control-plane
           kubeadmConfigPatches:
@@ -579,7 +583,7 @@ jobs:
         kind --version
         kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig /tmp/$CLUSTER.conf --retain --wait 5m
         export KUBECONFIG=/tmp/$CLUSTER.conf
-        kubectl get nodes 
+        kubectl get nodes
     - name: Run Test Suite without source(config_lifecycle)
       run: |
         echo get ratelimit anonymously
@@ -669,6 +673,9 @@ jobs:
         cat << EOF > /tmp/cluster.yml
         kind: Cluster
         apiVersion: kind.x-k8s.io/v1alpha4
+        containerdConfigPatches:
+        - |-
+          root = "/tmp/containerd"
         nodes:
         - role: control-plane
           kubeadmConfigPatches:
@@ -694,7 +701,7 @@ jobs:
         kind --version
         kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig /tmp/$CLUSTER.conf --retain --wait 5m
         export KUBECONFIG=/tmp/$CLUSTER.conf
-        kubectl get nodes 
+        kubectl get nodes
     - name: Run Test Suite without source(microservice)
       run: |
         echo get ratelimit anonymously
@@ -783,6 +790,9 @@ jobs:
         cat << EOF > /tmp/cluster.yml
         kind: Cluster
         apiVersion: kind.x-k8s.io/v1alpha4
+        containerdConfigPatches:
+        - |-
+          root = "/tmp/containerd"
         nodes:
         - role: control-plane
           kubeadmConfigPatches:
@@ -808,7 +818,7 @@ jobs:
         kind --version
         kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig /tmp/$CLUSTER.conf --retain --wait 5m
         export KUBECONFIG=/tmp/$CLUSTER.conf
-        kubectl get nodes 
+        kubectl get nodes
     - name: Run Test Suite without source(all)
       run: |
         echo get ratelimit anonymously
