@@ -298,17 +298,17 @@ module ClusterTools
     match
   end
 
-  def self.local_match_by_image_name_with_retries(image_names : Array(String), retries : Int32 = 20, wait : Int32 = 3)
+  def self.local_match_by_image_name_with_retries(image_names : Array(String), retries : Int32 = 10, wait : Int32 = 3)
     image_names.map{|x| local_match_by_image_name_with_retries(x)}.flatten.find{|m|m[:found]==true}
   end
 
-  def self.local_match_by_image_name_with_retries(image_name, retries : Int32 = 20, wait : Int32 = 3)
+  def self.local_match_by_image_name_with_retries(image_name, retries : Int32 = 10, wait : Int32 = 3)
     Log.info { "local_match_by_image_names_with_retries image_name: #{image_name}" }
     nodes = KubectlClient::Get.nodes["items"].as_a
     local_match_by_image_name_with_retries(image_name)
   end
 
-  def self.local_match_by_image_name_with_retries(image_name, retries : Int32 = 20, wait : Int32 = 3)
+  def self.local_match_by_image_name_with_retries(image_name, retries : Int32 = 10, wait : Int32 = 3)
     # Retry up to 60 seconds because kubectl get nodes -o json can return
     # the image digest with a delay.
     # See https://github.com/lfn-cnti/testsuite/issues/2337

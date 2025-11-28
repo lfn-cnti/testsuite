@@ -10,7 +10,7 @@ describe "Observability" do
     result[:status].success?.should be_true
   end
 
-  it "'log_output' should pass with a cnf that outputs logs to stdout", tags: ["observability"]  do
+  it "'log_output' should pass with a cnf that outputs logs to stdout", tags: ["observability_log_output"]  do
     begin
       ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("log_output")
@@ -21,7 +21,7 @@ describe "Observability" do
     end
   end
 
-  it "'log_output' should fail with a cnf that does not output logs to stdout", tags: ["observability"]  do
+  it "'log_output' should fail with a cnf that does not output logs to stdout", tags: ["observability_log_output"]  do
     begin
       ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_no_logs/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("log_output")
@@ -32,7 +32,7 @@ describe "Observability" do
     end
   end
 
-  it "'prometheus_traffic' should pass if there is prometheus traffic", tags: ["observability"] do
+  it "'prometheus_traffic' should pass if there is prometheus traffic", tags: ["observability_prometheus_traffic"] do
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-prom-pod-discovery/cnf-testsuite.yml")
     helm = Helm::Binary.get
 
@@ -54,7 +54,7 @@ describe "Observability" do
     result[:status].success?.should be_true
   end
 
-  it "'prometheus_traffic' should skip if there is no prometheus installed", tags: ["observability"] do
+  it "'prometheus_traffic' should skip if there is no prometheus installed", tags: ["observability_prometheus_traffic"] do
 
       ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
       helm = Helm::Binary.get
@@ -66,7 +66,7 @@ describe "Observability" do
       result = ShellCmd.cnf_uninstall()
   end
 
-  it "'prometheus_traffic' should fail if the cnf is not registered with prometheus", tags: ["observability"] do
+  it "'prometheus_traffic' should fail if the cnf is not registered with prometheus", tags: ["observability_prometheus_traffic"] do
 
       ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
       Log.info { "Installing prometheus server" }
@@ -85,7 +85,7 @@ describe "Observability" do
       result[:status].success?.should be_true
   end
 
-  it "'open_metrics' should fail if there is not a valid open metrics response from the cnf", tags: ["observability"] do
+  it "'open_metrics' should fail if there is not a valid open metrics response from the cnf", tags: ["observability_open_metrics"] do
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-prom-pod-discovery/cnf-testsuite.yml")
     result = ShellCmd.run("helm repo add prometheus-community https://prometheus-community.github.io/helm-charts", force_output: true)
     Log.info { "Installing prometheus server" }
@@ -103,7 +103,7 @@ describe "Observability" do
     result[:status].success?.should be_true
   end
 
-  it "'open_metrics' should pass if there is a valid open metrics response from the cnf", tags: ["observability"] do
+  it "'open_metrics' should pass if there is a valid open metrics response from the cnf", tags: ["observability_open_metrics"] do
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-openmetrics/cnf-testsuite.yml")
     result = ShellCmd.run("helm repo add prometheus-community https://prometheus-community.github.io/helm-charts", force_output: true)
     Log.info { "Installing prometheus server" }
@@ -121,7 +121,7 @@ describe "Observability" do
     result[:status].success?.should be_true
   end
 
-  it "'routed_logs' should pass if cnfs logs are captured by fluentd", tags: ["observability"] do
+  it "'routed_logs' should pass if cnfs logs are captured by fluentd", tags: ["observability_routed_logs"] do
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
     result = ShellCmd.run_testsuite("setup:install_fluentd")
     result = ShellCmd.run_testsuite("routed_logs")
@@ -132,7 +132,7 @@ describe "Observability" do
     result[:status].success?.should be_true
   end
 
-  it "'routed_logs' should pass if cnfs logs are captured by fluentd bitnami", tags: ["observability"] do
+  it "'routed_logs' should pass if cnfs logs are captured by fluentd bitnami", tags: ["observability_routed_logs"] do
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
     result = ShellCmd.run_testsuite("setup:install_fluentdbitnami")
     result = ShellCmd.run_testsuite("routed_logs")
@@ -143,7 +143,7 @@ describe "Observability" do
     result[:status].success?.should be_true
   end
 
-  it "'routed_logs' should pass if cnfs logs are captured by fluentbit", tags: ["observability"] do
+  it "'routed_logs' should pass if cnfs logs are captured by fluentbit", tags: ["observability_routed_logs"] do
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-fluentbit")
     result = ShellCmd.run_testsuite("setup:install_fluentbit")
     result = ShellCmd.run_testsuite("routed_logs")
@@ -154,7 +154,7 @@ describe "Observability" do
     result[:status].success?.should be_true
   end
 
-  it "'routed_logs' should fail if cnfs logs are not captured", tags: ["observability"] do
+  it "'routed_logs' should fail if cnfs logs are not captured", tags: ["observability_routed_logs"] do
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
     Helm.helm_repo_add("bitnami","https://charts.bitnami.com/bitnami")
     #todo  #helm install --values ./override.yml fluentd ./fluentd

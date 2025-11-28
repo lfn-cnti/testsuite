@@ -38,10 +38,10 @@ jobs:
         TEST_ARRAY=("${TEST_ARRAY[@]/pod_network_latency/}")
         TEST_ARRAY=("${TEST_ARRAY[@]/zombie/}")
         TEST_ARRAY=("${TEST_ARRAY[@]/oran/}")
-        # Skip 5g, core, shared_database2 tags because they are flaky
+        # Skip 5g, core, shared_database_flaky tags because they are flaky
         TEST_ARRAY=("${TEST_ARRAY[@]/5g/}")
         TEST_ARRAY=("${TEST_ARRAY[@]/core/}")
-        TEST_ARRAY=("${TEST_ARRAY[@]/shared_database2/}")
+        TEST_ARRAY=("${TEST_ARRAY[@]/shared_database_flaky/}")
         TEST_LIST=$(for i in ${TEST_ARRAY[@]}
         do
                  echo "{\"spec\":\"$i\"}," | tr -d '\n'
