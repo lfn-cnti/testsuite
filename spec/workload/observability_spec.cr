@@ -121,6 +121,17 @@ describe "Observability" do
     result[:status].success?.should be_true
   end
 
+  it "'routed_logs' should pass if cnfs logs are captured by fluentd", tags: ["observability"] do
+    ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
+    result = ShellCmd.run_testsuite("setup:install_fluentd")
+    result = ShellCmd.run_testsuite("routed_logs")
+    (/(PASSED).*(Your CNF's logs are being captured)/ =~ result[:output]).should_not be_nil
+  ensure
+    result = ShellCmd.cnf_uninstall()
+    result = ShellCmd.run_testsuite("setup:uninstall_fluentd")
+    result[:status].success?.should be_true
+  end
+
   it "'routed_logs' should pass if cnfs logs are captured by fluentd bitnami", tags: ["observability"] do
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
     result = ShellCmd.run_testsuite("setup:install_fluentdbitnami")
