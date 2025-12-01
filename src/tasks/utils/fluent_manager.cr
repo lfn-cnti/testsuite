@@ -45,7 +45,7 @@ module FluentManager
             "fluentd-values.yml",
             FLUENTD_VALUES,
             "fluent/fluentd-kubernetes-daemonset",
-            "fluent/fluentd")
+            "fluentd/fluentd")
     end
   end
 
@@ -56,7 +56,7 @@ module FluentManager
             "fluentd-bitnami-values.yml",
             FLUENTD_BITNAMI_VALUES,
             "bitnamilegacy/fluentd",
-            "bitnami/fluentd")
+            "fluentdbitnami/fluentd")
     end
   end
 
