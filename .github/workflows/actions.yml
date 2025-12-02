@@ -290,7 +290,6 @@ jobs:
           lib-
     - name: Setup CNF-Conformance
       run: |
-        helm repo add stable https://cncf.gitlab.io/stable
         git fetch --all --tags --force
         shards install  
         echo "RUNNER: $RUNNER_NAME"
@@ -344,6 +343,7 @@ jobs:
         kubectl get all -A || true
         kind delete cluster --name $CLUSTER --verbosity 1
         rm -f /shared/pss/cluster-level-pss.$CLUSTER.yaml /tmp/cluster.yml
+        rm -rf ~/.config/helm
       continue-on-error: true
 
     - name: upload artifact
@@ -427,7 +427,6 @@ jobs:
         crystal: 1.6.2
     - name: Setup CNF-Conformance
       run: |
-        helm repo add stable https://cncf.gitlab.io/stable
         git fetch --all --tags --force
         shards install  
         echo "RUNNER: $RUNNER_NAME"
@@ -456,6 +455,8 @@ jobs:
         export KUBECONFIG=$(pwd)/$CLUSTER.conf
         kubectl get all -A || true
         kind delete cluster --name $CLUSTER --verbosity 1
+        rm -f /tmp/cluster.yml
+        rm -rf ~/.config/helm
       continue-on-error: true
     - name: upload artifact
       if: ${{ always() }}
@@ -593,7 +594,6 @@ jobs:
         source cluster.env
         echo "SHARDS_INSTALL_PATH: $SHARDS_INSTALL_PATH"
         export KUBECONFIG=/tmp/$CLUSTER.conf
-        helm repo add stable https://cncf.gitlab.io/stable
         export DIR=$(uuidgen)
         echo "Shared DIR: /shared/$DIR"
         mkdir /shared/$DIR
@@ -616,6 +616,7 @@ jobs:
         kubectl get all -A || true
         kind delete cluster --name $CLUSTER --verbosity 1
         rm -f /tmp/cluster.yml
+        rm -rf ~/.config/helm
       continue-on-error: true
     - name: upload artifact
       if: ${{ always() }}
@@ -710,7 +711,6 @@ jobs:
 
         source cluster.env
         export KUBECONFIG=/tmp/$CLUSTER.conf
-        helm repo add stable https://cncf.gitlab.io/stable
         export DIR=$(uuidgen)
         echo "Shared DIR: /shared/$DIR"
         mkdir /shared/$DIR
@@ -733,6 +733,7 @@ jobs:
         kubectl get all -A || true
         kind delete cluster --name $CLUSTER --verbosity 1
         rm -f /tmp/cluster.yml
+        rm -rf ~/.config/helm
       continue-on-error: true
     - name: upload artifact
       if: ${{ always() }}
@@ -827,7 +828,6 @@ jobs:
 
         source cluster.env
         export KUBECONFIG=/tmp/$CLUSTER.conf
-        helm repo add stable https://cncf.gitlab.io/stable
         export DIR=$(uuidgen)
         echo "Shared DIR: /shared/$DIR"
         mkdir /shared/$DIR
@@ -850,6 +850,7 @@ jobs:
         kubectl get all -A || true
         kind delete cluster --name $CLUSTER --verbosity 1
         rm -f /tmp/cluster.yml
+        rm -rf ~/.config/helm
       continue-on-error: true
     - name: upload artifact
       if: ${{ always() }}

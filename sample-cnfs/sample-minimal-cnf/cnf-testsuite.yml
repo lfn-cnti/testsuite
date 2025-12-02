@@ -5,3 +5,4 @@ deployments:
   - name: coredns-1614713069
     helm_chart_name: coredns
     helm_repo_name: stable
+    helm_repo_url: https://cncf.gitlab.io/stable
