@@ -362,4 +362,8 @@ describe CnfTestSuite do
     result[:status].success?.should be_false
     (/You must install a CNF first./ =~ result[:output]).should_not be_nil
   end
+
+  after_all do
+    result = ShellCmd.run_testsuite("uninstall_all")
+  end
 end

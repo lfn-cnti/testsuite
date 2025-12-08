@@ -176,4 +176,8 @@ describe "Observability" do
   it "'tracing' should pass if tracing is used", tags: ["observability_jaeger_pass"] do
     # (kosstennbl) TODO: Test and specs for 'tracing' should be redesigned. Check #2153 for more info. Spec was using sample-tracing CNF.
   end
+
+  after_all do
+    result = ShellCmd.run_testsuite("uninstall_all")
+  end
 end
