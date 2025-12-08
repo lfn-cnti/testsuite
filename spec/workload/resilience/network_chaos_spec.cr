@@ -10,4 +10,8 @@ describe "Resilience Network Chaos" do
     result = ShellCmd.run_testsuite("setup:configuration_file_setup")
     result[:status].success?.should be_true
   end
+
+  after_all do
+    result = ShellCmd.run_testsuite("uninstall_all")
+  end
 end

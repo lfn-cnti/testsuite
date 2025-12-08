@@ -24,4 +24,8 @@ describe "Resilience Pod Network Latency Chaos" do
       result[:status].success?.should be_true
     end
   end
+
+  after_all do
+    result = ShellCmd.run_testsuite("uninstall_all")
+  end
 end

@@ -26,5 +26,9 @@ describe "Platform" do
     result = ShellCmd.run_testsuite("platform:control_plane_hardening")
     (/You must install a CNF first./ =~ result[:output]).should be_nil
   end
+
+  after_all do
+    result = ShellCmd.run_testsuite("uninstall_all")
+  end
 end
 

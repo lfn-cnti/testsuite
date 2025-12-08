@@ -280,6 +280,7 @@ describe "Microservice" do
       result[:status].success?.should be_true
     end
   end
+
   it "'zombie_handled' should failed if a zombie is not succesfully reaped by PID 1", tags: ["zombie"]  do
     begin
 
@@ -291,6 +292,10 @@ describe "Microservice" do
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
     end
+  end
+
+  after_all do
+    result = ShellCmd.run_testsuite("uninstall_all")
   end
 end
 

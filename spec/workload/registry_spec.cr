@@ -139,5 +139,6 @@ describe "Private Registry: Rolling" do
       end
     end
     Dockerd.uninstall
+    result = ShellCmd.run_testsuite("uninstall_all")
   end	
 end

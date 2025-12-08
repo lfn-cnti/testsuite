@@ -74,4 +74,8 @@ describe "Compatibility" do
       ShellCmd.cnf_uninstall
     end
   end
+
+  after_all do
+    result = ShellCmd.run_testsuite("uninstall_all")
+  end
 end

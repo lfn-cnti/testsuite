@@ -16,4 +16,7 @@ describe "K8sInstrumentation" do
     (resp["95th percentile"].to_f).should_not be_nil
   end
 
+  after_all do
+    result = ShellCmd.run_testsuite("uninstall_all")
+  end
 end
