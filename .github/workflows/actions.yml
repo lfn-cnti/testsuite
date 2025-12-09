@@ -528,6 +528,8 @@ jobs:
         wget -O cnf-testsuite.yml https://raw.githubusercontent.com/lfn-cnti/testsuite/${GITHUB_SHA}/example-cnfs/coredns/cnf-testsuite.yml
         ./cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml
         LOG_LEVEL=debug ./cnf-testsuite all ~compatibility ~resilience ~reasonable_startup_time ~reasonable_image_size ~platform ~increase_capacity ~decrease_capacity ~install_script_helm ~helm_chart_valid ~helm_chart_published
+        LOG_LEVEL=debug ./cnf-testsuite cnf_uninstall
+        LOG_LEVEL=debug ./cnf-testsuite uninstall_all
     - name: Delete Cluster
       if: ${{ always() }}
       run: |
@@ -621,6 +623,8 @@ jobs:
         wget -O cnf-testsuite.yml https://raw.githubusercontent.com/lfn-cnti/testsuite/${GITHUB_SHA}/example-cnfs/coredns/cnf-testsuite.yml
         ./cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml
         LOG_LEVEL=debug ./cnf-testsuite all ~resilience ~compatibility ~pod_network_latency ~platform ~increase_capacity ~decrease_capacity ~liveness ~readiness ~rolling_update ~rolling_downgrade ~rolling_version_change ~nodeport_not_used ~hostport_not_used ~hardcoded_ip_addresses_in_k8s_runtime_configuration ~install_script_helm ~helm_chart_valid ~helm_chart_published ~rollback ~secrets_used ~immutable_configmap
+        LOG_LEVEL=debug ./cnf-testsuite cnf_uninstall
+        LOG_LEVEL=debug ./cnf-testsuite uninstall_all
     - name: Delete Cluster
       if: ${{ always() }}
       run: |
@@ -714,6 +718,8 @@ jobs:
         wget -O cnf-testsuite.yml https://raw.githubusercontent.com/lfn-cnti/testsuite/${GITHUB_SHA}/example-cnfs/coredns/cnf-testsuite.yml
         ./cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml
         LOG_LEVEL=debug ./cnf-testsuite all ~resilience ~platform ~liveness ~readiness ~rolling_update ~rolling_downgrade ~rolling_version_change ~nodeport_not_used ~hostport_not_used ~hardcoded_ip_addresses_in_k8s_runtime_configuration ~rollback ~secrets_used ~immutable_configmap ~reasonable_startup_time ~reasonable_image_size
+        LOG_LEVEL=debug ./cnf-testsuite cnf_uninstall
+        LOG_LEVEL=debug ./cnf-testsuite uninstall_all
     - name: Delete Cluster
       if: ${{ always() }}
       run: |
