@@ -320,7 +320,7 @@ jobs:
         docker ps -a
         export KUBECONFIG=$(pwd)/$CLUSTER.conf
         kubectl get all -A || true
-        kind delete cluster --name $CLUSTER --verbosity 1
+        until kind delete cluster --name $CLUSTER --verbosity 1; do sleep 1; done
         rm -f /shared/pss/cluster-level-pss.$CLUSTER.yaml /tmp/cluster.yml
         rm -rf ~/.config/helm
       continue-on-error: true
@@ -408,7 +408,7 @@ jobs:
         docker ps -a
         export KUBECONFIG=$(pwd)/$CLUSTER.conf
         kubectl get all -A || true
-        kind delete cluster --name $CLUSTER --verbosity 1
+        until kind delete cluster --name $CLUSTER --verbosity 1; do sleep 1; done
         rm -f /tmp/cluster.yml
         rm -rf ~/.config/helm
       continue-on-error: true
@@ -537,7 +537,7 @@ jobs:
         docker ps -a
         export KUBECONFIG=$(pwd)/$CLUSTER.conf
         kubectl get all -A || true
-        kind delete cluster --name $CLUSTER --verbosity 1
+        until kind delete cluster --name $CLUSTER --verbosity 1; do sleep 1; done
         rm -f /tmp/cluster.yml
         rm -rf ~/.config/helm
       continue-on-error: true
@@ -632,7 +632,7 @@ jobs:
         docker ps -a
         export KUBECONFIG=$(pwd)/$CLUSTER.conf
         kubectl get all -A || true
-        kind delete cluster --name $CLUSTER --verbosity 1
+        until kind delete cluster --name $CLUSTER --verbosity 1; do sleep 1; done
         rm -f /tmp/cluster.yml
         rm -rf ~/.config/helm
       continue-on-error: true
@@ -727,7 +727,7 @@ jobs:
         docker ps -a
         export KUBECONFIG=$(pwd)/$CLUSTER.conf
         kubectl get all -A || true
-        kind delete cluster --name $CLUSTER --verbosity 1
+        until kind delete cluster --name $CLUSTER --verbosity 1; do sleep 1; done
         rm -f /tmp/cluster.yml
         rm -rf ~/.config/helm
       continue-on-error: true
