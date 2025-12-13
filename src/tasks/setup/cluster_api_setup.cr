@@ -75,12 +75,12 @@ namespace "setup" do
 
   desc "Uninstall Cluster API"
   task "cluster_api_uninstall" do |_, args|
-    current_dir = FileUtils.pwd
-    delete_cluster_file = "#{current_dir}/capi.yaml"
-    # TODO: Ensure all dependent resources are deleted before deleting capi.yaml
-    begin KubectlClient::Delete.file("#{delete_cluster_file}") rescue KubectlClient::ShellCMD::NotFoundError end
+    cmd = "kubectl delete cluster capi-quickstart --wait"
+    Process.run(cmd, shell: true, output: stdout = IO::Memory.new, error: stderr = IO::Memory.new)
+    Log.debug { "#{cmd}: #{stdout.to_s}" }
 
     cmd = "clusterctl delete --all --include-crd --include-namespace"
     Process.run(cmd, shell: true, output: stdout = IO::Memory.new, error: stderr = IO::Memory.new)
+    Log.debug { "#{cmd}: #{stdout.to_s}" }
   end
 end
