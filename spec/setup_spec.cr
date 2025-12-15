@@ -314,7 +314,6 @@ describe "Installation" do
 
     begin
       # Start registry
-      DockerClient.run("rm -f oci-reg >/dev/null 2>&1 || true")
       DockerClient.run(
         "run -d --name oci-reg \
         -p #{local_registry_port}:5000 \
@@ -347,7 +346,9 @@ describe "Installation" do
       result[:status].success?.should be_true
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
-      DockerClient.run("rm -f oci-reg >/dev/null 2>&1 || true")
+      result = DockerClient.run("rm -f oci-reg")
+      Log.for("verbose").debug { "#{result} #{result[:output]}" }
+      result[:status].success?.should be_true
       FileUtils.rm_rf(tgz) rescue nil
 
       result = ShellCmd.cnf_uninstall
@@ -361,7 +362,6 @@ describe "Installation" do
 
     begin
       # Start ChartMuseum with basic auth
-      DockerClient.run("rm -f cm >/dev/null 2>&1 || true")
       DockerClient.run(
         "run -d --name cm \
         -p #{chart_museum_port}:8080 \
@@ -392,7 +392,9 @@ describe "Installation" do
       result[:status].success?.should be_true
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
-      DockerClient.run("rm -f cm >/dev/null 2>&1 || true")
+      result = DockerClient.run("rm -f cm")
+      Log.for("verbose").debug { "#{result} #{result[:output]}" }
+      result[:status].success?.should be_true
       FileUtils.rm_rf(tgz) rescue nil
 
       result = ShellCmd.cnf_uninstall
@@ -440,7 +442,6 @@ describe "Installation" do
 
       # Start registry (mTLS)
       config_path = "sample-cnfs/sample_tls_repo/config.yml"
-      DockerClient.run("rm -f oci-reg-mtls >/dev/null 2>&1 || true")
       DockerClient.run(
         "run -d --name oci-reg-mtls " \
         "-p #{registry_port}:5000 " \
@@ -474,7 +475,9 @@ describe "Installation" do
       result[:status].success?.should be_true
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
-      DockerClient.run("rm -f oci-reg-mtls >/dev/null 2>&1 || true")
+      result = DockerClient.run("rm -f oci-reg-mtls")
+      Log.for("verbose").debug { "#{result} #{result[:output]}" }
+      result[:status].success?.should be_true
       FileUtils.rm_rf(tls_dir) rescue nil
       FileUtils.rm_rf(tgz) rescue nil
       prev_proxy.each { |k, v| v.try { |s| ENV[k] = s } || ENV.delete(k) }
