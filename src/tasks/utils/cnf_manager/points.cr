@@ -275,7 +275,7 @@ module CNFManager
       {max_points, max_passed}
     end
 
-    def self.upsert_task(task, status, points, start_time)
+    def self.upsert_task(task, status, points, start_time, message)
       logger = @@logger.for("upsert_task-#{task}")
 
       # Raise exception when results file does not exists.
@@ -293,7 +293,7 @@ module CNFManager
       # So encode it into YAML and parse it back again to assign it.
       #
       # Only add task timestamps if the env var is set.
-      if ENV.has_key?("TASK_TIMESTAMPS")
+      if status == "passed"
         task_result_info = {
           name:         task,
           status:       status,
@@ -304,12 +304,16 @@ module CNFManager
           task_runtime: "#{task_runtime}",
         }
         result_items << YAML.parse(task_result_info.to_yaml)
-      else
+      else 
         task_result_info = {
-          name:   task,
-          status: status,
-          type:   task_type_by_task(task),
-          points: points,
+          name:                 task,
+          status:               status,
+          status_description:   message,
+          type:                 task_type_by_task(task),
+          points:               points,
+          start_time:           start_time,
+          end_time:             end_time,
+          task_runtime:         "#{task_runtime}",
         }
         result_items << YAML.parse(task_result_info.to_yaml)
       end
@@ -329,17 +333,17 @@ module CNFManager
     end
 
     def self.failed_task(task, msg)
-      upsert_task(task, FAILED, task_points(task, false), start_time)
+      upsert_task(task, FAILED, task_points(task, false), start_time, msg)
       stdout_failure "#{msg}"
     end
 
     def self.passed_task(task, msg)
-      upsert_task(task, PASSED, task_points(task), start_time)
+      upsert_task(task, PASSED, task_points(task), start_time, msg)
       stdout_success "#{msg}"
     end
 
     def self.skipped_task(task, msg)
-      upsert_task(task, SKIPPED, task_points(task), start_time)
+      upsert_task(task, SKIPPED, task_points(task), start_time, msg)
       stdout_success "#{msg}"
     end
 
