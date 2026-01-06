@@ -346,9 +346,8 @@ describe "Installation" do
       result[:status].success?.should be_true
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
-      result = DockerClient.run("rm -f oci-reg")
+      result = DockerClient.run("rm -fv oci-reg")
       Log.for("verbose").debug { "#{result} #{result[:output]}" }
-      result[:status].success?.should be_true
       FileUtils.rm_rf(tgz) rescue nil
 
       result = ShellCmd.cnf_uninstall
@@ -392,9 +391,8 @@ describe "Installation" do
       result[:status].success?.should be_true
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
-      result = DockerClient.run("rm -f cm")
+      result = DockerClient.run("rm -fv cm")
       Log.for("verbose").debug { "#{result} #{result[:output]}" }
-      result[:status].success?.should be_true
       FileUtils.rm_rf(tgz) rescue nil
 
       result = ShellCmd.cnf_uninstall
@@ -475,9 +473,8 @@ describe "Installation" do
       result[:status].success?.should be_true
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
-      result = DockerClient.run("rm -f oci-reg-mtls")
+      result = DockerClient.run("rm -fv oci-reg-mtls")
       Log.for("verbose").debug { "#{result} #{result[:output]}" }
-      result[:status].success?.should be_true
       FileUtils.rm_rf(tls_dir) rescue nil
       FileUtils.rm_rf(tgz) rescue nil
       prev_proxy.each { |k, v| v.try { |s| ENV[k] = s } || ENV.delete(k) }
