@@ -1,4 +1,4 @@
-FROM crystallang/crystal:1.6.2-alpine
+FROM crystallang/crystal:1.15.1-alpine
 
 RUN apk add --update --no-cache --force-overwrite \
       gc-dev gcc gmp-dev libatomic_ops libevent-static \

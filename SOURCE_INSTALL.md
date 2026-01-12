@@ -21,7 +21,7 @@ This INSTALL guide will detail the minimum requirements needed for cnf-testsuite
 - **curl**
 - **helm 3.8.2** _or newer_ _(cnf-testsuite installs if not found locally)_
 - **git** _(used to check out code from github)_
-- **crystal-lang** version >=1.6.0 _(to compile the source and build the binary, see [crystal installation](https://crystal-lang.org/install/)) for more information._
+- **crystal-lang** version >=1.15.1 _(to compile the source and build the binary, see [crystal installation](https://crystal-lang.org/install/)) for more information._
 - **shards** ([dependency manager](https://github.com/crystal-lang/shards) for crystal-lang)
 
 ##### Optional Requirement
@@ -66,7 +66,7 @@ cd tools/ && git clone https://github.com/crosscloudci/k8s-infra.git
 
 ### Installation
 
-We can assume you have access to a working kubernetes cluster. We recommend only running the cnf-testsuite on dev or test clusters. The source install steps have been verified on most Linux distributions (Ubuntu, Debian and CentOS), Mac OS X and WSL as long as crystal-lang >=v1.6.0 is installed.
+We can assume you have access to a working kubernetes cluster. We recommend only running the cnf-testsuite on dev or test clusters. The source install steps have been verified on most Linux distributions (Ubuntu, Debian and CentOS), Mac OS X and WSL as long as crystal-lang >=v1.15.1 is installed.
 
 _NOTE: Currently Mac OS X users will need to ensure helm 3.1.1 or greater is installed locally._
 
@@ -82,7 +82,7 @@ _NOTE: Currently Mac OS X users will need to ensure helm 3.1.1 or greater is ins
   ```
   kubectl cluster-info
   ```
-- You'll need cystal-lang >=v1.6.0 installed with [shards](https://github.com/crystal-lang/shards). You can follow their [install instructions](https://crystal-lang.org/install/) for their different install methods.
+- You'll need cystal-lang >=v1.15.1 installed with [shards](https://github.com/crystal-lang/shards). You can follow their [install instructions](https://crystal-lang.org/install/) for their different install methods.
 - cnf-testsuite needs helm-3.1.1 or greater but is optional as the prerequisite checks will install if not found. You can install helm by checking their [installation methods](https://helm.sh/docs/helm/helm_install/).
 - Checkout the source code with git:
   ```
@@ -112,10 +112,10 @@ _This build method is static and DOES NOT have any runtime dependencies._
 - To build using docker crystal alpine image (great if you don't have crystal installed)
 
 ```
-docker pull crystallang/crystal:1.6.2-alpine-build
+docker pull crystallang/crystal:1.15.1-alpine-build
  ## Note: $PWD is your cnf-testsuite source directory in the following commands 
-docker run --rm -it -v $PWD:/workspace -w /workspace crystallang/crystal:1.6.2-alpine-build shards install
-docker run --rm -it -v $PWD:/workspace -w /workspace crystallang/crystal:1.6.2-alpine-build crystal build src/cnf-testsuite.cr --release --static --link-flags "-lxml2 -llzma"
+docker run --rm -it -v $PWD:/workspace -w /workspace crystallang/crystal:1.15.1-alpine-build shards install
+docker run --rm -it -v $PWD:/workspace -w /workspace crystallang/crystal:1.15.1-alpine-build crystal build src/cnf-testsuite.cr --release --static --link-flags "-lxml2 -llzma"
 ```
 
 </p>
