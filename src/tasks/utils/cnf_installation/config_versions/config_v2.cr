@@ -15,6 +15,7 @@ module CNFInstall
     class CommonParameters < CNFInstall::Config::ConfigBase
       getter container_names = [] of ContainerParameters,
              white_list_container_names = [] of String,
+             workload_resource_labels = [] of WorkloadResourceLabel,
              docker_insecure_registries = [] of String,
              image_registry_fqdns = {} of String => String,
              five_g_parameters = FiveGParameters.new(),
@@ -148,6 +149,13 @@ module CNFInstall
              apn = "",
              emergency = ""
 
+      def initialize; end
+    end
+
+    class WorkloadResourceLabel < CNFInstall::Config::ConfigBase
+      getter key = "",
+             value = "",
+             namespace = ""
       def initialize; end
     end
     

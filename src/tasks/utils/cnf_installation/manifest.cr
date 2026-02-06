@@ -37,6 +37,59 @@ module CNFInstall
       manifest
     end
 
+    # Combine YAMLs with source comments for deployment resources
+    def self.combine_ymls_with_deployment_source(ymls : Array(YAML::Any), deployment_name : String, deployment_type : String) : String
+      manifest = ymls.map do |yaml_object|
+        kind = yaml_object.dig?("kind").try(&.as_s) || "Unknown"
+        name = yaml_object.dig?("metadata", "name").try(&.as_s) || "unknown"
+        yaml_str = yaml_object.to_yaml
+        # Insert comment right after the --- separator
+        yaml_str.sub(/^---\n/, "---\n# Source: #{deployment_type}:#{deployment_name} (#{kind}/#{name})\n")
+      end.join
+      manifest
+    end
+
+    # Combine YAMLs with source comments for label-identified resources
+    def self.combine_ymls_with_label_source(ymls : Array(YAML::Any), label_selector : String) : String
+      manifest = ymls.map do |yaml_object|
+        kind = yaml_object.dig?("kind").try(&.as_s) || "Unknown"
+        name = yaml_object.dig?("metadata", "name").try(&.as_s) || "unknown"
+        yaml_str = yaml_object.to_yaml
+        # Insert comment right after the --- separator
+        yaml_str.sub(/^---\n/, "---\n# Source: label_filter (#{label_selector}) (#{kind}/#{name})\n")
+      end.join
+      manifest
+    end
+
+    # Combine YAMLs with source comments for owned resources
+    def self.combine_ymls_with_owner_source(ymls : Array(YAML::Any), owner_map : Hash(String, String)) : String
+      manifest = ymls.map do |yaml_object|
+        kind = yaml_object.dig?("kind").try(&.as_s) || "Unknown"
+        name = yaml_object.dig?("metadata", "name").try(&.as_s) || "unknown"
+        uid = yaml_object.dig?("metadata", "uid").try(&.as_s) || ""
+        
+        # Get owner reference from the resource
+        owner_refs = yaml_object.dig?("metadata", "ownerReferences")
+        owner_info = if owner_refs && owner_refs.as_a?
+          first_owner = owner_refs.as_a.first?
+          if first_owner
+            owner_kind = first_owner.dig?("kind").try(&.as_s) || "Unknown"
+            owner_name = first_owner.dig?("name").try(&.as_s) || "unknown"
+            "#{owner_kind}/#{owner_name}"
+          else
+            "unknown"
+          end
+        else
+          "unknown"
+        end
+        
+        yaml_str = yaml_object.to_yaml
+        # Insert comment right after the --- separator
+        yaml_str.sub(/^---\n/, "---\n# Source: owned_by #{owner_info} (#{kind}/#{name})\n")
+      end.join
+      manifest
+    end
+
     # Apply namespaces only to resources that are retrieved from Kubernetes as namespaced resource kinds.
     # Namespaced resource kinds are utilized exclusively during the Helm installation process.
     def self.add_namespace_to_resources(manifest_string, namespace)

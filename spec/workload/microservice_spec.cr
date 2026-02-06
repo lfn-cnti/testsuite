@@ -189,6 +189,21 @@ describe "Microservice" do
     result = ShellCmd.cnf_uninstall()
   end
 
+  it "'specialized_init_system' should include label-selected resources", tags: ["labels"] do
+    begin
+      ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-operator/cnf-testsuite.yml")
+      result = ShellCmd.run_testsuite("specialized_init_system")
+      result[:status].success?.should be_true
+      (/pod\/demo-labeled-0 container 'app' uses non-specialized init/ =~ result[:output]).should_not be_nil
+      (/pod\/demo-labeled-1 container 'app' uses non-specialized init/ =~ result[:output]).should_not be_nil
+      (/pod\/demo-owned-0 container 'app' uses non-specialized init/ =~ result[:output]).should_not be_nil
+      (/pod\/demo-owned-1 container 'app' uses non-specialized init/ =~ result[:output]).should_not be_nil
+      (/(FAILED).*(Containers do not use specialized init systems)/ =~ result[:output]).should_not be_nil
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'service_discovery' should pass if any containers in the cnf are exposed as a service", tags: ["service_discovery"]  do
     begin
       ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_coredns")

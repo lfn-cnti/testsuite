@@ -1,0 +1,176 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: podset-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: podset-operator
+  template:
+    metadata:
+      labels:
+        app: podset-operator
+    spec:
+      serviceAccountName: podset-operator
+      containers:
+        - name: operator
+          image: python:3.11-slim
+          command: ["python", "-u", "-c"]
+          args:
+            - |
+              import json, os, time, urllib.request, ssl
+              from datetime import datetime, timezone
+
+              # Namespace of operator
+              NAMESPACE = open("/var/run/secrets/kubernetes.io/serviceaccount/namespace").read().strip()
+              TOKEN = open("/var/run/secrets/kubernetes.io/serviceaccount/token").read().strip()
+              CA_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+              API = "https://kubernetes.default.svc"
+
+              ssl_context = ssl.create_default_context(cafile=CA_PATH)
+
+              def request(path, method="GET", body=None, content_type="application/json"):
+                  req = urllib.request.Request(API + path, method=method)
+                  req.add_header("Authorization", "Bearer " + TOKEN)
+                  req.add_header("Content-Type", content_type)
+                  return urllib.request.urlopen(req, data=body, context=ssl_context).read()
+
+              def update_podset_status(name, ready_replicas, total_replicas):
+                  """Update PodSet status with Ready condition"""
+                  is_ready = ready_replicas == total_replicas
+                  status_obj = {
+                      "status": {
+                          "readyReplicas": ready_replicas,
+                          "conditions": [
+                              {
+                                  "type": "Ready",
+                                  "status": "True" if is_ready else "False",
+                                  "lastTransitionTime": datetime.now(timezone.utc).isoformat(),
+                                  "reason": "AllPodsReady" if is_ready else "PodsNotReady",
+                                  "message": f"{ready_replicas}/{total_replicas} pods ready"
+                              }
+                          ]
+                      }
+                  }
+                  try:
+                      request(f"/apis/demo.example.com/v1/namespaces/{NAMESPACE}/podsets/{name}/status", 
+                              "PATCH", json.dumps(status_obj).encode(), 
+                              content_type="application/merge-patch+json")
+                      print(f"Updated status for PodSet '{name}': {ready_replicas}/{total_replicas} pods ready, Ready={is_ready}")
+                  except Exception as e:
+                      print(f"Failed to update status for PodSet '{name}': {e}")
+
+              print("Starting PodSet operator in namespace:", NAMESPACE)
+
+              while True:
+                  try:
+                      print("Polling for PodSets...")
+                      podsets_raw = request(f"/apis/demo.example.com/v1/namespaces/{NAMESPACE}/podsets")
+                      podsets = json.loads(podsets_raw)
+
+                      pods_raw = request(f"/api/v1/namespaces/{NAMESPACE}/pods")
+                      pods = json.loads(pods_raw)["items"]
+                      existing = {p["metadata"]["name"] for p in pods}
+                      
+                      # Build a map of pod names to their ready status
+                      pod_ready_status = {}
+                      for p in pods:
+                          pod_name = p["metadata"]["name"]
+                          phase = p.get("status", {}).get("phase", "Unknown")
+                          conditions = p.get("status", {}).get("conditions", [])
+                          ready = phase == "Running" and any(
+                              c.get("type") == "Ready" and c.get("status") == "True"
+                              for c in conditions
+                          )
+                          pod_ready_status[pod_name] = ready
+
+                      print(f"Found {len(podsets.get('items', []))} PodSet(s), {len(existing)} existing pods")
+
+                      for ps in podsets.get("items", []):
+                          name = ps["metadata"]["name"]
+                          spec = ps.get("spec", {})
+                          replicas = spec.get("replicas", 1)
+                          image = spec.get("image", "nginx")
+                          pod_name_prefix = spec.get("podNamePrefix", name)
+
+                          # Take labels from PodSet metadata, fallback to app=<PodSet name>
+                          original_labels = ps.get("metadata", {}).get("labels", {"app": name})
+
+                          print(f"Processing PodSet '{name}' with {replicas} replicas, image={image}, labels={original_labels}")
+
+                          # Get PodSet UID for ownerReferences
+                          podset_uid = ps.get("metadata", {}).get("uid", "")
+                          podset_api_version = ps.get("apiVersion", "demo.example.com/v1")
+
+                          # Determine strategy based on PodSet name
+                          use_owner_references = "owned" in name.lower()
+                          use_labels = "labeled" in name.lower()
+
+                          # Create missing pods
+                          for i in range(replicas):
+                              pod_name = f"{pod_name_prefix}-{i}"
+                              if pod_name in existing:
+                                  print(f"Pod '{pod_name}' already exists, skipping")
+                                  continue
+
+                              pod_metadata = {"name": pod_name}
+                              
+                              # Strategy 1: labeled pods = labels from PodSet but NO ownerReferences
+                              if use_labels:
+                                  pod_metadata["labels"] = original_labels
+                                  print(f"Creating labeled pod '{pod_name}' with labels {original_labels} (no ownerReferences)")
+                              
+                              # Strategy 2: owned pods = ownerReferences but NO cnf label
+                              elif use_owner_references:
+                                  # Only add internal labels, NOT the cnf label
+                                  pod_metadata["labels"] = {"app": name, "managed-by": "podset-operator"}
+                                  pod_metadata["ownerReferences"] = [{
+                                      "apiVersion": podset_api_version,
+                                      "kind": "PodSet",
+                                      "name": name,
+                                      "uid": podset_uid,
+                                      "controller": True,
+                                      "blockOwnerDeletion": True
+                                  }]
+                                  print(f"Creating owned pod '{pod_name}' with ownerReference to PodSet '{name}' (no cnf label)")
+                              
+                              # Fallback: both labels and ownerReferences
+                              else:
+                                  pod_metadata["labels"] = original_labels
+                                  pod_metadata["ownerReferences"] = [{
+                                      "apiVersion": podset_api_version,
+                                      "kind": "PodSet",
+                                      "name": name,
+                                      "uid": podset_uid,
+                                      "controller": True,
+                                      "blockOwnerDeletion": True
+                                  }]
+                                  print(f"Creating pod '{pod_name}' with both labels and ownerReferences")
+
+                              pod = {
+                                  "apiVersion": "v1",
+                                  "kind": "Pod",
+                                  "metadata": pod_metadata,
+                                  "spec": {
+                                      "containers": [{"name": "app", "image": image}]
+                                  }
+                              }
+
+                              request(f"/api/v1/namespaces/{NAMESPACE}/pods", "POST", json.dumps(pod).encode())
+
+                          # Count ready pods for this PodSet
+                          ready_count = sum(
+                              1 for i in range(replicas)
+                              if pod_ready_status.get(f"{pod_name_prefix}-{i}", False)
+                          )
+                          
+                          # Update PodSet status
+                          update_podset_status(name, ready_count, replicas)
+
+                  except Exception as e:
+                      print("Error:", e)
+
+                  time.sleep({{ .Values.pollInterval | default 5 | int }})
+

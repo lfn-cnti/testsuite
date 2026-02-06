@@ -1,0 +1,24 @@
+---
+apiVersion: demo.example.com/v1
+kind: PodSet
+metadata:
+  name: demo-labeled
+  namespace: cnf-default
+  labels:
+    cnf: simple-operator
+spec:
+  replicas: 2
+  image: nginx
+  podNamePrefix: "demo-labeled"
+---
+apiVersion: demo.example.com/v1
+kind: PodSet
+metadata:
+  name: demo-owned
+  namespace: cnf-default
+  labels:
+    cnf: simple-operator
+spec:
+  replicas: 2
+  image: nginx
+  podNamePrefix: "demo-owned"

@@ -54,7 +54,13 @@ module CNFInstall
       list_of_manifests = Manifest.manifest_file_list(@manifest_directory_path)
       list_of_manifests.each do |manifest_path|
         manifest = File.read(manifest_path)
-        deployment_manifest = deployment_manifest + manifest + "\n"
+        # Ensure manifest starts with --- if it doesn't already
+        unless manifest.strip.starts_with?("---")
+          manifest = "---\n" + manifest
+        end
+        # Ensure manifest ends with newline
+        manifest += "\n" unless manifest.ends_with?("\n")
+        deployment_manifest = deployment_manifest + manifest
       end
       deployment_manifest
     end

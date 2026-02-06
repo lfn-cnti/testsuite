@@ -106,6 +106,23 @@ Example setting:
 
 `white_list_container_names: [coredns]`
 
+##### workload_resource_labels
+
+Optional list of label selectors used to identify additional workload resources for tests. This is useful when some CNF resources are created outside the Helm/manifest flow captured in the generated manifest.
+
+Each selector can optionally provide a namespace. If omitted, all namespaces are searched.
+
+```yaml
+config_version: v2
+common:
+  workload_resource_labels:
+    - key: "app.kubernetes.io/part-of"
+      value: "my-cnf"
+    - key: "app"
+      value: "worker"
+      namespace: "cnf-default"
+```
+
 ##### hardcoded_ip_exceptions 
 
 The values of this optional key are the IP addresses that are allowed to appear as hardcoded values in the configuration of the CNF.

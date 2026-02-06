@@ -148,6 +148,21 @@ describe "Security" do
     end
   end
 
+  it "'cpu_limits' should include label-selected resources", tags: ["labels"] do
+    begin
+      ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-operator/cnf-testsuite.yml")
+      result = ShellCmd.run_testsuite("cpu_limits")
+      result[:status].success?.should be_true
+      (/Failed resource: Pod demo-labeled-0 in cnf-default namespace/ =~ result[:output]).should_not be_nil
+      (/Failed resource: Pod demo-labeled-1 in cnf-default namespace/ =~ result[:output]).should_not be_nil
+      (/Failed resource: Pod demo-owned-0 in cnf-default namespace/ =~ result[:output]).should_not be_nil
+      (/Failed resource: Pod demo-owned-1 in cnf-default namespace/ =~ result[:output]).should_not be_nil
+      (/Remediation: Set the CPU limits or use exception mechanism to avoid unnecessary notifications\./ =~ result[:output]).should_not be_nil
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'memory_limits' should pass on a cnf that has containers with memory limits set", tags: ["security"] do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-coredns-cnf")

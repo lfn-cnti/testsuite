@@ -64,7 +64,23 @@ module KubectlClient
       case kind.downcase
       when "pod"
         return KubectlClient::Get.pod_ready?(resource_name, namespace: namespace)
-      else
+      when "customresourcedefinition"
+        # CRDs use "Established" condition, not "Ready"
+        return crd_ready?(resource_name)
+      when "service", "configmap", "secret", "serviceaccount", 
+           "role", "rolebinding", "clusterrole", "clusterrolebinding",
+           "namespace", "persistentvolumeclaim", "persistentvolume",
+           "networkpolicy", "ingress", "endpoints", "limitrange", "resourcequota"
+        # These standard Kubernetes resources don't have replica counts or Ready conditions
+        # They're ready once they exist
+        begin
+          KubectlClient::Get.resource(kind, resource_name, namespace)
+          return true
+        rescue
+          return false
+        end
+      when "deployment", "statefulset", "daemonset", "replicaset"
+        # Standard Kubernetes workload resources - check replica counts
         replicas = KubectlClient::Get.replica_count(kind, resource_name, namespace)
         ready = replicas[:current] == replicas[:desired]
         if replicas[:desired] == 0 && replicas[:unavailable] >= 1
@@ -73,9 +89,85 @@ module KubectlClient
         if replicas[:current] == -1 || replicas[:desired] == -1
           ready = false
         end
+      else
+        # Custom resources - check for Ready condition in status
+        if custom_resource_ready?(kind, resource_name, namespace)
+          return true
+        end
+        # If custom_resource_ready? returned false, resource is not ready
+        ready = false
       end
 
       ready
+    end
+
+    private def self.crd_ready?(resource_name : String) : Bool
+      logger = @@logger.for("crd_ready?")
+      logger.debug { "Checking if CRD #{resource_name} is established" }
+
+      begin
+        resource = KubectlClient::Get.resource("CustomResourceDefinition", resource_name, nil)
+        
+        conditions = resource.dig?("status", "conditions")
+        return false unless conditions
+        
+        conditions_array = conditions.as_a?
+        return false unless conditions_array
+        
+        # CRDs are ready when they have Established=True condition
+        established_condition = conditions_array.find do |condition|
+          condition.dig?("type").try(&.as_s) == "Established"
+        end
+        
+        return false unless established_condition
+        
+        status = established_condition.dig?("status").try(&.as_s)
+        return status == "True"
+      rescue ex
+        logger.debug { "Failed to check CRD Established condition: #{ex.message}" }
+        return false
+      end
+    end
+
+    private def self.custom_resource_ready?(kind : String, resource_name : String, namespace : String? = nil) : Bool
+      logger = @@logger.for("custom_resource_ready?")
+      logger.debug { "Checking if custom resource #{kind}/#{resource_name} has Ready condition" }
+
+      begin
+        resource = KubectlClient::Get.resource(kind, resource_name, namespace)
+        
+        # Check if the resource has status.conditions
+        conditions = resource.dig?("status", "conditions")
+        
+        # If no status.conditions, the CR doesn't implement status - consider it ready once it exists
+        if !conditions
+          logger.debug { "Custom resource #{kind}/#{resource_name} has no status.conditions, considering it ready" }
+          return true
+        end
+        
+        conditions_array = conditions.as_a?
+        if !conditions_array
+          logger.debug { "Custom resource #{kind}/#{resource_name} status.conditions is not an array, considering it ready" }
+          return true
+        end
+        
+        # Look for Ready condition with status=True
+        ready_condition = conditions_array.find do |condition|
+          condition.dig?("type").try(&.as_s) == "Ready"
+        end
+        
+        # If no Ready condition found, consider it ready (not all CRs implement Ready condition)
+        if !ready_condition
+          logger.debug { "Custom resource #{kind}/#{resource_name} has no Ready condition, considering it ready" }
+          return true
+        end
+        
+        status = ready_condition.dig?("status").try(&.as_s)
+        return status == "True"
+      rescue ex
+        logger.debug { "Failed to check custom resource Ready condition: #{ex.message}" }
+        return false
+      end
     end
 
     def self.wait_for_resource_key_value(
