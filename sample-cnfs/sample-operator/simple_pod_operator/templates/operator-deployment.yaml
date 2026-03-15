@@ -20,7 +20,7 @@ spec:
           command: ["python", "-u", "-c"]
           args:
             - |
-              import json, os, time, urllib.request, ssl
+              import json, time, urllib.error, urllib.request, ssl
               from datetime import datetime, timezone
 
               # Namespace of operator
@@ -28,13 +28,15 @@ spec:
               TOKEN = open("/var/run/secrets/kubernetes.io/serviceaccount/token").read().strip()
               CA_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
               API = "https://kubernetes.default.svc"
+              OPERATOR_LABEL = "podset-operator"
 
               ssl_context = ssl.create_default_context(cafile=CA_PATH)
 
               def request(path, method="GET", body=None, content_type="application/json"):
                   req = urllib.request.Request(API + path, method=method)
                   req.add_header("Authorization", "Bearer " + TOKEN)
-                  req.add_header("Content-Type", content_type)
+                  if content_type:
+                      req.add_header("Content-Type", content_type)
                   return urllib.request.urlopen(req, data=body, context=ssl_context).read()
 
               def update_podset_status(name, ready_replicas, total_replicas):
@@ -62,6 +64,132 @@ spec:
                   except Exception as e:
                       print(f"Failed to update status for PodSet '{name}': {e}")
 
+              def build_owner_references(name, uid, api_version):
+                  return [{
+                      "apiVersion": api_version,
+                      "kind": "PodSet",
+                      "name": name,
+                      "uid": uid,
+                      "controller": True,
+                      "blockOwnerDeletion": True
+                  }]
+
+              def reconcile_deployment(podset):
+                  name = podset["metadata"]["name"]
+                  spec = podset.get("spec", {})
+                  replicas = spec.get("replicas", 1)
+                  image = spec.get("image", "nginx")
+                  deployment_name = spec.get("podNamePrefix", name)
+
+                  original_labels = podset.get("metadata", {}).get("labels", {"app": name})
+                  podset_uid = podset.get("metadata", {}).get("uid", "")
+                  podset_api_version = podset.get("apiVersion", "demo.example.com/v1")
+
+                  use_owner_references = "owned" in name.lower()
+                  use_labels = "labeled" in name.lower()
+
+                  selector_labels = {
+                      "app.kubernetes.io/name": deployment_name,
+                      "app.kubernetes.io/managed-by": OPERATOR_LABEL
+                  }
+                  pod_labels = dict(selector_labels)
+                  pod_labels["podset.demo.example.com/name"] = name
+
+                  deployment_labels = {
+                      "app.kubernetes.io/managed-by": OPERATOR_LABEL,
+                      "podset.demo.example.com/name": name
+                  }
+
+                  owner_references = []
+
+                  if use_labels:
+                      deployment_labels.update(original_labels)
+                      pod_labels.update(original_labels)
+                      print(f"Reconciling labeled deployment '{deployment_name}' for PodSet '{name}' (deployment and pods are labeled)")
+                  elif use_owner_references:
+                      owner_references = build_owner_references(name, podset_uid, podset_api_version)
+                      print(f"Reconciling owned deployment '{deployment_name}' for PodSet '{name}' (identified by ownerReferences)")
+                  else:
+                      deployment_labels.update(original_labels)
+                      pod_labels.update(original_labels)
+                      owner_references = build_owner_references(name, podset_uid, podset_api_version)
+                      print(f"Reconciling deployment '{deployment_name}' for PodSet '{name}' with labels on deployment/pods and ownerReferences")
+
+                  deployment = {
+                      "apiVersion": "apps/v1",
+                      "kind": "Deployment",
+                      "metadata": {
+                          "name": deployment_name,
+                          "labels": deployment_labels,
+                          "ownerReferences": owner_references
+                      },
+                      "spec": {
+                          "replicas": replicas,
+                          "selector": {
+                              "matchLabels": selector_labels
+                          },
+                          "template": {
+                              "metadata": {
+                                  "labels": pod_labels
+                              },
+                              "spec": {
+                                  "containers": [{"name": "app", "image": image}]
+                              }
+                          }
+                      }
+                  }
+
+                  deployment_path = f"/apis/apps/v1/namespaces/{NAMESPACE}/deployments/{deployment_name}"
+                  try:
+                      request(deployment_path)
+                      request(
+                          deployment_path,
+                          "PATCH",
+                          json.dumps(deployment).encode(),
+                          content_type="application/merge-patch+json"
+                      )
+                      print(f"Updated deployment '{deployment_name}' for PodSet '{name}'")
+                  except urllib.error.HTTPError as error:
+                      if error.code != 404:
+                          raise
+                      request(
+                          f"/apis/apps/v1/namespaces/{NAMESPACE}/deployments",
+                          "POST",
+                          json.dumps(deployment).encode()
+                      )
+                      print(f"Created deployment '{deployment_name}' for PodSet '{name}'")
+
+                  deployment_state = json.loads(request(deployment_path))
+                  ready_replicas = deployment_state.get("status", {}).get("readyReplicas", 0)
+                  return deployment_name, ready_replicas, replicas
+
+              def delete_orphan_deployments(active_deployments):
+                  try:
+                      deployments_raw = request(f"/apis/apps/v1/namespaces/{NAMESPACE}/deployments")
+                      deployments = json.loads(deployments_raw).get("items", [])
+                  except Exception as error:
+                      print(f"Failed to list deployments for orphan cleanup: {error}")
+                      return
+
+                  for deployment in deployments:
+                      metadata = deployment.get("metadata", {})
+                      labels = metadata.get("labels", {})
+                      deployment_name = metadata.get("name", "")
+
+                      if labels.get("app.kubernetes.io/managed-by") != OPERATOR_LABEL:
+                          continue
+                      if deployment_name in active_deployments:
+                          continue
+
+                      try:
+                          request(
+                              f"/apis/apps/v1/namespaces/{NAMESPACE}/deployments/{deployment_name}",
+                              "DELETE"
+                          )
+                          print(f"Deleted orphan deployment '{deployment_name}'")
+                      except Exception as error:
+                          print(f"Failed to delete orphan deployment '{deployment_name}': {error}")
+
               print("Starting PodSet operator in namespace:", NAMESPACE)
 
               while True:
@@ -70,104 +198,18 @@ spec:
                       podsets_raw = request(f"/apis/demo.example.com/v1/namespaces/{NAMESPACE}/podsets")
                       podsets = json.loads(podsets_raw)
 
-                      pods_raw = request(f"/api/v1/namespaces/{NAMESPACE}/pods")
-                      pods = json.loads(pods_raw)["items"]
-                      existing = {p["metadata"]["name"] for p in pods}
-                      
-                      # Build a map of pod names to their ready status
-                      pod_ready_status = {}
-                      for p in pods:
-                          pod_name = p["metadata"]["name"]
-                          phase = p.get("status", {}).get("phase", "Unknown")
-                          conditions = p.get("status", {}).get("conditions", [])
-                          ready = phase == "Running" and any(
-                              c.get("type") == "Ready" and c.get("status") == "True"
-                              for c in conditions
-                          )
-                          pod_ready_status[pod_name] = ready
+                      podset_items = podsets.get("items", [])
+                      active_deployments = set()
 
-                      print(f"Found {len(podsets.get('items', []))} PodSet(s), {len(existing)} existing pods")
+                      print(f"Found {len(podset_items)} PodSet(s)")
 
-                      for ps in podsets.get("items", []):
+                      for ps in podset_items:
                           name = ps["metadata"]["name"]
-                          spec = ps.get("spec", {})
-                          replicas = spec.get("replicas", 1)
-                          image = spec.get("image", "nginx")
-                          pod_name_prefix = spec.get("podNamePrefix", name)
-
-                          # Take labels from PodSet metadata, fallback to app=<PodSet name>
-                          original_labels = ps.get("metadata", {}).get("labels", {"app": name})
-
-                          print(f"Processing PodSet '{name}' with {replicas} replicas, image={image}, labels={original_labels}")
-
-                          # Get PodSet UID for ownerReferences
-                          podset_uid = ps.get("metadata", {}).get("uid", "")
-                          podset_api_version = ps.get("apiVersion", "demo.example.com/v1")
-
-                          # Determine strategy based on PodSet name
-                          use_owner_references = "owned" in name.lower()
-                          use_labels = "labeled" in name.lower()
-
-                          # Create missing pods
-                          for i in range(replicas):
-                              pod_name = f"{pod_name_prefix}-{i}"
-                              if pod_name in existing:
-                                  print(f"Pod '{pod_name}' already exists, skipping")
-                                  continue
-
-                              pod_metadata = {"name": pod_name}
-                              
-                              # Strategy 1: labeled pods = labels from PodSet but NO ownerReferences
-                              if use_labels:
-                                  pod_metadata["labels"] = original_labels
-                                  print(f"Creating labeled pod '{pod_name}' with labels {original_labels} (no ownerReferences)")
-                              
-                              # Strategy 2: owned pods = ownerReferences but NO cnf label
-                              elif use_owner_references:
-                                  # Only add internal labels, NOT the cnf label
-                                  pod_metadata["labels"] = {"app": name, "managed-by": "podset-operator"}
-                                  pod_metadata["ownerReferences"] = [{
-                                      "apiVersion": podset_api_version,
-                                      "kind": "PodSet",
-                                      "name": name,
-                                      "uid": podset_uid,
-                                      "controller": True,
-                                      "blockOwnerDeletion": True
-                                  }]
-                                  print(f"Creating owned pod '{pod_name}' with ownerReference to PodSet '{name}' (no cnf label)")
-                              
-                              # Fallback: both labels and ownerReferences
-                              else:
-                                  pod_metadata["labels"] = original_labels
-                                  pod_metadata["ownerReferences"] = [{
-                                      "apiVersion": podset_api_version,
-                                      "kind": "PodSet",
-                                      "name": name,
-                                      "uid": podset_uid,
-                                      "controller": True,
-                                      "blockOwnerDeletion": True
-                                  }]
-                                  print(f"Creating pod '{pod_name}' with both labels and ownerReferences")
-
-                              pod = {
-                                  "apiVersion": "v1",
-                                  "kind": "Pod",
-                                  "metadata": pod_metadata,
-                                  "spec": {
-                                      "containers": [{"name": "app", "image": image}]
-                                  }
-                              }
-
-                              request(f"/api/v1/namespaces/{NAMESPACE}/pods", "POST", json.dumps(pod).encode())
-
-                          # Count ready pods for this PodSet
-                          ready_count = sum(
-                              1 for i in range(replicas)
-                              if pod_ready_status.get(f"{pod_name_prefix}-{i}", False)
-                          )
-                          
-                          # Update PodSet status
+                          deployment_name, ready_count, replicas = reconcile_deployment(ps)
+                          active_deployments.add(deployment_name)
                           update_podset_status(name, ready_count, replicas)
+
+                      delete_orphan_deployments(active_deployments)
 
                   except Exception as e:
                       print("Error:", e)

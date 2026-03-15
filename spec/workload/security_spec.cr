@@ -153,10 +153,8 @@ describe "Security" do
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-operator/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("cpu_limits")
       result[:status].success?.should be_true
-      (/Failed resource: Pod demo-labeled-0 in cnf-default namespace/ =~ result[:output]).should_not be_nil
-      (/Failed resource: Pod demo-labeled-1 in cnf-default namespace/ =~ result[:output]).should_not be_nil
-      (/Failed resource: Pod demo-owned-0 in cnf-default namespace/ =~ result[:output]).should_not be_nil
-      (/Failed resource: Pod demo-owned-1 in cnf-default namespace/ =~ result[:output]).should_not be_nil
+      (result[:output].scan(/Failed resource: Deployment demo-labeled in cnf-default namespace/).size > 0).should be_true
+      (result[:output].scan(/Failed resource: Deployment demo-owned in cnf-default namespace/).size > 0).should be_true
       (/Remediation: Set the CPU limits or use exception mechanism to avoid unnecessary notifications\./ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()

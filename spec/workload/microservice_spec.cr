@@ -194,10 +194,8 @@ describe "Microservice" do
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-operator/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("specialized_init_system")
       result[:status].success?.should be_true
-      (/pod\/demo-labeled-0 container 'app' uses non-specialized init/ =~ result[:output]).should_not be_nil
-      (/pod\/demo-labeled-1 container 'app' uses non-specialized init/ =~ result[:output]).should_not be_nil
-      (/pod\/demo-owned-0 container 'app' uses non-specialized init/ =~ result[:output]).should_not be_nil
-      (/pod\/demo-owned-1 container 'app' uses non-specialized init/ =~ result[:output]).should_not be_nil
+      (result[:output].scan(/pod\/demo-labeled-[a-z0-9-]+ container 'app' uses non-specialized init/).size > 0).should be_true
+      (result[:output].scan(/pod\/demo-owned-[a-z0-9-]+ container 'app' uses non-specialized init/).size > 0).should be_true
       (/(FAILED).*(Containers do not use specialized init systems)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()

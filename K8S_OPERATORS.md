@@ -12,21 +12,21 @@ Operators are Kubernetes controllers that manage custom resources and automate a
    - This enables tests to reference resources reliably, regardless of when or how they are created by the operator.
 
 2. **OwnerReference-based Identification**
-   - Many operators create resources (e.g., Pods, ReplicaSets) with `ownerReferences` pointing to custom resources (CRDs) managed by the operator.
+   - Many operators create workload resources (e.g., Deployments, Pods, ReplicaSets) with `ownerReferences` pointing to custom resources (CRDs) managed by the operator.
    - The test suite scans for resources owned by custom resources, using the `ownerReferences` field in Kubernetes metadata.
    - These owned resources are also appended to the composite manifest, ensuring that all relevant resources are tracked for testing.
 
 ## Example: Operator Deployment
 
-Suppose an operator creates Pods either by labeling them or by setting `ownerReferences` to a custom resource (e.g., PodSet):
+Suppose an operator creates Deployments for a custom resource (for example, `PodSet`) so the Pods are managed by those Deployments:
 
-- **Labeled Pods:**
-  - Pods are created with labels such as `cnf: my-operator`.
-  - The test suite will identify these using the label selectors.
+- **Labeled Deployments:**
+  - Deployments are created with labels such as `cnf: my-operator`.
+  - The test suite will identify those workload resources using the label selectors and then inspect the Pods selected by the Deployment.
 
-- **Owned Pods:**
-  - Pods are created with `ownerReferences` pointing to a custom resource (e.g., `PodSet`).
-  - The test suite will identify these by traversing owner references from custom resources.
+- **Owned Deployments:**
+  - Deployments are created with `ownerReferences` pointing to a custom resource (e.g., `PodSet`).
+  - The test suite will identify those workload resources by traversing owner references from custom resources and then inspect the Pods selected by the Deployment.
 
 ## How the Test Suite Handles Operator Resources
 
@@ -43,6 +43,6 @@ Suppose an operator creates Pods either by labeling them or by setting `ownerRef
 
 ## Best Practices
 
-- Ensure operator sets meaningful labels or ownerReferences on created resources.
+- Ensure operator sets meaningful labels or ownerReferences on the workload resources it creates.
 - Use unique labels for each CNF to avoid conflicts.
 - Review the composite manifest to verify all expected resources are included.

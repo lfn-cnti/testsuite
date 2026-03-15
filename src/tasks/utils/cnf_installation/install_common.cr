@@ -263,12 +263,11 @@ module CNFInstall
     
     # Split resources into standard workload resources and custom resources
     workload_resources_info = resources_info.select { |resource_info|
-      ["replicaset", "deployment", "statefulset", "pod", "daemonset"].includes?(resource_info[:kind].downcase)
+      WORKLOAD_RESOURCE_KIND_NAMES.includes?(resource_info[:kind].downcase)
     }
     
     # List of standard Kubernetes resources that should NOT be treated as custom resources
-    standard_k8s_resources = [
-      "replicaset", "deployment", "statefulset", "pod", "daemonset", 
+    standard_k8s_resources = WORKLOAD_RESOURCE_KIND_NAMES + [
       "service", "configmap", "secret", "serviceaccount", 
       "role", "rolebinding", "clusterrole", "clusterrolebinding", 
       "namespace", "persistentvolumeclaim", "persistentvolume",
@@ -480,6 +479,8 @@ module CNFInstall
     return [] of YAML::Any if label_selectors.empty?
 
     resources = [] of YAML::Any
+    seen_uids = Set(String).new
+
     label_selectors.each do |selector|
       key = selector.key
       value = selector.value
@@ -487,19 +488,48 @@ module CNFInstall
 
       namespace = selector.namespace.empty? ? nil : selector.namespace
       selector_str = "#{key}=#{value}"
+      matched_items = [] of JSON::Any
 
       KubectlClient::WORKLOAD_RESOURCES.each do |_, kind|
         logger.debug { "Fetching #{kind} resources by label #{selector_str} in #{namespace || "all namespaces"}" }
         json = KubectlClient::Get.resource(kind, namespace: namespace, all_namespaces: namespace.nil?, selector: selector_str)
         items = (json.dig?("items").try &.as_a?) || [] of JSON::Any
-        items.each do |item|
-          # Remove status field to avoid capturing runtime IPs and other dynamic data
-          if item.as_h?
-            item.as_h.delete("status")
-          end
-          yml = YAML.parse(item.to_json)
-          resources << Helm.ensure_resource_with_namespace(yml, default_namespace)
+        items.each { |item| matched_items << item }
+      end
+
+      selected_kind_names = matched_items.map do |item|
+        item.dig?("kind").try(&.as_s).to_s.downcase
+      end.to_set
+
+      matched_items.each do |item|
+        kind = item.dig?("kind").try(&.as_s).to_s
+        name = item.dig?("metadata", "name").try(&.as_s).to_s
+
+        owner_refs = item.dig?("metadata", "ownerReferences").try(&.as_a?)
+        owned_by_selected_kind = owner_refs ? owner_refs.any? do |owner_ref|
+          owner_kind = owner_ref.dig?("kind").try(&.as_s).to_s.downcase
+          selected_kind_names.includes?(owner_kind)
+        end : false
+
+        if owned_by_selected_kind
+          logger.debug { "Skipping label-selected #{kind}/#{name} because owner kind is also label-selected for #{selector_str}" }
+          next
         end
+
+        uid = item.dig?("metadata", "uid").try(&.as_s)
+        if uid && seen_uids.includes?(uid)
+          logger.debug { "Skipping duplicate label-selected #{kind}/#{name} with uid #{uid}" }
+          next
+        end
+
+        seen_uids.add(uid) if uid
+
+        # Remove status field to avoid capturing runtime IPs and other dynamic data
+        if item.as_h?
+          item.as_h.delete("status")
+        end
+        yml = YAML.parse(item.to_json)
+        resources << Helm.ensure_resource_with_namespace(yml, default_namespace)
       end
     end
 
@@ -603,9 +633,13 @@ module CNFInstall
     logger = Log.for("fetch_resources_by_owner_uid")
     resources = [] of YAML::Any
     
-    # Limit search to specific resource types that commonly have ownerReferences
-    # This makes the search much faster than checking all WORKLOAD_RESOURCES
-    searchable_kinds = ["Pod", "ReplicaSet"]
+    # Search across all configured workload resource kinds so ownerReference
+    # discovery stays aligned with workload processing logic.
+    workload_resource_map = KubectlClient::WORKLOAD_RESOURCES.to_h
+    searchable_kinds = [] of String
+    workload_resource_map.each do |key, value|
+      searchable_kinds << value if WORKLOAD_RESOURCE_KIND_NAMES.includes?(key.to_s)
+    end
     
     searchable_kinds.each do |kind|
       begin
