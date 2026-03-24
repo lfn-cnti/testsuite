@@ -1,3 +1,7 @@
+image:
+  repository: cr.fluentbit.io/fluent/fluent-bit
+  tag: latest
+  digest: sha256:7d727245767ae632eb296c2ff4d206bf2e205b5f244c1f37b8fdd61f9fb33985
 config:
   outputs: |
     [OUTPUT]

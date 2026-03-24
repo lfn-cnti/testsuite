@@ -252,8 +252,41 @@ module ClusterTools
     Log.info { "local_match_by_image_name image_name: #{image_name}" }
 
     match = Hash{:found => false, :digest => "", :release_name => ""}
+
+    # Parse explicit tag and/or digest from image_name.
+    # Supported formats:
+    #   "org/image"
+    #   "org/image:tag"
+    #   "org/image:tag@sha256:digest"
+    #   "org/image@sha256:digest"
+    explicit_digest = ""
+    explicit_tag = ""
+    base_image_name = image_name
+
+    if (at_idx = image_name.index("@"))
+      base_part = image_name[0...at_idx]
+      explicit_digest = image_name[at_idx + 1..]  # e.g. "sha256:abc123"
+      last_slash = base_part.rindex("/") || -1
+      last_seg = base_part[last_slash + 1..]
+      if (colon_idx = last_seg.index(":"))
+        explicit_tag = last_seg[colon_idx + 1..]
+        base_image_name = base_part[0...last_slash + 1] + last_seg[0...colon_idx]
+      else
+        base_image_name = base_part
+      end
+    else
+      last_slash = image_name.rindex("/") || -1
+      last_seg = image_name[last_slash + 1..]
+      if (colon_idx = last_seg.index(":"))
+        explicit_tag = last_seg[colon_idx + 1..]
+        base_image_name = image_name[0...last_slash + 1] + last_seg[0...colon_idx]
+      end
+    end
+
+    Log.info { "local_match_by_image_name base_image_name: #{base_image_name}, explicit_tag: #{explicit_tag}, explicit_digest: #{explicit_digest}" }
+
     # Group all imageIDs on passed 'nodes' into array.
-    # If 'image_name' matches the name with tag, save its first occurence.
+    # If 'base_image_name' matches the name with tag, save its first occurence.
     # node.status.images is in following format:
     #  {
     #  "names": [
@@ -262,16 +295,16 @@ module ClusterTools
     #  ],
     #  "sizeBytes": 51212837
     #  }
-    tag = ""
+    tag = explicit_tag
     imageIDs = [] of String
     nodes.each do |node|
       begin
-        images = node.dig("status", "images").as_a.each do |image|
+        node.dig("status", "images").as_a.each do |image|
           image.dig("names").as_a.each do |name|
             if name.as_s.includes?("sha256")
               imageIDs << name.as_s
             else
-              next unless name.as_s.includes?(image_name)
+              next unless name.as_s.includes?(base_image_name)
               tag = DockerClient.parse_image(name.as_s)["tag"] if tag.empty?
             end
           end
@@ -282,11 +315,16 @@ module ClusterTools
     end
     Log.info { "local_match_by_image_name imageIDs : #{imageIDs}" }
 
-    if !tag.empty?
+    if !explicit_digest.empty?
+      # Use the digest provided in image_name directly; skip the skopeo registry call.
+      Log.info { "local_match_by_image_name using explicit digest: #{explicit_digest}" }
+      sha_list = [{"name" => base_image_name, "manifest_digest" => explicit_digest}]
+      match = DockerClient::K8s.local_digest_match(sha_list, imageIDs)
+      Log.info { "local_match_by_image_name match : #{match}"}
+    elsif !tag.empty?
       Log.info { "container tag: #{tag}" }
-  
-      resp = ClusterTools.official_content_digest_by_image_name(image_name + ":" + tag)
-      sha_list = [{"name" => image_name, "manifest_digest" => resp["Digest"].as_s}]
+      resp = ClusterTools.official_content_digest_by_image_name(base_image_name + ":" + tag)
+      sha_list = [{"name" => base_image_name, "manifest_digest" => resp["Digest"].as_s}]
       Log.info { "jaeger_pods sha_list : #{sha_list}"}
       match = DockerClient::K8s.local_digest_match(sha_list, imageIDs)
       Log.info { "local_match_by_image_name match : #{match}"}

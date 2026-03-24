@@ -40,11 +40,11 @@ module FluentManager
 
   class FluentD < FluentBase
     def initialize
-      super("fluentd", 
-            "https://fluent.github.io/helm-charts", 
+      super("fluentd",
+            "https://fluent.github.io/helm-charts",
             "fluentd-values.yml",
             FLUENTD_VALUES,
-            "fluent/fluentd-kubernetes-daemonset",
+            "fluent/fluentd-kubernetes-daemonset:v1.19.1-debian-elasticsearch8-1.0@sha256:4bad75452717d2de0e3c4857339d8e91f11b2712fa9319302a401d9c86388c90",
             "fluentd/fluentd")
     end
   end
@@ -55,18 +55,18 @@ module FluentManager
             "https://charts.bitnami.com/bitnami",
             "fluentd-bitnami-values.yml",
             FLUENTD_BITNAMI_VALUES,
-            "bitnamilegacy/fluentd",
+            "bitnamilegacy/fluentd:latest@sha256:6771c744cbd368eca969b49c160f3ffc24873c4b3743b1df04cc59721b9b73d0",
             "fluentdbitnami/fluentd")
     end
   end
 
   class FluentBit < FluentBase
     def initialize
-      super("fluent-bit", 
+      super("fluent-bit",
             "https://fluent.github.io/helm-charts",
             "fluentbit-values.yml",
             FLUENTBIT_VALUES,
-            "fluent/fluent-bit",
+            "fluent/fluent-bit:latest@sha256:7d727245767ae632eb296c2ff4d206bf2e205b5f244c1f37b8fdd61f9fb33985",
             "fluent-bit/fluent-bit")
     end
   end

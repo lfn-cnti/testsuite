@@ -1,3 +1,8 @@
+image:
+  repository: fluent/fluentd-kubernetes-daemonset
+  tag: v1.19.1-debian-elasticsearch8-1.0
+  digest: sha256:4bad75452717d2de0e3c4857339d8e91f11b2712fa9319302a401d9c86388c90
+
 fileConfigs:
   04_outputs.conf: |-
     <label @OUTPUT>
