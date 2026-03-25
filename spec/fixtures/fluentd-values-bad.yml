@@ -3,6 +3,8 @@ global:
     allowInsecureImages: true
 image:
   repository: bitnamilegacy/fluentd
+  tag: latest
+  digest: sha256:6771c744cbd368eca969b49c160f3ffc24873c4b3743b1df04cc59721b9b73d0
 aggregator:
   enabled: false
 forwarder:
