@@ -1,0 +1,10 @@
+---
+config_version: v2
+deployments:
+  manifests:
+    - name: nad-crd
+      manifest_directory: manifests/crd
+      priority: 0
+    - name: infra
+      manifest_directory: manifests/nad
+      priority: 1
