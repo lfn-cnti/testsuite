@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nested-manifest-infra
+  namespace: default
+data:
+  source: infra

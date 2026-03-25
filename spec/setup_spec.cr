@@ -123,6 +123,16 @@ describe "Installation" do
     end
   end
 
+  it "'cnf_install/cnf_uninstall' should install/uninstall with manifest_directory that descends multiple directories", tags: ["cnf_installation1"] do
+    begin
+      result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-nested-manifest-dirs/cnf-testsuite.yml")
+      (/CNF installation complete/ =~ result[:output]).should_not be_nil
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      (/All CNF deployments were uninstalled/ =~ result[:output]).should_not be_nil
+    end
+  end
+
   it "'cnf_install/cnf_uninstall' should properly install/uninstall old versions of cnf configs", tags: ["cnf_installation1"] do
     begin
       result = ShellCmd.cnf_install("cnf-path=spec/fixtures/cnf-testsuite-v1-example.yml")

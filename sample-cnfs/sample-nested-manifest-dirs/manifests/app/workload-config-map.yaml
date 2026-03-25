@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nested-manifest-app
+  namespace: default
+data:
+  source: app
