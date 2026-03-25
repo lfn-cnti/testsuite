@@ -1,6 +1,9 @@
 module KubectlClient
   module Get
     @@logger : ::Log = Log.for("Get")
+    # Per-kind cache: maps Kind (lowercase) -> fully-qualified resource name for kubectl.
+    # Populated lazily on first lookup so CRDs installed during the session are found.
+    @@resource_kind_cache = {} of String => String?
 
     @@schedulable_nodes_template : String = <<-GOTEMPLATE.strip
     {{- range .items -}}
@@ -25,21 +28,57 @@ module KubectlClient
       log_str += "/#{resource_name}" if resource_name
       logger.debug { "#{log_str}" }
 
-      # resource_name.to_s will expand to "" in case of nil
-      cmd = "kubectl get #{kind} #{resource_name}"
-      cmd = "#{cmd} --field-selector #{field_selector}" if field_selector && !resource_name
-      cmd = "#{cmd} --selector #{selector}" if selector && !resource_name
-      cmd = "#{cmd} -n #{namespace}" if namespace && !all_namespaces
-      cmd = "#{cmd} -A" if !namespace && all_namespaces
-      cmd = "#{cmd} -o json"
+      resource_kind = resolve_resource_kind(kind)
+      cmd = kubectl_get_cmd(resource_kind, resource_name, namespace, all_namespaces, field_selector, selector)
+      result = ShellCMD.run(cmd, logger)
 
-      result = ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+      ShellCMD.raise_exc_on_error { result }
 
       if result[:status].success? && !result[:output].empty?
         JSON.parse(result[:output])
       else
         EMPTY_JSON
       end
+    end
+
+    private def self.resolve_resource_kind(kind : String) : String
+      key = kind.downcase
+      return @@resource_kind_cache[key].not_nil! if @@resource_kind_cache.has_key?(key) && @@resource_kind_cache[key]
+
+      logger = @@logger.for("resolve_resource_kind")
+      api_resources = ShellCMD.run("kubectl api-resources --no-headers", logger)
+      resolved = nil
+
+      if api_resources[:status].success?
+        api_resources[:output].each_line do |line|
+          parts = line.split
+          # Columns: NAME  [SHORTNAMES]  APIVERSION  NAMESPACED  KIND
+          next if parts.size < 3
+          next unless parts.last.downcase == key
+
+          resource_name = parts[0]
+          api_version = parts[-3]
+          group = api_version.includes?("/") ? api_version.split("/")[0] : ""
+          resolved = group.empty? ? resource_name : "#{resource_name}.#{group}"
+          break
+        end
+      end
+
+      @@resource_kind_cache[key] = resolved
+      resolved || kind
+    end
+
+    # Builds a kubectl get command string. Extracted so that the kind-resolution
+    # path shares the same flag-building logic without duplication.
+    private def self.kubectl_get_cmd(resource_kind : String, resource_name : String?,
+                                     namespace : String?, all_namespaces : Bool,
+                                     field_selector : String?, selector : String?) : String
+      cmd = "kubectl get #{resource_kind} #{resource_name}"
+      cmd = "#{cmd} --field-selector #{field_selector}" if field_selector && !resource_name
+      cmd = "#{cmd} --selector #{selector}" if selector && !resource_name
+      cmd = "#{cmd} -n #{namespace}" if namespace && !all_namespaces
+      cmd = "#{cmd} -A" if !namespace && all_namespaces
+      "#{cmd} -o json"
     end
 
     def self.privileged_containers(namespace : String? = nil, all_namespaces : Bool? = true) : Array(JSON::Any)
