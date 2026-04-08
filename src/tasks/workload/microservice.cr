@@ -556,6 +556,9 @@ task "sig_term_handled" do |t, args|
       test_reason: String | Nil
     )
 
+    #Track already tested pods
+    tested_pods = Set(String).new
+ 
     # Iterate over all resources
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, container, _|
       kind = resource["kind"].downcase
@@ -583,13 +586,21 @@ task "sig_term_handled" do |t, args|
       pods.all? do |pod|
         pod_name      = pod.dig("metadata", "name").as_s
         pod_namespace = pod.dig("metadata", "namespace").as_s
+
+        # Skip already tested pods
+        pod_unique_id = "#{pod_namespace}/#{pod_name}"
+        if tested_pods.includes?(pod_unique_id)
+          logger.info { "Skipping already tested pod: #{pod_unique_id}" }
+          next true
+        end
+        
         KubectlClient::Wait.wait_for_resource_availability("pod", pod_name, pod_namespace, GENERIC_OPERATION_TIMEOUT)
 
         status = pod["status"]
         next true unless status["containerStatuses"]?
 
         container_statuses = status["containerStatuses"].as_a
-        container_statuses.all? do |c_stat|
+        pod_passed = status["containerStatuses"].as_a.all? do |c_stat|
           c_name = c_stat["name"].as_s
           ready  = c_stat["ready"].as_bool
           unless ready
@@ -693,6 +704,12 @@ task "sig_term_handled" do |t, args|
             false
           end
         end
+
+        #put tested pod ID into checking list
+        tested_pods << pod_unique_id
+
+        #return bool
+        pod_passed
       end
     end
 
