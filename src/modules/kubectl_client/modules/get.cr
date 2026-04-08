@@ -270,10 +270,18 @@ module KubectlClient
       else
         pods = resource("pods", namespace: namespace)["items"].as_a
       end
+      
+      # Try to get the specific pod selector labels first
+      selector_labels = resource_json.dig?("spec", "selector", "matchLabels")
+      
+      if selector_labels
+        logger.debug { "Found selector labels: #{selector_labels}" }
+        labels = selector_labels.as_h
+      else
+        # Use the old method if pod lacks selectors
+        labels = resource_spec_labels(resource_json["kind"].as_s, name.as_s, namespace: namespace).as_h
+      end
 
-      # todo deployment labels may not match template metadata labels.
-      # -- may need to match on selector matchlabels instead
-      labels = resource_spec_labels(resource_json["kind"].as_s, name.as_s, namespace: namespace).as_h
       filtered_pods = pods_by_labels(pods, labels)
 
       filtered_pods
@@ -284,22 +292,15 @@ module KubectlClient
       logger.debug { "Creating list of pods that have labels: #{labels}" }
 
       pods_json = pods_json.select do |pod|
-        if labels == Hash(String, JSON::Any).new
-          match = false
+        if labels.empty?
+          false
         else
-          match = true
-        end
-        # todo deployment labels may not match template metadata labels.
-        # -- may need to match on selector matchlabels instead
-        labels.map do |key, value|
-          if pod.dig?("metadata", "labels", key) == value
-            match = true
-          else
-            match = false
+          labels.all? do |key, value|
+            pod.dig?("metadata", "labels", key) == value
           end
         end
-        match
       end
+      # Log
       logger.info { "Matched #{pods_json.size} pods: #{KubectlClient.names_from_json_array_to_s(pods_json)}" }
 
       pods_json
@@ -310,23 +311,16 @@ module KubectlClient
       logger.debug { "Creating list of pods that have labels: #{labels}" }
 
       pods_json = pods_json.select do |pod|
-        if labels == Hash(String, String).new
-          match = false
+        if labels.empty?
+          false
         else
-          match = true
-        end
-        # todo deployment labels may not match template metadata labels.
-        # -- may need to match on selector matchlabels instead
-        labels.map do |key, value|
-          if pod.dig?("metadata", "labels", key) == value
-            match = true
-          else
-            match = false
+          labels.all? do |key, value|
+            pod.dig?("metadata", "labels", key) == value
           end
         end
-        match
       end
-      logger.debug { "Matched #{pods_json.size} pods: #{KubectlClient.names_from_json_array_to_s(pods_json)}" }
+      #Log
+      logger.info { "Matched #{pods_json.size} pods: #{KubectlClient.names_from_json_array_to_s(pods_json)}" }
 
       pods_json
     end
