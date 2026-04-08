@@ -278,7 +278,7 @@ module KubectlClient
         logger.debug { "Found selector labels: #{selector_labels}" }
         labels = selector_labels.as_h
       else
-        # Use the old method if pod lacks selectors
+        # Get general labels if pod lacks selectors
         labels = resource_spec_labels(resource_json["kind"].as_s, name.as_s, namespace: namespace).as_h
       end
 
@@ -300,7 +300,6 @@ module KubectlClient
           end
         end
       end
-      # Log
       logger.info { "Matched #{pods_json.size} pods: #{KubectlClient.names_from_json_array_to_s(pods_json)}" }
 
       pods_json
@@ -319,7 +318,6 @@ module KubectlClient
           end
         end
       end
-      #Log
       logger.info { "Matched #{pods_json.size} pods: #{KubectlClient.names_from_json_array_to_s(pods_json)}" }
 
       pods_json
