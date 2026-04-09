@@ -31,12 +31,13 @@ end
 
 desc "To check if the CNF has multiple microservices that share a database"
 task "shared_database", ["setup:install_cluster_tools"] do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     # todo loop through local resources and see if db match found
     db_match = Netstat::Mariadb.match
 
     if db_match[:found] == false
-      next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::NA, "[shared_database] No MariaDB containers were found")
+      result.skipped("[shared_database] No MariaDB containers were found")
+      next
     end
 
     resource_ymls = CNFManager.cnf_workload_resources(args, config) { |resource| resource }
@@ -94,14 +95,14 @@ task "shared_database", ["setup:install_cluster_tools"] do |t, args|
     integrated_database_found = false
 
     if violators.size > 1 && cnf_violators
-      puts "Found multiple pod ips from different services that connect to the same database: #{violators}".colorize(:red)
+      result.append_description("Found multiple pod ips from different services that connect to the same database: #{violators}")
       integrated_database_found = true 
     end
 
     if integrated_database_found
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Found a shared database (ভ_ভ) ރ")
+      result.failed("Found a shared database (ভ_ভ) ރ")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "No shared database found 🖥️")
+      result.passed("No shared database found 🖥️")
     end
   end
 end
@@ -109,7 +110,7 @@ end
 desc "Does the CNF have a reasonable startup time (< 30 seconds)?"
 task "reasonable_startup_time" do |t, args|
   # TODO (kosstennbl) Redesign this test, now it is based only on livness probes. 
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     current_dir = FileUtils.pwd
 
     # (kosstennbl) That part was copied from cnf_manager.cr, but it wasn't given much attention as
@@ -223,9 +224,10 @@ task "reasonable_startup_time" do |t, args|
     Log.info { "startup_time: #{startup_time}" }
 
     if startup_time <= startup_time_limit
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "CNF had a reasonable startup time 🚀")
+      result.passed("CNF had a reasonable startup time 🚀")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "CNF had a startup time of #{startup_time} seconds 🐢")
+      result.append_description("CNF had a startup time of #{startup_time} seconds (limit: #{startup_time_limit} seconds)")
+      result.failed("CNF had a startup time of #{startup_time} seconds 🐢")
     end
   end
 end
@@ -239,10 +241,11 @@ end
 #
 desc "Does the CNF have a reasonable container image size (< 5GB)?"
 task "reasonable_image_size" do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args,config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     docker_insecure_registries = config.common.docker_insecure_registries || [] of String
     unless Dockerd.install(docker_insecure_registries)
-      next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Skipping reasonable_image_size: Dockerd tool failed to install")
+      result.skipped("Skipping reasonable_image_size: Dockerd tool failed to install")
+      next
     end
 
     Log.for(t.name).debug { "cnf_config: #{config}" }
@@ -318,7 +321,7 @@ task "reasonable_image_size" do |t, args|
 
         begin
           unless compressed_size.to_s.to_i64 < max_size
-            puts "resource: #{resource} and container: #{fqdn_image} was more than #{max_size}".colorize(:red)
+            result.append_description("resource: #{resource} and container: #{fqdn_image} was more than #{max_size}")
             test_passed=false
           end
         rescue ex
@@ -332,9 +335,9 @@ task "reasonable_image_size" do |t, args|
     end
 
     if task_response
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Image size is good 🐜")
+      result.passed("Image size is good 🐜")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Image size too large 🦖")
+      result.failed("Image size too large 🦖")
     end
   end
 end
@@ -350,7 +353,7 @@ end
 
 desc "Do the containers in a pod have only one process type?"
 task "single_process_type" do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     fail_msgs = Set(String).new
     resources_checked = false
     test_passed = true
@@ -402,7 +405,7 @@ task "single_process_type" do |t, args|
               fail_msg += "Running processes detected:\n"
               fail_msg += "#{proc_list}"
 
-              stdout_failure(fail_msg) if fail_msgs.add?(fail_msg)
+              fail_msgs.add?(fail_msg)
               test_passed = false
             end
           end
@@ -413,12 +416,13 @@ task "single_process_type" do |t, args|
 
     if resources_checked
       if test_passed
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Only one process type used")
+        result.passed("Only one process type used")
       else
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "More than one process type used")
+        fail_msgs.each { |msg| result.append_description(msg) }
+        result.failed("More than one process type used")
       end
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Container resources not checked")
+      result.skipped("Container resources not checked")
     end
   end
 end
@@ -426,7 +430,7 @@ end
 
 desc "Are the zombie processes handled?"
 task "zombie_handled" do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args,config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     CNFManager.resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |resource|
       ClusterTools.all_containers_by_resource?(resource, resource[:namespace], include_proctree: false) do |container_id, container_pid_on_node, node|
         ClusterTools.exec_by_node("nerdctl --namespace=k8s.io cp /zombie #{container_id}:/zombie", node)
@@ -453,7 +457,7 @@ task "zombie_handled" do |t, args|
           Log.for(t.name).info { "state: #{state}" }
           Log.for(t.name).info { "(state =~ /zombie/): #{(state =~ /zombie/)}" }
           if (state =~ /zombie/) != nil
-            puts "Process #{status_name} in container #{container_id} of pod #{pod_name.as_s} has a state of #{state}".colorize(:red)
+            result.append_description("Process #{status_name} in container #{container_id} of pod #{pod_name.as_s} has a state of #{state}")
             containers_to_restart << {container_id, node}
             pods_to_restart << {pod_name.as_s, resource[:namespace]}
             true
@@ -481,9 +485,9 @@ task "zombie_handled" do |t, args|
     end
 
     if task_response
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Zombie handled")
+      result.passed("Zombie handled")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Zombie not handled")
+      result.failed("Zombie not handled")
     end
   end
 end
@@ -546,7 +550,7 @@ desc "Are the SIGTERM signals handled?"
 task "sig_term_handled" do |t, args|
   logger = ::Log.for(t.name)
 
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     # We'll store any failures (or skips) in this array:
     failed_containers = [] of NamedTuple(
       namespace: String,
@@ -697,22 +701,22 @@ task "sig_term_handled" do |t, args|
     end
 
     if task_response
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Sig Term handled")
+      result.passed("Sig Term handled")
     else
       # Otherwise, print out each container that failed or was skipped
       failed_containers.each do |info|
         msg = "Pod: #{info["pod"]}, Container: #{info["container"]}, Result: #{info["test_status"]}"
         msg += ", Reason: #{info["test_reason"]}" if info["test_status"] == "skipped"
-        stdout_failure msg
+        result.append_description(msg)
       end
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Sig Term not handled")
+      result.failed("Sig Term not handled")
     end
   end
 end
 
 desc "Are any of the containers exposed as a service?"
 task "service_discovery" do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args,config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     # Collect service names from the CNF resource list
     cnf_service_names = CNFManager.resource_refs(args, config, ["service"]) do |service|
       service[:name]
@@ -742,16 +746,16 @@ task "service_discovery" do |t, args|
     end
 
     if test_passed
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Some containers exposed as a service")
+      result.passed("Some containers exposed as a service")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "No containers exposed as a service")
+      result.failed("No containers exposed as a service")
     end
   end
 end
 
 desc "To check if the CNF uses a specialized init system"
 task "specialized_init_system", ["setup:install_cluster_tools"] do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     error_occurred    = false
     resources_checked = false
 
@@ -763,7 +767,7 @@ task "specialized_init_system", ["setup:install_cluster_tools"] do |t, args|
       pods = begin
         KubectlClient::Get.pods_by_resource_labels(yaml, resource[:namespace])
       rescue ex
-        stdout_warning("Could not list pods for #{resource[:kind]}/#{resource[:name]}: #{ex.message}")
+        result.append_description("Could not list pods for #{resource[:kind]}/#{resource[:name]}: #{ex.message}")
         error_occurred = true
         next false
       end
@@ -778,7 +782,7 @@ task "specialized_init_system", ["setup:install_cluster_tools"] do |t, args|
 
         # Scan error => skip this resource
         if results.nil?
-          stdout_warning("Error scanning init system in pod #{pod_name}")
+          result.append_description("Error scanning init system in pod #{pod_name}")
           error_occurred = true
           next false
         end
@@ -790,7 +794,7 @@ task "specialized_init_system", ["setup:install_cluster_tools"] do |t, args|
 
         # Report failures
         results.each do |info|
-          stdout_failure("#{info.kind}/#{info.name} container '#{info.container}' uses non-specialized init '#{info.init_cmd}'")
+          result.append_description("#{info.kind}/#{info.name} has container '#{info.container}' with '#{info.init_cmd}' as init process")
         end
 
         # mark this resource as failing
@@ -799,13 +803,13 @@ task "specialized_init_system", ["setup:install_cluster_tools"] do |t, args|
     end
 
     if error_occurred
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "An error occurred during container inspection")
+      result.skipped("An error occurred during container inspection")
     elsif !resources_checked
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Container checks not executed")
+      result.skipped("Container checks not executed")
     elsif !task_response
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Containers do not use specialized init systems (ভ_ভ) ރ")
+      result.failed("Containers do not use specialized init systems (ভ_ভ) ރ")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Containers use specialized init systems 🖥️")
+      result.passed("Containers use specialized init systems 🖥️")
     end
   end
 end
