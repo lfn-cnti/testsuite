@@ -1,0 +1,107 @@
+name: arm64
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '**'
+  pull_request:
+jobs:
+  arm64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.31.0/kind-linux-arm64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+          cat << EOF > /tmp/cluster.yml
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          nodes:
+            - role: control-plane
+              extraMounts:
+                - containerPath: /var/lib/kubelet/config.json
+                  hostPath: $HOME/.docker/config.json
+            - role: worker
+              extraMounts:
+                - containerPath: /var/lib/kubelet/config.json
+                  hostPath: $HOME/.docker/config.json
+            - role: worker
+              extraMounts:
+                - containerPath: /var/lib/kubelet/config.json
+                  hostPath: $HOME/.docker/config.json
+          EOF
+          kind create cluster --name arm64 --config=/tmp/cluster.yml
+          rm /tmp/cluster.yml
+      - uses: crystal-lang/install-crystal@v1
+      - uses: actions/checkout@v4
+      - run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl"
+          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 | bash
+      - run: |
+          shards install
+          crystal build src/cnf-testsuite.cr
+          ./cnf-testsuite setup
+          ./cnf-testsuite cnf_install cnf-config=example-cnfs/coredns || true
+          ./cnf-testsuite cert
+          ./cnf-testsuite uninstall_all
+        continue-on-error: true
+      - run: |
+          kind delete cluster --name arm64
+  qemu-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.31.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+          cat << EOF > /tmp/cluster.yml
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          nodes:
+            - role: control-plane
+              extraMounts:
+                - containerPath: /var/lib/kubelet/config.json
+                  hostPath: $HOME/.docker/config.json
+            - role: worker
+              extraMounts:
+                - containerPath: /var/lib/kubelet/config.json
+                  hostPath: $HOME/.docker/config.json
+            - role: worker
+              extraMounts:
+                - containerPath: /var/lib/kubelet/config.json
+                  hostPath: $HOME/.docker/config.json
+          EOF
+          kind create cluster --name qemu-arm64 --config=/tmp/cluster.yml
+          rm /tmp/cluster.yml
+      - uses: actions/checkout@v4
+      - run: |
+            sudo apt update && sudo DEBIAN_FRONTEND=noninteractive apt install qemu-user-static -y
+            DOCKER_DEFAULT_PLATFORM=linux/arm64 docker run --network host --name debian-arm64 \
+              -v $(pwd):/testsuite -v ~/.kube/config:/root/.kube/config debian:latest /bin/bash -c "\
+            apt update && DEBIAN_FRONTEND=noninteractive apt install git curl gcc pkg-config libpcre2-dev libxml2-dev libyaml-dev zlib1g-dev libssl-dev -y && \
+            curl -LO https://github.com/crystal-lang/crystal/releases/download/1.19.1/crystal-1.19.1-1-linux-aarch64.tar.gz && \
+            tar zxf crystal-1.19.1-1-linux-aarch64.tar.gz && \
+            export PATH=/crystal-1.19.1-1/bin:$PATH && \
+            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl" && \
+            install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
+            curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 | bash && \
+            git config --global --add safe.directory /testsuite && \
+            (cd testsuite && shards install && crystal build src/cnf-testsuite.cr && \
+            ./cnf-testsuite setup && ./cnf-testsuite cnf_install cnf-config=example-cnfs/coredns && ./cnf-testsuite cert && ./cnf-testsuite uninstall_all)"
+        continue-on-error: true
+      - run: |
+          kind delete cluster --name qemu-arm64
+          docker stop debian-arm64
+          docker rm -fv debian-arm64
