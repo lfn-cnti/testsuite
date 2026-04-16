@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: free5gc-public-certs
+  labels:
+    app: {{ $.Values.global.name }}
+data:
+# Get all public .pem under cert/
+{{- $files := .Files.Glob "cert/*.pem" }}
+{{- range $path, $bytes := $files }}
+  {{ base $path }}: |
+{{ toString $bytes | nindent 4 }}
+{{- end }}

@@ -1,0 +1,197 @@
+#
+# Software Name : towards5gs-helm
+# SPDX-FileCopyrightText: Copyright (c) 2021 Orange
+# SPDX-License-Identifier: Apache-2.0
+#
+# This software is distributed under the Apache License 2.0,
+# the text of which is available at https://github.com/Orange-OpenSource/towards5gs-helm/blob/main/LICENSE
+# or see the "LICENSE" file for more details.
+#
+# Author: Abderaouf KHICHANE, Ilhem FAJJARI, Ayoub BOUSSELMI, Ian Chen
+# Software description: An open-source project providing Helm charts to deploy 5G components (Core + RAN) on top of Kubernetes
+#
+{{- with .Values.smf }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "free5gc-smf.fullname" $ }}-configmap
+  labels:
+    app: {{ $.Values.global.projectName }}
+data:
+  smfcfg.yaml: |
+    info:
+      version: 1.0.7
+      description: SMF initial local configuration
+
+    configuration:
+      serviceNameList:
+        {{- .configuration.serviceNameList | nindent 8 }}
+
+      sbi:
+        scheme: {{ $.Values.global.sbi.scheme }}
+        registerIPv4: {{ include "free5gc-smf.fullname" $ }}-service # IP used to register to NRF
+        bindingIPv4: 0.0.0.0  # IP used to bind the service
+        port: {{ .service.port }}
+        tls:
+          key: ./cert/smf.key
+          pem: ./cert/smf.pem
+{{- if $.Values.smf.configuration.metrics.enable }}
+      metrics: 
+        enable: true
+        scheme: {{ $.Values.smf.configuration.metrics.scheme }}
+        bindingIPv4: 0.0.0.0  # IP used to bind the service
+        port: {{ $.Values.smf.configuration.metrics.port }}
+        namespace: {{ $.Values.smf.configuration.metrics.namespace }}
+        tls:
+          key: ./cert/smf.key
+          pem: ./cert/smf.pem
+{{- end }}
+      nrfUri: {{ $.Values.global.sbi.scheme }}://{{ $.Values.global.nrf.service.name }}:{{ $.Values.global.nrf.service.port }}
+      nrfCertPem: ./cert/nrf.pem # NRF Certificate
+      {{- .configuration.urrConfiguration | nindent 6 }}
+      pfcp:
+{{- if $.Values.global.smf.multus.enabled }}
+        nodeID: {{ $.Values.global.smf.multus.n4if.ipAddress }}
+        listenAddr: {{ $.Values.global.smf.multus.n4if.ipAddress }}
+        externalAddr: {{ $.Values.global.smf.multus.n4if.ipAddress }}
+{{- else }}
+        nodeID: POD_IP_ADDR
+        listenAddr: POD_IP_ADDR
+        externalAddr: POD_IP_ADDR
+{{- end }}
+
+{{- if $.Values.global.smf.multus.enabled }}
+      # Multus mode: Use static UPF N4 IP addresses
+      smfName: SMF
+      snssaiInfos:
+        - sNssai:
+            sst: 1
+            sd: 010203
+          dnnInfos: # DNN information list
+            - dnn: internet # Data Network Name
+              dnaiList:
+                - mec
+              dns: # the IP address of DNS
+                ipv4: 8.8.8.8
+                ipv6: 2001:4860:4860::8888
+      plmnList: # the list of PLMN IDs that this SMF belongs to (optional, remove this key when unnecessary)
+        - mcc: 208 # Mobile Country Code (3 digits string, digit: 0~9)
+          mnc: 93 # Mobile Network Code (2 or 3 digits string, digit: 0~9)
+      userplaneInformation: # list of userplane information
+        upNodes: # information of userplane node (AN or UPF)
+          gNB1: # the name of the node
+            type: AN # the type of the node (AN or UPF)
+          UPF:
+            type: UPF
+            nodeID: {{ $.Values.global.upf.multus.upf.n4if.ipAddress }} # PFCP address
+            sNssaiUpfInfos:
+              - sNssai:
+                  sst: 1
+                  sd: 010203
+                dnnUpfInfoList:
+                  - dnn: internet
+                    pools:
+                      - cidr: {{ $.Values.global.uesubnet }}
+                    dnaiList:
+                      - mec
+            interfaces:
+              - interfaceType: N3
+                endpoints:
+                  - {{ $.Values.global.upf.multus.upf.n3if.ipAddress }} # UPF N3 address
+                networkInstances: 
+                  - internet
+        links:
+          - A: gNB1
+            B: UPF
+      locality: area1 # Name of the location where a set of AMF, SMF and UPFs are located
+      t3591:
+        enable: true # true or false
+        expireTime: 16s # default is 6 seconds
+        maxRetryTimes: 3 # the max number of retransmission
+      # retransmission timer for pdu session release command
+      t3592:
+        enable: true # true or false
+        expireTime: 16s # default is 6 seconds
+        maxRetryTimes: 3 # the max number of retransmission
+{{- else }}
+      # Non-multus mode: Use placeholders that will be replaced by wrapper script
+      {{- .configuration.configuration | nindent 6 }}
+{{- end }}
+
+    logger:
+      {{- toYaml .configuration.logger | nindent 6 }}
+
+
+  uerouting.yaml: |
+    info:
+      version: 1.0.7
+      description: Routing information for UE
+    ueRoutingInfo:
+      {{- .configuration.ueRoutingInfo | nindent 6 }}
+
+  wrapper.sh: |
+    #!/bin/sh
+    set -e
+
+{{- if $.Values.global.smf.multus.enabled }}
+    # Multus mode: Static IPs are already configured, run SMF directly
+    echo "[wrapper] Multus mode enabled - using static IP configuration"
+    exec ./smf -c {{ .volume.mount }}/smfcfg.yaml -u {{ .volume.mount }}/uerouting.yaml
+{{- else }}
+    # Dynamic Pod IP mode: Replace placeholders at runtime
+    # Get Pod IP dynamically
+    POD_IP=$(hostname -i | awk '{print $1}')
+    echo "[wrapper] SMF Pod IP detected: $POD_IP"
+
+    # Copy ConfigMap files to writable location
+    cp {{ .volume.mount }}/smfcfg.yaml /tmp/smfcfg.yaml
+    cp {{ .volume.mount }}/uerouting.yaml /tmp/uerouting.yaml
+
+    # Replace POD_IP_ADDR placeholder with actual Pod IP for SMF's own PFCP identity
+    sed -i "s/POD_IP_ADDR/$POD_IP/g" /tmp/smfcfg.yaml
+
+    # With Headless Services, DNS names resolve directly to Pod IPs
+    # This ensures SMF's nodeID matches what UPF reports in PFCP responses
+    echo "[wrapper] Resolving UPF Pod IPs from Headless Services..."
+
+    # Wait for DNS to be ready and UPF pods to be running
+    echo "[wrapper] Waiting for UPF pods to be ready..."
+    sleep 10
+
+    # Single UPF mode: resolve only UPF
+    UPF_IP=""
+
+    # Retry loop with longer timeout
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+      UPF_IP=$(getent hosts {{ $.Release.Name }}-free5gc-upf-upf-service 2>/dev/null | awk '{print $1}' | head -1)
+      
+      if [ -n "$UPF_IP" ]; then
+        echo "[wrapper] UPF IP resolved successfully"
+        break
+      fi
+      echo "[wrapper] Waiting for UPF DNS resolution... attempt $i (UPF=$UPF_IP)"
+      sleep 3
+    done
+
+    # Final check
+    if [ -z "$UPF_IP" ]; then
+      echo "[wrapper] WARNING: UPF IP not resolved, using placeholder"
+      UPF_IP="UPF_SERVICE_NAME"
+    fi
+
+    echo "[wrapper] UPF Pod IP: $UPF_IP"
+
+    # Replace UPF Service Name placeholder with resolved Pod IP
+    sed -i "s/UPF_SERVICE_NAME/$UPF_IP/g" /tmp/smfcfg.yaml
+
+    echo "[wrapper] Configuration files prepared in /tmp"
+    echo "[wrapper] SMF PFCP config:"
+    cat /tmp/smfcfg.yaml | grep -A3 "pfcp:"
+    echo "[wrapper] UPF nodeIDs:"
+    cat /tmp/smfcfg.yaml | grep "nodeID:"
+
+    # Execute SMF with dynamic configuration
+    exec ./smf -c /tmp/smfcfg.yaml -u /tmp/uerouting.yaml
+
+{{- end }}
+{{- end }}

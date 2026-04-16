@@ -1,0 +1,58 @@
+#
+# Software Name : towards5gs-helm
+# SPDX-FileCopyrightText: Copyright (c) 2021 Orange
+# SPDX-License-Identifier: Apache-2.0
+#
+# This software is distributed under the Apache License 2.0,
+# the text of which is available at https://github.com/Orange-OpenSource/towards5gs-helm/blob/main/LICENSE
+# or see the "LICENSE" file for more details.
+#
+# Author: Abderaouf KHICHANE, Ilhem FAJJARI, Ayoub BOUSSELMI, Ian Chen
+# Software description: An open-source project providing Helm charts to deploy 5G components (Core + RAN) on top of Kubernetes
+#
+{{- with .Values.ausf }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "free5gc-ausf.fullname" $ }}-configmap
+  labels:
+    app: {{ $.Values.global.projectName }}
+data:
+  ausfcfg.yaml: |
+    info:
+      version: 1.0.3
+      description: AUSF initial local configuration
+
+    configuration:
+      serviceNameList:
+        {{- .configuration.serviceNameList | nindent 8 }}
+
+      sbi:
+        scheme: {{ $.Values.global.sbi.scheme }}
+        registerIPv4: {{ include "free5gc-ausf.fullname" $ }}-service # IP used to register to NRF
+        bindingIPv4: 0.0.0.0  # IP used to bind the service
+        port: {{ .service.port }}
+        tls:
+          key: ./cert/ausf.key
+          pem: ./cert/ausf.pem
+{{- if $.Values.ausf.configuration.metrics.enable }}
+      metrics: 
+        enable: true
+        scheme: {{ $.Values.ausf.configuration.metrics.scheme }}
+        bindingIPv4: 0.0.0.0  # IP used to bind the service
+        port: {{ $.Values.ausf.configuration.metrics.port }}
+        namespace: {{ $.Values.ausf.configuration.metrics.namespace }}
+        tls:
+          key: ./cert/ausf.key
+          pem: ./cert/ausf.pem
+{{- end }}
+
+      nrfUri: {{ $.Values.global.sbi.scheme }}://{{ $.Values.global.nrf.service.name }}:{{ $.Values.global.nrf.service.port }}
+      nrfCertPem: ./cert/nrf.pem # NRF Certificate
+
+      {{- .configuration.configuration | nindent 6 }}
+
+    logger:
+      {{- toYaml .configuration.logger | nindent 6 }}
+
+{{- end }}

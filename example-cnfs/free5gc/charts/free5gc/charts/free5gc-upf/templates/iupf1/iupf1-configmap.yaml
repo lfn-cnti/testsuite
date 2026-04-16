@@ -1,0 +1,120 @@
+#
+# Software Name : towards5gs-helm
+# SPDX-FileCopyrightText: Copyright (c) 2021 Orange
+# SPDX-License-Identifier: Apache-2.0
+#
+# This software is distributed under the Apache License 2.0,
+# the text of which is available at https://github.com/Orange-OpenSource/towards5gs-helm/blob/main/LICENSE
+# or see the "LICENSE" file for more details.
+#
+# Author: Abderaouf KHICHANE, Ilhem FAJJARI, Ayoub BOUSSELMI
+# Software description: An open-source project providing Helm charts to deploy 5G components (Core + RAN) on top of Kubernetes
+#
+{{- if eq .Values.global.userPlaneArchitecture "ulcl" }}
+{{- with .Values.iupf1 }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "free5gc-upf.fullname" $ }}-{{ .name }}-configmap
+  labels:
+    app: {{ $.Values.global.projectName }}
+data:
+  upfcfg.yaml: |
+    version: 1.0.3
+    description: UPF initial local configuration
+
+    # The listen IP and nodeID of the N4 interface on this UPF (Can't set to 0.0.0.0)
+    pfcp:
+{{- if $.Values.global.upf.multus.enabled }}
+      addr: {{ $.Values.global.upf.multus.iupf1.n4if.ipAddress }} # IP addr for listening
+      nodeID: {{ $.Values.global.upf.multus.iupf1.n4if.ipAddress }} # External IP or FQDN can be reached
+{{- else }}
+      addr: POD_IP_ADDR # IP addr for listening - replaced at runtime
+      nodeID: POD_IP_ADDR # External IP or FQDN can be reached - replaced at runtime
+{{- end }}
+      retransTimeout: 1s # retransmission timeout
+      maxRetrans: 3 # the max number of retransmission
+
+    gtpu:
+      forwarder: gtp5g
+      # The IP list of the N3/N9 interfaces on this UPF
+      # If there are multiple connection, set addr to 0.0.0.0 or list all the addresses
+      ifList:
+{{- if $.Values.global.upf.multus.enabled }}
+        - addr: 0.0.0.0
+          type: N3
+        - addr: {{ $.Values.global.upf.multus.iupf1.n9if.ipAddress }}
+          type: N9
+{{- else }}
+        - addr: POD_IP_ADDR
+          type: N3
+        - addr: POD_IP_ADDR
+          type: N9
+{{- end }}
+          # name: upf.5gc.nctu.me
+          # ifname: gtpif
+
+    {{- toYaml .configuration | nindent 4 }}
+
+  wrapper.sh: |
+    #!/bin/sh
+    set -e
+
+{{- if $.Values.global.upf.multus.enabled }}
+    # Multus mode: Static IPs and dedicated interfaces are configured
+    echo "[wrapper] Multus mode enabled - using dedicated interfaces"
+    
+    # Setup iptables for NAT via dedicated interfaces
+    iptables -A FORWARD -j ACCEPT
+    iptables -t nat -A POSTROUTING -s {{ $.Values.global.uesubnet }} -o n6 -j MASQUERADE  # Allow routing traffic comming from the UE SUBNET to the interface N6
+    iptables -t nat -A POSTROUTING -o n9 -j MASQUERADE
+    iptables -t nat -A POSTROUTING -o n3 -j MASQUERADE
+
+    {{- if $.Values.iupf1.configmap.wrapperAdditionalCommands }}
+    {{- $.Values.iupf1.configmap.wrapperAdditionalCommands | nindent 4 }}
+    {{- end }}
+
+    exec /free5gc/upf -c {{ .volume.mount }}/upfcfg.yaml
+{{- else }}
+    # Dynamic Pod IP mode: Single interface (eth0)
+    # Get Pod IP dynamically
+    POD_IP=$(hostname -i | awk '{print $1}')
+    echo "[wrapper] iupf1 Pod IP detected: $POD_IP"
+
+    # Copy config to writable location
+    cp {{ .volume.mount }}/upfcfg.yaml /tmp/upfcfg.yaml
+
+    # Replace POD_IP_ADDR placeholder with actual Pod IP
+    sed -i "s/POD_IP_ADDR/$POD_IP/g" /tmp/upfcfg.yaml
+
+    echo "[wrapper] iupf1 PFCP config:"
+    cat /tmp/upfcfg.yaml | grep -A3 "pfcp:"
+
+    # Wait for upfgtp interface to be created by gtp5g module
+    echo "[wrapper] Waiting for upfgtp interface..."
+    for i in $(seq 1 30); do
+      if ip link show upfgtp > /dev/null 2>&1; then
+        echo "[wrapper] upfgtp interface is ready"
+        break
+      fi
+      sleep 1
+    done
+
+    # Note: Route for UE subnet will be automatically added by UPF based on dnnList configuration
+    # No need to manually add route here
+
+    # Setup iptables for NAT (single interface mode - eth0)
+    iptables -A FORWARD -j ACCEPT
+    # NAT traffic from UE subnet going out via eth0 (for uplink to internet)
+    iptables -t nat -A POSTROUTING -s {{ $.Values.global.uesubnet }} -o eth0 -j MASQUERADE
+
+    {{- if $.Values.iupf1.configmap.wrapperAdditionalCommands }}
+    {{- $.Values.iupf1.configmap.wrapperAdditionalCommands | toYaml | indent 2 }}
+    {{- end }}
+
+    echo "[wrapper] Starting iupf1 with dynamic config"
+    exec /free5gc/upf -c /tmp/upfcfg.yaml
+{{- end }}
+
+{{- end }}
+{{- end }}

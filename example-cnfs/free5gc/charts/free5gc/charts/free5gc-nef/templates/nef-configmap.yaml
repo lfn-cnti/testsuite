@@ -1,0 +1,34 @@
+#
+# Software Name : free5gc-helm
+#
+{{- with .Values.nef }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "free5gc-nef.fullname" $ }}-configmap
+  labels:
+    app: {{ $.Values.global.projectName }}
+data:
+  nefcfg.yaml: |
+    info:
+      version: 1.0.1
+      description: NEF initial local configuration
+
+    configuration:
+      sbi:
+        scheme: {{ $.Values.global.sbi.scheme }} # The protocol for sbi (http or https)
+        registerIPv4: {{ include "free5gc-nef.fullname" $ }}-service # IP used to register to NRF
+        bindingIPv4: 0.0.0.0 # IP used to bind the service
+        port: {{ .service.port }} # port used to bind the service
+        tls: # the local path of TLS key
+          pem: ./cert/nef.pem # NEF TLS Certificate
+          key: ./cert/nef.key # NEF TLS Private key
+      nrfUri: {{ $.Values.global.sbi.scheme }}://{{ $.Values.global.nrf.service.name }}:{{ $.Values.global.nrf.service.port }} # a valid URI of NRF 
+      nrfCertPem: ./cert/nrf.pem # NRF Certificate
+      serviceList: # the SBI services provided by this NEF
+        {{- .configuration.serviceList | nindent 8 }}
+
+    logger: # log output setting
+      {{- toYaml .configuration.logger | nindent 6 }}
+
+{{- end }}

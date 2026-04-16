@@ -1,0 +1,220 @@
+#
+# Software Name : towards5gs-helm
+# SPDX-FileCopyrightText: Copyright (c) 2021 Orange
+# SPDX-License-Identifier: Apache-2.0
+#
+# This software is distributed under the Apache License 2.0,
+# the text of which is available at https://github.com/Orange-OpenSource/towards5gs-helm/blob/main/LICENSE
+# or see the "LICENSE" file for more details.
+#
+# Author: Abderaouf KHICHANE, Ilhem FAJJARI, Ayoub BOUSSELMI, Ian Chen
+# Software description: An open-source project providing Helm charts to deploy 5G components (Core + RAN) on top of Kubernetes
+#
+# Default values for free5gcControlPlane chart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+nameOverride: ""
+fullnameOverride: ""
+
+global:
+  projectName: free5gc
+  userPlaneArchitecture: single  # possible values are "single" and "ulcl"
+  uesubnet: 10.60.0.0/16  # UE IP address pool
+  nrf:
+    service:
+      name: nrf-nnrf
+      type: ClusterIP
+      port: "8000"
+      nodePort: "30800"
+  sbi:
+    scheme: http
+  smf:
+    multus:
+      enabled: false
+      n4if:  # PFCP interface (used when multus.enabled=true)
+        ipAddress: 10.100.50.244
+      n4network:
+        enabled: true
+        name: n4network
+        type: ipvlan
+        masterIf: eth0
+        subnetIP: 10.100.50.240
+        cidr: 29
+        gatewayIP: 10.100.50.246
+        excludeIP: 10.100.50.246
+
+initcontainers:
+  curl:
+    registry: curlimages
+    image: curl
+    tag: "8.7.1"
+  busybox:
+    image: busybox
+    tag: "1.32.0"
+
+isPfcpNeeded: true
+
+smf:
+  name: smf
+  replicaCount: 1
+  image:
+    name: free5gc/smf
+    tag: v4.1.0
+    pullPolicy: IfNotPresent 
+  service:
+    type: ClusterIP
+    port: &Port 8080
+  volume:
+    mount: /free5gc/config/
+    tlsmount: /free5gc/config/TLS
+    certmount: /free5gc/cert
+  podAnnotations: {}
+    # additional annotations
+  imagePullSecrets: []
+  podSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    runAsNonRoot: true
+    fsGroup: 1000
+  securityContext:
+    allowPrivilegeEscalation: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  readinessProbe:
+    enabled: true
+    exec:
+      command:
+        - /bin/sh
+        - -c
+        - |
+          HEX_PORT=$(printf '%04X' "{{ .service.port }}")
+          grep -q ":${HEX_PORT} .* 0A " /proc/net/tcp || grep -q ":${HEX_PORT} .* 0A " /proc/net/tcp6
+    initialDelaySeconds: 10
+    periodSeconds: 1
+    timeoutSeconds: 1
+    failureThreshold: 40
+    successThreshold: 1
+  livenessProbe:
+    enabled: true
+    exec:
+      command:
+        - /bin/sh
+        - -c
+        - |
+          HEX_PORT=$(printf '%04X' "{{ .service.port }}")
+          grep -q ":${HEX_PORT} .* 0A " /proc/net/tcp || grep -q ":${HEX_PORT} .* 0A " /proc/net/tcp6
+    initialDelaySeconds: 50
+    periodSeconds: 10
+    timeoutSeconds: 10
+    failureThreshold: 3
+    successThreshold: 1
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 100
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+  ingress:
+    enabled: false
+    annotations: {}
+      # kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    hosts:
+      - host: chart-example.local
+        paths: []
+    tls: []
+    #  - secretName: chart-example-tls
+    #    hosts:
+    #      - chart-example.local
+  configuration:
+    serviceNameList: |-
+        - nsmf-pdusession
+        - nsmf-event-exposure
+        - nsmf-oam
+    urrConfiguration: |-
+      urrPeriod: 10 # default usage report period in seconds
+      urrThreshold: 1000 # default usage report threshold in bytes
+      requestedUnit: 1000
+    configuration: |-
+      smfName: SMF
+      snssaiInfos:
+        - sNssai:
+            sst: 1
+            sd: 010203
+          dnnInfos: # DNN information list
+            - dnn: internet # Data Network Name
+              dnaiList:
+                - mec
+              dns: # the IP address of DNS
+                ipv4: 8.8.8.8
+                ipv6: 2001:4860:4860::8888
+      plmnList: # the list of PLMN IDs that this SMF belongs to
+        - mcc: "208" # Mobile Country Code (3 digits string, digit: 0~9)
+          mnc: "93" # Mobile Network Code (2 or 3 digits string, digit: 0~9)
+      userplaneInformation: # list of userplane information
+        upNodes: # information of userplane node (AN or UPF)
+          gNB1: # the name of the node
+            type: AN # the type of the node (AN or UPF)
+          UPF:
+            type: UPF
+            nodeID: UPF_SERVICE_NAME # PFCP address
+            sNssaiUpfInfos:
+              - sNssai:
+                  sst: 1
+                  sd: 010203
+                dnnUpfInfoList:
+                  - dnn: internet
+                    pools:
+                      - cidr: 10.60.0.0/16
+                    dnaiList:
+                      - mec
+            interfaces:
+              - interfaceType: N3
+                endpoints:
+                  - UPF_SERVICE_NAME # UPF N3 address
+                networkInstances: 
+                  - internet
+        links:
+          - A: gNB1
+            B: UPF
+      locality: area1 # Name of the location where a set of AMF, SMF and UPFs are located
+      t3591:
+        enable: true # true or false
+        expireTime: 16s # default is 6 seconds
+        maxRetryTimes: 3 # the max number of retransmission
+      # retransmission timer for pdu session release command
+      t3592:
+        enable: true # true or false
+        expireTime: 16s # default is 6 seconds
+        maxRetryTimes: 3 # the max number of retransmission
+
+    ueRoutingInfo: |-
+      UE1: # Group Name
+        members:
+        - imsi-208930000000001 # Subscription Permanent Identifier of the UE
+        topology: # Network topology for this group (Uplink: A->B, Downlink: B->A)
+        # default path derived from this topology
+        # node name should be consistent with smfcfg.yaml
+          - A: gNB1
+            B: UPF
+
+    # Metrics configuration
+    metrics:
+      enable: false # (Optional, default false)
+      scheme: http # (Required) the protocol for metrics (http or https, default https)
+      port: 9091 # (Optional, default 9091) port used to bind the service
+      namespace: free5gc # (Optional, default free5gc)
+
+    logger: # log output setting
+      enable: true # true or false
+      level: trace # how detailed to output, value: trace, debug, info, warn, error, fatal, panic
+      reportCaller: false # enable the caller report or not, value: true or false

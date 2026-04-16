@@ -1,0 +1,157 @@
+#
+# Software Name : towards5gs-helm
+# SPDX-FileCopyrightText: Copyright (c) 2021 Orange
+# SPDX-License-Identifier: Apache-2.0
+#
+# This software is distributed under the Apache License 2.0,
+# the text of which is available at https://github.com/Orange-OpenSource/towards5gs-helm/blob/main/LICENSE
+# or see the "LICENSE" file for more details.
+#
+# Author: Abderaouf KHICHANE, Ilhem FAJJARI, Ayoub BOUSSELMI
+# Software description: An open-source project providing Helm charts to deploy 5G components (Core + RAN) on top of Kubernetes
+#
+{{- with .Values.udm }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "free5gc-udm.fullname" $ }}-{{ .name }}
+  labels:
+    {{- include "free5gc-udm.labels" $ | nindent 4 }}
+    project: {{ $.Values.global.projectName }}
+    nf: {{ .name }}
+spec:
+  {{- if not .autoscaling.enabled }}
+  replicas: {{ .replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "free5gc-udm.selectorLabels" $ | nindent 6 }}
+      project: {{ $.Values.global.projectName }}
+      nf: {{ .name }}
+  template:
+    metadata:
+      annotations:
+        {{- include "free5gc-udm.udmAnnotations" $ | nindent 8 }}
+        {{- if $.Values.udm.configuration.metrics.enable }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: {{ $.Values.udm.configuration.metrics.port | quote }}
+        {{- end }}
+        checksum/config: {{ include (print $.Template.BasePath "/udm-configmap.yaml") $ | sha256sum }}
+      labels:
+        {{- include "free5gc-udm.selectorLabels" $ | nindent 8 }}
+        project: {{ $.Values.global.projectName }}
+        nf: {{ .name }}
+    spec:
+      imagePullSecrets:
+        {{- toYaml .imagePullSecrets | nindent 8 }}
+      securityContext:
+        {{- toYaml .podSecurityContext | nindent 8 }}
+      initContainers:
+      - name: wait-nrf
+        {{- with $.Values.initcontainers.curl }}
+        image: {{ .registry }}/{{ .image }}:{{ .tag }}
+        {{- end }}
+        env:
+        - name: DEPENDENCIES
+          value: {{ $.Values.global.sbi.scheme }}://{{ $.Values.global.nrf.service.name }}:{{ $.Values.global.nrf.service.port }}
+        command: ['sh', '-c', 'set -x; for dependency in $DEPENDENCIES; do while [ $(curl --insecure --connect-timeout 1 -s -o /dev/null -w "%{http_code}" $dependency) -ne 200 ]; do echo waiting for dependencies; sleep 1; done; done;']
+
+      containers:
+      - name: {{ .name }}
+        image: {{ .image.name }}:{{ .image.tag | default $.Chart.AppVersion }}
+        imagePullPolicy: {{ .image.pullPolicy }}
+        securityContext:
+          {{- toYaml .securityContext | nindent 10 }}
+        ports:
+        - name: nudm
+          containerPort: {{ .service.port }}
+        {{- if $.Values.udm.configuration.metrics.enable }}
+        - name: metrics
+          containerPort: {{ $.Values.udm.configuration.metrics.port }}
+        {{- end }}
+        command:
+         # - "/sbin/tini"
+         # - "--"
+          - "./udm"
+        args:
+          - "-c"
+          - "./config/udmcfg.yaml"
+        env:
+          - name: GIN_MODE
+            value: release
+        {{- if .readinessProbe.enabled }}
+        readinessProbe:
+          {{- if .readinessProbe.httpGet }}
+          httpGet:
+            {{- toYaml .readinessProbe.httpGet | nindent 12 }}
+          {{- end }}
+          {{- if .readinessProbe.exec }}
+          exec:
+            {{- tpl (toYaml .readinessProbe.exec) . | nindent 12 }}
+          {{- end }}
+          initialDelaySeconds: {{ .readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .readinessProbe.timeoutSeconds | default 1 }}
+          successThreshold: {{ .readinessProbe.successThreshold | default 1 }}
+          failureThreshold: {{ .readinessProbe.failureThreshold | default 3 }}
+        {{- end }}
+        {{- if .livenessProbe.enabled }}
+        livenessProbe:
+          {{- if .livenessProbe.httpGet }}
+          httpGet:
+            {{- toYaml .livenessProbe.httpGet | nindent 12 }}
+          {{- end }}
+          {{- if .livenessProbe.exec }}
+          exec:
+            {{- tpl (toYaml .livenessProbe.exec) . | nindent 12 }}
+          {{- end }}
+          initialDelaySeconds: {{ .livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .livenessProbe.timeoutSeconds | default 10 }}
+          successThreshold: {{ .livenessProbe.successThreshold | default 1 }}
+          failureThreshold: {{ .livenessProbe.failureThreshold | default 3 }}
+        {{- end }}
+        volumeMounts:
+        - mountPath: {{ .volume.mount }}
+          name: {{ include "free5gc-udm.fullname" $ }}-volume
+        - mountPath: {{ .volume.tlsmount }}
+          name: {{ include "free5gc-udm.fullname" $ }}-empty-volume
+        - mountPath: {{ .volume.certmount }}
+          name: {{ include "free5gc-udm.fullname" $ }}-cert-volume
+        resources:
+            {{- toYaml .resources | nindent 12 }}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      nodeSelector:
+        {{- toYaml .nodeSelector | nindent 8 }}
+      affinity:
+        {{- toYaml .affinity | nindent 8 }}
+      tolerations:
+        {{- toYaml .tolerations | nindent 8 }}
+
+      volumes:
+      - name: {{ include "free5gc-udm.fullname" $ }}-volume
+        projected:
+          sources:
+          - configMap:
+              name: {{ include "free5gc-udm.fullname" $ }}-configmap
+      - name: {{ include "free5gc-udm.fullname" $ }}-empty-volume
+        emptyDir: {}
+      - name: {{ include "free5gc-udm.fullname" $ }}-cert-volume
+        projected:
+          defaultMode: 0400
+          sources:
+          - secret:
+              name: {{ printf "%s-udm-tls-secret" $.Release.Name }}
+              items:
+                - key: udm.pem
+                  path: udm.pem
+                - key: udm.key
+                  path: udm.key
+          - configMap:
+              name: free5gc-public-certs
+              items:
+                - key: nrf.pem
+                  path: nrf.pem
+{{- end }}

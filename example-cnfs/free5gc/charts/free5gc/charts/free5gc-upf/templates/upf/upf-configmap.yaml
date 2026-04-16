@@ -1,0 +1,113 @@
+#
+# Software Name : towards5gs-helm
+# SPDX-FileCopyrightText: Copyright (c) 2021 Orange
+# SPDX-License-Identifier: Apache-2.0
+#
+# This software is distributed under the Apache License 2.0,
+# the text of which is available at https://github.com/Orange-OpenSource/towards5gs-helm/blob/main/LICENSE
+# or see the "LICENSE" file for more details.
+#
+# Author: Abderaouf KHICHANE, Ilhem FAJJARI, Ayoub BOUSSELMI
+# Software description: An open-source project providing Helm charts to deploy 5G components (Core + RAN) on top of Kubernetes
+#
+{{- if eq .Values.global.userPlaneArchitecture "single" }}
+{{- with .Values.upf }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "free5gc-upf.fullname" $ }}-{{ .name }}-configmap
+  labels:
+    app: {{ $.Values.global.projectName }}
+data:
+  upfcfg.yaml: |
+    version: 1.0.3
+    description: UPF initial local configuration
+
+    # The listen IP and nodeID of the N4 interface on this UPF (Can't set to 0.0.0.0)
+    pfcp:
+{{- if $.Values.global.upf.multus.enabled }}
+      addr: {{ $.Values.global.upf.multus.upf.n4if.ipAddress }} # IP addr for listening
+      nodeID: {{ $.Values.global.upf.multus.upf.n4if.ipAddress }} # External IP or FQDN can be reached
+{{- else }}
+      addr: POD_IP_ADDR # IP addr for listening - replaced at runtime
+      nodeID: POD_IP_ADDR # External IP or FQDN can be reached - replaced at runtime
+{{- end }}
+      retransTimeout: 1s # retransmission timeout
+      maxRetrans: 3 # the max number of retransmission
+
+    gtpu:
+      forwarder: gtp5g
+      # The IP list of the N3/N9 interfaces on this UPF
+      # If there are multiple connection, set addr to 0.0.0.0 or list all the addresses
+      ifList:
+{{- if $.Values.global.upf.multus.enabled }}
+        - addr: {{ $.Values.global.upf.multus.upf.n3if.ipAddress }}
+          type: N3
+{{- else }}
+        - addr: POD_IP_ADDR
+          type: N3
+{{- end }}
+          # name: upf.5gc.nctu.me
+          # ifname: gtpif
+
+    {{- toYaml .configuration | nindent 4 }}
+
+  wrapper.sh: |
+    #!/bin/sh
+    set -e
+
+{{- if $.Values.global.upf.multus.enabled }}
+    # Multus mode: Static IPs and dedicated interfaces are configured
+    echo "[wrapper] Multus mode enabled - using dedicated interfaces"
+    
+    # Setup networking rules
+    iptables -A FORWARD -j ACCEPT
+    iptables -t nat -A POSTROUTING -s {{ $.Values.global.uesubnet }} -o n6 -j MASQUERADE
+    echo "1200 n6if" >> /etc/iproute2/rt_tables
+    ip rule add from {{ $.Values.global.uesubnet }} table n6if
+    ip route add default via {{ $.Values.global.upf.multus.n6network.gatewayIP }} dev n6 table n6if
+
+    {{- if $.Values.upf.configmap.wrapperAdditionalCommands }}
+    {{- $.Values.upf.configmap.wrapperAdditionalCommands | nindent 4 }}
+    {{- end }}
+
+    exec /free5gc/upf -c {{ .volume.mount }}/upfcfg.yaml
+{{- else }}
+    # Dynamic Pod IP mode: Single interface (eth0)
+    # Get Pod IP dynamically
+    POD_IP=$(hostname -i | awk '{print $1}')
+    echo "[wrapper] UPF Pod IP detected: $POD_IP"
+
+    # Copy config to writable location
+    cp {{ .volume.mount }}/upfcfg.yaml /tmp/upfcfg.yaml
+
+    # Replace POD_IP_ADDR placeholder with actual Pod IP
+    sed -i "s/POD_IP_ADDR/$POD_IP/g" /tmp/upfcfg.yaml
+
+    echo "[wrapper] UPF PFCP config:"
+    cat /tmp/upfcfg.yaml | grep -A3 "pfcp:"
+
+    # Wait for upfgtp interface to be created by gtp5g module
+    echo "[wrapper] Waiting for upfgtp interface..."
+    for i in $(seq 1 30); do
+      if ip link show upfgtp > /dev/null 2>&1; then
+        echo "[wrapper] upfgtp interface is ready"
+        break
+      fi
+      sleep 1
+    done
+
+    # Setup iptables for NAT (single interface mode - eth0)
+    iptables -A FORWARD -j ACCEPT
+    iptables -t nat -A POSTROUTING -s {{ $.Values.global.uesubnet }} -o eth0 -j MASQUERADE
+
+    {{- if $.Values.upf.configmap.wrapperAdditionalCommands }}
+    {{- $.Values.upf.configmap.wrapperAdditionalCommands | nindent 4 }}
+    {{- end }}
+
+    echo "[wrapper] Starting UPF with dynamic config"
+    exec /free5gc/upf -c /tmp/upfcfg.yaml
+{{- end }}
+
+{{- end }}
+{{- end }}

@@ -1,0 +1,12 @@
+#
+# Software Name : free5gc-helm
+#
+apiVersion: v2
+name: free5gc-chf
+description: A Helm chart to deploy the free5GC CHF
+type: application
+version: 0.1.0
+appVersion: latest
+maintainers:
+- email: linyangzhe0508@gmail.com
+  name: YANG-ZHE, LIN

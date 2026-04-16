@@ -1,0 +1,86 @@
+#
+# Software Name : towards5gs-helm
+# SPDX-FileCopyrightText: Copyright (c) 2021 Orange
+# SPDX-License-Identifier: Apache-2.0
+#
+# This software is distributed under the Apache License 2.0,
+# the text of which is available at https://github.com/Orange-OpenSource/towards5gs-helm/blob/main/LICENSE
+# or see the "LICENSE" file for more details.
+#
+# Author: Abderaouf KHICHANE, Ilhem FAJJARI, Ayoub BOUSSELMI, Ian Chen
+# Software description: An open-source project providing Helm charts to deploy 5G components (Core + RAN) on top of Kubernetes
+#
+{{- with .Values.n3iwf }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .configmap.name }}
+  labels:
+    app: {{ $.Values.global.projectName }}
+data:
+  n3iwfcfg.yaml: |
+    info:
+      version: 1.0.5
+      description: N3IWF initial local configuration
+
+    configuration:
+      amfSCTPAddresses:
+        - ip:
+{{- if $.Values.global.amf.service.ngap.enabled }}
+            - {{ $.Values.global.amf.service.ngap.name }}
+{{- else }}
+            - {{ $.Values.global.amf.n2if.ipAddress }}
+{{- end }}
+          port: {{ $.Values.global.amf.service.ngap.port }}
+
+{{- if $.Values.n3iwf.configuration.metrics.enable }}
+      metrics:
+        enable: true
+        scheme: {{ $.Values.n3iwf.configuration.metrics.scheme }}
+        bindingIPv4: 0.0.0.0  # IP used to bind the service
+        port: {{ $.Values.n3iwf.configuration.metrics.port }}
+        namespace: {{ $.Values.n3iwf.configuration.metrics.namespace }}
+        tls:
+          key: ./cert/n3iwf.key
+          pem: ./cert/n3iwf.pem
+{{- end }}
+
+      nasTcpPort: {{ .configuration.nasTcpPort }}
+
+      # Nwu interface
+      ikeBindAddress: {{ .ike.ipAddress }}
+      ipSecTunnelAddress: {{ .configuration.ipSecTunnelAddress }}
+      ueIpAddressRange: {{ .configuration.ueIpAddressRange }}
+      xfrmInterfaceName: {{ .configuration.xfrmInterfaceName }}
+      xfrmInterfaceID: {{ .configuration.xfrmInterfaceID }}
+
+      # N3 interface
+      n3iwfGtpBindAddress: {{ .n3if.ipAddress }}
+
+      fqdn: {{ .configuration.fqdn }}
+
+      # Security
+      privateKey: {{ .configuration.privateKey }}
+      certificateAuthority: {{ .configuration.certificateAuthority }}
+      certificate: {{ .configuration.certificate }}
+
+      livenessCheck:
+        {{- toYaml .configuration.livenessCheck | nindent 8 }}
+
+      n3iwfInformation:
+        {{- toYaml .configuration.n3iwfInformation | nindent 8 }}
+
+    logger:
+      {{- toYaml .configuration.logger | nindent 6 }}
+
+  
+  n3iwf-ipsec.sh: |
+    #!/bin/sh
+    
+    ### N3iwf IPSec tunnel configuration
+    {{- $ueRange := splitList "/" .configuration.ueIpAddressRange }}
+    ip l add name ipsec0 type vti local {{ .ike.ipAddress }} remote 0.0.0.0 key 5
+    ip a add {{ .configuration.ipSecTunnelAddress }}/{{ index $ueRange 1 }} dev ipsec0
+    ip l set dev ipsec0 up
+
+{{- end }}
