@@ -91,6 +91,7 @@ jobs:
             DOCKER_DEFAULT_PLATFORM=linux/arm64 docker run --network host --name debian-arm64 \
               -v $(pwd):/testsuite -v ~/.kube/config:/root/.kube/config debian:latest /bin/bash -c "\
             apt update && DEBIAN_FRONTEND=noninteractive apt install git curl gcc pkg-config libpcre2-dev libxml2-dev libyaml-dev zlib1g-dev libssl-dev -y && \
+            ls -l /proc/sys/fs/binfmt_misc/ && \
             curl -LO https://github.com/crystal-lang/crystal/releases/download/1.19.1/crystal-1.19.1-1-linux-aarch64.tar.gz && \
             tar zxf crystal-1.19.1-1-linux-aarch64.tar.gz && \
             export PATH=/crystal-1.19.1-1/bin:$PATH && \
