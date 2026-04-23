@@ -17,7 +17,7 @@ end
 desc "Test if a 5G core is valid"
 task "smf_upf_core_validator" do |t, args|
   #todo change to 5g_core_validator
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
 
 		# todo add other resilience and compatiblity tests
 
@@ -30,7 +30,7 @@ end
 
 desc "Test if a 5G core has SMF/UPF heartbeat"
 task "smf_upf_heartbeat" do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     Log.for(t.name).info { "named args: #{args.named}" }
     baseline_count : Int32 | Float64 | String | Nil
     if args.named["baseline_count"]?
@@ -101,14 +101,14 @@ task "smf_upf_heartbeat" do |t, args|
       end
     else
       heartbeat_found = false
-      puts "no 5g labels".colorize(:red)
+      result.append_description("no 5g labels")
     end
 
     #todo move this to validator code code
     if heartbeat_found
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Chaos service degradation is less than 50%")
+      result.passed("Chaos service degradation is less than 50%")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Chaos service degradation is more than 50%")
+      result.failed("Chaos service degradation is more than 50%")
     end
   end
 end
@@ -123,7 +123,7 @@ end
 #todo move to 5g test files
 desc "Test if a 5G core supports SUCI Concealment"
 task "suci_enabled" do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     suci_found : Bool | Nil
     core = config.common.five_g_parameters.amf_label
     Log.info { "core: #{core}" }
@@ -147,14 +147,14 @@ task "suci_enabled" do |t, args|
       end
     else
       suci_found = false
-      puts "You must set the core label for you AMF node".colorize(:red)
+      result.append_description("You must set the core label for you AMF node")
     end
 
 
     if suci_found
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Core uses SUCI 5g authentication")
+      result.passed("Core uses SUCI 5g authentication")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Core does not use SUCI 5g authentication")
+      result.failed("Core does not use SUCI 5g authentication")
     end
   ensure
     Helm.uninstall("ueransim", "testsuite-5g")

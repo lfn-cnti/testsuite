@@ -5,10 +5,20 @@ require "../../src/tasks/utils/mysql.cr"
 require "file_utils"
 require "sam"
 
+def verify_task_result(task_name : String, expected_status : String)
+  latest_results = Dir.glob("results/cnf-testsuite-results-*.yml").max_by { |path| File.info(path).modification_time }
+  latest_results.should_not be_nil
+  yaml = YAML.parse(File.read(latest_results.not_nil!))
+  item = yaml["items"].as_a.find { |i| i["name"].as_s == task_name }
+  item.should_not be_nil
+  item.not_nil!["status"].as_s.should eq(expected_status)
+end
+
 describe "State" do
   before_all do
     result = ShellCmd.run_testsuite("setup:configuration_file_setup")
   end
+
   
   it "'elastic_volumes' should fail if the cnf does not use volumes that are elastic volume", tags: ["elastic_volume"]  do
     begin

@@ -28,7 +28,7 @@ desc "The CNF test suite checks to see if the CNFs are resilient to failures."
 end
 
 def run_probe_task(t, args, probe_type : String)
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, _|
       resource_ref = "#{resource[:kind]}/#{resource[:name]}"
       probe_key = "#{probe_type}Probe"
@@ -48,7 +48,7 @@ def run_probe_task(t, args, probe_type : String)
       Log.for(t.name).info { "Containers in #{resource_ref} missing #{probe_key}: #{containers_without_probe_joined}" }
 
       unless resource_has_probe
-        stdout_failure("No #{probe_type} probe found for any container in #{resource_ref} in #{resource[:namespace]} namespace")
+        result.append_description("No #{probe_type} probe found for any container in #{resource_ref} in #{resource[:namespace]} namespace")
       end
 
       Log.for(t.name).info { "Resource #{resource_ref} has at least one #{probe_key}?: #{resource_has_probe}" }
@@ -56,15 +56,9 @@ def run_probe_task(t, args, probe_type : String)
     end
 
     if task_response
-      CNFManager::TestCaseResult.new(
-        CNFManager::ResultStatus::Passed,
-        "All workload resources have at least one container with a #{probe_type} probe"
-      )
+      result.passed("All workload resources have at least one container with a #{probe_type} probe")
     else
-      CNFManager::TestCaseResult.new(
-        CNFManager::ResultStatus::Failed,
-        "One or more workload resources have no containers with a #{probe_type} probe"
-      )
+      result.failed("One or more workload resources have no containers with a #{probe_type} probe")
     end
   end
 end
@@ -81,7 +75,7 @@ end
 
 desc "Does the CNF crash when network latency occurs"
 task "pod_network_latency", ["install_litmus"] do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     #todo if args has list of labels to perform test on, go into pod specific mode
     #TODO tests should fail if cnf not installed
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
@@ -92,7 +86,7 @@ task "pod_network_latency", ["install_litmus"] do |t, args|
       if spec_labels.as_h? && spec_labels.as_h.size > 0 && resource["kind"] == "Deployment"
         test_passed = true
       else
-        stdout_failure("Resource is not a Deployment or no resource label was found for resource: #{resource["name"]}")
+        result.append_description("Resource is not a Deployment or no resource label was found for resource: #{resource["name"]}")
         test_passed = false
       end
 
@@ -170,9 +164,9 @@ task "pod_network_latency", ["install_litmus"] do |t, args|
     unless args.named["pod_labels"]?
         #todo if in pod specific mode, dont do upserts and resp = ""
         if task_response
-          CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "pod_network_latency chaos test passed")
+          result.passed("pod_network_latency chaos test passed")
         else
-          CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "pod_network_latency chaos test failed")
+          result.failed("pod_network_latency chaos test failed")
         end
     end
 
@@ -181,7 +175,7 @@ end
 
 desc "Does the CNF crash when network corruption occurs"
 task "pod_network_corruption", ["install_litmus"] do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     #TODO tests should fail if cnf not installed
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
       Log.info {"Current Resource Name: #{resource["name"]} Type: #{resource["kind"]}"}
@@ -190,7 +184,7 @@ task "pod_network_corruption", ["install_litmus"] do |t, args|
       if spec_labels.as_h? && spec_labels.as_h.size > 0 && resource["kind"] == "Deployment"
         test_passed = true
       else
-        stdout_failure("Resource is not a Deployment or no resource label was found for resource: #{resource["name"]}")
+        result.append_description("Resource is not a Deployment or no resource label was found for resource: #{resource["name"]}")
         test_passed = false
       end
       if test_passed
@@ -228,16 +222,16 @@ task "pod_network_corruption", ["install_litmus"] do |t, args|
       test_passed
     end
     if task_response
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "pod_network_corruption chaos test passed")
+      result.passed("pod_network_corruption chaos test passed")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "pod_network_corruption chaos test failed")
+      result.failed("pod_network_corruption chaos test failed")
     end
   end
 end
 
 desc "Does the CNF crash when network duplication occurs"
 task "pod_network_duplication", ["install_litmus"] do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     #TODO tests should fail if cnf not installed
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
       app_namespace = resource[:namespace]
@@ -246,7 +240,7 @@ task "pod_network_duplication", ["install_litmus"] do |t, args|
       if spec_labels.as_h? && spec_labels.as_h.size > 0 && resource["kind"] == "Deployment"
         test_passed = true
       else
-        stdout_failure("Resource is not a Deployment or no resource label was found for resource: #{resource["kind"]}/#{resource["name"]} in #{resource["namespace"]} namespace")
+        result.append_description("Resource is not a Deployment or no resource label was found for resource: #{resource["kind"]}/#{resource["name"]} in #{resource["namespace"]} namespace")
         test_passed = false
       end
       if test_passed
@@ -286,23 +280,23 @@ task "pod_network_duplication", ["install_litmus"] do |t, args|
       test_passed
     end
     if task_response
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "pod_network_duplication chaos test passed")
+      result.passed("pod_network_duplication chaos test passed")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "pod_network_duplication chaos test failed")
+      result.failed("pod_network_duplication chaos test failed")
     end
   end
 end
 
 desc "Does the CNF crash when disk fill occurs"
 task "disk_fill", ["install_litmus"] do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
       app_namespace = resource[:namespace]
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
       if spec_labels.as_h? && spec_labels.as_h.size > 0
         test_passed = true
       else
-        stdout_failure("No resource label found for #{t.name} test for resource: #{resource["kind"]}/#{resource["name"]} in #{resource["namespace"]} namespace")
+        result.append_description("No resource label found for #{t.name} test for resource: #{resource["kind"]}/#{resource["name"]} in #{resource["namespace"]} namespace")
         test_passed = false
       end
       if test_passed
@@ -344,16 +338,16 @@ task "disk_fill", ["install_litmus"] do |t, args|
       test_passed
     end
     if task_response
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "disk_fill chaos test passed")
+      result.passed("disk_fill chaos test passed")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "disk_fill chaos test failed")
+      result.failed("disk_fill chaos test failed")
     end
   end
 end
 
 desc "Does the CNF crash when pod-delete occurs"
 task "pod_delete", ["install_litmus"] do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     #todo clear all annotations
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
       app_namespace = resource[:namespace]
@@ -361,7 +355,7 @@ task "pod_delete", ["install_litmus"] do |t, args|
       if spec_labels.as_h? && spec_labels.as_h.size > 0
         test_passed = true
       else
-        stdout_failure("No resource label found for #{t.name} test for resource: #{resource["kind"]}/#{resource["name"]} in #{resource["namespace"]} namespace")
+        result.append_description("No resource label found for #{t.name} test for resource: #{resource["kind"]}/#{resource["name"]} in #{resource["namespace"]} namespace")
         test_passed = false
       end
 
@@ -445,9 +439,9 @@ task "pod_delete", ["install_litmus"] do |t, args|
     end
     unless args.named["pod_labels"]?
         if task_response
-          CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "pod_delete chaos test passed")
+          result.passed("pod_delete chaos test passed")
         else
-          CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "pod_delete chaos test failed")
+          result.failed("pod_delete chaos test failed")
         end
     end
   end
@@ -455,14 +449,14 @@ end
 
 desc "Does the CNF crash when pod-memory-hog occurs"
 task "pod_memory_hog", ["install_litmus"] do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
       app_namespace = resource[:namespace]
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
       if spec_labels.as_h? && spec_labels.as_h.size > 0
         test_passed = true
       else
-        stdout_failure("No resource label found for #{t.name} test for resource: #{resource["kind"]}/#{resource["name"]} in #{resource["namespace"]} namespace")
+        result.append_description("No resource label found for #{t.name} test for resource: #{resource["kind"]}/#{resource["name"]} in #{resource["namespace"]} namespace")
         test_passed = false
       end
       if test_passed
@@ -504,23 +498,23 @@ task "pod_memory_hog", ["install_litmus"] do |t, args|
       test_passed
     end
     if task_response
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "pod_memory_hog chaos test passed")
+      result.passed("pod_memory_hog chaos test passed")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "pod_memory_hog chaos test failed")
+      result.failed("pod_memory_hog chaos test failed")
     end
   end
 end
 
 desc "Does the CNF crash when pod-io-stress occurs"
 task "pod_io_stress", ["install_litmus"] do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
       app_namespace = resource[:namespace]
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
       if spec_labels.as_h? && spec_labels.as_h.size > 0
         test_passed = true
       else
-        stdout_failure("No resource label found for #{t.name} test for resource: #{resource["name"]} in #{resource["namespace"]}")
+        result.append_description("No resource label found for #{t.name} test for resource: #{resource["name"]} in #{resource["namespace"]}")
         test_passed = false
       end
       if test_passed
@@ -563,9 +557,9 @@ task "pod_io_stress", ["install_litmus"] do |t, args|
       test_passed
     end
     if task_response
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "pod_io_stress chaos test passed")
+      result.passed("pod_io_stress chaos test passed")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "pod_io_stress chaos test failed")
+      result.failed("pod_io_stress chaos test failed")
     end
   end
 ensure
@@ -581,7 +575,7 @@ end
 
 desc "Does the CNF crash when pod-dns-error occurs"
 task "pod_dns_error", ["install_litmus"] do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     runtimes = KubectlClient::Get.container_runtimes
     Log.info { "pod_dns_error runtimes: #{runtimes}" }
     if runtimes.find{|r| r.downcase.includes?("docker")}
@@ -591,7 +585,7 @@ task "pod_dns_error", ["install_litmus"] do |t, args|
         if spec_labels.as_h? && spec_labels.as_h.size > 0
           test_passed = true
         else
-          stdout_failure("No resource label found for #{t.name} test for resource: #{resource["kind"]}/#{resource["name"]} in #{resource["namespace"]} namespace")
+          result.append_description("No resource label found for #{t.name} test for resource: #{resource["kind"]}/#{resource["name"]} in #{resource["namespace"]} namespace")
           test_passed = false
         end
         if test_passed
@@ -632,12 +626,12 @@ task "pod_dns_error", ["install_litmus"] do |t, args|
         test_passed
       end
       if task_response
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "pod_dns_error chaos test passed")
+        result.passed("pod_dns_error chaos test passed")
       else
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "pod_dns_error chaos test failed")
+        result.failed("pod_dns_error chaos test failed")
       end
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "pod_dns_error docker runtime not found")
+      result.skipped("pod_dns_error docker runtime not found")
     end
   end
 end

@@ -4,6 +4,15 @@ require "../../src/tasks/utils/utils.cr"
 require "file_utils"
 require "sam"
 
+def verify_task_result(task_name : String, expected_status : String)
+  latest_results = Dir.glob("results/cnf-testsuite-results-*.yml").max_by { |path| File.info(path).modification_time }
+  latest_results.should_not be_nil
+  yaml = YAML.parse(File.read(latest_results.not_nil!))
+  item = yaml["items"].as_a.find { |i| i["name"].as_s == task_name }
+  item.should_not be_nil
+  item.not_nil!["status"].as_s.should eq(expected_status)
+end
+
 describe "Microservice" do
   before_all do
     Log.info { "Running testsuite setup" }
@@ -19,6 +28,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].success?.should be_true
       (/(N\/A).*(No MariaDB containers were found)/ =~ result[:output]).should_not be_nil
+      verify_task_result("shared_database", "na")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -31,6 +41,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].success?.should be_true
       (/(PASSED).*(No shared database found)/ =~ result[:output]).should_not be_nil
+      verify_task_result("shared_database", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -43,6 +54,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].success?.should be_true
       (/(PASSED).*(No shared database found)/ =~ result[:output]).should_not be_nil
+      verify_task_result("shared_database", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -55,6 +67,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].success?.should be_true
       (/(FAILED).*(Found a shared database)/ =~ result[:output]).should_not be_nil
+      verify_task_result("shared_database", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -78,6 +91,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].success?.should be_true
       (/(PASSED).*(No shared database found)/ =~ result[:output]).should_not be_nil
+      verify_task_result("shared_database", "passed")
     ensure
       Helm.uninstall("multi-db", DEFAULT_CNF_NAMESPACE)
       KubectlClient::Delete.resource("pvc", "data-multi-db-mariadb-0")
@@ -92,6 +106,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("single_process_type")
       result[:status].success?.should be_true
       (/(PASSED).*(Only one process type used)/ =~ result[:output]).should_not be_nil
+      verify_task_result("single_process_type", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -104,6 +119,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("single_process_type")
       result[:status].success?.should be_true
       (/(FAILED).*(More than one process type used)/ =~ result[:output]).should_not be_nil
+      verify_task_result("single_process_type", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -116,6 +132,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("single_process_type")
       result[:status].success?.should be_true
       (/(FAILED).*(More than one process type used)/ =~ result[:output]).should_not be_nil
+      verify_task_result("single_process_type", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -128,6 +145,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("reasonable_startup_time")
       result[:status].success?.should be_true
       (/(PASSED).*(CNF had a reasonable startup time)/ =~ result[:output]).should_not be_nil
+      verify_task_result("reasonable_startup_time", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -140,6 +158,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("reasonable_startup_time")
       result[:status].success?.should be_true
       (/(FAILED).*(CNF had a startup time of)/ =~ result[:output]).should_not be_nil
+      verify_task_result("reasonable_startup_time", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -160,6 +179,7 @@ describe "Microservice" do
     result = ShellCmd.run_testsuite("reasonable_image_size")
     result[:status].success?.should be_true
     (/Image size is good/ =~ result[:output]).should_not be_nil
+    verify_task_result("reasonable_image_size", "passed")
   ensure
     result = ShellCmd.cnf_uninstall()
   end
@@ -169,13 +189,20 @@ describe "Microservice" do
     result = ShellCmd.run_testsuite("reasonable_image_size")
     result[:status].success?.should be_true
     (/Image size too large/ =~ result[:output]).should_not be_nil
+    verify_task_result("reasonable_image_size", "failed")
   end
 
   it "'specialized_init_system' should fail if pods do not use specialized init systems", tags: ["specialized_init_system"] do
     ShellCmd.cnf_install("cnf-path=./sample-cnfs/sample-coredns-cnf")
     result = ShellCmd.run_testsuite("specialized_init_system")
-    result[:status].success?.should be_true
     (/Containers do not use specialized init systems/ =~ result[:output]).should_not be_nil
+
+    latest_results = Dir.glob("results/cnf-testsuite-results-*.yml").max_by { |path| File.info(path).modification_time }
+    latest_results.should_not be_nil
+    yaml = YAML.parse(File.read(latest_results.not_nil!))
+    item = yaml["items"].as_a.find { |i| i["name"].as_s == "specialized_init_system" }
+    item.should_not be_nil
+    item.not_nil!["status"].as_s.should eq("failed")
   ensure
     result = ShellCmd.cnf_uninstall()
   end
@@ -194,8 +221,18 @@ describe "Microservice" do
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-operator/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("specialized_init_system")
       result[:status].success?.should be_true
-      (result[:output].scan(/pod\/demo-labeled-[a-z0-9-]+ container 'app' uses non-specialized init/).size > 0).should be_true
-      (result[:output].scan(/pod\/demo-owned-[a-z0-9-]+ container 'app' uses non-specialized init/).size > 0).should be_true
+
+      latest_results = Dir.glob("results/cnf-testsuite-results-*.yml").max_by { |path| File.info(path).modification_time }
+      latest_results.should_not be_nil
+      yaml = YAML.parse(File.read(latest_results.not_nil!))
+      item = yaml["items"].as_a.find { |i| i["name"].as_s == "specialized_init_system" }
+      item.should_not be_nil
+      item.not_nil!["status"].as_s.should eq("failed")
+
+      descriptions = item.not_nil!["status_description"].as_a.map { |d| d.as_s }
+      (descriptions.any? { |d| /pod\/demo-labeled-[a-z0-9-]+ has container 'app' with '.+' as init process/ =~ d }).should be_true
+      (descriptions.any? { |d| /pod\/demo-owned-[a-z0-9-]+ has container 'app' with '.+' as init process/ =~ d }).should be_true
+
       (/(FAILED).*(Containers do not use specialized init systems)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -208,6 +245,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("service_discovery")
       result[:status].success?.should be_true
       (/(PASSED).*(Some containers exposed as a service)/ =~ result[:output]).should_not be_nil
+      verify_task_result("service_discovery", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -220,6 +258,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("service_discovery")
       result[:status].success?.should be_true
       (/(FAILED).*(No containers exposed as a service)/ =~ result[:output]).should_not be_nil
+      verify_task_result("service_discovery", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -237,6 +276,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("sig_term_handled")
       result[:status].success?.should be_true
       (/(PASSED).*(Sig Term handled)/ =~ result[:output]).should_not be_nil
+      verify_task_result("sig_term_handled", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -254,6 +294,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("sig_term_handled")
       result[:status].success?.should be_true
       (/(FAILED).*(Sig Term not handled)/ =~ result[:output]).should_not be_nil
+      verify_task_result("sig_term_handled", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -275,6 +316,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("sig_term_handled")
       result[:status].success?.should be_true
       (/(PASSED).*(Sig Term handled)/ =~ result[:output]).should_not be_nil
+      verify_task_result("sig_term_handled", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -288,6 +330,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("zombie_handled")
       result[:status].success?.should be_true
       (/(PASSED).*(Zombie handled)/ =~ result[:output]).should_not be_nil
+      verify_task_result("zombie_handled", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -301,6 +344,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("zombie_handled")
       result[:status].success?.should be_true
       (/(FAILED).*(Zombie not handled)/ =~ result[:output]).should_not be_nil
+      verify_task_result("zombie_handled", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true

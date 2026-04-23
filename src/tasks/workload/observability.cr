@@ -18,29 +18,29 @@ end
 
 desc "Check if the CNF outputs logs to stdout or stderr"
 task "log_output" do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args,config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
       test_passed = false
 
-      result = KubectlClient::Utils.logs("#{resource["kind"]}/#{resource["name"]}", namespace: resource[:namespace], options: "--all-containers --tail=5 --prefix=true")
-      Log.for("Log lines").info { result[:output] }
-      if result[:output].size > 0
+      log_result = KubectlClient::Utils.logs("#{resource["kind"]}/#{resource["name"]}", namespace: resource[:namespace], options: "--all-containers --tail=5 --prefix=true")
+      Log.for("Log lines").info { log_result[:output] }
+      if log_result[:output].size > 0
         test_passed = true
        end
 
       test_passed
     end
     if task_response 
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Resources output logs to stdout and stderr")
+      result.passed("Resources output logs to stdout and stderr")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Resources do not output logs to stdout and stderr")
+      result.failed("Resources do not output logs to stdout and stderr")
     end
   end
 end
 
 desc "Does the CNF emit prometheus traffic"
 task "prometheus_traffic" do |t, args|
-  task_response = CNFManager::Task.task_runner(args, task: t) do |args, config|
+  task_response = CNFManager::Task.task_runner(args, task: t) do |args, config, result|
 
     do_this_on_each_retry = ->(ex : Exception, attempt : Int32, elapsed_time : Time::Span, next_interval : Time::Span) do
       Log.info { "#{ex.class}: '#{ex.message}' - #{attempt} attempt in #{elapsed_time} seconds and #{next_interval} seconds until the next try."}
@@ -143,19 +143,19 @@ task "prometheus_traffic" do |t, args|
       #  -- match ip address to cnf ip addresses
       # todo check if scrape_url is not an ip, assume it is a service, then do task (2)
       if prom_cnf_match
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Your cnf is sending prometheus traffic")
+        result.passed("Your cnf is sending prometheus traffic")
       else
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Your cnf is not sending prometheus traffic")
+        result.failed("Your cnf is not sending prometheus traffic")
       end
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Prometheus server not found")
+      result.skipped("Prometheus server not found")
     end
   end
 end
 
 desc "Does the CNF emit prometheus open metric compatible traffic"
 task "open_metrics", ["prometheus_traffic"] do |t, args|
-  task_response = CNFManager::Task.task_runner(args, task: t) do |args, config|
+  task_response = CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     begin
       configmap = KubectlClient::Get.resource("configmap", "cnf-testsuite-open-metrics")
     rescue KubectlClient::ShellCMD::NotFoundError
@@ -165,23 +165,26 @@ task "open_metrics", ["prometheus_traffic"] do |t, args|
       open_metrics_validated = configmap["data"].as_h["open_metrics_validated"].as_s
 
       if open_metrics_validated == "true"
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Your cnf's metrics traffic is OpenMetrics compatible")
+        result.passed("Your cnf's metrics traffic is OpenMetrics compatible")
       else
         open_metrics_response = configmap["data"].as_h["open_metrics_response"].as_s
-        puts "OpenMetrics Failed: #{open_metrics_response}".colorize(:red)
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Your cnf's metrics traffic is not OpenMetrics compatible")
+        result.append_description("OpenMetrics Failed: #{open_metrics_response}")
+        result.failed("Your cnf's metrics traffic is not OpenMetrics compatible")
       end
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Prometheus traffic not configured")
+      result.skipped("Prometheus traffic not configured")
     end
   end
 end
 
 desc "Are the CNF's logs captured by a logging system"
 task "routed_logs", ["setup:install_cluster_tools"] do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     fluent_pods = FluentManager.find_active_match_pods
-    next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Fluentd or FluentBit not configured") unless fluent_pods
+    unless fluent_pods
+      result.skipped("Fluentd or FluentBit not configured")
+      next
+    end
 
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource_name, _, _|
       resource = KubectlClient::Get.resource(resource_name[:kind], resource_name[:name], resource_name[:namespace])
@@ -192,16 +195,16 @@ task "routed_logs", ["setup:install_cluster_tools"] do |t, args|
         if FluentManager.pod_tailed?(pod_name, fluent_pods)
           true
         else
-          stdout_failure("Logs for #{resource_name[:kind]}/#{resource_name[:name]} pod '#{pod_name}' in #{resource_name[:namespace]} namespace are not being captured")
+          result.append_description("Logs for #{resource_name[:kind]}/#{resource_name[:name]} pod '#{pod_name}' in #{resource_name[:namespace]} namespace are not being captured")
           false
         end
       end
     end
 
     if task_response
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Your CNF's logs are being captured")
+      result.passed("Your CNF's logs are being captured")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Your CNF's logs are not being captured")
+      result.failed("Your CNF's logs are not being captured")
     end
   end
 end
@@ -212,18 +215,18 @@ task "tracing" do |t, args|
   Log.for(t.name).info { "tracing args: #{args.inspect}" }
 
   cnf_config_ok = check_cnf_config(args) || CNFManager.cnf_installed?
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     if cnf_config_ok
       match = JaegerManager.match()
       Log.info { "jaeger match: #{match}" }
       if match[:found]
         # (kosstennbl) TODO: Redesign tracing test, preferably without usage of installation configmaps. More info in issue #2153
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "tracing test is disabled, check #2153")
+        result.skipped("tracing test is disabled, check #2153")
       else
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Jaeger not configured")
+        result.skipped("Jaeger not configured")
       end
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "No cnf_testsuite.yml found! Did you run the \"cnf_install\" task?")
+      result.failed("No cnf_testsuite.yml found! Did you run the \"cnf_install\" task?")
     end
   end
 end

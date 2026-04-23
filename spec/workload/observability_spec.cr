@@ -4,11 +4,21 @@ require "../../src/tasks/utils/utils.cr"
 require "../../src/tasks/utils/fluent_manager.cr"
 require "../../src/tasks/setup/jaeger_setup.cr"
 
+def verify_task_result(task_name : String, expected_status : String)
+  latest_results = Dir.glob("results/cnf-testsuite-results-*.yml").max_by { |path| File.info(path).modification_time }
+  latest_results.should_not be_nil
+  yaml = YAML.parse(File.read(latest_results.not_nil!))
+  item = yaml["items"].as_a.find { |i| i["name"].as_s == task_name }
+  item.should_not be_nil
+  item.not_nil!["status"].as_s.should eq(expected_status)
+end
+
 describe "Observability" do
   before_all do
     result = ShellCmd.run_testsuite("setup")
     result[:status].success?.should be_true
   end
+
 
   it "'log_output' should pass with a cnf that outputs logs to stdout", tags: ["observability_log_output"]  do
     begin
