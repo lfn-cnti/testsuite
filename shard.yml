@@ -10,7 +10,7 @@ targets:
   cnf_testsuite:
     main: src/cnf_testsuite.cr
 
-crystal: '>= 1.6.0'
+crystal: '>= 1.15.1'
 
 dependencies:
   crinja:
