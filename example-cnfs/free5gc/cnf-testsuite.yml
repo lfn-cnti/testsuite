@@ -87,5 +87,6 @@ common:
 deployments:
   helm_dirs:
     - name: free5gc
-      helm_directory: charts/free5gc
+      helm_directory: free5gc-helm/charts/free5gc
       namespace: free5gc
+      helm_values: --set mongodb.persistence.enabled=false --set mongodb.extraDeploy=null
