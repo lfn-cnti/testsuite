@@ -74,6 +74,16 @@ Create the kind cluster using the configuration file:
 kind create cluster --config kind-free5gc-config.yaml
 ```
 
+## Initialize submodules
+
+This example uses the free5GC Helm chart as a Git submodule.
+
+After cloning the repository, initialize the submodule:
+
+```bash
+git submodule update --init --recursive
+```
+
 ## Prepare CNTi test suite
 
 Initialize the test suite:
@@ -87,14 +97,14 @@ cnf-testsuite setup
 Deploy free5GC using the CNTi test suite:
 
 ```bash
-./cnf-testsuite cnf_install cnf-config=example-cnfs/free5gc/cnf-testsuite.yml
+cnf-testsuite cnf_install cnf-config=example-cnfs/free5gc/cnf-testsuite.yml
 ```
 
 The CNF is deployed into the `free5gc` namespace.
 
-This example uses the free5GC Helm chart located at:
+The free5GC Helm chart is located at:
 
-`example-cnfs/free5gc/charts/free5gc`
+`example-cnfs/free5gc/charts/free5gc-helm/charts/free5gc`
 
 The chart is deployed automatically through the provided `cnf-testsuite.yml`.
 
@@ -103,7 +113,7 @@ The chart is deployed automatically through the provided `cnf-testsuite.yml`.
 To run the full CNTi test suite:
 
 ```bash
-./cnf-testsuite all
+cnf-testsuite all
 ```
 
 ## Verify Deployment
@@ -119,7 +129,7 @@ kubectl get pods -n free5gc
 To uninstall free5GC:
 
 ```bash
-./cnf-testsuite cnf_uninstall cnf-config=example-cnfs/free5gc/cnf-testsuite.yml
+cnf-testsuite cnf_uninstall cnf-config=example-cnfs/free5gc/cnf-testsuite.yml
 ```
 
 In some cases, persistent resources (e.g. PersistentVolumeClaims) may remain and need to be removed manually:
@@ -130,37 +140,36 @@ kubectl delete pvc --all -n free5gc
 
 # Notes and Adjustments
 
-The free5GC Helm chart was slightly modified to ensure compatibility with a kind-based Kubernetes environment.
+The free5GC Helm chart is included as an upstream Git submodule and is not modified directly.
 
-The following changes were made to the MongoDB subchart (`charts/free5gc/charts/mongodb-15.6.0/values.yaml`):
+To ensure compatibility with a kind-based Kubernetes environment, MongoDB configuration is overridden via the <br /> `cnf-testsuite.yml` file using Helm values.
 
-- Removed the `extraDeploy` section that defined a static PersistentVolume with `microk8s-hostpath`
-- Set `persistence.storageClass` to an empty value (`""`)
-- Disabled persistence (`persistence.enabled=false`)
+The following adjustments are applied at deployment time:
+
+- Disabled persistence (`mongodb.persistence.enabled=false`)
+- Removed the `extraDeploy` section to avoid creation of a static PersistentVolume
 
 These changes were necessary because the original chart assumes a specific storage backend (microk8s), which is not available in kind clusters.  
 Without these modifications, MongoDB would remain in a `Pending` state due to incompatible storage configuration.
-
-The adjustments ensure that the deployment works with the default StorageClass provided by kind (typically `standard`).
-
-Additionally, the following adjustments were made to container startup configuration:
-
-- Removed the `/sbin/tini` entrypoint from multiple container deployments 
-  (in various `*-deployment.yaml` templates)
-
-This change simplifies container startup in the tested environment.
 
 # Known Limitations
 
 This example is intended as a **reference CNF deployment** for testing purposes and has several limitations:
 
 - **Privileged networking requirements**
-  - The UPF requires advanced networking capabilities (e.g., IP forwarding)
-  - This may conflict with strict Kubernetes security policies
+  - The UPF requires kernel-level networking features such as IP forwarding (`net.ipv4.ip_forward`, `net.ipv4.conf.all.forwarding`)
+  - Without enabling these unsafe sysctls (e.g. via `allowedUnsafeSysctls` in kind), UPF pods fail to start with `SysctlForbidden` errors.
 
-- **Potential CNTi test failures**
-  - Some certification tests (e.g., related to privileged containers or security contexts) may fail due to the networking requirements of free5GC
-  - These are expected and do not indicate a broken deployment
+- **CNTi certification test results**
+  - The following tests are observed to fail:
+
+    - `non_root_containers`
+      - Fails for UPF components (`iupf1`, `psaupf1`, `psaupf2`)
+      - Reason: the UPF requires low-level networking capabilities and is designed to run with root privileges, which violates the non-root container requirement
+
+    - `sig_term_handled`
+      - Failed for multiple components
+      - Reason: some pods were not ready during test execution, and free5GC containers do not consistently implement graceful shutdown via SIGTERM
 
 - **Non-production configuration**
   - Persistence for MongoDB is disabled for compatibility with kind
