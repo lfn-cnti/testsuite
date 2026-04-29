@@ -110,10 +110,10 @@ The chart is deployed automatically through the provided `cnf-testsuite.yml`.
 
 # Running CNF Tests
 
-To run the full CNTi test suite:
+To run CNF certification tests:
 
 ```bash
-cnf-testsuite all
+cnf-testsuite cert
 ```
 
 ## Verify Deployment
