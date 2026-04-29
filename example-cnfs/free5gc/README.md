@@ -167,9 +167,9 @@ This example is intended as a **reference CNF deployment** for testing purposes 
       - Fails for UPF components (`iupf1`, `psaupf1`, `psaupf2`)
       - Reason: the UPF requires low-level networking capabilities and is designed to run with root privileges, which violates the non-root container requirement
 
-    - `sig_term_handled`
-      - Failed for multiple components
-      - Reason: some pods were not ready during test execution, and free5GC containers do not consistently implement graceful shutdown via SIGTERM
+    - `node_drain`
+      - Unstable (intermittent failures)
+      - Reason: MongoDB uses single-replica RWO storage, which can cause multi-attach errors during node migration
 
 - **Non-production configuration**
   - Persistence for MongoDB is disabled for compatibility with kind
