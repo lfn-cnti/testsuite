@@ -1,0 +1,92 @@
+---
+config_version: "v2"
+common: 
+  hardcoded_ip_exceptions:
+    - ip: 8.8.8.8
+  container_names:
+    - name: amf
+      rolling_update_test_tag: "v4.0.1"
+      rolling_downgrade_test_tag: "v3.4.5"
+      rolling_version_change_test_tag: "v4.0.1"
+      rollback_from_tag: "v4.0.1"
+    - name: ausf
+      rolling_update_test_tag: "v4.0.1"
+      rolling_downgrade_test_tag: "v3.4.5"
+      rolling_version_change_test_tag: "v4.0.1"
+      rollback_from_tag: "v4.0.1"
+    - name: chf
+      rolling_update_test_tag: "v4.0.1"
+      rolling_downgrade_test_tag: "v3.4.5"
+      rolling_version_change_test_tag: "v4.0.1"
+      rollback_from_tag: "v4.0.1"
+    - name: dbpython
+      rolling_update_test_tag: "v3.3.0"
+      rolling_downgrade_test_tag: "v3.3.0"
+      rolling_version_change_test_tag: "v3.3.0"
+      rollback_from_tag: "v3.3.0"
+    - name: nef
+      rolling_update_test_tag: "v4.0.1"
+      rolling_downgrade_test_tag: "v3.4.5"
+      rolling_version_change_test_tag: "v4.0.1"
+      rollback_from_tag: "v4.0.1"
+    - name: nrf
+      rolling_update_test_tag: "v4.0.1"
+      rolling_downgrade_test_tag: "v3.4.5"
+      rolling_version_change_test_tag: "v4.0.1"
+      rollback_from_tag: "v4.0.1"
+    - name: nssf
+      rolling_update_test_tag: "v4.0.1"
+      rolling_downgrade_test_tag: "v3.4.5"
+      rolling_version_change_test_tag: "v4.0.1"
+      rollback_from_tag: "v4.0.1"
+    - name: pcf
+      rolling_update_test_tag: "v4.0.1"
+      rolling_downgrade_test_tag: "v3.4.5"
+      rolling_version_change_test_tag: "v4.0.1"
+      rollback_from_tag: "v4.0.1"
+    - name: smf
+      rolling_update_test_tag: "v4.0.1"
+      rolling_downgrade_test_tag: "v3.4.5"
+      rolling_version_change_test_tag: "v4.0.1"
+      rollback_from_tag: "v4.0.1"
+    - name: udm
+      rolling_update_test_tag: "v4.0.1"
+      rolling_downgrade_test_tag: "v3.4.5"
+      rolling_version_change_test_tag: "v4.0.1"
+      rollback_from_tag: "v4.0.1"
+    - name: udr
+      rolling_update_test_tag: "v4.0.1"
+      rolling_downgrade_test_tag: "v3.4.5"
+      rolling_version_change_test_tag: "v4.0.1"
+      rollback_from_tag: "v4.0.1"
+    - name: upf1
+      rolling_update_test_tag: "v4.0.1"
+      rolling_downgrade_test_tag: "v3.4.5"
+      rolling_version_change_test_tag: "v4.0.1"
+      rollback_from_tag: "v4.0.1"
+    - name: upf2
+      rolling_update_test_tag: "v4.0.1"
+      rolling_downgrade_test_tag: "v3.4.5"
+      rolling_version_change_test_tag: "v4.0.1"
+      rollback_from_tag: "v4.0.1"
+    - name: upfb
+      rolling_update_test_tag: "v4.0.1"
+      rolling_downgrade_test_tag: "v3.4.5"
+      rolling_version_change_test_tag: "v4.0.1"
+      rollback_from_tag: "v4.0.1"
+    - name: webui
+      rolling_update_test_tag: "v4.0.1"
+      rolling_downgrade_test_tag: "v3.4.5"
+      rolling_version_change_test_tag: "v4.0.1"
+      rollback_from_tag: "v4.0.1"
+    - name: mongodb
+      rolling_update_test_tag: "7.0.9-debian-12-r4"
+      rolling_downgrade_test_tag: "7.0.9-debian-12-r3"
+      rolling_version_change_test_tag: "7.0.9-debian-12-r4"
+      rollback_from_tag: "7.0.9-debian-12-r4"
+deployments:
+  helm_dirs:
+    - name: free5gc
+      helm_directory: free5gc-helm/charts/free5gc
+      namespace: free5gc
+      helm_values: --set mongodb.persistence.enabled=false --set mongodb.extraDeploy=null
