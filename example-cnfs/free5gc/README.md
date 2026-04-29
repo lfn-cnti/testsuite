@@ -34,6 +34,22 @@ Without these settings, the UPF will fail to initialize or will not properly han
 - Helm installed
 - CNTi test suite available locally
 
+## UPF kernel requirements
+
+- The UPF component requires the `gtp5g` kernel module.
+- If the module is not available, the UPF may fail with:
+  `operation not supported` when creating GTP interfaces.
+
+To load the module:
+
+```bash
+git clone https://github.com/free5gc/gtp5g.git
+cd gtp5g
+make
+sudo make install
+sudo modprobe gtp5g
+```
+
 ## kind cluster configuration (required for UPF)
 
 When deploying on a kind cluster, the UPF component requires specific sysctl settings.
