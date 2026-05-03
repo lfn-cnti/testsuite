@@ -1,0 +1,75 @@
+name: Nightly Free5GC Certification
+
+# This workflow runs automatically every night at midnight UTC,
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  free5gc-certificaton:
+    runs-on: [v1.0.0]
+    
+    steps:
+      - name: Checkout Code & Submodules
+        uses: actions/checkout@v4
+        with:
+          # Automatically run `git submodule update --init --recursive`
+          submodules: recursive 
+
+      - name: Install Crystal
+        uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: latest
+
+      - name: Install gtp5g Kernel Module
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential linux-headers-$(uname -r)
+          git clone https://github.com/free5gc/gtp5g.git
+          cd gtp5g
+          make
+          sudo make install
+          # Verify it loaded
+          lsmod | grep gtp5g
+
+      - name: Setup Kind Cluster (v0.30.0) with Sysctl Patch
+        run: |
+          cat <<EOF > kind_setup.yaml
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          nodes:
+          - role: control-plane
+            kubeadmConfigPatches:
+            - |
+              kind: KubeletConfiguration
+              allowedUnsafeSysctls: ["net.ipv4.*"]
+          - role: worker
+            kubeadmConfigPatches:
+            - |
+              kind: KubeletConfiguration
+              allowedUnsafeSysctls: ["net.ipv4.*"]
+          EOF
+          
+          # Install Kind
+          wget -O kind "https://kind.sigs.k8s.io/dl/v0.30.0/kind-linux-amd64"
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+          
+          # Start the cluster
+          kind create cluster --name free5gc-dev --config kind_setup.yaml
+          
+          # Wait to ensure control plane is fully ready
+          sleep 10
+          kubectl get nodes
+
+      - name: Build CNF Testsuite
+        run: |
+          shards install
+          crystal build src/cnf-testsuite.cr
+
+      - name: Run Free5GC Spec Test
+        run: |
+          crystal spec spec/free5gc_cert_spec.cr
