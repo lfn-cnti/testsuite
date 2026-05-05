@@ -19,11 +19,6 @@ jobs:
           # Automatically run `git submodule update --init --recursive`
           submodules: recursive 
 
-      - name: Install Crystal
-        uses: crystal-lang/install-crystal@v1
-        with:
-          crystal: 1.6.2
-
       - name: Install gtp5g Kernel Module
         run: |
           sudo apt-get update
