@@ -21,13 +21,7 @@ jobs:
 
       - name: Install gtp5g Kernel Module
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential linux-headers-$(uname -r)
-          git clone https://github.com/free5gc/gtp5g.git
-          cd gtp5g
-          make
-          sudo make install
-          # Verify it loaded
+          sudo modprobe gtp5g
           lsmod | grep gtp5g
 
       - name: Setup Kind Cluster (v0.30.0) with Sysctl Patch
