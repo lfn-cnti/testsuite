@@ -74,6 +74,12 @@ jobs:
           chmod +x ./kind
           sudo mv ./kind /usr/local/bin/kind
           
+          # Clean up any leftover cluster from a previous failed run
+          kind delete cluster --name free5gc-dev || true
+          
+          # Start the cluster
+          kind create cluster --name free5gc-dev --config kind_setup.yaml
+
           # Start the cluster
           kind create cluster --name free5gc-dev --config kind_setup.yaml
           
