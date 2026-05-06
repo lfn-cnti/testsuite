@@ -79,9 +79,6 @@ jobs:
           
           # Start the cluster
           kind create cluster --name free5gc-dev --config kind_setup.yaml
-
-          # Start the cluster
-          kind create cluster --name free5gc-dev --config kind_setup.yaml
           
           # Wait to ensure control plane is fully ready
           sleep 10
