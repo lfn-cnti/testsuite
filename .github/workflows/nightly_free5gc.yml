@@ -89,3 +89,21 @@ jobs:
       - name: Run Free5GC Spec Test
         run: |
           crystal spec spec/free5gc_cert_spec.cr
+
+      - name: Debug Kubernetes Cluster (On Failure)
+        # This step ONLY runs if the Crystal spec test above it crashes
+        if: failure()
+        run: |
+          echo "========================================="
+          echo "LOGS"
+          echo "========================================="
+          
+          echo -e "\n\n=== POD STATUS ==="
+          kubectl get pods -A
+          
+          echo -e "\n\n=== CLUSTER EVENTS ==="
+          kubectl get events -A --sort-by='.metadata.creationTimestamp'
+          
+          echo -e "\n\n=== FAILED POD DESCRIPTIONS ==="
+          # This describes any pods that are not in the "Running" or "Completed" state
+          kubectl get pods -A --field-selector=status.phase!=Running | awk 'NR>1 {print "-n", $1, $2}' | xargs -L 1 kubectl describe pod
