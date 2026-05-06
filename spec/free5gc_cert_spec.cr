@@ -14,6 +14,9 @@ describe "Free5gc certification" do
       cert_args = %(cert exclude="node_drain non_root_containers")
       result = ShellCmd.run_testsuite(cert_args)
       
+      #check test result
+      puts "\n=== TESTSUITE OUTPUT ===\n#{result[:output]}\n========================\n"
+
       # Ensure the testsuite binary didn't crash
       result[:status].success?.should be_true
       
