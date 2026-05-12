@@ -1,6 +1,6 @@
 # What is [free5GC](https://www.free5gc.org/) 
 
-Free5GC is an open-source implementation of a 5G Core Network (5GC).  
+Free5GC is an open-source implementation of a 5G Core Network (5GC).
 This example demonstrates how free5GC can be deployed as a Cloud-Native Network Function (CNF) using Helm and tested via the CNTi test suite.
 
 The goal of this example is to provide a working reference deployment that is compatible with Kubernetes environments, including **kind clusters**.
@@ -47,7 +47,6 @@ git clone https://github.com/free5gc/gtp5g.git
 cd gtp5g
 make
 sudo make install
-sudo modprobe gtp5g
 ```
 
 ## kind cluster configuration (required for UPF)
