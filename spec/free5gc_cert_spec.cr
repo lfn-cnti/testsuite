@@ -12,9 +12,6 @@ describe "Free5gc certification" do
       
       result = ShellCmd.run_testsuite("cert")
       
-      #check test result
-      puts "\n=== TESTSUITE OUTPUT ===\n#{result[:output]}\n========================\n"
-
       # Ensure the testsuite binary didn't crash
       result[:status].success?.should be_true
       

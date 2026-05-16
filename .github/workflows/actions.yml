@@ -42,6 +42,10 @@ jobs:
         TEST_ARRAY=("${TEST_ARRAY[@]/5g/}")
         TEST_ARRAY=("${TEST_ARRAY[@]/core/}")
         TEST_ARRAY=("${TEST_ARRAY[@]/shared_database_flaky/}")
+
+        # Skip free5gc test because its handled by the nightly workflow
+        TEST_ARRAY=("${TEST_ARRAY[@]/free5gc/}")
+
         TEST_LIST=$(for i in ${TEST_ARRAY[@]}
         do
                  echo "{\"spec\":\"$i\"}," | tr -d '\n'
