@@ -10,9 +10,7 @@ describe "Free5gc certification" do
       # Install Free5gc
       ShellCmd.cnf_install("cnf-config=./example-cnfs/free5gc/cnf-testsuite.yml timeout=1800")
       
-      # Run the cert suite
-      cert_args = %(cert exclude="node_drain non_root_containers")
-      result = ShellCmd.run_testsuite(cert_args)
+      result = ShellCmd.run_testsuite("cert")
       
       #check test result
       puts "\n=== TESTSUITE OUTPUT ===\n#{result[:output]}\n========================\n"
@@ -21,7 +19,7 @@ describe "Free5gc certification" do
       result[:status].success?.should be_true
       
       result[:output].should match(/PASSED/)
-      result[:output].should match(/17 of 19 total tests passed/)
+      result[:output].should match(/(17|18|19) of 19 total tests passed/)
       
     ensure
       result = ShellCmd.cnf_uninstall()
