@@ -74,6 +74,12 @@ jobs:
           chmod +x ./kind
           sudo mv ./kind /usr/local/bin/kind
           
+          # ==========================================
+          # FIX: Restart Docker daemon to clear the cluster
+          # ==========================================
+          sudo systemctl restart docker
+          sleep 5
+          
           # Clean up any leftover cluster from a previous failed run
           kind delete cluster --name free5gc-dev || true
           
@@ -91,4 +97,4 @@ jobs:
 
       - name: Run Free5GC Spec Test
         run: |
-          crystal LOG_LEVEL=INFO spec spec/free5gc_cert_spec.cr -v
+          LOG_LEVEL=INFO crystal spec spec/free5gc_cert_spec.cr -v
