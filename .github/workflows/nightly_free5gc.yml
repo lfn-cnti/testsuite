@@ -91,4 +91,4 @@ jobs:
 
       - name: Run Free5GC Spec Test
         run: |
-          crystal spec spec/free5gc_cert_spec.cr
+          crystal LOG_LEVEL=INFO spec spec/free5gc_cert_spec.cr -v
