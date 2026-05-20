@@ -9,6 +9,9 @@ module CNFInstall
       ymls = YAML.parse_all(manifest_string).reject { |x| x == nil }
       Log.for("manifest_string_to_ymls").trace { "YAMLs parsed from string:\n #{ymls}" }
       ymls
+    rescue ex : YAML::ParseException
+      Log.for("manifest_string_to_ymls").error { "Failed to parse YAML manifest: #{ex.message}" }
+      [] of YAML::Any
     end
 
     def self.manifest_file_list(manifest_directory, raise_ex = false)

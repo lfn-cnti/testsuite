@@ -65,5 +65,10 @@ describe "CNFInstall::Manifest" do
       result = CNFInstall::Manifest.manifest_string_to_ymls("")
       result.size.should eq(0)
     end
+
+    it "returns an empty array and does not raise when given invalid YAML", tags: ["manifest"] do
+      result = CNFInstall::Manifest.manifest_string_to_ymls("{ invalid: yaml: :")
+      result.size.should eq(0)
+    end
   end
 end
