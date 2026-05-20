@@ -310,7 +310,7 @@ task "hardcoded_ip_addresses_in_k8s_runtime_configuration" do |_, args|
       helm_install = `#{helm} install --namespace hardcoded-ip-test hardcoded-ip-test #{helm_chart} --dry-run --debug > #{destination_cnf_dir}/helm_chart.yml`
       VERBOSE_LOGGING.info "helm_chart: #{helm_chart}" if check_verbose(args)
     else
-      helm_install = `#{helm} install --namespace hardcoded-ip-test hardcoded-ip-test #{destination_cnf_dir}/#{helm_directory} --dry-run --debug > #{destination_cnf_dir}/helm_chart.yml`
+      helm_install = `#{helm} install --namespace hardcoded-ip-test hardcoded-ip-test #{CNFManager.helm_dir_path(destination_cnf_dir, helm_directory)} --dry-run --debug > #{destination_cnf_dir}/helm_chart.yml`
       VERBOSE_LOGGING.info "helm_directory: #{helm_directory}" if check_verbose(args)
     end
 

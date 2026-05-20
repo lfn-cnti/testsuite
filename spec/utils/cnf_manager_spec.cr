@@ -416,7 +416,34 @@ describe "SampleUtils" do
   it "'CNFManager.exclusive_install_method_tags' should return false if install method tags are not exclusive", tags: ["cnf-config"]  do
     config = CNFManager.parsed_config_file("./spec/fixtures/cnf-conformance-not-exclusive.yml")
     resp = CNFManager.exclusive_install_method_tags?(config)
-    (resp).should be_false 
+    (resp).should be_false
+  end
+
+  describe "CNFManager.helm_dir_path" do
+    it "joins a relative helm_directory to the base_dir", tags: ["helm-dir-path"] do
+      result = CNFManager.helm_dir_path("/cnfs/myapp", "charts/envoy")
+      result.should eq("/cnfs/myapp/charts/envoy")
+    end
+
+    it "returns an absolute helm_directory unchanged (bug #2385)", tags: ["helm-dir-path"] do
+      result = CNFManager.helm_dir_path("/cnfs/myapp", "/home/user/charts/envoy")
+      result.should eq("/home/user/charts/envoy")
+    end
+
+    it "joins a bare directory name (no leading slash) to base_dir", tags: ["helm-dir-path"] do
+      result = CNFManager.helm_dir_path("./example-cnfs/envoy", "envoy")
+      result.should eq("./example-cnfs/envoy/envoy")
+    end
+
+    it "does not double-slash when base_dir has a trailing slash", tags: ["helm-dir-path"] do
+      result = CNFManager.helm_dir_path("/cnfs/myapp/", "charts")
+      result.should eq("/cnfs/myapp//charts")
+    end
+
+    it "returns an absolute path with nested segments unchanged", tags: ["helm-dir-path"] do
+      result = CNFManager.helm_dir_path("./example-cnfs/envoy", "/home/cedric/Devs/CNTI/testsuite/example-cnfs/envoy/envoy")
+      result.should eq("/home/cedric/Devs/CNTI/testsuite/example-cnfs/envoy/envoy")
+    end
   end
 
 end

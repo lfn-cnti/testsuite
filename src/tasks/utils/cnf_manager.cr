@@ -10,6 +10,18 @@ require "./config.cr"
 
 module CNFManager
 
+  # Returns the resolved path for helm_directory joined with base_dir.
+  # When helm_directory is an absolute path it is returned as-is; otherwise
+  # it is joined to base_dir, which prevents malformed paths like
+  # "./cnfs/myapp/home/user/absolute/path" (bug #2385).
+  def self.helm_dir_path(base_dir : String, helm_directory : String) : String
+    if Path.new(helm_directory).absolute?
+      helm_directory
+    else
+      "#{base_dir}/#{helm_directory}"
+    end
+  end
+
   # Applies a block to each cnf resource
   #
   # `CNFManager.cnf_workload_resources(args, config) {|cnf_config, resource| #your code}
@@ -377,7 +389,7 @@ module CNFManager
     if install_method[0] == :manifest_directory
       manifest_or_helm_directory = config_source_dir(config_file) + "/" + manifest_directory
     elsif !helm_directory.empty?
-      manifest_or_helm_directory = config_source_dir(config_file) + "/" + helm_directory
+      manifest_or_helm_directory = CNFManager.helm_dir_path(config_source_dir(config_file), helm_directory)
     else
       # this is not going to exist
       manifest_or_helm_directory = helm_chart_path #./cnfs/<cnf-release-name>/exported_chart
@@ -423,9 +435,9 @@ module CNFManager
     helm = CNFSingleton.helm
     LOGGING.info "helm path: #{CNFSingleton.helm}"
 
-    LOGGING.debug "mkdir_p destination_cnf_dir/helm_directory: #{destination_cnf_dir}/#{helm_directory}"
+    LOGGING.debug "mkdir_p destination_cnf_dir/helm_directory: #{CNFManager.helm_dir_path(destination_cnf_dir, helm_directory)}"
     #TODO don't think we need to make this here
-    FileUtils.mkdir_p("#{destination_cnf_dir}/#{helm_directory}")
+    FileUtils.mkdir_p(CNFManager.helm_dir_path(destination_cnf_dir, helm_directory))
     LOGGING.debug "helm command pull: #{helm} pull #{helm_chart}"
     #TODO move to helm module
     helm_pull = `#{helm} pull #{helm_chart}`
@@ -522,9 +534,9 @@ module CNFManager
       VERBOSE_LOGGING.info "deploying with helm directory" if verbose
       #TODO Add helm options into cnf-conformance yml
       #e.g. helm install nsm --set insecure=true ./nsm/helm_chart
-      LOGGING.info("#{helm} install #{release_name} #{destination_cnf_dir}/#{helm_directory}")
+      LOGGING.info("#{helm} install #{release_name} #{CNFManager.helm_dir_path(destination_cnf_dir, helm_directory)}")
       #TODO move to helm module
-      helm_install = `#{helm} install #{release_name} #{destination_cnf_dir}/#{helm_directory}`
+      helm_install = `#{helm} install #{release_name} #{CNFManager.helm_dir_path(destination_cnf_dir, helm_directory)}`
       VERBOSE_LOGGING.info helm_install if verbose
     else
       raise "Deployment method not found"

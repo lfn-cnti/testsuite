@@ -52,10 +52,10 @@ task "reasonable_startup_time" do |_, args|
         helm_template_test = `#{helm} template --namespace=startup-test #{release_name} #{helm_chart} > #{yml_file_path}/reasonable_startup_test.yml`
         VERBOSE_LOGGING.info "helm_chart: #{helm_chart}" if check_verbose(args)
       elsif install_method[0] == :helm_directory
-        LOGGING.info("reasonable_startup_time #{helm} template #{release_name} #{yml_file_path}/#{helm_directory} > #{yml_file_path}/reasonable_startup_orig.yml")
-        helm_template_orig = `#{helm} template #{release_name} #{yml_file_path}/#{helm_directory} > #{yml_file_path}/reasonable_startup_orig.yml`
-        LOGGING.info("reasonable_startup_time #{helm} template --namespace=startup-test #{release_name} #{yml_file_path}/#{helm_directory} > #{yml_file_path}/reasonable_startup_test.yml")
-        helm_template_test = `#{helm} template --namespace=startup-test #{release_name} #{yml_file_path}/#{helm_directory} > #{yml_file_path}/reasonable_startup_test.yml`
+        LOGGING.info("reasonable_startup_time #{helm} template #{release_name} #{CNFManager.helm_dir_path(yml_file_path, helm_directory)} > #{yml_file_path}/reasonable_startup_orig.yml")
+        helm_template_orig = `#{helm} template #{release_name} #{CNFManager.helm_dir_path(yml_file_path, helm_directory)} > #{yml_file_path}/reasonable_startup_orig.yml`
+        LOGGING.info("reasonable_startup_time #{helm} template --namespace=startup-test #{release_name} #{CNFManager.helm_dir_path(yml_file_path, helm_directory)} > #{yml_file_path}/reasonable_startup_test.yml")
+        helm_template_test = `#{helm} template --namespace=startup-test #{release_name} #{CNFManager.helm_dir_path(yml_file_path, helm_directory)} > #{yml_file_path}/reasonable_startup_test.yml`
         VERBOSE_LOGGING.info "helm_directory: #{helm_directory}" if check_verbose(args)
       else # manifest file installation not supported
         puts "Manifest file not supported for reasonable startup time yet".colorize(:yellow)

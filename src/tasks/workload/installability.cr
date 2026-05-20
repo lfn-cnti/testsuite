@@ -41,8 +41,8 @@ task "helm_deploy" do |_, args|
         VERBOSE_LOGGING.debug helm if check_verbose(args)
 
         if helm_chart.empty?
-          VERBOSE_LOGGING.debug "#{helm} install --namespace helm-deploy #{release_name_prefix}#{release_name} #{yml_file_path}/#{helm_directory}" if check_verbose(args)
-          helm_install = `#{helm} install --namespace helm-deploy #{release_name_prefix}#{release_name} #{yml_file_path}/#{helm_directory}`
+          VERBOSE_LOGGING.debug "#{helm} install --namespace helm-deploy #{release_name_prefix}#{release_name} #{CNFManager.helm_dir_path(yml_file_path, helm_directory)}" if check_verbose(args)
+          helm_install = `#{helm} install --namespace helm-deploy #{release_name_prefix}#{release_name} #{CNFManager.helm_dir_path(yml_file_path, helm_directory)}`
         else
           VERBOSE_LOGGING.debug "#{helm} install --namespace helm-deploy #{release_name_prefix}#{release_name} #{helm_chart}" if check_verbose(args)
           helm_install = `#{helm} install --namespace helm-deploy #{release_name_prefix}#{release_name} #{helm_chart}`
