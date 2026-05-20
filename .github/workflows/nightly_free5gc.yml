@@ -1,0 +1,94 @@
+name: Nightly Free5GC Certification
+
+# This workflow runs automatically every night at midnight UTC,
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  free5gc-certificaton:
+    runs-on: [v1.0.0]
+    
+    steps:
+      - name: Checkout Code & Submodules
+        uses: actions/checkout@v4
+        with:
+          # Automatically run `git submodule update --init --recursive`
+          submodules: recursive 
+
+      - name: Setup Kind Cluster (v0.30.0) with Sysctl Patch
+        run: |
+          # Ensure docker config exists on the runner so the mount doesnt fail
+          mkdir -p $HOME/.docker
+          if [ ! -f $HOME/.docker/config.json ]; then echo "{}" > $HOME/.docker/config.json; fi
+          
+          cat <<EOF > kind_setup.yaml
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          containerdConfigPatches:
+          - |-
+            root = "/tmp/containerd"
+          nodes:
+          - role: control-plane
+            kubeadmConfigPatches:
+            - |
+              kind: KubeletConfiguration
+              allowedUnsafeSysctls:
+                - "net.ipv4.ip_forward"
+                - "net.ipv4.conf.all.forwarding"
+            - |
+              kind: ClusterConfiguration
+              etcd:
+                local:
+                  dataDir: /tmp/etcd
+            extraMounts:
+            - containerPath: /var/lib/kubelet/config.json
+              hostPath: $HOME/.docker/config.json
+          - role: worker
+            kubeadmConfigPatches:
+            - |
+              kind: KubeletConfiguration
+              allowedUnsafeSysctls:
+                - "net.ipv4.ip_forward"
+                - "net.ipv4.conf.all.forwarding"
+            extraMounts:
+            - containerPath: /var/lib/kubelet/config.json
+              hostPath: $HOME/.docker/config.json
+          - role: worker
+            kubeadmConfigPatches:
+            - |
+              kind: KubeletConfiguration
+              allowedUnsafeSysctls:
+                - "net.ipv4.ip_forward"
+                - "net.ipv4.conf.all.forwarding"
+            extraMounts:
+            - containerPath: /var/lib/kubelet/config.json
+              hostPath: $HOME/.docker/config.json
+          EOF
+          
+          # Install Kind
+          wget -O kind "https://kind.sigs.k8s.io/dl/v0.30.0/kind-linux-amd64"
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+          
+          # Clean up any leftover cluster from a previous failed run
+          kind delete cluster --name free5gc-dev || true
+          
+          # Start the cluster
+          kind create cluster --name free5gc-dev --config kind_setup.yaml
+          
+          # Wait to ensure control plane is fully ready
+          sleep 10
+          kubectl get nodes
+
+      - name: Build CNF Testsuite
+        run: |
+          shards install
+          crystal build src/cnf-testsuite.cr
+
+      - name: Run Free5GC Spec Test
+        run: |
+          LOG_LEVEL=INFO crystal spec spec/free5gc_cert_spec.cr -v
