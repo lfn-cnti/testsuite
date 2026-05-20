@@ -6,11 +6,7 @@ module CNFInstall
     end
 
     def self.manifest_string_to_ymls(manifest_string)
-      split_content = manifest_string.split(/(\s|^)---(\s|$)/)
-      ymls = split_content.map { |manifest|
-        YAML.parse(manifest)
-      # compact seems to have problems with yaml::any
-      }.reject { |x| x == nil }
+      ymls = YAML.parse_all(manifest_string).reject { |x| x == nil }
       Log.for("manifest_string_to_ymls").trace { "YAMLs parsed from string:\n #{ymls}" }
       ymls
     end
