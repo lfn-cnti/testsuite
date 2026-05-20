@@ -177,11 +177,33 @@ describe "SampleUtils" do
       # fails because doesn't have a service
       ShellCmd.cnf_install("cnf-path=./sample-cnfs/sample_coredns_values")
       deployment_containers = KubectlClient::Get.resource_containers("deployment", "coredns-coredns", "cnf-default")
-      image_tags = KubectlClient::Get.container_image_tags(deployment_containers) 
+      image_tags = KubectlClient::Get.container_image_tags(deployment_containers)
       Log.info { "image_tags: #{image_tags}" }
       (/1.6.9/ =~ image_tags[0][:tag]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end
+  end
+end
+
+describe "CNFInstall.helm_source_path" do
+  it "joins a relative helm_directory to the config dir", tags: ["helm-dir-path"] do
+    result = CNFInstall.helm_source_path("/cnfs/myapp", "charts/envoy")
+    result.should eq("/cnfs/myapp/charts/envoy")
+  end
+
+  it "returns an absolute helm_directory unchanged (bug #2385)", tags: ["helm-dir-path"] do
+    result = CNFInstall.helm_source_path("/cnfs/myapp", "/home/user/charts/envoy")
+    result.should eq("/home/user/charts/envoy")
+  end
+
+  it "joins a bare directory name to config dir", tags: ["helm-dir-path"] do
+    result = CNFInstall.helm_source_path("./example-cnfs/envoy", "envoy")
+    result.should eq("./example-cnfs/envoy/envoy")
+  end
+
+  it "returns a deeply nested absolute path unchanged", tags: ["helm-dir-path"] do
+    result = CNFInstall.helm_source_path("./example-cnfs/envoy", "/home/cedric/Devs/CNTI/testsuite/example-cnfs/envoy/envoy")
+    result.should eq("/home/cedric/Devs/CNTI/testsuite/example-cnfs/envoy/envoy")
   end
 end

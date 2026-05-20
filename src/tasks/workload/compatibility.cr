@@ -458,7 +458,7 @@ task "helm_chart_valid", ["setup:install_local_helm"] do |t, args|
     # Collect helm directory paths and their values
     config.deployments.helm_dirs.each do |deployment|
       chart_info << {
-        File.join(current_dir, DEPLOYMENTS_DIR, deployment.name, deployment.helm_directory),
+        File.join(current_dir, DEPLOYMENTS_DIR, deployment.name, File.basename(deployment.helm_directory)),
         deployment.name,
         deployment.helm_values
       }
