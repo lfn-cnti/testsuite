@@ -4,6 +4,14 @@ module CNFInstall
   Log = ::Log.for("CNFInstall")
 
   alias ResourceInfo  = NamedTuple(kind: String, name: String, namespace: String?)
+
+  def self.helm_source_path(config_dir : String, helm_directory : String) : String
+    if Path.new(helm_directory).absolute?
+      helm_directory
+    else
+      File.join(config_dir, helm_directory)
+    end
+  end
   alias DescendantMap = Hash(ResourceInfo, Array(KubectlClient::ResourceDescendant))
 
   def self.install_cnf(cli_args)
@@ -81,7 +89,7 @@ module CNFInstall
       FileUtils.mkdir_p(File.join(DEPLOYMENTS_DIR, helm_chart_config.name))
     end
     config.deployments.helm_dirs.each do |helm_directory_config|
-      source_dir = File.join(Path[cnf_config_path].dirname, helm_directory_config.helm_directory)
+      source_dir = CNFInstall.helm_source_path(Path[cnf_config_path].dirname.to_s, helm_directory_config.helm_directory)
       destination_dir = File.join(DEPLOYMENTS_DIR, helm_directory_config.name)
       FileUtils.mkdir_p(destination_dir)
       FileUtils.cp_r(source_dir, destination_dir)
