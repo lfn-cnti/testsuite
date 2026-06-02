@@ -115,7 +115,7 @@ end
 
 def smf_up_heartbeat_capture_matches_count(smf_key : String, smf_value : String, command : String)
   K8sTshark::TsharkPacketCapture.begin_capture_by_label(smf_key, smf_value, command) do |capture|
-    sleep 60
+    sleep(Time::Span.new(seconds: 60))
     capture.regex_search(/"pfcp\.msg_type": "(1|2)"/).size
   end
 end
@@ -135,7 +135,7 @@ task "suci_enabled" do |t, args|
       K8sTshark::TsharkPacketCapture.begin_capture_by_label(core_key, core_value, command) do |capture|
         #todo put in prereq
         UERANSIM.install(config)
-        sleep 30.0
+        sleep(Time::Span.new(seconds: 30))
         # TODO 5g RAN (only) mobile traffic check ????
         # use suci encyption but don't use a null encryption key
         suci_found = capture.regex_match?(/"nas_5gs.mm.type_id": "1"/) && \

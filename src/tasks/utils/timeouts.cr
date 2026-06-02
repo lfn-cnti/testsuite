@@ -20,7 +20,7 @@ def repeat_with_timeout(timeout, errormsg, reset_on_nil=false, delay=2, &block)
     elsif result
       return true
     end
-    sleep delay
+    sleep(Time::Span.new(seconds: delay))
     Log.debug { "Time left: #{timeout - (Time.utc - start_time).to_i} seconds" }
   end
   Log.error { errormsg }

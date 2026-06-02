@@ -263,13 +263,13 @@ task "node_drain", ["install_litmus"] do |t, args|
           deployment_label_value="#{spec_labels.as_h.first_value}"
           app_nodeName_cmd = "kubectl get pods -l #{deployment_label}=#{deployment_label_value} -n #{resource["namespace"]} -o=jsonpath='{.items[0].spec.nodeName}'"
           Log.for("node_drain").debug { "Getting the app node name #{app_nodeName_cmd}" }
-          status_code = Process.run("#{app_nodeName_cmd}", shell: true, output: appNodeName_response = IO::Memory.new, error: stderr = IO::Memory.new).exit_status
+          status_code = Process.run("#{app_nodeName_cmd}", shell: true, output: appNodeName_response = IO::Memory.new, error: stderr = IO::Memory.new).exit_code
           Log.for("node_drain").debug { "status_code: #{status_code}" }
           app_nodeName = appNodeName_response.to_s
 
           litmus_nodeName_cmd = "kubectl get pods -n litmus -l app.kubernetes.io/name=litmus -o=jsonpath='{.items[0].spec.nodeName}'"
           Log.for("node_drain").debug { "Getting the app node name #{litmus_nodeName_cmd}" }
-          status_code = Process.run("#{litmus_nodeName_cmd}", shell: true, output: litmusNodeName_response = IO::Memory.new, error: stderr = IO::Memory.new).exit_status
+          status_code = Process.run("#{litmus_nodeName_cmd}", shell: true, output: litmusNodeName_response = IO::Memory.new, error: stderr = IO::Memory.new).exit_code
           Log.for("node_drain").debug { "status_code: #{status_code}" }
           litmus_nodeName = litmusNodeName_response.to_s
           Log.info { "Workload Node Name: #{app_nodeName}" }
