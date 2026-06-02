@@ -169,7 +169,7 @@ module Netstat
 
       # get multiple call for a larger sample
       parsed_netstat = (1..30).map {
-        sleep 10
+        sleep(Time::Span.new(seconds: 10))
         netstat = ClusterTools.exec_by_node("nsenter -t #{pid} -n netstat -n", node_name)
         if netstat.nil?
           next

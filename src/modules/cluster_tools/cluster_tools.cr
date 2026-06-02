@@ -358,7 +358,7 @@ module ClusterTools
         return match
       end
       Log.debug { "Waiting for sha256 of #{image_name} (attempt #{i+1})..." }
-      sleep wait
+      sleep(Time::Span.new(seconds: wait))
     end
     Log.warn { "sha256 for #{image_name} not found after waiting." }
     match

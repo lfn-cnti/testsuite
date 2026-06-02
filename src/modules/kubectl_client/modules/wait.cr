@@ -293,7 +293,7 @@ module KubectlClient
           end
         end
 
-        sleep 1
+        sleep(Time::Span.new(seconds: 1))
         seconds += 1
       end
 

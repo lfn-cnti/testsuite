@@ -68,15 +68,15 @@ module LitmusManager
   def self.get_target_node_to_cordon(deployment_label, deployment_value, namespace)
     app_nodeName_cmd = "kubectl get pods -l #{deployment_label}=#{deployment_value} -n #{namespace} -o=jsonpath='{.items[0].spec.nodeName}'"
     Log.info { "Getting the operator node name: #{app_nodeName_cmd}" }
-    status_code = Process.run("#{app_nodeName_cmd}", shell: true, output: appNodeName_response = IO::Memory.new, error: stderr = IO::Memory.new).exit_status
-    Log.debug { "status_code: #{status_code}" } 
+    status_code = Process.run("#{app_nodeName_cmd}", shell: true, output: appNodeName_response = IO::Memory.new, error: stderr = IO::Memory.new).exit_code
+    Log.debug { "status_code: #{status_code}" }
     appNodeName_response.to_s
   end
 
   private def self.get_status_info(chaos_resource, test_name, output_format, namespace) : {Int32, String}
     status_cmd = "kubectl get #{chaos_resource}.#{LITMUS_K8S_DOMAIN} #{test_name} -n #{namespace} -o '#{output_format}'"
     Log.info { "Getting litmus status info: #{status_cmd}" }
-    status_code = Process.run("#{status_cmd}", shell: true, output: status_response = IO::Memory.new, error: stderr = IO::Memory.new).exit_status
+    status_code = Process.run("#{status_cmd}", shell: true, output: status_response = IO::Memory.new, error: stderr = IO::Memory.new).exit_code
     status_response = status_response.to_s
     Log.info { "status_code: #{status_code}, response: #{status_response}" }
     {status_code, status_response}

@@ -21,7 +21,7 @@ task "microservice", ["reasonable_image_size", "reasonable_startup_time", "singl
 end
 
 REASONABLE_STARTUP_BUFFER = 10.0
-STRACE_WAIT_BUFFER = 3.0
+STRACE_WAIT_BUFFER = 3
 
 enum StraceAttachResult
   Attached
@@ -435,7 +435,7 @@ task "zombie_handled" do |t, args|
       end
     end
 
-    sleep 10.0
+    sleep(Time::Span.new(seconds: 10))
 
     pods_to_restart = Set(Tuple(String, String)).new
     containers_to_restart = Set(Tuple(String, JSON::Any)).new
@@ -472,7 +472,7 @@ task "zombie_handled" do |t, args|
     end
 
     if !pods_to_restart.empty?
-      sleep 20.0
+      sleep(Time::Span.new(seconds: 20))
     end
 
     pods_to_restart.each do |pod_name, namespace|
@@ -666,11 +666,11 @@ task "sig_term_handled" do |t, args|
           end
 
           logger.info {"Attached strace to PIDs: #{attached_pids.join(", ")}"}
-          sleep STRACE_WAIT_BUFFER
+          sleep(Time::Span.new(seconds: STRACE_WAIT_BUFFER))
 
           # Send SIGTERM => wait => SIGKILL
           ClusterTools.exec_by_node("bash -c 'kill -TERM #{pid} || true; sleep 5; kill -9 #{pid} || true'", node)
-          sleep STRACE_WAIT_BUFFER
+          sleep(Time::Span.new(seconds: STRACE_WAIT_BUFFER))
 
           # If no processes were attached, treat that as "skip"
           if attached_pids.empty?

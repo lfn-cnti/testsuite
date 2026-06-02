@@ -116,7 +116,7 @@ module K8sTshark
 
         # Some tshark captures were left in zombie states if only kill/kill -9 was invoked.
         ClusterTools.exec_by_node_bg("kill -15 #{@pid}", @node_match.not_nil!)
-        sleep 1
+        sleep(Time::Span.new(seconds: 1))
         ClusterTools.exec_by_node_bg("kill -9 #{@pid}", @node_match.not_nil!)
 
         @pid = nil
