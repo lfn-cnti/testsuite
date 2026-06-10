@@ -1,6 +1,4 @@
-name: Nightly Free5GC Certification
-
-# This workflow runs automatically every night at midnight UTC,
+name: free5GC validation
 on:
   schedule:
     - cron: '0 0 * * *'
@@ -9,7 +7,7 @@ on:
     branches:
       - main
 jobs:
-  free5gc-certificaton:
+  free5gc-validation:
     runs-on: [v1.0.0]
     steps:
       - name: Checkout Code & Submodules
@@ -21,7 +19,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
-      - name: Setup Kind Cluster (v0.30.0) with Sysctl Patch
+      - name: Setup Kind Cluster with Sysctl Patch
         run: |
           cat <<EOF > kind_setup.yaml
           kind: Cluster
@@ -77,6 +75,7 @@ jobs:
       - name: Run Free5GC Spec Test
         run: |
           LOG_LEVEL=INFO crystal spec spec/free5gc_cert_spec.cr -v
-      - name: Run Free5GC Spec Test
+      - name: Delete Kind Cluster
+        continue-on-error: true
         run: |
           until kind delete cluster --name free5gc-dev  --verbosity 1; do sleep 1; done
