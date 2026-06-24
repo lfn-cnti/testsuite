@@ -22,7 +22,7 @@ module CNFManager
     end
 
     def self.task_runner(args, task : Sam::Task? = nil, check_cnf_installed = true,
-                         &block : (Sam::Args, CNFInstall::Config::Config) -> (
+                         &block : (Sam::Args, CNFInstall::Config::Config, CNFManager::TestCaseResult) -> (
                            String | Colorize::Object(String) | CNFManager::TestCaseResult?)
     )
       CNFManager::Points::Results.ensure_results_file!
@@ -36,7 +36,7 @@ module CNFManager
     end
 
     def self.all_cnfs_task_runner(args, task : Sam::Task? = nil,
-                                  &block : (Sam::Args, CNFInstall::Config::Config) -> (
+                                  &block : (Sam::Args, CNFInstall::Config::Config, CNFManager::TestCaseResult) -> (
                                     String | Colorize::Object(String) | CNFManager::TestCaseResult?)
     )
       cnf_configs = CNFManager.cnf_config_list(false)
@@ -55,68 +55,58 @@ module CNFManager
 
     # TODO give example for calling
     def self.single_task_runner(args, task : Sam::Task? = nil, 
-                                &block : (Sam::Args, CNFInstall::Config::Config) -> (
+                                &block : (Sam::Args, CNFInstall::Config::Config, CNFManager::TestCaseResult) -> (
                                   String | Colorize::Object(String) | CNFManager::TestCaseResult?)
     )
       logger = @@logger.for("task_runner")
       logger.debug { "Run task with args #{args.inspect}" }
 
+      # platform tests don't have a cnf-config
+      if args.named["cnf-config"]?
+        config = CNFInstall::Config.parse_cnf_config_from_file(args.named["cnf-config"].as(String))
+      else
+        yaml_string = <<-YAML
+          config_version: v2
+          deployments:
+            helm_dirs:
+              - name: "platform-test-dummy-deployment"
+                helm_directory: ""
+          YAML
+        config = CNFInstall::Config.parse_cnf_config_from_yaml(yaml_string)
+      end
+
+      result = CNFManager::TestCaseResult.empty
+      result.set_start_time()
+      if task
+        result.set_testcase(task.as(Sam::Task).name.as(String))
+        logger.for(result.testcase).info { "Starting test" }
+        stdout_info("🎬 Testing: [#{result.testcase}]")
+      end
+
       begin
-        # platform tests don't have a cnf-config
-        if args.named["cnf-config"]?
-          config = CNFInstall::Config.parse_cnf_config_from_file(args.named["cnf-config"].as(String))
-        else
-          yaml_string = <<-YAML
-            config_version: v2
-            deployments:
-              helm_dirs:
-                - name: "platform-test-dummy-deployment"
-                  helm_directory: ""
-            YAML
-          config = CNFInstall::Config.parse_cnf_config_from_yaml(yaml_string)
-        end
-
-        test_start_time = Time.utc
-        if task
-          test_name = task.as(Sam::Task).name.as(String)
-          logger.for(test_name).info { "Starting test" }
-          stdout_info("🎬 Testing: [#{test_name}]")
-        end
-
-        ret = yield args, config
-        if ret.is_a?(CNFManager::TestCaseResult)
-          upsert_decorated_task(test_name, ret.state, ret.result_message, test_start_time)
-        end
-        # todo lax mode, never returns 1
-        if args.raw.includes? "strict"
-          if CNFManager::Points.failed_required_tasks.size > 0
-            logger.fatal { "Strict mode exception. Stopping execution." }
-            stdout_failure "Test Suite failed in strict mode. Stopping execution."
-            stdout_failure "Failed required tasks: #{CNFManager::Points.failed_required_tasks.inspect}"
-            update_yml("#{CNFManager::Points::Results.file}", "exit_code", "#{FAILURE_CODE}")
-            exit FAILURE_CODE
-          end
-        end
-        ret
+        yield args, config, result
       rescue ex
-        # platform tests don't have a cnf-config
-        # Set exception key/value in results
-        # file to -1
-        test_start_time = Time.utc
+        result.error("Unexpected error occurred")
         logger.error { ex.message }
         ex.backtrace.each do |x|
           logger.error { x }
         end
+      ensure
+        result.set_end_time()
+        upsert_decorated_task(result)
+      end
 
-        update_yml("#{CNFManager::Points::Results.file}", "exit_code", "#{CRITICAL_FAILURE_CODE}")
-        if args.raw.includes? "strict"
+      # todo lax mode, never returns 1
+      if args.raw.includes? "strict"
+        if result.status == CNFManager::ResultStatus::Error || result.status == CNFManager::ResultStatus::Failed
           logger.fatal { "Strict mode exception. Stopping execution." }
           stdout_failure "Test Suite failed in strict mode. Stopping execution."
-          exit CRITICAL_FAILURE_CODE
-        else
-          logger.warn { "Exception caught, continue to the next task" }
-          upsert_decorated_task(test_name, CNFManager::ResultStatus::Error, 
-            "Unexpected error occurred", test_start_time)
+          if CNFManager::Points.failed_required_tasks.size > 0
+            stdout_failure "Failed required tasks: #{CNFManager::Points.failed_required_tasks.inspect}"
+          end
+          exit_code = result.status == CNFManager::ResultStatus::Error ? CRITICAL_FAILURE_CODE : FAILURE_CODE
+          update_yml("#{CNFManager::Points::Results.file}", "exit_code", "#{exit_code}")
+          exit exit_code
         end
       end
     end

@@ -22,12 +22,12 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
 
   desc "Test if the CNF containers are loosely coupled by performing a #{pretty_test_name}"
   task "#{tn}" do |t, args|
-    CNFManager::Task.task_runner(args, task: t) do |args, config|
+    CNFManager::Task.task_runner(args, task: t) do |args, config, result|
       container_names = config.common.container_names
       Log.for(t.name).debug { "container_names: #{container_names}" }
       update_applied = true
       unless container_names
-        puts "Please add a container names set of entries into your cnf-testsuite.yml".colorize(:red)
+        result.append_description("Please add a container names set of entries into your cnf-testsuite.yml")
         update_applied = false
       end
 
@@ -46,7 +46,7 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
         config_container = container_names.find{|x| x.name==container.as_h["name"]} if container_names
         Log.debug { "config_container: #{config_container}" }
         unless config_container && !config_container.get_container_tag(tn).empty?
-          puts "Please add the container name #{container.as_h["name"]} and a corresponding #{tn}_test_tag into your cnf-testsuite.yml under container names".colorize(:red)
+          result.append_description("Please add the container name #{container.as_h["name"]} and a corresponding #{tn}_test_tag into your cnf-testsuite.yml under container names")
           valid_cnf_testsuite_yml = false
         end
 
@@ -82,9 +82,9 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
       end
       Log.trace { "#{tn}: task_response=#{task_response}" }
       if task_response
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "CNF for #{pretty_test_name_capitalized} Passed")
+        result.passed("CNF for #{pretty_test_name_capitalized} Passed")
       else
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "CNF for #{pretty_test_name_capitalized} Failed")
+        result.failed("CNF for #{pretty_test_name_capitalized} Failed")
       end
       # TODO should we roll the image back to original version in an ensure?
       # TODO Use the kubectl rollback to history command
@@ -94,7 +94,7 @@ end
 
 desc "Test if the CNF can perform a rollback"
 task "rollback" do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     container_names = config.common.container_names
     Log.for(t.name).debug { "container_names: #{container_names}" }
 
@@ -104,8 +104,9 @@ task "rollback" do |t, args|
     version_change_applied = true
 
     unless container_names
-      stdout_failure("Please add a container names set of entries into your cnf-testsuite.yml")
-      next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "CNF Rollback Failed")
+      result.append_description("Please add a container names set of entries into your cnf-testsuite.yml")
+      result.failed("CNF Rollback Failed")
+      next
     end
 
     task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
@@ -126,13 +127,13 @@ task "rollback" do |t, args|
       # compare cnf_testsuite.yml container list with the current container name
       config_container = container_names.find{|x| x.name == container_name } if container_names
       unless config_container && !config_container.get_container_tag("rollback_from").empty?
-        stdout_failure("Please add the container name #{container_name} and a corresponding rollback_from_tag into your cnf-testsuite.yml under container names")
+        result.append_description("Please add the container name #{container_name} and a corresponding rollback_from_tag into your cnf-testsuite.yml under container names")
         next false
       end
 
       rollback_from_tag = config_container.get_container_tag("rollback_from")
       if rollback_from_tag == image_tag
-        stdout_failure("Rollback not possible. Please specify a different version than the helm chart default image.tag for 'rollback_from_tag' ")
+        result.append_description("Rollback not possible. Please specify a different version than the helm chart default image.tag for 'rollback_from_tag' ")
         next false
       end
 
@@ -151,7 +152,7 @@ task "rollback" do |t, args|
       Log.for(t.name).info { "rollback version change successful? #{version_change_applied}" }
 
       rollout_status = KubectlClient::Rollout.status(resource_kind, resource_name, namespace: namespace, timeout: "180s")
-      stdout_failure("Rollback failed on resource: #{resource_kind}/#{resource_name} and container: #{container_name}") unless rollout_status
+      result.append_description("Rollback failed on resource: #{resource_kind}/#{resource_name} and container: #{container_name}") unless rollout_status
 
       Log.for(t.name).debug { "rollback: rolling back to old version" }
       rollback_status = KubectlClient::Rollout.undo(resource_kind, resource_name, namespace: namespace)[:status].success?
@@ -160,9 +161,9 @@ task "rollback" do |t, args|
     end
 
     if task_response
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "CNF Rollback Passed")
+      result.passed("CNF Rollback Passed")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "CNF Rollback Failed")
+      result.failed("CNF Rollback Failed")
     end
   end
 end
@@ -170,7 +171,7 @@ end
 desc "Test increasing/decreasing capacity"
 task "increase_decrease_capacity" do |t, args|
 
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     increase_test_base_replicas = "1"
     increase_test_target_replicas = "3"
 
@@ -208,15 +209,15 @@ task "increase_decrease_capacity" do |t, args|
     decrease_task_successful = !decrease_task_response.nil? && decrease_task_response.none?(false)
 
     if increase_task_successful && decrease_task_successful
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Replicas increased to #{increase_test_target_replicas} and decreased to #{decrease_test_target_replicas}")
+      result.passed("Replicas increased to #{increase_test_target_replicas} and decreased to #{decrease_test_target_replicas}")
     else
-      stdout_failure(increase_decrease_remedy_msg())
+      result.append_description(increase_decrease_remedy_msg())
       unless increase_task_successful
-        stdout_failure("Failed to increase replicas from #{increase_test_base_replicas} to #{increase_test_target_replicas}")
+        result.append_description("Failed to increase replicas from #{increase_test_base_replicas} to #{increase_test_target_replicas}")
       else
-        stdout_failure("Failed to decrease replicas from #{decrease_test_base_replicas} to #{decrease_test_target_replicas}")
+        result.append_description("Failed to decrease replicas from #{decrease_test_base_replicas} to #{decrease_test_target_replicas}")
       end  
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Capacity change failed")
+      result.failed("Capacity change failed")
     end
   end
 end
@@ -373,23 +374,23 @@ desc "Will the CNF install using helm with helm_deploy?"
 task "helm_deploy" do |t, args|
   Log.for(t.name).debug { "helm_deploy args: #{args.inspect}" }
 
-  CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config|
+  CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
     if check_cnf_config(args) || CNFManager.cnf_installed?
       helm_used = !config.deployments.helm_charts.empty? || !config.deployments.helm_dirs.empty?
 
       if helm_used
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "CNF is installed via helm")
+        result.passed("CNF is installed via helm")
       else
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "CNF has deployments that are not installed with helm")
+        result.failed("CNF has deployments that are not installed with helm")
       end
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "No cnf_testsuite.yml found! Did you run the \"cnf_install\" task?")
+      result.failed("No cnf_testsuite.yml found! Did you run the \"cnf_install\" task?")
     end
   end
 end
 
 task "helm_chart_published", ["setup:install_local_helm"] do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     helm = Helm::Binary.get
 
     # Store chart search commands in an array
@@ -425,20 +426,22 @@ task "helm_chart_published", ["setup:install_local_helm"] do |t, args|
     # Handle the case where no charts were specified
     unless charts_found
       Log.for(t.name).info { "No Helm charts found for searching." }
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "No Helm charts found to search")
+      result.skipped("No Helm charts found to search")
     else
-      # Return appropriate results based on search outcomes
       if all_published
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "All Helm charts are published")
+        result.passed("All Helm charts are published")
       else
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "One or more Helm charts are not published")
+        chart_searches.each do |chart|
+          result.append_description("Chart search: #{chart}") unless all_published
+        end
+        result.failed("One or more Helm charts are not published")
       end
     end
   end
 end
 
 task "helm_chart_valid", ["setup:install_local_helm"] do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     current_dir = FileUtils.pwd
     helm = Helm::Binary.get
     Log.info { "Current directory: #{current_dir}" }
@@ -495,13 +498,13 @@ task "helm_chart_valid", ["setup:install_local_helm"] do |t, args|
     # Handle case where no charts were found
     unless charts_found
       Log.for(t.name).info { "No Helm charts or directories found for linting." }
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "No Helm charts found to lint")
+      result.skipped("No Helm charts found to lint")
     else
       # Return appropriate results based on linting outcomes
       if all_passed
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Helm chart lint passed on all charts")
+        result.passed("Helm chart lint passed on all charts")
       else
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Helm chart lint failed on one or more charts")
+        result.failed("Helm chart lint failed on one or more charts")
       end
     end
   end
@@ -543,9 +546,10 @@ end
 
 desc "CNFs should work with any Certified Kubernetes product and any CNI-compatible network that meet their functionality requirements."
 task "cni_compatible" do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
      # TODO (kosstennbl) adapt cnf_to_new_cluster metod to new installation process. Until then - test is disabled. More info: #2153
-    next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "cni_compatible test was temporarily disabled, check #2153")
+    result.skipped("cni_compatible test was temporarily disabled, check #2153")
+    next
     docker_version = DockerClient.version_info()
     if docker_version.installed?
       ensure_kubeconfig!
@@ -555,17 +559,17 @@ task "cni_compatible" do |t, args|
         Log.info { "calico kubeconfig: #{calico_cluster.kubeconfig}" }
         calico_cnf_passed = CNFManager.cnf_to_new_cluster(config, calico_cluster.kubeconfig)
         Log.info { "calico_cnf_passed: #{calico_cnf_passed}" }
-        puts "CNF failed to install on Calico CNI cluster".colorize(:red) unless calico_cnf_passed
+        result.append_description("CNF failed to install on Calico CNI cluster") unless calico_cnf_passed
 
         cilium_cluster = setup_cilium_cluster("cilium-test")
         cilium_cnf_passed = CNFManager.cnf_to_new_cluster(config, cilium_cluster.kubeconfig)
         Log.info { "cilium_cnf_passed: #{cilium_cnf_passed}" }
-        puts "CNF failed to install on Cilium CNI cluster".colorize(:red) unless cilium_cnf_passed
+        result.append_description("CNF failed to install on Cilium CNI cluster") unless cilium_cnf_passed
 
         if calico_cnf_passed && cilium_cnf_passed
-          CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "CNF compatible with both Calico and Cilium")
+          result.passed("CNF compatible with both Calico and Cilium")
         else
-          CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "CNF not compatible with either Calico or Cilium")
+          result.failed("CNF not compatible with either Calico or Cilium")
         end
       ensure
         kind_manager = KindManager.new
@@ -574,7 +578,7 @@ task "cni_compatible" do |t, args|
         ENV["KUBECONFIG"]="#{kubeconfig_orig}"
       end
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Docker not installed")
+      result.skipped("Docker not installed")
     end
   end
 end
@@ -584,9 +588,10 @@ task "deprecated_k8s_features" do |t, args|
   logger = WLOG.for("deprecated_k8s_features")
   logger.info { "Testing CNF for usage of deprecated Kubernetes features" }
 
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     skipped = false
     passed = false
+    warnings = [] of String
 
     unless File.exists?(CNF_INSTALL_LOG_FILE)
       logger.warn { "Installation log file not found, should be in: #{CNF_INSTALL_LOG_FILE}" }
@@ -595,7 +600,6 @@ task "deprecated_k8s_features" do |t, args|
 
     unless skipped
       pattern = /deprecated/
-      warnings = [] of String
       File.each_line(CNF_INSTALL_LOG_FILE) { |line| warnings << line if pattern.match(line) }
       logger.info { "Found #{warnings.size} deprecated feature warnings" }
 
@@ -603,18 +607,18 @@ task "deprecated_k8s_features" do |t, args|
         passed = true
         logger.info { "CNF does not use any deprecated features" }
       else
-        stdout_warning("Deprecated features warnings:\n#{warnings.join("\n")}")
+        result.append_description("Deprecated features warnings:\n#{warnings.join("\n")}")
         logger.info { "Warnings:\n#{warnings.join("\n")}" }
         passed = false
       end
     end
 
     if skipped
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "CNF installation log file not found")
+      result.skipped("CNF installation log file not found")
     elsif passed
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "CNF does not use deprecated K8s features")
+      result.passed("CNF does not use deprecated K8s features")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "CNF uses deprecated K8s features")
+      result.failed("CNF uses deprecated K8s features")
     end
   end
 end

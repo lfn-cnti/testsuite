@@ -217,7 +217,7 @@ end
 
 desc "Does the CNF crash when node-drain occurs"
 task "node_drain", ["install_litmus"] do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     skipped = false
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
       test_passed = true
@@ -227,7 +227,7 @@ task "node_drain", ["install_litmus"] do |t, args|
 
       # Check if labels exist before proceeding
       if spec_labels.as_h.size == 0
-        stdout_failure("No resource label found for #{t.name} test for resource: #{resource["kind"]}/#{resource["name"]} in #{resource["namespace"]} namespace")
+        result.append_description("No resource label found for #{t.name} test for resource: #{resource["kind"]}/#{resource["name"]} in #{resource["namespace"]} namespace")
         test_passed = false
       else
         schedulable_nodes_count=KubectlClient::Get.schedulable_nodes_list
@@ -243,10 +243,10 @@ task "node_drain", ["install_litmus"] do |t, args|
           Log.info { "Found node to cordon #{cordon_target_node_name} using label #{cordon_deployment_label}='#{cordon_deployment_value}' in #{app_namespace} namespace." }
 
           # Cordon the node.
-          result = KubectlClient::Utils.cordon("#{cordon_target_node_name}")
+          cordon_result = KubectlClient::Utils.cordon("#{cordon_target_node_name}")
 
           # If cordoning fails, skip the test.
-          if result[:status].success?
+          if cordon_result[:status].success?
             Log.info { "Cordoned node #{cordon_target_node_name} successfully." }
           else
             Log.info { "Unable to cordon node #{cordon_target_node_name}." }
@@ -331,10 +331,10 @@ task "node_drain", ["install_litmus"] do |t, args|
 
         # Uncordon the node.
         if cordon_target_node_name
-          result = KubectlClient::Utils.uncordon("#{cordon_target_node_name}")
+          uncordon_result = KubectlClient::Utils.uncordon("#{cordon_target_node_name}")
 
           # If uncordoning fails, log the error.
-          if result[:status].success?
+          if uncordon_result[:status].success?
             Log.info { "Uncordoned node #{cordon_target_node_name} successfully." }
           else
             Log.error { "Uncordoning node #{cordon_target_node_name} failed." }
@@ -347,18 +347,18 @@ task "node_drain", ["install_litmus"] do |t, args|
     end
     if skipped
       Log.for(t.name).warn{"The node_drain test needs minimum 2 schedulable nodes, current number of nodes: #{KubectlClient::Get.schedulable_nodes_list.size}"}
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "node_drain chaos test requires the cluster to have atleast two schedulable nodes")
+      result.skipped("node_drain chaos test requires the cluster to have atleast two schedulable nodes")
     elsif task_response
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "node_drain chaos test passed")
+      result.passed("node_drain chaos test passed")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "node_drain chaos test failed")
+      result.failed("node_drain chaos test failed")
     end
   end
 end
 
 desc "Does the CNF use an elastic persistent volume"
 task "elastic_volumes" do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     all_volumes_elastic = true
     volumes_used = false
 
@@ -376,7 +376,7 @@ task "elastic_volumes" do |t, args|
       elastic_result = WorkloadResource.elastic?(full_resource, volumes.as_a, resource["namespace"])
       Log.for("#{t.name}:elastic_result").info {elastic_result}
       unless elastic_result
-        stdout_failure("Resource #{resource["kind"]}/#{resource["name"]} in #{resource["namespace"]} uses non-elastic volumes: #{volumes.as_a.map(&.dig("name")).join(", ")}")
+        result.append_description("Resource #{resource["kind"]}/#{resource["name"]} in #{resource["namespace"]} uses non-elastic volumes: #{volumes.as_a.map(&.dig("name")).join(", ")}")
       end
     
       elastic_result
@@ -384,11 +384,11 @@ task "elastic_volumes" do |t, args|
 
     Log.for("elastic_volumes:result").info { "Volumes used: #{volumes_used}; Elastic?: #{all_volumes_elastic}" }
     if !volumes_used
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "No volumes are used")
+      result.skipped("No volumes are used")
     elsif task_response
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "All used volumes are elastic")
+      result.passed("All used volumes are elastic")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Some of the used volumes are not elastic")
+      result.failed("Some of the used volumes are not elastic")
     end
   end
 
@@ -404,7 +404,7 @@ end
 
 desc "Does the CNF use a database which uses perisistence in a cloud native way"
 task "database_persistence" do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     # Log.debug { "database_persistence" }
     # todo K8s Database persistence test: if a mysql (or any popular database) image is installed:
     non_elastic_database_statefulset_found = false
@@ -412,7 +412,8 @@ task "database_persistence" do |t, args|
     Log.info {"database_persistence mysql: #{match}"}
 
     unless match && match[:found]
-      next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "CNF does not use database")
+      result.skipped("CNF does not use database")
+      next
     end
 
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, volumes|
@@ -435,16 +436,16 @@ task "database_persistence" do |t, args|
       Log.info {"database_persistence elastic_volume: #{elastic_volume}"}
 
       unless elastic_volume
-        stdout_failure("StatefulSet #{resource["name"]} in #{resource["namespace"]} uses non-elastic volumes: #{volumes.as_a.map(&.dig("name")).join(", ")}")
+        result.append_description("StatefulSet #{resource["name"]} in #{resource["namespace"]} uses non-elastic volumes: #{volumes.as_a.map(&.dig("name")).join(", ")}")
       end
 
       elastic_volume
     end
 
     if task_response
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Pass5, "CNF uses database with cloud-native persistence")
+      result.passed("CNF uses database with cloud-native persistence")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "CNF uses database without cloud-native persistence (ভ_ভ) ރ 💾")
+      result.failed("CNF uses database without cloud-native persistence (ভ_ভ) ރ 💾")
     end
   end
 
@@ -460,7 +461,7 @@ end
 
 desc "Does the CNF use a non-cloud native data store: local volumes on the node?"
 task "no_local_volume_configuration" do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     task_response = CNFManager.cnf_workload_resources(args, config) do | resource|
       hostPath_found = nil 
       begin
@@ -503,16 +504,16 @@ task "no_local_volume_configuration" do |t, args|
         end
       rescue ex
         Log.for(t.name).error { ex.message }
-        puts "Rescued: On resource #{resource["metadata"]["name"]?} of kind #{resource["kind"]}, local storage configuration volumes not found".colorize(:yellow)
+        result.append_description("Rescued: On resource #{resource["metadata"]["name"]?} of kind #{resource["kind"]}, local storage configuration volumes not found")
         local_storage_not_found = true
       end
       local_storage_not_found
     end
 
     if task_response.any?(false)
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "local storage configuration volumes found (ভ_ভ) ރ")
+      result.failed("local storage configuration volumes found (ভ_ভ) ރ")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "local storage configuration volumes not found 🖥️")
+      result.passed("local storage configuration volumes not found 🖥️")
     end
   end
 end

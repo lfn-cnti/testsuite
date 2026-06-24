@@ -6,7 +6,17 @@ require "file_utils"
 require "sam"
 require "json"
 
+def verify_task_result(task_name : String, expected_status : String)
+  latest_results = Dir.glob("results/cnf-testsuite-results-*.yml").max_by { |path| File.info(path).modification_time }
+  latest_results.should_not be_nil
+  yaml = YAML.parse(File.read(latest_results.not_nil!))
+  item = yaml["items"].as_a.find { |i| i["name"].as_s == task_name }
+  item.should_not be_nil
+  item.not_nil!["status"].as_s.should eq(expected_status)
+end
+
 describe "Operator" do
+
 
   it "'operator_test' test if operator is being used", tags: ["operator_test"]  do
     current_dir = FileUtils.pwd
@@ -24,6 +34,7 @@ describe "Operator" do
       ShellCmd.cnf_install("cnf-path=./sample-cnfs/sample_operator", cmd_prefix: "LOG_LEVEL=info")
       result = ShellCmd.run_testsuite("operator_installed", cmd_prefix: "LOG_LEVEL=info")
       (/(PASSED).*(Operator is installed)/ =~ result[:output]).should_not be_nil
+      verify_task_result("operator_installed", "passed")
     ensure
       result = ShellCmd.cnf_uninstall(cmd_prefix: "LOG_LEVEL=info")
       result[:status].success?.should be_true
@@ -70,6 +81,7 @@ describe "Operator" do
       ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_coredns")
       result = ShellCmd.run_testsuite("operator_installed", cmd_prefix: "LOG_LEVEL=info")
       (/(N\/A).*(No Operators Found)/ =~ result[:output]).should_not be_nil
+      verify_task_result("operator_installed", "na")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true

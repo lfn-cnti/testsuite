@@ -2,6 +2,15 @@ require "../spec_helper"
 require "colorize"
 require "../../src/tasks/utils/utils.cr"
 
+def verify_task_result(task_name : String, expected_status : String)
+  latest_results = Dir.glob("results/cnf-testsuite-results-*.yml").max_by { |path| File.info(path).modification_time }
+  latest_results.should_not be_nil
+  yaml = YAML.parse(File.read(latest_results.not_nil!))
+  item = yaml["items"].as_a.find { |i| i["name"].as_s == task_name }
+  item.should_not be_nil
+  item.not_nil!["status"].as_s.should eq(expected_status)
+end
+
 describe CnfTestSuite do
   before_all do
     result = ShellCmd.run("pwd")
@@ -13,12 +22,14 @@ describe CnfTestSuite do
     result = ShellCmd.run_testsuite("setup:create_namespace")
   end
 
+
   it "'liveness' should pass when livenessProbe is set", tags: ["liveness"] do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/k8s-multiple-deployments/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("liveness", cmd_prefix:"LOG_LEVEL=debug")
       result[:status].success?.should be_true
       (/(PASSED).*(All workload resources have at least one container with a liveness probe)/ =~ result[:output]).should_not be_nil
+      verify_task_result("liveness", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -30,6 +41,7 @@ describe CnfTestSuite do
       result = ShellCmd.run_testsuite("liveness")
       result[:status].success?.should be_true
       (/(FAILED).*(One or more workload resources have no containers with a liveness probe)/ =~ result[:output]).should_not be_nil
+      verify_task_result("liveness", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -41,6 +53,7 @@ describe CnfTestSuite do
       result = ShellCmd.run_testsuite("readiness", cmd_prefix: "LOG_LEVEL=debug")
       result[:status].success?.should be_true
       (/(PASSED).*(All workload resources have at least one container with a readiness probe)/ =~ result[:output]).should_not be_nil
+      verify_task_result("readiness", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -52,6 +65,7 @@ describe CnfTestSuite do
       result = ShellCmd.run_testsuite("readiness")
       result[:status].success?.should be_true
       (/(FAILED).*(One or more workload resources have no containers with a readiness probe)/ =~ result[:output]).should_not be_nil
+      verify_task_result("readiness", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -162,6 +176,7 @@ describe CnfTestSuite do
       result = ShellCmd.run_testsuite("nodeport_not_used")
       result[:status].success?.should be_true
       (/(PASSED).*(NodePort is not used)/ =~ result[:output]).should_not be_nil
+      verify_task_result("nodeport_not_used", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -184,6 +199,7 @@ describe CnfTestSuite do
       result = ShellCmd.run_testsuite("hostport_not_used")
       result[:status].success?.should be_true
       (/(PASSED).*(HostPort is not used)/ =~ result[:output]).should_not be_nil
+      verify_task_result("hostport_not_used", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -217,6 +233,7 @@ describe CnfTestSuite do
       result = ShellCmd.run_testsuite("secrets_used")
       result[:status].success?.should be_true
       (/(PASSED).*(Secrets defined and used)/ =~ result[:output]).should_not be_nil
+      verify_task_result("secrets_used", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -305,6 +322,7 @@ describe CnfTestSuite do
       result = ShellCmd.run_testsuite("require_labels")
       result[:status].success?.should be_true
       (/(PASSED).*(Pods have the app.kubernetes.io\/name label)/ =~ result[:output]).should_not be_nil
+      verify_task_result("require_labels", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -351,6 +369,7 @@ describe CnfTestSuite do
       result = ShellCmd.run_testsuite("latest_tag")
       result[:status].success?.should be_true
       (/(PASSED).*(Container images are not using the latest tag)/ =~ result[:output]).should_not be_nil
+      verify_task_result("latest_tag", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
     end

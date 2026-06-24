@@ -190,55 +190,65 @@ def update_yml(yml_file, top_level_key, value)
   end
 end
 
-def upsert_decorated_task(task, status : CNFManager::ResultStatus, message, start_time)
-  tc_emoji = CNFManager::Points.emoji_by_task(task)
-  cat_emoji = CNFManager::Points.task_emoji_by_task(task)
+def upsert_decorated_task(result : CNFManager::TestCaseResult)
+  status = result.status
+  CNFManager::Points.upsert_task(result)
+  decorated_message = result.decorated_result_message
   case status.to_basic
   when CNFManager::ResultStatus::Passed
-    upsert_passed_task(task, "✔️  #{cat_emoji}PASSED: [#{task}] #{message} #{tc_emoji}", start_time)
+    stdout_success decorated_message
   when CNFManager::ResultStatus::Failed
-    upsert_failed_task(task, "✖️  #{cat_emoji}FAILED: [#{task}] #{message} #{tc_emoji}", start_time)
+    stdout_failure decorated_message
   when CNFManager::ResultStatus::Skipped
-    upsert_skipped_task(task, "⏭️  #{cat_emoji}SKIPPED: [#{task}] #{message} #{tc_emoji}", start_time)
+    stdout_warning decorated_message
   when CNFManager::ResultStatus::NA
-    upsert_na_task(task, "⏭️  #{cat_emoji}N/A: [#{task}] #{message} #{tc_emoji}", start_time)
+    stdout_warning decorated_message
   when CNFManager::ResultStatus::Error
-    upsert_error_task(task, "💥  #{cat_emoji}ERROR: [#{task}] #{message}", start_time)
+    stdout_failure decorated_message
   end
+  result.result_description.each do |desc|
+    stdout_info "   > #{desc}"
+  end
+  decorated_message
 end
 
-def upsert_failed_task(task, message, start_time)
-  CNFManager::Points.upsert_task(task, FAILED, CNFManager::Points.task_points(task, CNFManager::ResultStatus::Failed), start_time)
-  stdout_failure message
-  message
+def upsert_failed_task(task, decorated_message, message, start_time)
+  result = CNFManager::TestCaseResult.new(task, CNFManager::ResultStatus::Failed, message, [] of String, start_time, Time.utc)
+  CNFManager::Points.upsert_task(result)
+  stdout_failure decorated_message
+  decorated_message
 end
 
-def upsert_passed_task(task, message, start_time)
-  CNFManager::Points.upsert_task(task, PASSED, CNFManager::Points.task_points(task, CNFManager::ResultStatus::Passed), start_time)
-  stdout_success message
-  message
+def upsert_passed_task(task, decorated_message, message, start_time)
+  result = CNFManager::TestCaseResult.new(task, CNFManager::ResultStatus::Passed, message, [] of String, start_time, Time.utc)
+  CNFManager::Points.upsert_task(result)
+  stdout_success decorated_message
+  decorated_message
 end
 
-def upsert_skipped_task(task, message, start_time)
-  CNFManager::Points.upsert_task(task, SKIPPED, CNFManager::Points.task_points(task, CNFManager::ResultStatus::Skipped), start_time)
-  stdout_warning message
-  message
+def upsert_skipped_task(task, decorated_message, message, start_time)
+  result = CNFManager::TestCaseResult.new(task, CNFManager::ResultStatus::Skipped, message, [] of String, start_time, Time.utc)
+  CNFManager::Points.upsert_task(result)
+  stdout_warning decorated_message
+  decorated_message
 end
 
-def upsert_na_task(task, message, start_time)
-  CNFManager::Points.upsert_task(task, NA, CNFManager::Points.task_points(task, CNFManager::ResultStatus::NA), start_time)
-  stdout_warning message
-  message
+def upsert_na_task(task, decorated_message, message, start_time)
+  result = CNFManager::TestCaseResult.new(task, CNFManager::ResultStatus::NA, message, [] of String, start_time, Time.utc)
+  CNFManager::Points.upsert_task(result)
+  stdout_warning decorated_message
+  decorated_message
 end
 
-def upsert_error_task(task, message, start_time)
-  CNFManager::Points.upsert_task(task, ERROR, CNFManager::Points.task_points(task, CNFManager::ResultStatus::Error), start_time)
-  stdout_error message
-  message
-end
+def upsert_error_task(task, decorated_message, message, start_time)
+  result = CNFManager::TestCaseResult.new(task, CNFManager::ResultStatus::Error, message, [] of String, start_time, Time.utc)
+  CNFManager::Points.upsert_task(result)
+   stdout_error decorated_message
+   decorated_message
+ end
 
 def upsert_dynamic_task(task, status : CNFManager::ResultStatus, message, start_time)
-  CNFManager::Points.upsert_task(task, status.to_s.downcase, CNFManager::Points.task_points(task, status), start_time)
+  CNFManager::Points.upsert_task(task, status.to_s.downcase, CNFManager::Points.task_points(task, status), start_time, message)
   case status.to_s.downcase
   when /pass/
     stdout_success message

@@ -9,27 +9,120 @@ module CNFManager
     Failed
     Skipped
     NA
-    Neutral
     Pass5
     Pass3
     Error
 
     def to_basic
       case self
-      when Pass5, Pass3
-        ret = CNFManager::ResultStatus::Passed
-      when Neutral
-        ret = CNFManager::ResultStatus::Failed
-      else
-        ret = self
+      when Pass5, Pass3 then CNFManager::ResultStatus::Passed
+      else self
+      end
+    end
+
+    def to_string
+      case self.to_basic
+      when Passed then "passed"
+      when Failed then "failed"
+      when Skipped then "skipped"
+      when NA then "na"
+      when Error then "error"
+      else ""
       end
     end
   end
 
-  struct TestCaseResult
-    property state, result_message
+  class TestCaseResult
+    property testcase : String
+    property status : CNFManager::ResultStatus
+    property result_message : String?
+    property result_description : Array(String)
+    property start_time : Time
+    property end_time : Time
 
-    def initialize(@state : CNFManager::ResultStatus, @result_message : String? = nil)
+    def initialize(@testcase : String = "",
+                   @status : CNFManager::ResultStatus = CNFManager::ResultStatus::Skipped,
+                   @result_message : String? = nil,
+                   @result_description : Array(String) = [] of String,
+                   @start_time : Time = Time.utc,
+                   @end_time : Time = Time.utc)
+    end
+
+    # Backward-compatible constructor for old code that passes (status, message)
+    def self.new(status : CNFManager::ResultStatus, message : String? = nil)
+      new("", status, message)
+    end
+
+    def update(status : CNFManager::ResultStatus, message : String?)
+      @status = status
+      @result_message = message
+    end
+
+    def passed(message : String?)
+      @status = CNFManager::ResultStatus::Passed
+      @result_message = message
+    end
+
+    def failed(message : String?)
+      @status = CNFManager::ResultStatus::Failed
+      @result_message = message
+    end
+
+    def skipped(message : String?)
+      @status = CNFManager::ResultStatus::Skipped
+      @result_message = message
+    end
+
+    def error(message : String?)
+      @status = CNFManager::ResultStatus::Error
+      @result_message = message
+    end
+
+    def append_description(text : String)
+      @result_description << text
+    end
+
+    def set_start_time()
+      @start_time = Time.utc
+    end
+
+    def set_end_time()
+      @end_time = Time.utc
+    end
+
+    def duration() : Time::Span
+      @end_time - @start_time
+    end
+
+    def points : Int32
+      CNFManager::Points.task_points(@testcase, @status) || 0
+    end
+
+    def set_testcase(testcase : String)
+      @testcase = testcase
+    end
+
+    def decorated_result_message() : String
+      tc_emoji = CNFManager::Points.emoji_by_task(@testcase)
+      cat_emoji = CNFManager::Points.task_emoji_by_task(@testcase)
+      case @status.to_basic
+      when CNFManager::ResultStatus::Passed
+        "   #{cat_emoji}PASSED: [#{@testcase}] #{@result_message} #{tc_emoji}"
+      when CNFManager::ResultStatus::Failed
+        "   #{cat_emoji}FAILED: [#{@testcase}] #{@result_message} #{tc_emoji}"
+      when CNFManager::ResultStatus::Skipped
+        "⏭️  #{cat_emoji}SKIPPED: [#{@testcase}] #{@result_message} #{tc_emoji}"
+      when CNFManager::ResultStatus::NA
+        "⏭️  #{cat_emoji}N/A: [#{@testcase}] #{@result_message} #{tc_emoji}"
+      when CNFManager::ResultStatus::Error
+        "💥  #{cat_emoji}ERROR: [#{@testcase}] #{@result_message}"
+      else
+        ""
+      end
+    end
+
+    def self.empty
+      new
     end
   end
 
@@ -193,7 +286,7 @@ module CNFManager
     private def self.na_assigned?(task : String) : YAML::Any?
       yaml = File.open("#{Results.file}") { |file| YAML.parse(file) }
       assigned = yaml["items"].as_a.find do |i|
-        if i["name"].as_s? && i["name"].as_s == task && i["status"].as_s? && i["status"] == NA
+        if i["name"].as_s? && i["name"].as_s == task && i["status"].as_s? && i["status"] == "na"
           true
         end
       end
@@ -275,8 +368,8 @@ module CNFManager
       {max_points, max_passed}
     end
 
-    def self.upsert_task(task, status, points, start_time)
-      logger = @@logger.for("upsert_task-#{task}")
+    def self.upsert_task(result : CNFManager::TestCaseResult)
+      logger = @@logger.for("upsert_task-#{result.testcase}")
 
       # Raise exception when results file does not exists.
       CNFManager::Points::Results.ensure_results_file!
@@ -284,35 +377,26 @@ module CNFManager
       results = File.open("#{Results.file}") { |f| YAML.parse(f) }
       result_items = results["items"].as_a
       # remove the existing entry
-      result_items = result_items.reject { |x| x["name"] == task }
+      result_items = result_items.reject { |x| x["name"] == result.testcase }
 
-      end_time = Time.utc
-      task_runtime = (end_time - start_time)
+      points = result.points
 
       # The task result info has to be appeneded to an array of YAML::Any
       # So encode it into YAML and parse it back again to assign it.
       #
       # Only add task timestamps if the env var is set.
-      if ENV.has_key?("TASK_TIMESTAMPS")
-        task_result_info = {
-          name:         task,
-          status:       status,
-          type:         task_type_by_task(task),
-          points:       points,
-          start_time:   start_time,
-          end_time:     end_time,
-          task_runtime: "#{task_runtime}",
-        }
-        result_items << YAML.parse(task_result_info.to_yaml)
-      else
-        task_result_info = {
-          name:   task,
-          status: status,
-          type:   task_type_by_task(task),
-          points: points,
-        }
-        result_items << YAML.parse(task_result_info.to_yaml)
-      end
+      task_result_info = {
+        name:         result.testcase,
+        status:       result.status.to_string,
+        message:      result.result_message,
+        status_description:   result.result_description,
+        type:         task_type_by_task(result.testcase),
+        points:       points,
+        start_time:   result.start_time,
+        end_time:     result.end_time,
+        task_runtime: "#{result.duration}",
+      }
+      result_items << YAML.parse(task_result_info.to_yaml)
 
       File.open("#{Results.file}", "w") do |f|
         YAML.dump({name:              results["name"],
@@ -323,24 +407,9 @@ module CNFManager
                    exit_code:         results["exit_code"],
                    items:             result_items}, f)
       end
-      logger.debug { "Task start time: #{start_time}, end time: #{end_time}" }
-      logger.info { "Task: '#{task}' has status: '#{status}' and is awarded: #{points} points." +
-        "Runtime: #{task_runtime}" }
-    end
-
-    def self.failed_task(task, msg)
-      upsert_task(task, FAILED, task_points(task, false), start_time)
-      stdout_failure "#{msg}"
-    end
-
-    def self.passed_task(task, msg)
-      upsert_task(task, PASSED, task_points(task), start_time)
-      stdout_success "#{msg}"
-    end
-
-    def self.skipped_task(task, msg)
-      upsert_task(task, SKIPPED, task_points(task), start_time)
-      stdout_success "#{msg}"
+      logger.debug { "Task start time: #{result.start_time}, end time: #{result.end_time}" }
+      logger.info { "Test case: '#{result.testcase}' has status: '#{result.status}' and is awarded: #{points} points." +
+                    "Runtime: #{result.duration}" }
     end
 
     def self.failed_required_tasks

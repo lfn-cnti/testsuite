@@ -1,10 +1,20 @@
 require "../spec_helper"
 require "colorize"
 
+def verify_task_result(task_name : String, expected_status : String)
+  latest_results = Dir.glob("results/cnf-testsuite-results-*.yml").max_by { |path| File.info(path).modification_time }
+  latest_results.should_not be_nil
+  yaml = YAML.parse(File.read(latest_results.not_nil!))
+  item = yaml["items"].as_a.find { |i| i["name"].as_s == task_name }
+  item.should_not be_nil
+  item.not_nil!["status"].as_s.should eq(expected_status)
+end
+
 describe CnfTestSuite do
   before_all do
     result = ShellCmd.run_testsuite("setup")
   end
+
 
   it "'helm_deploy' should fail on a manifest CNF", tags: ["helm_validation"] do
     ShellCmd.cnf_install("cnf-path=./sample-cnfs/k8s-non-helm")
