@@ -284,12 +284,12 @@ TEMPLATE
       # TODO Add test that checks for uploaded corrupted binary.
       # POST :server/repos/:owner/:repo/releases/:release_id/assets{?name,label}
       # asset_resp = Halite.basic_auth(user: ENV["GITHUB_USER"], pass: ENV["GITHUB_TOKEN"]).
-      #   post("https://uploads.github.com/repos/cncf/cnf-testsuite/releases/#{found_release["id"]}/assets?name=#{cnf_tarball_name}",
+      #   post("https://uploads.github.com/repos/lfn-cnti/testsuite/releases/#{found_release["id"]}/assets?name=#{cnf_tarball_name}",
       #        headers: {
       #           "Content-Type" => "application/gzip",
       #           "Content-Length" => File.size("#{cnf_tarball_name}").to_s
       #   }, raw: "#{File.open("#{cnf_tarball_name}")}")A
-    asset_resp = `curl --http1.1 -H "Authorization: Bearer #{ENV["GITHUB_TOKEN"]}" -H "Content-Type: $(file -b --mime-type #{asset_name})" --data-binary @#{asset_name} "https://uploads.github.com/repos/cncf/cnf-testsuite/releases/#{release_id}/assets?name=$(basename #{asset_name})"`
+    asset_resp = `curl --http1.1 -H "Authorization: Bearer #{ENV["GITHUB_TOKEN"]}" -H "Content-Type: $(file -b --mime-type #{asset_name})" --data-binary @#{asset_name} "https://uploads.github.com/repos/lfn-cnti/testsuite/releases/#{release_id}/assets?name=$(basename #{asset_name})"`
     Log.info {"asset_resp: #{asset_resp}"}
     asset = JSON.parse(asset_resp.strip)
     Log.info {"asset: #{asset}"}
