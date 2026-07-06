@@ -416,38 +416,6 @@ jobs:
         rm -f /tmp/cluster.yml
         rm -rf ~/.config/helm
       continue-on-error: true
-  build:
-    name: Build Release
-    runs-on: ubuntu-24.04
-    env:
-      CRYSTAL_IMAGE: "conformance/crystal:1.6.2-alpine"
-    steps:
-    - name: Login to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_PASSWORD }}
-    - name: Sign in to Docker Hub with Helm
-      run: |
-        helm registry login \
-          --username ${{ secrets.DOCKERHUB_USERNAME }} \
-          --password ${{ secrets.DOCKERHUB_PASSWORD }} \
-          registry-1.docker.io
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    - name: Build Release
-      run: |
-        docker pull $CRYSTAL_IMAGE
-        docker run --rm -v $PWD:/workspace -w /workspace $CRYSTAL_IMAGE shards install
-        docker run --rm -v $PWD:/workspace -w /workspace $CRYSTAL_IMAGE crystal build src/cnf-testsuite.cr --release --static --link-flags '-lxml2 -llzma'
-    - name: upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: release
-        path: cnf-testsuite
-        
   test_binary_configuration_lifecycle:
     name: Test Binary Without Source(config_lifecycle)
     runs-on: [v1.0.0]
@@ -735,27 +703,3 @@ jobs:
         rm -f /tmp/cluster.yml
         rm -rf ~/.config/helm
       continue-on-error: true
-  release:
-    name: Publish Release
-    needs: [spec, build]
-    runs-on: ubuntu-24.04
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    - name: Download artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: release
-    - name: Make release executable
-      run: chmod +x ./cnf-testsuite
-    - name: Publish Release
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        if [ -z "${GITHUB_TOKEN+x}" ]; then
-          exit 0
-        else
-          ./cnf-testsuite upsert_release
-        fi

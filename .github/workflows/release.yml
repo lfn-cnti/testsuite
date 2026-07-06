@@ -1,0 +1,35 @@
+name: Release
+on:
+  push:
+    tags:
+      - 'v**'
+jobs:
+  release:
+    name: Build Release
+    runs-on: ubuntu-24.04
+    env:
+      CRYSTAL_IMAGE: "conformance/crystal:1.6.2-alpine"
+    steps:
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Build Release
+      run: |
+        docker pull $CRYSTAL_IMAGE
+        docker run --rm -v $PWD:/workspace -w /workspace $CRYSTAL_IMAGE shards install
+        docker run --rm -v $PWD:/workspace -w /workspace $CRYSTAL_IMAGE crystal build src/cnf-testsuite.cr --release --static --link-flags '-lxml2 -llzma'
+    - name: Publish Release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        if [ -z "${GITHUB_TOKEN+x}" ]; then
+          exit 0
+        else
+          ./cnf-testsuite upsert_release
+        fi
