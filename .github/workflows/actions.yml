@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
+      chaos_matrix: ${{ steps.set-matrix.outputs.chaos_matrix }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -29,33 +30,62 @@ jobs:
         fetch-depth: 0
     - id: set-matrix
       run: |
-        JSON="{\"include\":["
-        TEST_ARRAY=$(grep -roP --no-filename 'tags: \K(\[|")(.*)(\]|")' spec/ | tr -d '[],' | tr -s '\n' ' ' | xargs -n1 | sort -u | xargs | sed s/:/_/g)
-        TEST_ARRAY=("${TEST_ARRAY[@]/disk_fill/}")
-        TEST_ARRAY=("${TEST_ARRAY[@]/pod_delete/}")
-        TEST_ARRAY=("${TEST_ARRAY[@]/pod_io_stress/}")
-        TEST_ARRAY=("${TEST_ARRAY[@]/pod_memory_hog/}")
-        TEST_ARRAY=("${TEST_ARRAY[@]/pod_network_latency/}")
-        TEST_ARRAY=("${TEST_ARRAY[@]/zombie/}")
-        TEST_ARRAY=("${TEST_ARRAY[@]/oran/}")
-        # Skip 5g, core, shared_database_flaky tags because they are flaky
-        TEST_ARRAY=("${TEST_ARRAY[@]/5g/}")
-        TEST_ARRAY=("${TEST_ARRAY[@]/core/}")
-        TEST_ARRAY=("${TEST_ARRAY[@]/shared_database_flaky/}")
+        set -uo pipefail
 
-        # Skip free5gc test because its handled by the nightly workflow
-        TEST_ARRAY=("${TEST_ARRAY[@]/free5gc/}")
+        # Guard: every spec example must carry a tag (directly, or inherited from
+        # an enclosing describe/context). Untagged examples are silently never
+        # scheduled by the tag-sharded matrix below, so fail fast if any exist.
+        UNTAGGED=$(awk '
+          function indent(s) { match(s, /^ */); return RLENGTH }
+          FNR==1 { top=0 }
+          /^[[:space:]]*(describe|context)[[:space:]]/ {
+            ind=indent($0); while (top>0 && sind[top]>=ind) top--
+            top++; sind[top]=ind; stag[top]=($0 ~ /tags:/)?1:0; next
+          }
+          /^[[:space:]]*(it|specify|pending)[[:space:]]*"/ {
+            ind=indent($0); while (top>0 && sind[top]>=ind) top--
+            t=($0 ~ /tags:/)?1:0
+            if (!t) for (i=1;i<=top;i++) if (stag[i]) { t=1; break }
+            if (!t) print FILENAME":"FNR": "$0
+          }' $(find spec -name "*.cr" | sort))
+        if [ -n "$UNTAGGED" ]; then
+          echo "::error::Spec examples without a tag would never run in CI:"
+          echo "$UNTAGGED"
+          exit 1
+        fi
 
-        TEST_LIST=$(for i in ${TEST_ARRAY[@]}
-        do
-                 echo "{\"spec\":\"$i\"}," | tr -d '\n'
-        done)
-        TEST_LIST="${TEST_LIST%?}"
-        JSON="$JSON$TEST_LIST"
-        JSON="$JSON]}"
+        # All distinct tags used across specs.
+        mapfile -t ALL_TAGS < <(grep -roP --no-filename 'tags: \K(\[|")(.*)(\]|")' spec/ \
+          | tr -d '[],' | tr -s '\n' ' ' | xargs -n1 | sed 's/:/_/g' | sort -u)
 
-        echo "TESTS: $JSON"
-        echo "matrix=$JSON" >> $GITHUB_OUTPUT
+        # Single source of truth for tags kept OUT of the default spec matrix:
+        #  - CHAOS_TAGS run in the dedicated `chaos` job, whose matrix is derived
+        #    from this same list (so the two can never drift or double-run).
+        #  - EXTRA_SKIP: flaky, or handled elsewhere (free5gc -> nightly workflow).
+        CHAOS_TAGS=(pod_delete pod_io_stress pod_memory_hog pod_network_latency disk_fill pod_network_corruption pod_network_duplication zombie oran)
+        EXTRA_SKIP=(5g core shared_database_flaky free5gc)
+        EXCLUDED=("${CHAOS_TAGS[@]}" "${EXTRA_SKIP[@]}")
+
+        contains() { local n=$1; shift; local x; for x in "$@"; do [ "$x" = "$n" ] && return 0; done; return 1; }
+
+        # Drift guard: every excluded/chaos tag must still exist in spec/.
+        MISSING=()
+        for ex in "${EXCLUDED[@]}"; do contains "$ex" "${ALL_TAGS[@]}" || MISSING+=("$ex"); done
+        if [ ${#MISSING[@]} -ne 0 ]; then
+          echo "::error::Excluded/chaos tags not found in spec/ (typo or removed?): ${MISSING[*]}"
+          exit 1
+        fi
+
+        build_json() { local key=$1; shift; local out='{"include":[' first=1 t
+          for t in "$@"; do [ $first -eq 1 ] && first=0 || out+=","; out+="{\"$key\":\"$t\"}"; done
+          echo "$out]}"; }
+
+        SPEC_TAGS=()
+        for t in "${ALL_TAGS[@]}"; do contains "$t" "${EXCLUDED[@]}" || SPEC_TAGS+=("$t"); done
+
+        echo "matrix=$(build_json spec "${SPEC_TAGS[@]}")" >> "$GITHUB_OUTPUT"
+        echo "chaos_matrix=$(build_json tag "${CHAOS_TAGS[@]}")" >> "$GITHUB_OUTPUT"
+        echo "Spec shards: ${#SPEC_TAGS[@]} | Chaos shards: ${#CHAOS_TAGS[@]}"
 
   spec:
     name: Crystal Specs
@@ -211,8 +241,8 @@ jobs:
         containerdConfigPatches:
         - |-
           root = "/tmp/containerd"
-          [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry.default.svc.cluster.local:5000"]
-            endpoint = ["http://localhost:5000"]
+          [plugins."io.containerd.grpc.v1.cri".registry]
+            config_path = "/etc/containerd/certs.d"
         nodes:
         - role: control-plane
           kubeadmConfigPatches:
@@ -263,17 +293,8 @@ jobs:
           - hostPath: /var/run/docker.sock
             containerPath: /var/run/docker.sock
         EOF
-    - name: Install Latest Kind
-      env:
-        KIND_VERSION: v0.30.0
-        KIND_URL: https://kind.sigs.k8s.io/dl
-      run: |
-        echo "Existing kind binary path: $(which kind)"
-        if [[ -s $(which kind) ]]; then sudo rm $(which kind); fi
-        wget -O kind "$KIND_URL/$KIND_VERSION/kind-linux-amd64" --progress=dot:giga; 
-        chmod +x ./kind
-        sudo mv ./kind /usr/local/bin/kind
-        kind --version
+    - name: Install kind
+      uses: ./.github/actions/install-kind
     - name: Create Kind Cluster 
       run: |
         cat /tmp/cluster.yml
@@ -283,6 +304,20 @@ jobs:
         kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig ./$CLUSTER.conf --retain --wait 5m
         export KUBECONFIG=$(pwd)/$CLUSTER.conf
         kubectl get nodes
+    - name: Configure registry mirror (private_registry)
+      if: startsWith(matrix.spec, 'private_registry_')
+      run: |
+        # containerd 2.x (shipped in newer kind node images) removed the inline
+        # registry.mirrors config; configure the mirror via the config_path
+        # hosts.toml mechanism instead (set in the cluster's containerdConfigPatches).
+        source cluster.env
+        REG="registry.default.svc.cluster.local:5000"
+        docker exec "$CLUSTER-control-plane" mkdir -p "/etc/containerd/certs.d/$REG"
+        docker exec -i "$CLUSTER-control-plane" sh -c "cat > '/etc/containerd/certs.d/$REG/hosts.toml'" <<'HOSTS'
+        server = "http://localhost:5000"
+        [host."http://localhost:5000"]
+          capabilities = ["pull", "resolve"]
+        HOSTS
     - name: Setup CNF-Conformance
       run: |
         git fetch --all --tags --force
@@ -316,7 +351,8 @@ jobs:
         #done
         crystal build src/cnf-testsuite.cr 
         ./cnf-testsuite setup 
-        LOG_LEVEL=debug crystal spec --tag ${{ matrix.spec }} -v
+        # cnf-testsuite was already built above; skip spec_helper's redundant rebuild.
+        CNF_TESTSUITE_SKIP_BUILD=1 LOG_LEVEL=debug crystal spec --tag ${{ matrix.spec }} -v
     - name: Delete Cluster
       if: ${{ always() }}
       run: |
@@ -334,8 +370,9 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
-      matrix:
-        tag: ["pod_delete", "pod_io_stress", "pod_memory_hog", "pod_network_latency", "disk_fill", "pod_network_corruption", "pod_network_duplication", "zombie", "oran"]
+      # Derived from CHAOS_TAGS in the `tests` job so the chaos matrix and the
+      # spec-matrix exclusions share one source of truth and cannot drift.
+      matrix: ${{ fromJson(needs.tests.outputs.chaos_matrix) }}
     steps:
     - name: Login to Docker Hub
       uses: docker/login-action@v3
@@ -352,17 +389,8 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    - name: Install Latest Kind
-      env:
-        KIND_VERSION: v0.30.0
-        KIND_URL: https://kind.sigs.k8s.io/dl
-      run: |
-        echo "Existing kind binary path: $(which kind)"
-        if [[ -s $(which kind) ]]; then sudo rm $(which kind); fi
-        wget -O kind "$KIND_URL/$KIND_VERSION/kind-linux-amd64" --progress=dot:giga; 
-        chmod +x ./kind
-        sudo mv ./kind /usr/local/bin/kind
-        kind --version
+    - name: Install kind
+      uses: ./.github/actions/install-kind
     - name: Install kubectl
       run: |
         wget -O kubectl "https://dl.k8s.io/release/v1.28.3/bin/linux/amd64/kubectl"
@@ -438,17 +466,8 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    - name: Install Latest Kind
-      env:
-        KIND_VERSION: v0.30.0
-        KIND_URL: https://kind.sigs.k8s.io/dl
-      run: |
-        echo "Existing kind binary path: $(which kind)"
-        if [[ -s $(which kind) ]]; then sudo rm $(which kind); fi
-        wget -O kind "$KIND_URL/$KIND_VERSION/kind-linux-amd64" --progress=dot:giga; 
-        chmod +x ./kind
-        sudo mv ./kind /usr/local/bin/kind
-        kind --version
+    - name: Install kind
+      uses: ./.github/actions/install-kind
     - name: Build cnf-testsuite & Create Kind Cluster 
       run: |
         shards install
@@ -535,17 +554,8 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    - name: Install Latest Kind
-      env:
-        KIND_VERSION: v0.30.0
-        KIND_URL: https://kind.sigs.k8s.io/dl
-      run: |
-        echo "Existing kind binary path: $(which kind)"
-        if [[ -s $(which kind) ]]; then sudo rm $(which kind); fi
-        wget -O kind "$KIND_URL/$KIND_VERSION/kind-linux-amd64" --progress=dot:giga; 
-        chmod +x ./kind
-        sudo mv ./kind /usr/local/bin/kind
-        kind --version
+    - name: Install kind
+      uses: ./.github/actions/install-kind
     - name: Build cnf-testsuite & Create Kind Cluster 
       run: |
         shards install
@@ -630,17 +640,8 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    - name: Install Latest Kind
-      env:
-        KIND_VERSION: v0.30.0
-        KIND_URL: https://kind.sigs.k8s.io/dl
-      run: |
-        echo "Existing kind binary path: $(which kind)"
-        if [[ -s $(which kind) ]]; then sudo rm $(which kind); fi
-        wget -O kind "$KIND_URL/$KIND_VERSION/kind-linux-amd64" --progress=dot:giga; 
-        chmod +x ./kind
-        sudo mv ./kind /usr/local/bin/kind
-        kind --version
+    - name: Install kind
+      uses: ./.github/actions/install-kind
     - name: Build cnf-testsuite & Create Kind Cluster 
       run: |
         shards install

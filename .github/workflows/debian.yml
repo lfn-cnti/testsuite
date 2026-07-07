@@ -23,10 +23,10 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - uses: actions/checkout@v4
+      - name: Install kind
+        uses: ./.github/actions/install-kind
       - run: |
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.31.0/kind-linux-amd64
-          chmod +x ./kind
-          sudo mv ./kind /usr/local/bin/kind
           cat << EOF > /tmp/cluster.yml
           kind: Cluster
           apiVersion: kind.x-k8s.io/v1alpha4
@@ -46,7 +46,6 @@ jobs:
           EOF
           kind create cluster --name debian-${{ matrix.release }} --config=/tmp/cluster.yml
           rm /tmp/cluster.yml
-      - uses: actions/checkout@v4
       - run: |
             docker run --network host --name debian-${{ matrix.release }} \
               -v ~/.docker/config.json:/root/.docker/config.json -v $(pwd):/testsuite \

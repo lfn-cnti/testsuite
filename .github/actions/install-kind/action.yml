@@ -1,0 +1,28 @@
+name: "Install kind"
+description: "Install the pinned version of kind. This action is the single source of truth for the kind version used across all workflows."
+inputs:
+  version:
+    description: "kind version to install"
+    required: false
+    default: "v0.31.0"
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        arch="$(uname -m)"
+        case "$arch" in
+          x86_64|amd64) arch=amd64 ;;
+          aarch64|arm64) arch=arm64 ;;
+          *) echo "::error::Unsupported architecture for kind: $arch"; exit 1 ;;
+        esac
+        url="https://kind.sigs.k8s.io/dl/${{ inputs.version }}/kind-linux-${arch}"
+        if command -v curl >/dev/null 2>&1; then
+          curl -fsSLo ./kind "$url"
+        else
+          wget -qO ./kind "$url"
+        fi
+        chmod +x ./kind
+        sudo mv ./kind /usr/local/bin/kind
+        kind version
