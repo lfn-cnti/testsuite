@@ -280,7 +280,7 @@ task "reasonable_image_size" do |t, args|
         image_pull_secrets = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace]).dig?("spec", "template", "spec", "imagePullSecrets")
         if image_pull_secrets
           auths = image_pull_secrets.as_a.map { |secret|
-            puts secret["name"]
+            Log.debug { "image pull secret: #{secret["name"]}" }
             secret_data = KubectlClient::Get.resource("Secret", "#{secret["name"]}", resource[:namespace]).dig?("data")
             if secret_data
               dockerconfigjson = Base64.decode_string("#{secret_data[".dockerconfigjson"]}")
@@ -296,7 +296,7 @@ task "reasonable_image_size" do |t, args|
             str_auths = %({"auths":{#{auths.reduce("") { | acc, x|
             acc + x.to_s + ","
           }[0..-2]}}})
-            puts "str_auths: #{str_auths}"
+            Log.debug { "constructed docker auths config for #{auths.size} secret(s)" }
           end
           File.write(image_secrets_config_path, str_auths)
           Dockerd.exec("mkdir -p /root/.docker/")
@@ -345,9 +345,9 @@ end
 desc "Do the containers in a pod have only one process type?"
 task "process_search" do |_, args|
   pod_info = KernelIntrospection::K8s.find_first_process("sleep 30000")
-  puts "pod_info: #{pod_info}"
+  Log.debug { "pod_info: #{pod_info}" }
   proctree = KernelIntrospection::K8s::Node.proctree_by_pid(pod_info[:pid], pod_info[:node]) if pod_info
-  puts "proctree: #{proctree}"
+  Log.debug { "proctree size: #{proctree.try(&.size)}" }
 
 end
 

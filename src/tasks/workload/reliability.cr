@@ -255,7 +255,7 @@ task "pod_network_duplication", ["install_litmus"] do |t, args|
         rbac_yaml = rbac_yaml.gsub("namespace: default", "namespace: #{app_namespace}")
         File.write(rbac_path, rbac_yaml)
         KubectlClient::Apply.file(rbac_path)
-        puts resource["name"]
+        Log.for(t.name).debug { "annotating resource for chaos: #{resource["name"]}" }
         KubectlClient::Utils.annotate(resource["kind"], resource["name"], ["litmuschaos.io/chaos=\"true\""], namespace: app_namespace)
 
         chaos_experiment_name = "pod-network-duplication"

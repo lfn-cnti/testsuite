@@ -42,14 +42,13 @@ module KernelIntrospection
           proc_status[:output] if proc_status[:status].success?
         end.compact
 
-        Log.debug { "proc process_statuses_by_node: #{proc_statuses}" }
+        Log.debug { "proc process_statuses_by_node count: #{proc_statuses.size}" }
         proc_statuses
       end
 
       def self.status_by_pid(pid, node)
-        Log.info { "status_by_pid" }
+        Log.info { "status_by_pid pid: #{pid}" }
         status = ClusterTools.exec_by_node("cat /proc/#{pid}/status", node)
-        Log.info { "status_by_pid status: #{status}" }
         status[:output]
       end
 
@@ -69,10 +68,9 @@ module KernelIntrospection
           Log.for("proctree_by_pid").debug { "pids: #{pids}" }
           proc_statuses = all_statuses_by_pids(pids, node)
         end
-        Log.for("proctree_by_pid").debug { "proc_statuses: #{proc_statuses}" }
+        Log.for("proctree_by_pid").debug { "proc_statuses count: #{proc_statuses.size}" }
         proc_statuses.each do |proc_status|
           parsed_status = KernelIntrospection.parse_status(proc_status)
-          Log.for("proctree_by_pid").debug { "parsed_status: #{parsed_status}" }
           if parsed_status
             ppid = parsed_status["PPid"].strip
             current_pid = parsed_status["Pid"].strip
@@ -105,7 +103,7 @@ module KernelIntrospection
             end
           end
         end
-        Log.for("proctree_by_pid").debug { "proctree: #{proctree}" }
+        Log.for("proctree_by_pid").debug { "proctree size: #{proctree.size}" }
         proctree.each do |x|
           Log.for("proctree_by_pid").debug(&.emit(process_name: x["Name"], pid: x["Pid"], ppid: x["PPid"]))
         end
@@ -184,10 +182,9 @@ module KernelIntrospection
               process = ClusterTools.exec_by_node("cat /proc/#{pid}/cmdline", node)
               status = ClusterTools.exec_by_node("cat /proc/#{pid}/status", node)
               Log.for("find_first_process").debug(&.emit(
-                "process status and cmdline",
+                "process cmdline",
                 pid: pid,
                 cmdline: process[:output],
-                status: "#{status}",
               ))
               if process[:output] =~ /#{process_name}/
                 ret = {node: node, pod: pod, container_status: container_status, status: status[:output], pid: pid.to_s, cmdline: process[:output]}
@@ -227,7 +224,6 @@ module KernelIntrospection
               Log.for("find_matching_processes").debug(&.emit(
                 cat_cmdline_cmd: cat_cmdline_cmd,
                 process: "#{process[:output]}",
-                status: "#{status}"
               ))
               if process[:output] =~ /#{process_name}/
                 result = {node: node, pod: pod, container_status: container_status, status: status[:output], pid: pid.to_s, cmdline: process[:output]}
