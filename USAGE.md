@@ -30,9 +30,129 @@ crystal src/cnf-testsuite.cr <testname>
 
 ### Results Output
 
-- :heavy_check_mark: PASSED indicates it meets best practice, positive points given.
-- ⏭ SKIPPED indicates the test was skipped (output should provide a reason), no points given.
-- :x: FAILED indicates the test failed, negative points given.
+Every run prints a per-test line to stdout **and** writes a full results file.
+
+#### On stdout
+
+- :heavy_check_mark: **PASSED** — the test met best practice; points awarded.
+- :x: **FAILED** — the test failed; no points.
+- ⏭ **SKIPPED** — the test was not executed (a reason is printed); no points.
+- ⏭ **N/A** — the test does not apply to this CNF (the feature under test is absent); excluded from scoring.
+- 💥 **ERROR** — the test errored while running.
+
+Failed/errored tests also print indented detail lines beneath the result:
+`> impacted: <resource>`, `> remediation: <guidance>`, and free-form `> <note>` lines.
+
+#### Results file
+
+Each run writes a **timestamped YAML file** to the `results/` directory of the current working
+directory (the path is also logged at startup):
+
+```
+results/cnf-testsuite-results-<YYYYMMDD-HHMMSS-mmm>.yml
+```
+
+A new file is created per run. To grab the latest programmatically:
+
+```
+ls -t results/cnf-testsuite-results-*.yml | head -1
+```
+
+A machine-readable [JSON Schema](docs/cnf-testsuite-results.schema.json) describes the file
+(matching the current `schema_version`); use it to validate output or generate types.
+
+##### Structure
+
+```yaml
+name: cnf testsuite
+testsuite_version: v1.2.3
+schema_version: 1                 # version of this results-file schema
+status: failed                    # overall run verdict: passed | failed | error
+command: ./cnf-testsuite all
+exit_code: 1                      # 0 = passed, 1 = failed, 2 = error (critical)
+summary:                          # aggregate numbers for the whole run
+  total: 18                       # tests executed
+  passed: 12
+  failed: 2
+  skipped: 3
+  na: 1
+  error: 0
+  max_passed: 14                  # maximum tests that could have passed (the denominator)
+  essential_passed: 8
+  essential_max_passed: 10
+  points: 42
+  maximum_points: 90
+items:
+  - name: privileged_containers
+    status: failed                # passed | failed | skipped | na | error
+    message: Found 2 privileged containers
+    type: essential               # scoring class from points.yml (essential | bonus | normal | cert | ...)
+    points: 0
+    start_time: "2026-07-07T10:00:00.000000000Z"   # RFC 3339
+    end_time: "2026-07-07T10:00:03.000000000Z"
+    task_runtime: 3.0                              # seconds
+    remediation:                  # optional; present only when non-empty
+      - Set securityContext.privileged=false on the offending containers
+    impacted_resources:           # optional; present only when non-empty
+      - kind: Deployment
+        name: coredns-coredns
+        namespace: cnf-default    # optional (omitted for cluster-scoped resources)
+        container: coredns        # optional
+        reason: privileged container
+  - name: reasonable_startup_time
+    status: failed
+    message: CNF had a startup time over the limit
+    type: normal
+    points: 0
+    start_time: "2026-07-07T10:00:04.000000000Z"
+    end_time: "2026-07-07T10:00:49.000000000Z"
+    task_runtime: 45.0
+    details:                      # optional; free-form reasons/evidence
+      - "CNF had a startup time of 45 seconds (limit: 30 seconds)"
+```
+
+##### Top-level fields
+
+| Field | Description |
+|-------|-------------|
+| `name` | Always `cnf testsuite`. |
+| `testsuite_version` | Version of the test suite that produced the file. |
+| `schema_version` | Integer version of this results-file schema; bumped on breaking changes. |
+| `status` | Overall run verdict, derived from `exit_code`: `passed` (0), `failed` (1), `error` (2). |
+| `command` | The command line that produced this file. |
+| `exit_code` | Process exit code: `0` passed, `1` failed (a required test failed), `2` error (a test raised). |
+| `summary` | Aggregate numbers for the whole run (see below). |
+| `items` | One entry per test that ran (see below). |
+
+##### `summary` fields
+
+All counts/scores are scoped to the tests that actually ran.
+
+| Field | Description |
+|-------|-------------|
+| `total` | Number of tests executed. |
+| `passed` / `failed` / `skipped` / `na` / `error` | Count of items in each status. |
+| `max_passed` | Maximum number of tests that could have passed (denominator for "X of Y tests passed"). |
+| `essential_passed` / `essential_max_passed` | Passed vs. maximum-passable among `essential`-tagged tests. |
+| `points` | Total points scored. |
+| `maximum_points` | Maximum points achievable by the tests that ran. |
+
+##### `items[]` fields
+
+| Field | Description |
+|-------|-------------|
+| `name` | Test name (e.g. `privileged_containers`). |
+| `status` | `passed`, `failed`, `skipped`, `na`, or `error`. |
+| `message` | One-line verdict for the test. |
+| `type` | Scoring class from `points.yml` (`essential`, `bonus`, `normal`, `cert`, …). |
+| `points` | Points awarded for this test. |
+| `start_time` / `end_time` | RFC 3339 timestamps for the test's start and end. |
+| `task_runtime` | Test duration in seconds (number). |
+| `details` | *(optional)* Free-form reason/evidence strings; omitted when empty. |
+| `remediation` | *(optional)* Guidance on how to fix the failure; omitted when empty. |
+| `impacted_resources` | *(optional)* Structured list of offending resources; omitted when empty. |
+
+Each `impacted_resources` entry has `kind` and `name`, plus optional `namespace`, `container`, `pod`, and `reason` (present only when known).
 
 ---
 

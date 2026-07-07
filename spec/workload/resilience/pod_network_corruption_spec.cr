@@ -11,12 +11,14 @@ describe "Resilience Pod Network corruption Chaos" do
     result[:status].success?.should be_true
   end
 
+
   it "'pod_network_corruption' A 'Good' CNF should not crash when network corruption occurs", tags: ["pod_network_corruption"]  do
     begin
       ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("pod_network_corruption")
       result[:status].success?.should be_true
       (/(PASSED).*(pod_network_corruption chaos test passed)/ =~ result[:output]).should_not be_nil
+      verify_task_result("pod_network_corruption", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true

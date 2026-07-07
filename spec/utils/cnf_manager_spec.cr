@@ -7,6 +7,75 @@ require "../../src/tasks/utils/utils.cr"
 require "file_utils"
 require "sam"
 
+# Minimal JSON-Schema validator covering only the constructs used by
+# docs/cnf-testsuite-results.schema.json ($ref, type, enum, const, required,
+# additionalProperties:false, array items). Driven by the schema file itself so
+# it acts as a drift guard: any divergence between the emitted results file and
+# the published schema (added/removed/renamed field, wrong type) fails the spec.
+def resolve_schema_ref(schema : JSON::Any, defs : JSON::Any) : JSON::Any
+  if ref = schema["$ref"]?
+    defs[ref.as_s.split("/").last]
+  else
+    schema
+  end
+end
+
+def yaml_matches_type?(instance : YAML::Any, type_name : String) : Bool
+  case type_name
+  when "object"  then !instance.as_h?.nil?
+  when "array"   then !instance.as_a?.nil?
+  when "string"  then !instance.as_s?.nil?
+  when "integer" then !instance.as_i?.nil? || !instance.as_i64?.nil?
+  when "number"  then !instance.as_i?.nil? || !instance.as_i64?.nil? || !instance.as_f?.nil?
+  when "boolean" then !instance.as_bool?.nil?
+  when "null"    then instance.raw.nil?
+  else                false
+  end
+end
+
+def validate_against_schema(instance : YAML::Any, schema : JSON::Any, defs : JSON::Any, path : String = "$")
+  schema = resolve_schema_ref(schema, defs)
+
+  if const = schema["const"]?
+    raise "#{path}: expected #{const.raw.inspect}, got #{instance.raw.inspect}" unless instance.raw == const.raw
+    return
+  end
+  if enum_node = schema["enum"]?
+    allowed = enum_node.as_a.map(&.raw)
+    raise "#{path}: #{instance.raw.inspect} not in enum #{allowed}" unless allowed.includes?(instance.raw)
+    return
+  end
+
+  if type = schema["type"]?
+    names = type.as_s? ? [type.as_s] : type.as_a.map(&.as_s)
+    raise "#{path}: expected type #{names}, got #{instance.raw.inspect}" unless names.any? { |n| yaml_matches_type?(instance, n) }
+  end
+
+  if props = schema["properties"]?
+    if schema["additionalProperties"]?.try(&.as_bool?) == false
+      instance.as_h.each_key do |k|
+        raise "#{path}: unexpected key '#{k.as_s}' not declared in schema" unless props.as_h.has_key?(k.as_s)
+      end
+    end
+    if required = schema["required"]?
+      required.as_a.each do |rk|
+        raise "#{path}: missing required key '#{rk.as_s}'" if instance[rk.as_s]?.nil?
+      end
+    end
+    props.as_h.each do |key, subschema|
+      if value = instance[key]?
+        validate_against_schema(value, subschema, defs, "#{path}.#{key}")
+      end
+    end
+  end
+
+  if items = schema["items"]?
+    instance.as_a.each_with_index do |element, i|
+      validate_against_schema(element, items, defs, "#{path}[#{i}]")
+    end
+  end
+end
+
 describe "SampleUtils" do
   before_all do
     result = ShellCmd.run_testsuite("setup:install_local_helm")
@@ -40,17 +109,31 @@ describe "SampleUtils" do
 
   it "'upsert_task' insert task in the results file", tags: ["tasks"]  do
     CNFManager::Points.clean_results_yml
-    CNFManager::Points.upsert_task("liveness", PASSED, CNFManager::Points.task_points("liveness"), Time.utc)
+    result = CNFManager::TestCaseResult.new("liveness", CNFManager::ResultStatus::Passed)
+    result.add_impacted_resource("Deployment", "coredns", "cnf-default", container: "coredns", reason: "privileged container")
+    result.append_remediation("Set securityContext.privileged=false")
+    CNFManager::Points.upsert_task(result)
     yaml = File.open("#{CNFManager::Points::Results.file}") do |file|
       YAML.parse(file)
     end
-    (yaml["items"].as_a.find {|x| x["name"] == "liveness" && x["points"] == CNFManager::Points.task_points("liveness")}).should be_truthy
+    item = yaml["items"].as_a.find { |x| x["name"] == "liveness" }.not_nil!
+    (item["points"]).should eq(CNFManager::Points.task_points("liveness"))
+
+    # structured detail buckets are recorded per item
+    impacted = item["impacted_resources"].as_a
+    impacted.size.should eq(1)
+    (impacted[0]["kind"]).should eq("Deployment")
+    (impacted[0]["name"]).should eq("coredns")
+    (impacted[0]["namespace"]).should eq("cnf-default")
+    (impacted[0]["container"]).should eq("coredns")
+    (impacted[0]["reason"]).should eq("privileged container")
+    (item["remediation"].as_a.map(&.as_s)).should contain("Set securityContext.privileged=false")
   end
 
   it "'upsert_task' should find and update an existing task in the file", tags: ["tasks"]  do
     CNFManager::Points.clean_results_yml
-    CNFManager::Points.upsert_task("liveness", PASSED, CNFManager::Points.task_points("liveness"), Time.utc)
-    CNFManager::Points.upsert_task("liveness", PASSED, CNFManager::Points.task_points("liveness"), Time.utc)
+    CNFManager::Points.upsert_task(CNFManager::TestCaseResult.new("liveness", CNFManager::ResultStatus::Passed))
+    CNFManager::Points.upsert_task(CNFManager::TestCaseResult.new("liveness", CNFManager::ResultStatus::Passed))
     yaml = File.open("#{CNFManager::Points::Results.file}") do |file|
       YAML.parse(file)
     end
@@ -60,19 +143,60 @@ describe "SampleUtils" do
 
   it "'CNFManager::Points.total_points' should sum the total amount of points in the results", tags: ["points"] do
     CNFManager::Points.clean_results_yml
-    CNFManager::Points.upsert_task("liveness", PASSED, CNFManager::Points.task_points("liveness"), Time.utc)
+    CNFManager::Points.upsert_task(CNFManager::TestCaseResult.new("liveness", CNFManager::ResultStatus::Passed))
     (CNFManager::Points.total_points).should eq(100)
   end
 
   it "'CNFManager::Points.total_max_points' should not include na in the total potential points", tags: ["points"] do
     CNFManager::Points.clean_results_yml
-    upsert_passed_task("liveness", "✔️  PASSED: CNF had a reasonable startup time ", Time.utc)
+    upsert_passed_task("liveness", "✔️  PASSED: CNF had a reasonable startup time ", "CNF had a reasonable startup time", Time.utc)
     resp1 = CNFManager::Points.total_max_points
-    upsert_na_task("readiness", "✔️  NA", Time.utc)
+    upsert_na_task("readiness", "✔️  NA", "NA", Time.utc)
     resp2 = CNFManager::Points.total_max_points
    
     Log.info { "readiness points: #{CNFManager::Points.task_points("readiness").not_nil!.to_i}" }
     (resp2).should eq((resp1 - CNFManager::Points.task_points("readiness").not_nil!.to_i))
+
+    # The result file carries a machine-readable summary derived from item statuses.
+    yaml = File.open("#{CNFManager::Points::Results.file}") do |file|
+      YAML.parse(file)
+    end
+    (yaml["summary"]["total"]).should eq(2)
+    (yaml["summary"]["passed"]).should eq(1)
+    (yaml["summary"]["na"]).should eq(1)
+    (yaml["summary"]["failed"]).should eq(0)
+    (yaml["summary"]["skipped"]).should eq(0)
+    (yaml["summary"]["error"]).should eq(0)
+
+    # The results file declares its schema version.
+    (yaml["schema_version"]).should eq(CNFManager::Points::RESULTS_SCHEMA_VERSION)
+
+    # Optional detail buckets are omitted when empty (liveness has none here).
+    liveness_item = yaml["items"].as_a.find { |i| i["name"].as_s == "liveness" }.not_nil!
+    liveness_item["details"]?.should be_nil
+    liveness_item["remediation"]?.should be_nil
+    liveness_item["impacted_resources"]?.should be_nil
+  end
+
+  it "results file conforms to docs/cnf-testsuite-results.schema.json", tags: ["points"] do
+    CNFManager::Points.clean_results_yml
+
+    # Exercise every status plus all three optional detail buckets.
+    failed = CNFManager::TestCaseResult.new("privileged_containers", CNFManager::ResultStatus::Failed, "Found 1 privileged container")
+    failed.add_impacted_resource("Deployment", "coredns", "cnf-default", container: "coredns", reason: "privileged container")
+    failed.append_remediation("Set securityContext.privileged=false")
+    CNFManager::Points.upsert_task(failed)
+
+    CNFManager::Points.upsert_task(CNFManager::TestCaseResult.new("liveness", CNFManager::ResultStatus::Passed, "ok"))
+    CNFManager::Points.upsert_task(CNFManager::TestCaseResult.new("shared_database", CNFManager::ResultStatus::NA, "no db"))
+
+    skipped = CNFManager::TestCaseResult.new("secrets_used", CNFManager::ResultStatus::Skipped, "not used")
+    skipped.append_description("Secrets not used")
+    CNFManager::Points.upsert_task(skipped)
+
+    schema = JSON.parse(File.read("docs/cnf-testsuite-results.schema.json"))
+    doc = File.open("#{CNFManager::Points::Results.file}") { |file| YAML.parse(file) }
+    validate_against_schema(doc, schema, schema["$defs"])
   end
 
   it "'CNFManager::Points.tasks_by_tag' should return the tasks assigned to a tag", tags: ["points"] do

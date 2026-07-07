@@ -11,6 +11,7 @@ describe "Resilience Node Drain Chaos" do
     result[:status].success?.should be_true
   end
 
+
   it "'node_drain' A 'Good' CNF should not crash when node drain occurs", tags: ["node_drain"]  do
     begin
       ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
@@ -18,8 +19,10 @@ describe "Resilience Node Drain Chaos" do
       result[:status].success?.should be_true
       if KubectlClient::Get.schedulable_nodes_list.size > 1
         (/(PASSED).*(node_drain chaos test passed)/ =~ result[:output]).should_not be_nil
+        verify_task_result("node_drain", "passed")
       else
         (/(SKIPPED).*(node_drain chaos test requires the cluster to have atleast two)/ =~ result[:output]).should_not be_nil
+        verify_task_result("node_drain", "skipped")
       end
     ensure
       result = ShellCmd.cnf_uninstall()

@@ -14,7 +14,7 @@ namespace "platform" do
 
   desc "Does the Platform use a runtime that is oci compliant"
   task "oci_compliant" do |t, args|
-    task_response = CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args|
+    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       resp = KubectlClient::Get.container_runtimes
       all_oci_runtimes = true
       resp.each do |x|
@@ -24,9 +24,9 @@ namespace "platform" do
       end
       Log.info { "all_oci_runtimes: #{all_oci_runtimes}" }
       if all_oci_runtimes
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Your platform is using the following runtimes: [#{KubectlClient::Get.container_runtimes.join(",")}] which are OCI compliant runtimes")
+        result.passed("Your platform is using the following runtimes: [#{KubectlClient::Get.container_runtimes.join(",")}] which are OCI compliant runtimes")
       else
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Platform has at least one node that uses a non OCI compliant runtime")
+        result.failed("Platform has at least one node that uses a non OCI compliant runtime")
       end
     end
   end

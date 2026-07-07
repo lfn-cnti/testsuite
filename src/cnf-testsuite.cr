@@ -10,17 +10,17 @@ desc "The CNF Test Suite program enables interoperability of CNFs from multiple 
 task "all", ["workload", "platform"] do  |_, args|
   Log.debug { "all" }
 
-  total = CNFManager::Points.total_points
-  max_points = CNFManager::Points.total_max_points
+  total = CNFManager::Points.total_points([] of String)
+  max_points = CNFManager::Points.total_max_points([] of String)
+  total_passed = CNFManager::Points.total_passed([] of String)
+  max_passed = CNFManager::Points.total_max_passed([] of String)
 
+  final_msg = "Final score: #{total} of #{max_points} points (#{total_passed} of #{max_passed} tests passed)"
   if total > 0
-    stdout_success "Final score: #{total} of #{max_points}"
+    stdout_success final_msg
   else
-    stdout_failure "Final score: #{total} of #{max_points}"
+    stdout_failure final_msg
   end
-
-  update_yml("#{CNFManager::Points::Results.file}", "points", total)
-  update_yml("#{CNFManager::Points::Results.file}", "maximum_points", max_points)
 
   if CNFManager::Points.failed_required_tasks.size > 0
     stdout_failure "Test Suite failed!"
@@ -34,6 +34,7 @@ task "all", ["workload", "platform"] do  |_, args|
       update_yml("#{CNFManager::Points::Results.file}", "exit_code", "1")
     end
   end
+  CNFManager::Points.write_summary!
   stdout_info "Test results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
 end
 
@@ -43,14 +44,14 @@ task "workload", ["ensure_cnf_installed", "setup:configuration_file_setup", "com
 
   total = CNFManager::Points.total_points("workload")
   max_points = CNFManager::Points.total_max_points("workload")
+  total_passed = CNFManager::Points.total_passed("workload")
+  max_passed = CNFManager::Points.total_max_passed("workload")
+  final_msg = "Final workload score: #{total} of #{max_points} points (#{total_passed} of #{max_passed} tests passed)"
   if total > 0
-    stdout_success "Final workload score: #{total} of #{max_points}"
+    stdout_success final_msg
   else
-    stdout_failure "Final workload score: #{total} of #{max_points}"
+    stdout_failure final_msg
   end
-
-  update_yml("#{CNFManager::Points::Results.file}", "points", total)
-  update_yml("#{CNFManager::Points::Results.file}", "maximum_points", max_points)
 
   if CNFManager::Points.failed_required_tasks.size > 0
     stdout_failure "Test Suite failed!"
@@ -63,6 +64,7 @@ task "workload", ["ensure_cnf_installed", "setup:configuration_file_setup", "com
       update_yml("#{CNFManager::Points::Results.file}", "exit_code", "1")
     end
   end
+  CNFManager::Points.write_summary!
   stdout_info "Test results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
 end
 

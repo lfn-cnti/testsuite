@@ -18,7 +18,7 @@
 admin.conf
 cnf-testsuite
 results.yml
-cnf-testsuite-results*
+cnf-testsuite-results-*
 cnf-testsuite.env
 cnf-conformance.env
 cnf-testsuite*.tar*

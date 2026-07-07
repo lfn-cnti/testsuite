@@ -13,34 +13,34 @@ namespace "platform" do
 
   desc "Is the platform control plane hardened"
   task "control_plane_hardening", ["setup:kubescape_scan"] do |t, args|
-    task_response = CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args|
+    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       results_json = Kubescape.parse
       test_json = Kubescape.test_by_test_name(results_json, "API server insecure port is enabled")
       test_report = Kubescape.parse_test_report(test_json)
 
       if test_report.failed_resources.size == 0
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Insecure port of Kubernetes API server is not enabled")
+        result.passed("Insecure port of Kubernetes API server is not enabled")
       else
-        test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
-        stdout_failure("Remediation: #{test_report.remediation}")
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Insecure port of Kubernetes API server is enabled")
+        test_report.failed_resources.each { |r| result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message) }
+        result.append_remediation(test_report.remediation.to_s) if test_report.remediation
+        result.failed("Insecure port of Kubernetes API server is enabled")
       end
     end
   end
 
   desc "Attackers who have Cluster-admin permissions (can perform any action on any resource), can take advantage of their high privileges for malicious intentions. Determines which subjects have cluster admin permissions."
   task "cluster_admin", ["setup:kubescape_scan"] do |t, args|
-    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config|
+    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       results_json = Kubescape.parse
       test_json = Kubescape.test_by_test_name(results_json, "Administrative Roles")
       test_report = Kubescape.parse_test_report(test_json)
 
       if test_report.failed_resources.size == 0
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "No users with cluster-admin RBAC permissions were found")
+        result.passed("No users with cluster-admin RBAC permissions were found")
       else
-        test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
-        stdout_failure("Remediation: #{test_report.remediation}")
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Users with cluster-admin RBAC permissions found")
+        test_report.failed_resources.each { |r| result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message) }
+        result.append_remediation(test_report.remediation.to_s) if test_report.remediation
+        result.failed("Users with cluster-admin RBAC permissions found")
       end
     end
   end
@@ -48,19 +48,19 @@ namespace "platform" do
   desc "Check if the CNF is running containers with name tiller in their image name?"
   task "helm_tiller" do |t, args|
     Kyverno.install
-    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config|
+    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       policy_path = Kyverno.best_practice_policy("disallow_helm_tiller/disallow_helm_tiller.yaml")
       failures = Kyverno::PolicyAudit.run(policy_path, EXCLUDE_NAMESPACES)
 
       if failures.size == 0
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "No Helm Tiller containers are running")
+        result.passed("No Helm Tiller containers are running")
       else
         failures.each do |failure|
           failure.resources.each do |resource|
-            puts "#{resource.kind} #{resource.name} in #{resource.namespace} namespace failed. #{failure.message}".colorize(:red)
+            result.add_impacted_resource(resource.kind, resource.name, resource.namespace, reason: failure.message)
           end
         end
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Containers with the Helm Tiller image are running")
+        result.failed("Containers with the Helm Tiller image are running")
       end
     end
   end
@@ -71,7 +71,7 @@ namespace "platform" do
     kube_system_ns = "kube-system"
     cm_name = generate_cm_name
 
-    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config|
+    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       test_cm_key = "key"
       test_cm_value = "testconfigmapvalue"
       create_test_configmap(cm_name, test_cm_key, test_cm_value)
@@ -82,12 +82,12 @@ namespace "platform" do
       
       if etcd_certs_path
         if etcd_cm_encrypted?(etcd_certs_path, etcd_pod_name, cm_name, test_cm_value, kube_system_ns)
-          CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "ConfigMaps are encrypted in etcd.")
+          result.passed("ConfigMaps are encrypted in etcd.")
         else
-          CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "ConfigMaps are not encrypted in etcd.")
+          result.failed("ConfigMaps are not encrypted in etcd.")
         end
       else
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Error: etcd certs path not found.")
+        result.failed("Error: etcd certs path not found.")
       end
     end
 
@@ -181,7 +181,7 @@ end
 
   desc "Verify if Secrets are encrypted"
   task "verify_secrets_encryption", ["setup:kubescape_scan"] do |t, args|
-    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config|
+    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       namespace="kube-system"
       Kubescape.scan(namespace: namespace)
       results_json = Kubescape.parse("kubescape_results.json")
@@ -189,11 +189,11 @@ end
       test_report = Kubescape.parse_test_report(test_json)
 
       if test_report.failed_resources.size == 0
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Secret/etcd encryption enabled.")
+        result.passed("Secret/etcd encryption enabled.")
       else
-        test_report.failed_resources.map {|r| stdout_failure(r.alert_message) }
-        stdout_failure("Remediation: #{test_report.remediation}")
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Secret/etcd encryption disabled.")
+        test_report.failed_resources.each { |r| result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message) }
+        result.append_remediation(test_report.remediation.to_s) if test_report.remediation
+        result.failed("Secret/etcd encryption disabled.")
       end
     end
   end
