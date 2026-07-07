@@ -9,27 +9,146 @@ module CNFManager
     Failed
     Skipped
     NA
-    Neutral
     Pass5
     Pass3
     Error
 
     def to_basic
       case self
-      when Pass5, Pass3
-        ret = CNFManager::ResultStatus::Passed
-      when Neutral
-        ret = CNFManager::ResultStatus::Failed
-      else
-        ret = self
+      when Pass5, Pass3 then CNFManager::ResultStatus::Passed
+      else self
+      end
+    end
+
+    def to_string
+      case self.to_basic
+      when Passed then "passed"
+      when Failed then "failed"
+      when Skipped then "skipped"
+      when NA then "na"
+      when Error then "error"
+      else ""
       end
     end
   end
 
-  struct TestCaseResult
-    property state, result_message
+  class TestCaseResult
+    property testcase : String
+    property status : CNFManager::ResultStatus
+    property result_message : String?
+    property result_description : Array(String)
+    property start_time : Time
+    property end_time : Time
+    property result_remediation : Array(String)
+    property result_impacted_resources : Array(Hash(String, String))
 
-    def initialize(@state : CNFManager::ResultStatus, @result_message : String? = nil)
+    def initialize(@testcase : String = "",
+                   @status : CNFManager::ResultStatus = CNFManager::ResultStatus::Skipped,
+                   @result_message : String? = nil,
+                   @result_description : Array(String) = [] of String,
+                   @start_time : Time = Time.utc,
+                   @end_time : Time = Time.utc,
+                   @result_remediation : Array(String) = [] of String,
+                   @result_impacted_resources : Array(Hash(String, String)) = [] of Hash(String, String))
+    end
+
+    # Backward-compatible constructor for old code that passes (status, message)
+    def self.new(status : CNFManager::ResultStatus, message : String? = nil)
+      new("", status, message)
+    end
+
+    def update(status : CNFManager::ResultStatus, message : String?)
+      @status = status
+      @result_message = message
+    end
+
+    def passed(message : String?)
+      @status = CNFManager::ResultStatus::Passed
+      @result_message = message
+    end
+
+    def failed(message : String?)
+      @status = CNFManager::ResultStatus::Failed
+      @result_message = message
+    end
+
+    def skipped(message : String?)
+      @status = CNFManager::ResultStatus::Skipped
+      @result_message = message
+    end
+
+    def na(message : String?)
+      @status = CNFManager::ResultStatus::NA
+      @result_message = message
+    end
+
+    def error(message : String?)
+      @status = CNFManager::ResultStatus::Error
+      @result_message = message
+    end
+
+    def append_description(text : String)
+      @result_description << text
+    end
+
+    # Guidance on how to fix the failure (e.g. Kubescape remediation, config hints).
+    def append_remediation(text : String)
+      @result_remediation << text
+    end
+
+    # A resource that caused/participated in the failure. kind+name are required;
+    # namespace/container/pod/reason are recorded only when provided.
+    def add_impacted_resource(kind : String, name : String, namespace : String? = nil,
+                              container : String? = nil, pod : String? = nil, reason : String? = nil)
+      entry = {"kind" => kind, "name" => name}
+      entry["namespace"] = namespace if namespace
+      entry["container"] = container if container
+      entry["pod"] = pod if pod
+      entry["reason"] = reason if reason
+      @result_impacted_resources << entry
+    end
+
+    def set_start_time()
+      @start_time = Time.utc
+    end
+
+    def set_end_time()
+      @end_time = Time.utc
+    end
+
+    def duration() : Time::Span
+      @end_time - @start_time
+    end
+
+    def points : Int32
+      CNFManager::Points.task_points(@testcase, @status) || 0
+    end
+
+    def set_testcase(testcase : String)
+      @testcase = testcase
+    end
+
+    def decorated_result_message() : String
+      tc_emoji = CNFManager::Points.emoji_by_task(@testcase)
+      cat_emoji = CNFManager::Points.task_emoji_by_task(@testcase)
+      case @status.to_basic
+      when CNFManager::ResultStatus::Passed
+        "   #{cat_emoji}PASSED: [#{@testcase}] #{@result_message} #{tc_emoji}"
+      when CNFManager::ResultStatus::Failed
+        "   #{cat_emoji}FAILED: [#{@testcase}] #{@result_message} #{tc_emoji}"
+      when CNFManager::ResultStatus::Skipped
+        "⏭️  #{cat_emoji}SKIPPED: [#{@testcase}] #{@result_message} #{tc_emoji}"
+      when CNFManager::ResultStatus::NA
+        "⏭️  #{cat_emoji}N/A: [#{@testcase}] #{@result_message} #{tc_emoji}"
+      when CNFManager::ResultStatus::Error
+        "💥  #{cat_emoji}ERROR: [#{@testcase}] #{@result_message}"
+      else
+        ""
+      end
+    end
+
+    def self.empty
+      new
     end
   end
 
@@ -88,15 +207,19 @@ module CNFManager
       "results/cnf-testsuite-results-" + Time.local.to_s("%Y%m%d-%H%M%S-%L") + ".yml"
     end
 
+    # Version of the results-file schema. Bump when the file's structure changes
+    # so automation can detect the contract it is reading.
+    RESULTS_SCHEMA_VERSION = 1
+
     def self.clean_results_yml
       if File.exists?("#{Results.file}")
         results = File.open("#{Results.file}") { |f| YAML.parse(f) }
         File.open("#{Results.file}", "w") do |f|
           YAML.dump({name:              results["name"],
                      testsuite_version: ReleaseManager::VERSION,
+                     schema_version:    RESULTS_SCHEMA_VERSION,
                      status:            results["status"],
                      exit_code:         results["exit_code"],
-                     points:            results["points"],
                      items:             [] of YAML::Any},
             f)
         end
@@ -193,7 +316,7 @@ module CNFManager
     private def self.na_assigned?(task : String) : YAML::Any?
       yaml = File.open("#{Results.file}") { |file| YAML.parse(file) }
       assigned = yaml["items"].as_a.find do |i|
-        if i["name"].as_s? && i["name"].as_s == task && i["status"].as_s? && i["status"] == NA
+        if i["name"].as_s? && i["name"].as_s == task && i["status"].as_s? && i["status"] == "na"
           true
         end
       end
@@ -220,44 +343,33 @@ module CNFManager
 
     # Calculates the total potential points.
     private def self.total_max_tasks_points(tags : Array(String) = [] of String) : Tuple(Int32, Int32)
-      logger = @@logger.for("total_max_tasks_points")
       if !tags.empty?
         tasks = tasks_by_tag_intersection(tags)
       else
         tasks = all_task_test_names
       end
+      max_tasks_points_over(tasks)
+    end
 
+    # Maximum achievable points/passed over an explicit set of task names,
+    # excluding N/A tasks and bonus tasks that did not pass (#1465).
+    private def self.max_tasks_points_over(tasks : Array(String)) : Tuple(Int32, Int32)
+      logger = @@logger.for("max_tasks_points_over")
       yaml = File.open("#{Results.file}") { |file| YAML.parse(file) }
       skipped_tests = yaml["items"].as_a.reduce([] of String) do |acc, test_info|
-        if test_info["status"] == "skipped"
-          acc + [test_info["name"].as_s]
-        else
-          acc
-        end
+        test_info["status"] == "skipped" ? acc + [test_info["name"].as_s] : acc
       end
-      logger.info { "Skipped tests: #{skipped_tests}" }
-
       failed_tests = yaml["items"].as_a.reduce([] of String) do |acc, test_info|
-        if test_info["status"] == "failed"
-          acc + [test_info["name"].as_s]
-        else
-          acc
-        end
+        test_info["status"] == "failed" ? acc + [test_info["name"].as_s] : acc
       end
-      logger.info { "Failed tests: #{failed_tests}" }
-
       bonus_tasks = tasks_by_tag("bonus")
-      logger.info { "Bonus tests: #{failed_tests}" }
 
       max_points = 0
       max_passed = 0
       tasks.each do |x|
-        logger.info { sprintf("Task: %s -> failed: %s, skipped: NA: %s, bonus: %s",
-          x, failed_tests.includes?(x), skipped_tests.includes?(x), na_assigned?(x), bonus_tasks.includes?(x)) }
         if na_assigned?(x)
           next
         elsif bonus_tasks.includes?(x) && (failed_tests.includes?(x) || skipped_tests.includes?(x))
-          logger.debug { "Bonus tasks not counted in maximum" }
           # Don't count failed tests that are bonus tests #1465.
           next
         else
@@ -265,18 +377,16 @@ module CNFManager
           if points
             max_points += points
             max_passed += 1
-          else
-            next
           end
         end
       end
-      logger.info { "Max points scored: #{max_points}, max tasks passed: #{max_passed} for tags: #{tags}" }
+      logger.info { "Max points scored: #{max_points}, max tasks passed: #{max_passed}" }
 
       {max_points, max_passed}
     end
 
-    def self.upsert_task(task, status, points, start_time)
-      logger = @@logger.for("upsert_task-#{task}")
+    def self.upsert_task(result : CNFManager::TestCaseResult)
+      logger = @@logger.for("upsert_task-#{result.testcase}")
 
       # Raise exception when results file does not exists.
       CNFManager::Points::Results.ensure_results_file!
@@ -284,63 +394,108 @@ module CNFManager
       results = File.open("#{Results.file}") { |f| YAML.parse(f) }
       result_items = results["items"].as_a
       # remove the existing entry
-      result_items = result_items.reject { |x| x["name"] == task }
+      result_items = result_items.reject { |x| x["name"] == result.testcase }
 
-      end_time = Time.utc
-      task_runtime = (end_time - start_time)
+      points = result.points
 
       # The task result info has to be appeneded to an array of YAML::Any
       # So encode it into YAML and parse it back again to assign it.
       #
       # Only add task timestamps if the env var is set.
-      if ENV.has_key?("TASK_TIMESTAMPS")
-        task_result_info = {
-          name:         task,
-          status:       status,
-          type:         task_type_by_task(task),
-          points:       points,
-          start_time:   start_time,
-          end_time:     end_time,
-          task_runtime: "#{task_runtime}",
-        }
-        result_items << YAML.parse(task_result_info.to_yaml)
-      else
-        task_result_info = {
-          name:   task,
-          status: status,
-          type:   task_type_by_task(task),
-          points: points,
-        }
-        result_items << YAML.parse(task_result_info.to_yaml)
+      task_result_info = {
+        name:         result.testcase,
+        status:       result.status.to_string,
+        message:      result.result_message,
+        type:         task_type_by_task(result.testcase),
+        points:       points,
+        start_time:   result.start_time.to_rfc3339(fraction_digits: 9),
+        end_time:     result.end_time.to_rfc3339(fraction_digits: 9),
+        task_runtime: result.duration.total_seconds,
+      }
+      item_node = YAML.parse(task_result_info.to_yaml).as_h
+      # Optional detail buckets are only recorded when non-empty, to keep the file lean.
+      unless result.result_description.empty?
+        item_node[YAML::Any.new("details")] = YAML.parse(result.result_description.to_yaml)
       end
+      unless result.result_remediation.empty?
+        item_node[YAML::Any.new("remediation")] = YAML.parse(result.result_remediation.to_yaml)
+      end
+      unless result.result_impacted_resources.empty?
+        item_node[YAML::Any.new("impacted_resources")] = YAML.parse(result.result_impacted_resources.to_yaml)
+      end
+      result_items << YAML::Any.new(item_node)
 
       File.open("#{Results.file}", "w") do |f|
         YAML.dump({name:              results["name"],
                    testsuite_version: ReleaseManager::VERSION,
+                   schema_version:    RESULTS_SCHEMA_VERSION,
                    status:            results["status"],
                    command:           "#{Process.executable_path} #{ARGV.join(" ")}",
-                   points:            results["points"],
                    exit_code:         results["exit_code"],
                    items:             result_items}, f)
       end
-      logger.debug { "Task start time: #{start_time}, end time: #{end_time}" }
-      logger.info { "Task: '#{task}' has status: '#{status}' and is awarded: #{points} points." +
-        "Runtime: #{task_runtime}" }
+      write_summary!
+      logger.debug { "Task start time: #{result.start_time}, end time: #{result.end_time}" }
+      logger.info { "Test case: '#{result.testcase}' has status: '#{result.status}' and is awarded: #{points} points." +
+                    "Runtime: #{result.duration}" }
     end
 
-    def self.failed_task(task, msg)
-      upsert_task(task, FAILED, task_points(task, false), start_time)
-      stdout_failure "#{msg}"
-    end
+    # Recompute the `summary` block from the current results file. The summary is
+    # the single home for every aggregate number (status counts + score); there are
+    # no root-level duplicates. Counts come from each item's status; the score and
+    # passed/essential tallies are computed over whatever tasks have run so far, so
+    # the numbers match what is reported on stdout. Preserves all other keys.
+    def self.write_summary!
+      results = File.open("#{Results.file}") { |f| YAML.parse(f) }
+      items = results["items"]?.try(&.as_a) || [] of YAML::Any
+      essential_tasks = tasks_by_tag("essential")
 
-    def self.passed_task(task, msg)
-      upsert_task(task, PASSED, task_points(task), start_time)
-      stdout_success "#{msg}"
-    end
+      passed = failed = skipped = na = error = 0
+      points = 0
+      essential_passed = 0
+      present_tasks = [] of String
+      items.each do |item|
+        name = item["name"]?.try(&.as_s?) || ""
+        present_tasks << name
+        points += item["points"]?.try(&.as_i?) || 0
+        status = item["status"]?.try(&.as_s?)
+        case status
+        when "passed"  then passed  += 1
+        when "failed"  then failed  += 1
+        when "skipped" then skipped += 1
+        when "na"      then na      += 1
+        when "error"   then error   += 1
+        end
+        essential_passed += 1 if status == "passed" && essential_tasks.includes?(name)
+      end
 
-    def self.skipped_task(task, msg)
-      upsert_task(task, SKIPPED, task_points(task), start_time)
-      stdout_success "#{msg}"
+      # Denominators are scoped to the tasks that actually ran (present items).
+      max_points, max_passed = max_tasks_points_over(present_tasks)
+      _, essential_max_passed = max_tasks_points_over(present_tasks & essential_tasks)
+
+      summary = {
+        total:                items.size,
+        passed:               passed,
+        failed:               failed,
+        skipped:              skipped,
+        na:                   na,
+        error:                error,
+        max_passed:           max_passed,
+        essential_passed:     essential_passed,
+        essential_max_passed: essential_max_passed,
+        points:               points,
+        maximum_points:       max_points,
+      }
+
+      # Top-level `status` is the overall run verdict, derived from the exit code:
+      # 0 -> passed, 2 -> error (critical), anything else (1) -> failed.
+      exit_code = results["exit_code"]?.try(&.as_i?) || 0
+      run_status = exit_code == 0 ? "passed" : (exit_code == 2 ? "error" : "failed")
+
+      merged = results.as_h
+      merged[YAML::Any.new("status")] = YAML::Any.new(run_status)
+      merged[YAML::Any.new("summary")] = YAML.parse(summary.to_yaml)
+      File.open("#{Results.file}", "w") { |f| YAML.dump(merged, f) }
     end
 
     def self.failed_required_tasks
@@ -457,8 +612,8 @@ module CNFManager
       YAML.parse <<-END
 name: cnf testsuite
 testsuite_version: <%= CnfTestSuite::VERSION %>
+schema_version: #{RESULTS_SCHEMA_VERSION}
 status:
-points:
 exit_code: 0
 items: []
 END

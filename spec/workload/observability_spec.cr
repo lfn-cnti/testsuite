@@ -10,6 +10,7 @@ describe "Observability" do
     result[:status].success?.should be_true
   end
 
+
   it "'log_output' should pass with a cnf that outputs logs to stdout", tags: ["observability_log_output"]  do
     begin
       ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")

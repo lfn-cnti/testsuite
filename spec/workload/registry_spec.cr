@@ -9,6 +9,7 @@ def registry_manifest_path
 end
 
 describe "Private Registry: Image" do
+
   before_all do
     result = ShellCmd.run_testsuite("setup")
     Dockerd.install

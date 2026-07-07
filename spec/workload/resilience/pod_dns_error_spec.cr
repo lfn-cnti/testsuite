@@ -11,13 +11,21 @@ describe "Resilience pod dns error Chaos" do
     result[:status].success?.should be_true
   end
 
+
   it "'pod_dns_error' A 'Good' CNF should not crash when pod dns error occurs", tags: ["pod_dns_error"]  do
     begin
       ShellCmd.cnf_install("cnf-config=example-cnfs/envoy/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("pod_dns_error")
       result[:status].success?.should be_true
-      ((/(SKIPPED).*(pod_dns_error docker runtime not found)/)  =~ result[:output] || 
+      ((/( SKIPPED).*(pod_dns_error docker runtime not found)/)  =~ result[:output] || 
        (/(PASSED).*(pod_dns_error chaos test passed)/ =~ result[:output])).should_not be_nil
+      
+      latest_results = Dir.glob("results/cnf-testsuite-results-*.yml").max_by { |path| File.info(path).modification_time }
+      latest_results.should_not be_nil
+      yaml = YAML.parse(File.read(latest_results.not_nil!))
+      item = yaml["items"].as_a.find { |i| i["name"].as_s == "pod_dns_error" }
+      item.should_not be_nil
+      (item.not_nil!["status"].as_s == "skipped" || item.not_nil!["status"].as_s == "passed").should be_true
     rescue ex
       # Raise back error to ensure test fails.
       # The ensure block will uninstall the CNF and Litmus.

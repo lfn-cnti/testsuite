@@ -11,6 +11,7 @@ describe "Compatibility" do
     result[:status].success?.should be_true
   end
 
+
   it "'cni_compatible' should pass if the cnf works with calico and flannel", tags: ["compatibility"] do
     begin
       ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")

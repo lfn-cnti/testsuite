@@ -21,7 +21,7 @@ describe "Security" do
       result = ShellCmd.run_testsuite("privileged_containers")
       result[:status].success?.should be_true
       (/Found.*privileged containers.*/ =~ result[:output]).should_not be_nil
-      (/Privileged container (privileged-coredns) in.*/ =~ result[:output]).should_not be_nil
+      (/impacted: .*\(container privileged-coredns\): privileged container/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -155,7 +155,7 @@ describe "Security" do
       result[:status].success?.should be_true
       (result[:output].scan(/Failed resource: Deployment demo-labeled in cnf-default namespace/).size > 0).should be_true
       (result[:output].scan(/Failed resource: Deployment demo-owned in cnf-default namespace/).size > 0).should be_true
-      (/Remediation: Set the CPU limits or use exception mechanism to avoid unnecessary notifications\./ =~ result[:output]).should_not be_nil
+      (/remediation: Set the CPU limits or use exception mechanism to avoid unnecessary notifications\./ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end

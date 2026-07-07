@@ -14,9 +14,10 @@ namespace "platform" do
 
   desc "Does the Platform recover the node and reschedule pods when a worker node fails"
   task "worker_reboot_recovery" do |t, args|
-    task_response = CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args|
+    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       unless check_destructive(args)
-        next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Node not in destructive mode")
+        result.skipped("Node not in destructive mode")
+        next
       end
       Log.info { "Running POC in destructive mode!" }
       current_dir = FileUtils.pwd
@@ -42,7 +43,8 @@ namespace "platform" do
         end
 
         if !execution_complete
-          next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Failed to install reboot daemon")
+          result.failed("Failed to install reboot daemon")
+          next
         end
 
         # Find Reboot Daemon name
@@ -59,7 +61,8 @@ namespace "platform" do
         end
 
         if !execution_complete
-          next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Node failed to go offline")
+          result.failed("Node failed to go offline")
+          next
         end
 
         #Watch for Node to come back online
@@ -73,10 +76,11 @@ namespace "platform" do
         end
 
         if !execution_complete
-          next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Node failed to come back online")
+          result.failed("Node failed to come back online")
+          next
         end
-        
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Node came back online")
+
+        result.passed("Node came back online")
       ensure
         Log.info { "node_failure cleanup" }
         begin

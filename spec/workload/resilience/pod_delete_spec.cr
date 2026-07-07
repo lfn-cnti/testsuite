@@ -11,12 +11,18 @@ describe "Resilience pod delete Chaos" do
     result[:status].success?.should be_true
   end
 
+
   it "'pod_delete' A 'Good' CNF should not crash when pod delete occurs", tags: ["pod_delete"]  do
     begin
       ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("pod_delete")
       result[:status].success?.should be_true
       (/(PASSED).*(pod_delete chaos test passed)/ =~ result[:output]).should_not be_nil
+      verify_task_result("pod_delete", "passed")
+    rescue ex
+      # Raise back error to ensure test fails.
+      # The ensure block will uninstall the CNF and Litmus.
+      raise "Test failed with #{ex.message}"
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true

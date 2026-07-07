@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/lfn-cnti/testsuite/main/docs/cnf-testsuite-results.schema.json",
+  "title": "CNTi Test Suite results file",
+  "description": "Schema for the results/cnf-testsuite-results-<timestamp>.yml file produced by a completed CNTi Test Suite run. Matches schema_version 1. The file is YAML; this schema validates it as JSON (YAML is a JSON superset).",
+  "type": "object",
+  "required": ["name", "testsuite_version", "schema_version", "status", "exit_code", "summary", "items"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "description": "Always 'cnf testsuite'.",
+      "type": "string",
+      "const": "cnf testsuite"
+    },
+    "testsuite_version": {
+      "description": "Version of the test suite that produced the file.",
+      "type": "string"
+    },
+    "schema_version": {
+      "description": "Version of this results-file schema; bumped on breaking changes.",
+      "type": "integer",
+      "const": 1
+    },
+    "status": {
+      "description": "Overall run verdict, derived from exit_code (0 -> passed, 1 -> failed, 2 -> error). May be null before any test has run.",
+      "enum": ["passed", "failed", "error", null]
+    },
+    "command": {
+      "description": "The command line that produced this file.",
+      "type": "string"
+    },
+    "exit_code": {
+      "description": "Process exit code: 0 = passed, 1 = failed (a required test failed), 2 = error (a test raised).",
+      "type": "integer",
+      "enum": [0, 1, 2]
+    },
+    "summary": { "$ref": "#/$defs/summary" },
+    "items": {
+      "description": "One entry per test that ran.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/item" }
+    }
+  },
+  "$defs": {
+    "summary": {
+      "description": "Aggregate numbers for the run, scoped to the tests that actually ran.",
+      "type": "object",
+      "required": [
+        "total", "passed", "failed", "skipped", "na", "error",
+        "max_passed", "essential_passed", "essential_max_passed",
+        "points", "maximum_points"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "total": { "description": "Number of tests executed.", "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "na": { "type": "integer", "minimum": 0 },
+        "error": { "type": "integer", "minimum": 0 },
+        "max_passed": {
+          "description": "Maximum number of tests that could have passed (denominator for 'X of Y tests passed').",
+          "type": "integer",
+          "minimum": 0
+        },
+        "essential_passed": { "type": "integer", "minimum": 0 },
+        "essential_max_passed": { "type": "integer", "minimum": 0 },
+        "points": { "description": "Total points scored.", "type": "integer" },
+        "maximum_points": { "description": "Maximum points achievable by the tests that ran.", "type": "integer" }
+      }
+    },
+    "item": {
+      "description": "Result of a single test.",
+      "type": "object",
+      "required": ["name", "status", "type", "points", "start_time", "end_time", "task_runtime"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "description": "Test name, e.g. privileged_containers.", "type": "string" },
+        "status": {
+          "description": "Outcome of this test.",
+          "enum": ["passed", "failed", "skipped", "na", "error"]
+        },
+        "message": {
+          "description": "One-line verdict for the test.",
+          "type": ["string", "null"]
+        },
+        "type": {
+          "description": "Scoring class from points.yml (essential, bonus, normal, cert, ...).",
+          "type": "string"
+        },
+        "points": { "description": "Points awarded for this test.", "type": "integer" },
+        "start_time": { "description": "RFC 3339 timestamp.", "type": "string" },
+        "end_time": { "description": "RFC 3339 timestamp.", "type": "string" },
+        "task_runtime": { "description": "Test duration in seconds.", "type": "number" },
+        "details": {
+          "description": "Free-form reason/evidence strings. Present only when non-empty.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "remediation": {
+          "description": "Guidance on how to fix the failure. Present only when non-empty.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "impacted_resources": {
+          "description": "Structured list of offending resources. Present only when non-empty.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/impacted_resource" }
+        }
+      }
+    },
+    "impacted_resource": {
+      "description": "A resource that caused or participated in a test's result. Only fields that are known are recorded.",
+      "type": "object",
+      "required": ["kind", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string" },
+        "name": { "type": "string" },
+        "namespace": { "type": "string" },
+        "container": { "type": "string" },
+        "pod": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    }
+  }
+}

@@ -16,35 +16,37 @@ namespace "platform" do
 
   desc "Does the Platform have Kube State Metrics installed"
   task "kube_state_metrics", ["setup:install_cluster_tools"] do |t, args|
-    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config|
+    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       unless check_poc(args)
-        next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Kube State Metrics not in poc mode")
+        result.skipped("Kube State Metrics not in poc mode")
+        next
       end
       Log.info { "Running POC: kube_state_metrics" }
       found = KernelIntrospection::K8s.find_first_process(CloudNativeIntrospection::STATE_METRICS_PROCESS)
       Log.info { "Found Pod: #{found}" }
 
       if found
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Your platform is using the release for kube state metrics")
+        result.passed("Your platform is using the release for kube state metrics")
       else
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Your platform does not have kube state metrics installed")
+        result.failed("Your platform does not have kube state metrics installed")
       end
     end
   end
 
   desc "Does the Platform have a Node Exporter installed"
   task "node_exporter", ["setup:install_cluster_tools"] do |t, args|
-    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config|
+    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       unless check_poc(args)
-        next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "node exporter not in poc mode")
+        result.skipped("node exporter not in poc mode")
+        next
       end
       Log.info { "Running POC: node_exporter" }
       found = KernelIntrospection::K8s.find_first_process(CloudNativeIntrospection::NODE_EXPORTER)
       Log.info { "Found Process: #{found}" }
       if found
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Your platform is using the node exporter")
+        result.passed("Your platform is using the node exporter")
       else
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Your platform does not have the node exporter installed")
+        result.failed("Your platform does not have the node exporter installed")
       end
     end
   end
@@ -52,34 +54,36 @@ namespace "platform" do
 
   desc "Does the Platform have the prometheus adapter installed"
   task "prometheus_adapter", ["setup:install_cluster_tools"] do |t, args|
-    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config|
+    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       unless check_poc(args)
-        next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "prometheus adapter not in poc mode")
+        result.skipped("prometheus adapter not in poc mode")
+        next
       end
       Log.info { "Running POC: prometheus_adapter" }
       found = KernelIntrospection::K8s.find_first_process(CloudNativeIntrospection::PROMETHEUS_ADAPTER)
       Log.info { "Found Process: #{found}" }
 
       if found
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Your platform is using the prometheus adapter")
+        result.passed("Your platform is using the prometheus adapter")
       else
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Your platform does not have the prometheus adapter installed")
+        result.failed("Your platform does not have the prometheus adapter installed")
       end
     end
   end
 
   desc "Does the Platform have the K8s Metrics Server installed"
   task "metrics_server", ["setup:install_cluster_tools"] do |t, args|
-    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config|
+    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       unless check_poc(args)
-        next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Metrics server not in poc mode")
+        result.skipped("Metrics server not in poc mode")
+        next
       end
       Log.info { "Running POC: metrics_server" }
       found = KernelIntrospection::K8s.find_first_process(CloudNativeIntrospection::METRICS_SERVER)
       if found
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Your platform is using the metrics server")
+        result.passed("Your platform is using the metrics server")
       else
-        CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Your platform does not have the metrics server installed")
+        result.failed("Your platform does not have the metrics server installed")
       end
     end
   end

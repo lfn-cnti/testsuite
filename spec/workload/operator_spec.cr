@@ -8,6 +8,7 @@ require "json"
 
 describe "Operator" do
 
+
   it "'operator_test' test if operator is being used", tags: ["operator_test"]  do
     current_dir = FileUtils.pwd
     install_dir = "#{tools_path}/olm"
@@ -24,6 +25,7 @@ describe "Operator" do
       ShellCmd.cnf_install("cnf-path=./sample-cnfs/sample_operator", cmd_prefix: "LOG_LEVEL=info")
       result = ShellCmd.run_testsuite("operator_installed", cmd_prefix: "LOG_LEVEL=info")
       (/(PASSED).*(Operator is installed)/ =~ result[:output]).should_not be_nil
+      verify_task_result("operator_installed", "passed")
     ensure
       result = ShellCmd.cnf_uninstall(cmd_prefix: "LOG_LEVEL=info")
       result[:status].success?.should be_true
@@ -70,6 +72,7 @@ describe "Operator" do
       ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_coredns")
       result = ShellCmd.run_testsuite("operator_installed", cmd_prefix: "LOG_LEVEL=info")
       (/(N\/A).*(No Operators Found)/ =~ result[:output]).should_not be_nil
+      verify_task_result("operator_installed", "na")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true

@@ -60,7 +60,7 @@ describe "Utils" do
 
   it "'upsert_skipped_task' should put a 0 in the results file", tags: ["task_runner"]  do
     CNFManager::Points.clean_results_yml
-    resp = upsert_skipped_task("ip_addresses","✖️  FAILED: IP addresses found", Time.utc)
+    resp = upsert_skipped_task("ip_addresses", "✖️  FAILED: IP addresses found", "IP addresses found", Time.utc)
     yaml = File.open("#{CNFManager::Points::Results.file}") do |file|
       YAML.parse(file)
     end
@@ -78,7 +78,8 @@ describe "Utils" do
       args = Sam::Args.new()
       config_path = "./sample-cnfs/sample-generic-cnf/cnf-testsuite.yml"
       ShellCmd.cnf_install("cnf-config=#{config_path}")
-      task_response = CNFManager::Task.single_task_runner(args) do |args, config| 
+      CNFManager::Task.single_task_runner(args) do |args, config, result|
+        result.set_testcase("privileged_containers")
         Log.info { "single_task_runner spec args #{args.inspect}" }
         white_list_container_names = config.common.white_list_container_names
         Log.info { "white_list_container_names #{white_list_container_names.inspect}" }
@@ -99,15 +100,19 @@ describe "Utils" do
         end
         Log.debug { "violator list: #{violation_list.flatten}" }
         emoji_security=""
-        if resource_response 
-          resp = upsert_passed_task("privileged_containers", "✔️  PASSED: No privileged containers", Time.utc)
+        if resource_response
+          result.passed("No privileged containers")
         else
-          resp = upsert_failed_task("privileged_containers", "✖️  FAILED: Found #{violation_list.size} privileged containers: #{violation_list.inspect}", Time.utc)
+          result.failed("Found #{violation_list.size} privileged containers: #{violation_list.inspect}")
         end
-        Log.info { resp }
-        resp
+        Log.info { result.result_message }
       end
-      (task_response).should eq("✔️  PASSED: No privileged containers")
+      yaml = File.open("#{CNFManager::Points::Results.file}") do |file|
+        YAML.parse(file)
+      end
+      item = yaml["items"].as_a.find { |i| i["name"].as_s == "privileged_containers" }
+      item.should_not be_nil
+      item.not_nil!["status"].as_s.should eq("passed")
     ensure
       ShellCmd.cnf_uninstall()
     end

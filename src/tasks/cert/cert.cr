@@ -26,11 +26,6 @@ task "cert", ["version", "cert_compatibility", "cert_state", "cert_security", "c
     stdout_failure "Certification failed! Passing threshold is #{ESSENTIAL_PASSED_THRESHOLD} essential tests"
   end
 
-  update_yml("#{CNFManager::Points::Results.file}", "points", total)
-  update_yml("#{CNFManager::Points::Results.file}", "maximum_points", max_points)
-  update_yml("#{CNFManager::Points::Results.file}", "total_passed", "#{total_passed} of #{max_passed}")
-  update_yml("#{CNFManager::Points::Results.file}", "essential_passed", "#{essential_total_passed} of #{essential_max_passed}")
-
   if CNFManager::Points.failed_required_tasks.size > 0
     stdout_failure "Test Suite failed!"
     stdout_failure "Failed required tasks: #{CNFManager::Points.failed_required_tasks.inspect}"
@@ -42,5 +37,6 @@ task "cert", ["version", "cert_compatibility", "cert_state", "cert_security", "c
       update_yml("#{CNFManager::Points::Results.file}", "exit_code", "1")
     end
   end
+  CNFManager::Points.write_summary!
   stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
 end

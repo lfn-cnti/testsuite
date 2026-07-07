@@ -4,10 +4,14 @@ task "platform", ["setup:install_local_helm", "k8s_conformance", "platform:obser
   Log.debug { "platform" }
 
   total = CNFManager::Points.total_points("platform")
+  max_points = CNFManager::Points.total_max_points("platform")
+  total_passed = CNFManager::Points.total_passed("platform")
+  max_passed = CNFManager::Points.total_max_passed("platform")
+  final_msg = "Final platform score: #{total} of #{max_points} points (#{total_passed} of #{max_passed} tests passed)"
   if total > 0
-    stdout_success "Final platform score: #{total} of #{CNFManager::Points.total_max_points("platform")}"
+    stdout_success final_msg
   else
-    stdout_failure "Final platform score: #{total} of #{CNFManager::Points.total_max_points("platform")}"
+    stdout_failure final_msg
   end
 
   if CNFManager::Points.failed_required_tasks.size > 0
@@ -15,12 +19,13 @@ task "platform", ["setup:install_local_helm", "k8s_conformance", "platform:obser
     stdout_failure "Failed required tasks: #{CNFManager::Points.failed_required_tasks.inspect}"
     update_yml("#{CNFManager::Points::Results.file}", "exit_code", "1")
   end
+  CNFManager::Points.write_summary!
   stdout_info "Test results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
 end
 
 desc "Does the platform pass the K8s conformance tests?"
 task "k8s_conformance" do |t, args|
-  CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do
+  CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
     current_dir = FileUtils.pwd
     Log.for(t.name).debug { "current dir: #{current_dir}" }
     sonobuoy = "#{tools_path}/sonobuoy/sonobuoy"
@@ -83,13 +88,14 @@ task "k8s_conformance" do |t, args|
     end
 
     if failed_count.nil?
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Error, "Unable to determine failure count from Sonobuoy results")
+      result.error("Unable to determine failure count from Sonobuoy results")
     elsif failed_count > 0
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "K8s conformance test has #{failed_count} failure(s)!")
+      result.failed("K8s conformance test has #{failed_count} failure(s)!")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "K8s conformance test has no failures")
+      result.passed("K8s conformance test has no failures")
     end
   rescue ex
+    result.error("Error occurred while running the K8s conformance test")
     Log.error { ex.message }
     ex.backtrace.each do |x|
       Log.error { x }
@@ -101,9 +107,10 @@ end
 
 desc "Is Cluster Api available and managing a cluster?"
 task "clusterapi_enabled" do |t, args|
-  CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do
+  CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
     unless check_poc(args)
-      next CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Skipped, "Cluster API not in poc mode")
+      result.skipped("Cluster API not in poc mode")
+      next
     end
 
     Log.debug { "clusterapi_enabled" }
@@ -142,9 +149,9 @@ task "clusterapi_enabled" do |t, args|
     Log.info { "clusterapi_control_planes_json: #{clusterapi_control_planes_json}" }
 
     if clusterapi_namespaces_json["items"]? && clusterapi_namespaces_json["items"].as_a.size > 0 && clusterapi_control_planes_json["items"]? && clusterapi_control_planes_json["items"].as_a.size > 0
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Passed, "Cluster API is enabled")
+      result.passed("Cluster API is enabled")
     else
-      CNFManager::TestCaseResult.new(CNFManager::ResultStatus::Failed, "Cluster API NOT enabled")
+      result.failed("Cluster API NOT enabled")
     end
   end
 end
