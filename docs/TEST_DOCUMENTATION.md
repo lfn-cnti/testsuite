@@ -337,12 +337,14 @@ Ensure that your CNF gets into a running state within 30 seconds.
 
 #### Overview
 
-This verifies that there is only one process type within one container. This does not count against child processes. For example, nginx or httpd could have a parent process and then 10 child processes, but if both nginx and httpd were running, this test would fail.
-Expectation: CNF container has one process type
+This verifies that there is only one application process type within one container. This does not count against child processes of the same type, nor against the container's init/supervisor process. For example, nginx or httpd could have a parent process and then 10 child processes, but if both nginx and httpd were running, this test would fail.
+Expectation: CNF container has one application process type
+
+The container's own init/supervisor process (PID 1) is not counted as an application process type, regardless of which init system it uses. Whether that init system is a recommended, specialized one (e.g. tini, dumb-init, s6) is evaluated separately by the `specialized_init_system` test — using a home-grown init will not fail this test, but it is reported in the test output and results file.
 
 #### Rationale
 
-A microservice should have only one process (or set of parent/child processes) that is managed by a non-homegrown supervisor or orchestrator. The microservice should not spawn other process types (e.g., executables) as a way to contribute to the workload but rather should interact with other processes through a microservice API.
+A microservice should have only one application process (or set of parent/child processes of the same type), optionally managed by an init/supervisor. The microservice should not spawn other process types (e.g., executables) as a way to contribute to the workload but rather should interact with other processes through a microservice API.
 
 #### Remediation
 

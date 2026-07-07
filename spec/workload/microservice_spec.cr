@@ -104,6 +104,20 @@ describe "Microservice" do
     end
   end
 
+  it "'single_process_type' should pass if a container uses a non-specialized init system supervising a single process type", tags: ["process_check"]  do
+    begin
+      ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-nonspecialized-init")
+      result = ShellCmd.run_testsuite("single_process_type")
+      result[:status].success?.should be_true
+      (/(PASSED).*(Only one process type used)/ =~ result[:output]).should_not be_nil
+      (/uses non-specialized init system/ =~ result[:output]).should_not be_nil
+      verify_task_result("single_process_type", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
   it "'single_process_type' should fail if the containers in the cnf have more than one process type", tags: ["process_check"]  do
     begin
       ShellCmd.cnf_install("cnf-path=sample-cnfs/k8s-multiple-processes")
