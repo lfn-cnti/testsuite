@@ -355,6 +355,7 @@ desc "Do the containers in a pod have only one process type?"
 task "single_process_type" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     fail_msgs = Set(String).new
+    ignored_init_msgs = Set(String).new
     resources_checked = false
     test_passed = true
 
@@ -374,45 +375,72 @@ task "single_process_type" do |t, args|
 
       Log.info { "Constructed resource_named_tuple: #{resource_named_tuple}" }
 
-      # Iterate over every container and verify there is only one process type
+      # Iterate over every container and verify there is only one application process type.
       ClusterTools.all_containers_by_resource?(resource_named_tuple, namespace, only_container_pids:true) do |container_id, container_pid_on_node, node, container_proctree_statuses, container_status|
-        previous_process_type = "initial_name"
         container_name = container_status["name"]?
+        next if container_proctree_statuses.empty?
+        resources_checked = true
 
-        container_proctree_statuses.each do |status|
-          status_name = status["Name"].strip
-          ppid = status["PPid"].strip
-          Log.for(t.name).info { "status name: #{status_name}" }
-          Log.for(t.name).info { "previous status name: #{previous_process_type}" }
-          resources_checked = true
+        root_pid = container_pid_on_node.strip
 
-          if status_name != previous_process_type && previous_process_type != "initial_name"
-            verified = KernelIntrospection::K8s::Node.verify_single_proc_tree(ppid, status_name, container_proctree_statuses, SPECIALIZED_INIT_SYSTEMS)
-            unless verified
-              Log.for(t.name).info { "multiple proc types detected verified: #{verified}" }
+        # The container's own init/supervisor process (PID 1, whose host pid ==
+        # container_pid_on_node) is not an application process type, regardless of
+        # which init binary it uses. A specialized init system (tini/dumb-init/s6) is
+        # also excused wherever it appears in the tree. Whatever remains is the set of
+        # application process types -- more than one means the container runs multiple
+        # process types.
+        app_process_types = container_proctree_statuses.reject do |status|
+          status["Pid"].strip == root_pid ||
+            SPECIALIZED_INIT_SYSTEMS.includes?(status["Name"].strip)
+        end.map { |status| status["Name"].strip }.uniq
 
-              proc_list = container_proctree_statuses.map do |proc|
-                proc_name = proc["Name"]?
-                proc_pid  = proc["Pid"]?
-                proc_ppid = proc["PPid"]?
-                proc_cmd = proc["cmdline"]?.try do |cmd|
-                  cmd.split("\0").join(" ").gsub("\n", "\\n").strip
-                end || "N/A"
-                "NAME=#{proc_name}, PID=#{proc_pid}, PPID=#{proc_ppid}, CMD=#{proc_cmd}"
-              end.join("\n")
-              
-              fail_msg = "Container `#{container_name}` in `#{kind}`: `#{name}` (namespace: `#{namespace}`) has multiple process types.\n"
-              fail_msg += "Running processes detected:\n"
-              fail_msg += "#{proc_list}"
+        Log.for(t.name).info { "container '#{container_name}' application process types: #{app_process_types}" }
 
-              fail_msgs.add?(fail_msg)
-              test_passed = false
-            end
+        # When the container's init process (PID 1) is a real init/supervisor that is
+        # NOT one of the recommended specialized init systems, record that we saw it and
+        # are deliberately not counting it against this test. Whether the init system is
+        # a specialized one is scored separately by the specialized_init_system test.
+        root_status = container_proctree_statuses.find { |status| status["Pid"].strip == root_pid }
+        if root_status
+          root_name = root_status["Name"].strip
+          init_cmd = root_status["cmdline"]?.try do |cmd|
+            cmd.split("\0").join(" ").gsub("\n", "\\n").strip
           end
-          previous_process_type = status_name
+          init_cmd = root_name if init_cmd.nil? || init_cmd.empty?
+          if !SPECIALIZED_INIT_SYSTEMS.includes?(root_name) && app_process_types.any? { |ptype| ptype != root_name }
+            ignored_init_msgs.add?(
+              "Container `#{container_name}` in `#{kind}`: `#{name}` (namespace: `#{namespace}`) " \
+              "uses non-specialized init system `#{init_cmd}` as its init process (PID 1). " \
+              "This is not counted against single_process_type; whether the init system is a " \
+              "recommended one is evaluated by the specialized_init_system test."
+            )
+          end
+        end
+
+        if app_process_types.size > 1
+          proc_list = container_proctree_statuses.map do |proc|
+            proc_name = proc["Name"]?
+            proc_pid  = proc["Pid"]?
+            proc_ppid = proc["PPid"]?
+            proc_cmd = proc["cmdline"]?.try do |cmd|
+              cmd.split("\0").join(" ").gsub("\n", "\\n").strip
+            end || "N/A"
+            "NAME=#{proc_name}, PID=#{proc_pid}, PPID=#{proc_ppid}, CMD=#{proc_cmd}"
+          end.join("\n")
+
+          fail_msg = "Container `#{container_name}` in `#{kind}`: `#{name}` (namespace: `#{namespace}`) has multiple process types.\n"
+          fail_msg += "Running processes detected:\n"
+          fail_msg += "#{proc_list}"
+
+          fail_msgs.add?(fail_msg)
+          test_passed = false
         end
       end
     end
+
+    # Report every non-specialized init system that was found and ignored, so the
+    # decision is visible in both stdout and the results file.
+    ignored_init_msgs.each { |msg| result.append_description(msg) }
 
     if resources_checked
       if test_passed

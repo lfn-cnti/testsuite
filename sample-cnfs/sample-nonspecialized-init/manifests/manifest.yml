@@ -1,0 +1,36 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nsi-test
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+
+---
+# A container whose init/supervisor process (PID 1) is a plain shell -- a
+# home-grown, non-specialized init that is NOT on the SPECIALIZED_INIT_SYSTEMS
+# whitelist. The shell supervises a single application process type (sleep).
+# single_process_type must PASS here: there is only one application process
+# type. The choice of init system is scored separately by specialized_init_system.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nonspecialized-init
+  namespace: nsi-test
+  labels:
+    app: nonspecialized-init
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nonspecialized-init
+  template:
+    metadata:
+      labels:
+        app: nonspecialized-init
+    spec:
+      containers:
+      - name: nonspecialized-init
+        image: busybox
+        command: ["/bin/sh"]
+        args: ["-c", "while true; do sleep 30; done"]
