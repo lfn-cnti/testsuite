@@ -363,8 +363,8 @@ task "elastic_volumes" do |t, args|
     volumes_used = false
 
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, volumes|
-      Log.for("elastic_volumes:test_resource").info { resource.inspect }
-      Log.for("elastic_volumes:volumes").info { volumes.inspect }
+      Log.for("elastic_volumes:test_resource").debug { resource.inspect }
+      Log.for("elastic_volumes:volumes").debug { volumes.inspect }
 
       next true if volumes.size == 0
       volumes_used = true

@@ -1,6 +1,13 @@
+require "colorize"
+
 private class CLILogLevel
   class_property level : String = ""
 end
+
+# Emit ANSI color only when stdout is an interactive terminal, and honor the
+# NO_COLOR convention (https://no-color.org). This keeps piped and CI output
+# free of escape codes so it stays greppable/machine-readable.
+Colorize.enabled = STDOUT.tty? && !ENV.has_key?("NO_COLOR")
 
 begin
   OptionParser.parse do |parser|
