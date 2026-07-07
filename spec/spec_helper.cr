@@ -16,13 +16,20 @@ require "../src/modules/kubectl_client"
 ENV["CRYSTAL_ENV"] = "TEST" 
 
 
-Log.info { "Building ./cnf-testsuite".colorize(:green) }
-result = ShellCmd.run("crystal build --warnings none src/cnf-testsuite.cr")
-if result[:status].success?
-  Log.info { "Build Success!".colorize(:green) }
+# Skip the build when a caller (e.g. CI) has already built the binary and sets
+# CNF_TESTSUITE_SKIP_BUILD, avoiding a redundant full recompile per spec run.
+# The skip only applies when the binary is actually present.
+if ENV["CNF_TESTSUITE_SKIP_BUILD"]? && File.exists?("./cnf-testsuite")
+  Log.info { "Skipping ./cnf-testsuite build (CNF_TESTSUITE_SKIP_BUILD set)".colorize(:green) }
 else
-  Log.info { "crystal build failed!".colorize(:red) }
-  raise "crystal build failed in spec_helper"
+  Log.info { "Building ./cnf-testsuite".colorize(:green) }
+  result = ShellCmd.run("crystal build --warnings none src/cnf-testsuite.cr")
+  if result[:status].success?
+    Log.info { "Build Success!".colorize(:green) }
+  else
+    Log.info { "crystal build failed!".colorize(:red) }
+    raise "crystal build failed in spec_helper"
+  end
 end
 
 module ShellCmd

@@ -19,6 +19,8 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Install kind
+        uses: ./.github/actions/install-kind
       - name: Setup Kind Cluster with Sysctl Patch
         run: |
           cat <<EOF > kind_setup.yaml
@@ -64,9 +66,6 @@ jobs:
             - containerPath: /var/lib/kubelet/config.json
               hostPath: $HOME/.docker/config.json
           EOF
-          wget -O kind "https://kind.sigs.k8s.io/dl/v0.30.0/kind-linux-amd64"
-          chmod +x ./kind
-          sudo mv ./kind /usr/local/bin/kind
           kind create cluster --name free5gc-dev --config kind_setup.yaml --wait 5m
       - name: Build CNF Testsuite
         run: |

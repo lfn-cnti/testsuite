@@ -15,10 +15,10 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - uses: actions/checkout@v4
+      - name: Install kind
+        uses: ./.github/actions/install-kind
       - run: |
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.31.0/kind-linux-arm64
-          chmod +x ./kind
-          sudo mv ./kind /usr/local/bin/kind
           cat << EOF > /tmp/cluster.yml
           kind: Cluster
           apiVersion: kind.x-k8s.io/v1alpha4
@@ -39,7 +39,6 @@ jobs:
           kind create cluster --name arm64 --config=/tmp/cluster.yml
           rm /tmp/cluster.yml
       - uses: crystal-lang/install-crystal@v1
-      - uses: actions/checkout@v4
       - run: |
           curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl"
           sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
@@ -62,10 +61,10 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - uses: actions/checkout@v4
+      - name: Install kind
+        uses: ./.github/actions/install-kind
       - run: |
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.31.0/kind-linux-amd64
-          chmod +x ./kind
-          sudo mv ./kind /usr/local/bin/kind
           cat << EOF > /tmp/cluster.yml
           kind: Cluster
           apiVersion: kind.x-k8s.io/v1alpha4
@@ -85,7 +84,6 @@ jobs:
           EOF
           kind create cluster --name qemu-arm64 --config=/tmp/cluster.yml
           rm /tmp/cluster.yml
-      - uses: actions/checkout@v4
       - run: |
             sudo apt update && sudo DEBIAN_FRONTEND=noninteractive apt install qemu-user-static -y
             DOCKER_DEFAULT_PLATFORM=linux/arm64 docker run --network host --name debian-arm64 \
