@@ -60,30 +60,6 @@ module KernelIntrospection
         cmdline
       end
 
-      def self.verify_single_proc_tree(original_parent_pid, name, proctree : Array(Hash(String, String)), excluded_processes = [] of String)
-        Log.info { "verify_single_proc_tree pid, name: #{original_parent_pid}, #{name}" }
-        verified = true
-        proctree.each do |pt|
-          current_pid = "#{pt["Pid"]}".strip
-          ppid = "#{pt["PPid"]}".strip
-          status_name = "#{pt["Name"]}".strip
-
-          if current_pid == original_parent_pid && ppid != "" &&
-             status_name != name
-            if excluded_processes.includes?(status_name)
-              next
-            end
-            Log.info { "top level parent (i.e. superviser -- first parent with different name): #{status_name}" }
-            verified = false
-          elsif current_pid == original_parent_pid && ppid != "" &&
-                status_name == name
-            verified = verify_single_proc_tree(ppid, name, proctree, excluded_processes)
-          end
-        end
-        Log.info { "verified?: #{verified}" }
-        verified
-      end
-
       def self.proctree_by_pid(potential_parent_pid : String, node : JSON::Any, proc_statuses : (Array(String) | Nil) = nil) : Array(Hash(String, String)) # array of status hashes
         Log.for("proctree_by_pid").info { "proctree_by_pid potential_parent_pid: #{potential_parent_pid}" }
         proctree = [] of Hash(String, String)

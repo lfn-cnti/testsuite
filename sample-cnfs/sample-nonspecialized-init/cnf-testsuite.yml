@@ -1,0 +1,6 @@
+---
+config_version: v2
+deployments:
+  manifests:
+  - name: nonspecialized-init
+    manifest_directory: manifests

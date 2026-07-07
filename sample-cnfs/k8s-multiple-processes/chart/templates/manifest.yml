@@ -19,22 +19,24 @@ spec:
     spec:
       containers:
       - image: busybox
-        # command: ["/bin/sh -c sleep infinity & sleep 10000 & sleep 20000 & sleep 30000"]
-        # command: ["sleep infinity & sleep 10000 & sleep 20000 & sleep 30000"]
         command: ["/bin/sh"]
-        # args: ["-c", "sleep infinity & sleep 10000 & sleep 20000 & sleep 30000"]
-        args: ["-c", "sleep infinity & sleep 10000 & sleep 20000 & sleep 30000 & watch ps"]
+        # Two distinct long-running process types in one container (sleep + tail) --
+        # the multi-process anti-pattern that single_process_type must fail on.
+        # Both are backgrounded and the shell ends on the `wait` builtin so it cannot
+        # exec-optimize into one of them (which would make that child PID 1 instead).
+        args: ["-c", "sleep infinity & tail -f /dev/null & wait"]
         name: sidecar-container1
         resources: {}
         volumeMounts:
           - name: var-logs
             mountPath: /var/log
       - image: busybox
-        # command: ["/bin/sh -c sleep infinity & sleep 10000 & sleep 20000 & sleep 30000"]
-        # command: ["sleep infinity & sleep 10000 & sleep 20000 & sleep 30000"]
         command: ["/bin/sh"]
-        # args: ["-c", "sleep infinity & sleep 10000 & sleep 20000 & sleep 30000"]
-        args: ["-c", "sleep infinity & sleep 10000 & sleep 20000 & sleep 30000 & watch ps"]
+        # Two distinct long-running process types in one container (sleep + tail) --
+        # the multi-process anti-pattern that single_process_type must fail on.
+        # Both are backgrounded and the shell ends on the `wait` builtin so it cannot
+        # exec-optimize into one of them (which would make that child PID 1 instead).
+        args: ["-c", "sleep infinity & tail -f /dev/null & wait"]
         name: sidecar-container2
         resources: {}
         volumeMounts:
