@@ -17,7 +17,7 @@ This INSTALL guide will detail the minimum requirements needed for cnf-testsuite
 #### Requirements
 
 - **kubernetes multi-node cluster** _(Working k8s cluster, see [supported k8s and installation details](#Details-on-supported-k8s-clusters-and-installation) on installation._
-- **kubectl** _(run commands against k8 clusters, see [installing kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more details._
+- **kubectl** _(run commands against k8s clusters, see [installing kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more details._
 - **curl**
 - **helm 3.8.2** _or newer_ _(cnf-testsuite installs if not found locally)_
 - **git** _(used to check out code from github)_
@@ -82,7 +82,7 @@ _NOTE: Currently Mac OS X users will need to ensure helm 3.1.1 or greater is ins
   ```
   kubectl cluster-info
   ```
-- You'll need cystal-lang >=v1.6.0 installed with [shards](https://github.com/crystal-lang/shards). You can follow their [install instructions](https://crystal-lang.org/install/) for their different install methods.
+- You'll need crystal-lang >=v1.6.0 installed with [shards](https://github.com/crystal-lang/shards). You can follow their [install instructions](https://crystal-lang.org/install/) for their different install methods.
 - cnf-testsuite needs helm-3.1.1 or greater but is optional as the prerequisite checks will install if not found. You can install helm by checking their [installation methods](https://helm.sh/docs/helm/helm_install/).
 - Checkout the source code with git:
   ```
@@ -236,7 +236,7 @@ You can also run via `crystal` by replacing the `./cnf-testsuite` with `crystal 
 # Run all wip, alpha, beta, and ga tests
 ./cnf-testsuite all wip
 
-# Run all tests in the configureation lifecycle category
+# Run all tests in the configuration lifecycle category
 ./cnf-testsuite configuration_lifecycle
 
 # Run all tests in the installability

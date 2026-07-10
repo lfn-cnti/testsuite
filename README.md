@@ -6,7 +6,7 @@
 
 The CNTi Test Suite is an open source and vendor neutral tool that can be used to validate a telco application's adherence to [cloud native principles](https://networking.cloud-native-principles.org/) and best practices. 
 
-This Test Suite focus area is one part of LF Networking's [Cloud Native Telecom Initiative (CNTi)](https://wiki.lfnetworking.org/pages/viewpage.action?pageId=113213592) and works closely with the [CNTi Best Practices](https://wiki.lfnetworking.org/display/LN/Best+Practices) and [CNTi Certification](https://wiki.lfnetworking.org/display/LN/Certification) focus areas.
+This Test Suite's focus area is one part of LF Networking's [Cloud Native Telecom Initiative (CNTi)](https://wiki.lfnetworking.org/pages/viewpage.action?pageId=113213592) and works closely with the [CNTi Best Practices](https://wiki.lfnetworking.org/display/LN/Best+Practices) and [CNTi Certification](https://wiki.lfnetworking.org/display/LN/Certification) focus areas.
 
 ## Installation and Usage
 

@@ -59,10 +59,10 @@ All compatibility: `./cnf-testsuite compatibility`
 
 #### Overview
 
-HPA (horizonal pod autoscale) will autoscale replicas to accommodate when there is an increase of CPU, memory or other configured metrics to prevent disruption by allowing more requests
+HPA (horizontal pod autoscale) will autoscale replicas to accommodate when there is an increase of CPU, memory or other configured metrics to prevent disruption by allowing more requests
 by balancing out the utilisation across all of the pods.
 Decreasing replicas works the same as increase but rather scale down the number of replicas when the traffic decreases to the number of pods that can handle the requests.
-You can read more about horizonal pod autoscaling to create replicas [here](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/) and in the [K8s scaling cheatsheet](https://kubernetes.io/docs/reference/kubectl/cheatsheet/#scaling-resources).
+You can read more about horizontal pod autoscaling to create replicas [here](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/) and in the [K8s scaling cheatsheet](https://kubernetes.io/docs/reference/kubectl/cheatsheet/#scaling-resources).
 Expectation: The number of replicas for a Pod increases and then decreases.
 
 #### Rationale
@@ -85,7 +85,7 @@ Also here is some info about [things that could cause failures.](https://kuberne
 #### Overview
 
 Checks if the helm chart is found in a remote repository when running [`helm search`](https://helm.sh/docs/helm/helm_search_repo/).
-Expectation: The Helm chart is published in a Helm Repsitory.
+Expectation: The Helm chart is published in a Helm Repository.
 
 #### Rationale
 
@@ -149,7 +149,7 @@ Make sure your helm charts are valid and can be deployed to clusters.
 
 #### Overview
 
-Checks if the Pod can be upgraded to a new software version, then restored back to the orginal software version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) & [Kubectl Rollout Undo](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#rollout) commands.
+Checks if the Pod can be upgraded to a new software version, then restored back to the original software version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) and [Kubectl Rollout Undo](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#rollout) commands.
 Expectation: The CNF Software version can be successfully incremented, then rolled back.
 
 #### Rationale
@@ -176,12 +176,12 @@ Expectation: The CNF Software version is successfully rolled back to its origina
 #### Rationale
 
 (update, version change, downgrade): K8s best practice for version/installation management (lifecycle management) of applications is to have [K8s track the version of the manifest information](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#updating-a-deployment) for the resource (deployment, pod, etc) internally.
-Whenever a  rollback is needed the resource will have the exact manifest information that was tied to the application when it was deployed.
+Whenever a rollback is needed the resource will have the exact manifest information that was tied to the application when it was deployed.
 This adheres the principles driving immutable infrastructure and declarative specifications.
 
 #### Remediation
 
-Ensure that you can successfuly rollback the software version of your CNF by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) command.
+Ensure that you can successfully rollback the software version of your CNF by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) command.
 
 #### Usage
 
@@ -202,7 +202,7 @@ See rolling version change.
 
 #### Remediation
 
-Ensure that you can successfuly perform a rolling upgrade of your CNF using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) command.
+Ensure that you can successfully perform a rolling upgrade of your CNF using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) command.
 
 #### Usage
 
@@ -215,7 +215,7 @@ Ensure that you can successfuly perform a rolling upgrade of your CNF using the 
 #### Overview
 
 Checks if the Pod can be rolled back older software version(Older than the original software version) by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) to perform a downgrade.
-Expectation: The CNF Software version is successfully downgraded to a software version older than the orginal installation version.
+Expectation: The CNF Software version is successfully downgraded to a software version older than the original installation version.
 
 #### Rationale
 
@@ -223,7 +223,7 @@ See rolling version change.
 
 #### Remediation
 
-Ensure that you can successfuly change the software version of your CNF back to an older version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) command.
+Ensure that you can successfully change the software version of your CNF back to an older version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) command.
 
 #### Usage
 
@@ -276,7 +276,7 @@ Ensure that the CNF is not using deprecated Kubernetes features. If any are dete
 
 ## Category: Microservice Tests
 
-The CNF should be developed and delivered as a microservice. The CNTI Test Suite tests to determine the organizational structure and rate of change of the CNF being tested. Once these are known we can detemine whether or not the CNF is a microservice. See: [Microservice-Principles](https://networking.cloud-native-principles.org/cloud-native-microservice-principles)
+The CNF should be developed and delivered as a microservice. The CNTI Test Suite tests to determine the organizational structure and rate of change of the CNF being tested. Once these are known we can determine whether or not the CNF is a microservice. See: [Microservice-Principles](https://networking.cloud-native-principles.org/cloud-native-microservice-principles)
 
 [Good microservice practices](https://vmblog.com/archive/2022/01/04/the-zeitgeist-of-cloud-native-microservices.aspx) promote agility which means less time will occur between deployments.  One benefit of more agility is it allows for different organizations and teams to deploy at the rate of change that they build out features, instead of deploying in lock step with other teams. This is very important when it comes to changes that are time sensitive like security patches.
 
@@ -302,9 +302,9 @@ A CNF with smaller image sizes provides faster deployment and scaling (critical 
 Audit your CNF's images:
 
 1. Identify and remove unused libraries, tools, and test artifacts.
-2. Seperate build-time from run-time dependancies.
+2. Separate build-time from run-time dependencies.
 3. Prefer distroless, alpine, or slim OS images.
-4. Modularize large CNFs into seperate containers or microservices.
+4. Modularize large CNFs into separate containers or microservices.
 
 #### Usage
 
@@ -483,7 +483,7 @@ Expectation: All workload resources are successfully rescheduled onto other avai
 #### Rationale
 
 No CNF should fail because of stateful configuration. A CNF should function properly if it is rescheduled on other nodes.
-This test will remove resources which are running on a target node and reschedule them on the another node.
+This test will remove resources which are running on a target node and reschedule them on another node.
 
 #### Remediation
 
@@ -590,7 +590,7 @@ traffic on the CNF.
 #### Remediation
 
 Ensure that your CNF doesn't stall or get into a corrupted state when network degradation occurs.
-A mitigation stagagy (in this case keep the timeout i.e., access latency low) could be via some middleware that can switch traffic based on some SLOs parameters.
+A mitigation strategy (in this case keep the timeout i.e., access latency low) could be via some middleware that can switch traffic based on some SLOs parameters.
 
 #### Usage
 
@@ -670,7 +670,7 @@ Expectation: The CNF should continue to function when pod io stress occurs
 
 #### Rationale
 
-Stressing the disk with continuous and heavy IO can cause degradation in reads/ writes by other microservices that use this
+Stressing the disk with continuous and heavy IO can cause degradation in reads/writes by other microservices that use this
 shared disk.  Scratch space can be used up on a node which leads to the lack of space for newer containers to get scheduled which
 causes a movement of all pods to other nodes. This test determines the limits of how a CNF uses its storage device.
 
@@ -733,7 +733,7 @@ Ensure that your CNF is resilient to erroneously duplicated packets and can main
 #### Overview
 
 The [pod-dns error](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-dns-error/) experiment injects chaos to disrupt DNS resolution in kubernetes pods and causes loss of access to services by blocking DNS resolution of hostnames/domains.
-Expectation: That the CNF dosen't crash is resilient to DNS resolution failures.
+Expectation: That the CNF doesn't crash is resilient to DNS resolution failures.
 
 #### Rationale
 
@@ -741,7 +741,7 @@ A CNF should be resilient to name resolution (DNS) disruptions within the kubern
 
 #### Remediation
 
-Ensure that your CNF is resilient to DNS resolution failures can maintain a level of availability.
+Ensure that your CNF is resilient to DNS resolution failures and can maintain a level of availability.
 
 #### Usage
 
@@ -797,9 +797,7 @@ Ensure that your CNF has a [Readiness Probe](https://kubernetes.io/docs/tasks/co
 
 ## Category: Observability and Diagnostic Tests
 
-In order to maintain, debug, and have insight into a protected environment, infrastructure elements must have the property of being observable. This means these elements must externalize their internal states in some way that lends itself to metrics, tracing, and logging.
-
-In order to maintain, debug, and have insight into a production environment that is protected (versioned, kept in source control, and changed only by using a deployment pipeline), its infrastructure elements must have the property of being observable. This means these elements must externalize their internal states in some way that lends itself to metrics, tracing, and logging.
+In order to maintain, debug, and have insight into a production environment that is protected (versioned, kept in source control, and changed only by using a deployment pipeline), its infrastructure elements must have the property of being observable. This means these elements must externalize their internal states in some way that lends themselves to metrics, tracing, and logging.
 
 ### Usage
 
@@ -832,7 +830,7 @@ Make sure applications and CNF's are sending log output to STDOUT and or STDERR.
 
 #### Overview
 
-Tests for the presence of [Prometheus](https://prometheus.io/) and if the CNF configured to sent metrics to the prometheus server.
+Tests for the presence of [Prometheus](https://prometheus.io/) and if the CNF configured to send metrics to the prometheus server.
 Expectation: The CNF is configured and sending metrics to a Prometheus server.
 
 #### Rationale
@@ -916,7 +914,7 @@ Ensure that your CNF is both using & publishing traces to Jaeger.
 
 CNF containers should be isolated from one another and the host. The CNTI Test Suite uses tools like [OPA Gatekeeper](https://github.com/open-policy-agent/gatekeeper) and [Armosec Kubescape](https://github.com/armosec/kubescape)
 
-> "Cloud native security is a [...] mutifaceted topic [...] with multiple, diverse components that need to be secured. The cloud platform, the underlying host operating system, the container runtime, the container orchestrator,and then the applications themselves each require specialist security attention" -- Chris Binne, Rory Mccune. Cloud Native Security. (Wiley, 2021)(pp. xix)
+> "Cloud native security is a [...] multifaceted topic [...] with multiple, diverse components that need to be secured. The cloud platform, the underlying host operating system, the container runtime, the container orchestrator, and then the applications themselves each require specialist security attention" -- Chris Binne, Rory Mccune. Cloud Native Security. (Wiley, 2021)(pp. xix)
 
 ### Usage
 
@@ -928,7 +926,7 @@ All security: `./cnf-testsuite security`
 
 #### Overview
 
-This test checks all of the CNFs containers and looks to see if any of them have access a container runtime socket from the host.
+This test checks all of the CNFs containers and looks to see if any of them have access to a container runtime socket from the host.
 Expectation: Container runtime sockets should not be mounted as volumes
 
 #### Rationale
@@ -1042,8 +1040,8 @@ Expectation: Containers should not allow privilege escalation
 
 #### Rationale
 
-*When [privilege escalation](https://kubernetes.io/docs/concepts/policy/pod-security-policy/#privilege-escalation) is [enabled for a container](https://hub.armo.cloud/docs/c-0016), it will allow setuid binaries to change the effective user ID, allowing processes to turn on extra capabilities.
-In order to prevent illegitimate escalation by processes and restrict a processes to a NonRoot user mode, escalation must be disabled.
+When [privilege escalation](https://kubernetes.io/docs/concepts/policy/pod-security-policy/#privilege-escalation) is [enabled for a container](https://hub.armo.cloud/docs/c-0016), it will allow setuid binaries to change the effective user ID, allowing processes to turn on extra capabilities.
+In order to prevent illegitimate escalation by processes and restrict a process to a NonRoot user mode, escalation must be disabled.
 
 #### Remediation
 
@@ -1081,7 +1079,7 @@ To mitigate this vulnerability without upgrading kubelet, you can disable the Vo
 #### Overview
 
 Checks the CNF for sensitive information in environment variables, by using list of known sensitive key names. Also checks for configmaps with sensitive information.
-Exepectation: Application credentials should not be found in the CNFs configuration files
+Expectation: Application credentials should not be found in the CNFs configuration files
 
 #### Rationale
 
@@ -1123,12 +1121,12 @@ Only connect PODs to the hostNetwork when it is necessary. If not, set the hostN
 
 #### Overview
 
-heck if the CNF is using service accounts that are automatically mapped.
+Check if the CNF is using service accounts that are automatically mapped.
 Expectation: The [automatic mapping](https://bit.ly/C0034_service_account_mapping) of service account tokens should be disabled.
 
 #### Rationale
 
-When a pod gets created and a service account wasn't specified, then the default service account will be used. Service accounts assigned in this way can unintentionally give third-party applications root access to the K8s APIs and other applicaton services. In order to follow a zero-trust / fine-grained security methodology, this functionality will need to be explicitly disabled by using the automountServiceAccountToken: false flag. In addition, if RBAC is not enabled, the SA has unlimited permissions in the cluster.
+When a pod gets created and a service account wasn't specified, then the default service account will be used. Service accounts assigned in this way can unintentionally give third-party applications root access to the K8s APIs and other application services. In order to follow a zero-trust / fine-grained security methodology, this functionality will need to be explicitly disabled by using the automountServiceAccountToken: false flag. In addition, if RBAC is not enabled, the SA has unlimited permissions in the cluster.
 
 #### Remediation
 
@@ -1193,11 +1191,11 @@ Expectation: Containers should run with non-root user and allowPrivilegeEscalati
 
 #### Rationale
 
-Container engines allow containers to run applications as a non-root user with non-root group membership. Typically, this non-default setting is configured when the container image is built. . Alternatively, Kubernetes can load containers into a Pod with SecurityContext:runAsUser specifying a non-zero user. While the runAsUser directive effectively forces non-root execution at deployment, [NSA and CISA encourage developers](https://hub.armo.cloud/docs/c-0013) to build container applications to execute as a non-root user. Having non-root execution integrated at build time provides better assurance that applications will function correctly without root privileges.
+Container engines allow containers to run applications as a non-root user with non-root group membership. Typically, this non-default setting is configured when the container image is built. Alternatively, Kubernetes can load containers into a Pod with SecurityContext:runAsUser specifying a non-zero user. While the runAsUser directive effectively forces non-root execution at deployment, [NSA and CISA encourage developers](https://hub.armo.cloud/docs/c-0013) to build container applications to execute as a non-root user. Having non-root execution integrated at build time provides better assurance that applications will function correctly without root privileges.
 
 #### Remediation
 
-If your application does not need root privileges, make sure to define the runAsUser and runAsGroup under the PodSecurityContext to use user ID 1000 or higher, do not turn on allowPrivlegeEscalation bit and runAsNonRoot is true.
+If your application does not need root privileges, make sure to define the runAsUser and runAsGroup under the PodSecurityContext to use user ID 1000 or higher, do not turn on allowPrivilegeEscalation bit and runAsNonRoot is true.
 
 #### Usage
 
@@ -1448,7 +1446,7 @@ Using node ports ties the CNF to a specific node and therefore makes the CNF les
 
 #### Remediation
 
-Review all Helm Charts & Kubernetes Manifest files for the CNF and remove all occurrences of the nostPort field in you configuration. Alternatively, configure a service or use another mechanism for exposing your container.
+Review all Helm Charts & Kubernetes Manifest files for the CNF and remove all occurrences of the nodePort field in your configuration. Alternatively, configure a service or use another mechanism for exposing your container.
 
 #### Usage
 
@@ -1469,7 +1467,7 @@ Using host ports ties the CNF to a specific node and therefore makes the CNF les
 
 #### Remediation
 
-Review all Helm Charts & Kubernetes Manifest files for the CNF and remove all occurrences of the hostPort field in you configuration. Alternatively, configure a service or use another mechanism for exposing your container.
+Review all Helm Charts & Kubernetes Manifest files for the CNF and remove all occurrences of the hostPort field in your configuration. Alternatively, configure a service or use another mechanism for exposing your container.
 
 #### Usage
 
@@ -1570,7 +1568,7 @@ Make sure your CNFs are not utilizing any Kubernetes alpha APIs. You can learn m
 
 ## Category: 5G Tests
 
-A 5g core is an important part of the service provider's telecommuncations offering. A cloud native 5g architecture uses immutable infrastructure, declarative configuration, and microservices when creating and hosting 5g cloud native network functions.
+A 5g core is an important part of the service provider's telecommunications offering. A cloud native 5g architecture uses immutable infrastructure, declarative configuration, and microservices when creating and hosting 5g cloud native network functions.
 
 ### Usage
 
@@ -1587,8 +1585,8 @@ Expectation: 5g core should continue to function during various CNF tests.
 
 #### Rationale
 
-A 5g core's [SMF and UPF CNFs have a hearbeat](https://www.etsi.org/deliver/etsi_ts/123500_123599/123527/15.01.00_60/ts_123527v150100p.pdf), implemented use the PFCP protocol standard, which measures if the connection between the two CNFs is active.
-After measure a baseline of the heartbeat a comparison between the baseline and the performance of the heartbeat while running test functions will expose the [cloud native resilience](https://www.cncf.io/blog/2021/09/23/cloud-native-chaos-and-telcos-enforcing-reliability-and-availability-for-telcos/) of the cloud native 5g core.
+A 5g core's [SMF and UPF CNFs have a heartbeat](https://www.etsi.org/deliver/etsi_ts/123500_123599/123527/15.01.00_60/ts_123527v150100p.pdf), implemented use the PFCP protocol standard, which measures if the connection between the two CNFs is active.
+After measuring a baseline of the heartbeat a comparison between the baseline and the performance of the heartbeat while running test functions will expose the [cloud native resilience](https://www.cncf.io/blog/2021/09/23/cloud-native-chaos-and-telcos-enforcing-reliability-and-availability-for-telcos/) of the cloud native 5g core.
 
 #### Remediation
 
@@ -1637,7 +1635,7 @@ Expectation: An ORAN RIC should use an e2 connection.
 
 #### Rationale
 
-*A near real-time RAN intelligent controler (RIC) uses the [E2 standard](https://wiki.o-ran-sc.org/display/RICP/E2T+Architecture) as an open, interoperable, interface to connect to [RAN-optimizated applications, onboarded as xApps](https://www.5gtechnologyworld.com/how-does-5gs-o-ran-e2-interface-work/).
+*A near real-time RAN intelligent controller (RIC) uses the [E2 standard](https://wiki.o-ran-sc.org/display/RICP/E2T+Architecture) as an open, interoperable, interface to connect to [RAN-optimized applications, onboarded as xApps](https://www.5gtechnologyworld.com/how-does-5gs-o-ran-e2-interface-work/).
 The xApps use platform services available in the near-RT RIC to communicate with the downstream network functions through the E2 interface.
 
 #### Remediation
@@ -1689,12 +1687,12 @@ Check that [Sonobuoy](https://github.com/vmware-tanzu/sonobuoy) can be successfu
 
 #### Overview
 
-Checks the platforms Kubernetes Nodes to see if they were instansiated by ClusterAPI.
+Checks the platforms Kubernetes Nodes to see if they were instantiated by ClusterAPI.
 Expectation: The cluster has Cluster API enabled which manages at least one Node.
 
 #### Rationale
 
-A Kubernetes Platform should leverage [Cluster API](https://cluster-api.sigs.k8s.io/) to ensure that best-practices are followed for both bootstrapping & cluster lifecycle management. Kubernetes is a complex system that relies on several components being configured correctly, maintaining an in-house lifecycle management system for kubernetes is unlikey to meet best practice guideline unless significant resources are deticated to it.
+A Kubernetes Platform should leverage [Cluster API](https://cluster-api.sigs.k8s.io/) to ensure that best-practices are followed for both bootstrapping & cluster lifecycle management. Kubernetes is a complex system that relies on several components being configured correctly, maintaining an in-house lifecycle management system for kubernetes is unlikely to meet best practice guidelines unless significant resources are dedicated to it.
 
 #### Remediation
 
@@ -1715,12 +1713,12 @@ Expectation: All worker nodes are using an OCI compliant run-time.
 
 #### Rationale
 
-The [OCI Initiative](https://opencontainers.org/) was created to ensure that runtimes conform  to both the runtime-spec and image-spec. These two specifications outline how a “filesystem bundle” is unpacked on disk and that the image itself contains sufficient information to launch the application on the target platform.
+The [OCI Initiative](https://opencontainers.org/) was created to ensure that runtimes conform to both the runtime-spec and image-spec. These two specifications outline how a “filesystem bundle” is unpacked on disk and that the image itself contains sufficient information to launch the application on the target platform.
 As a best practice, your platform must use an OCI compliant runtime, this ensures that the runtime used is cross-compatible and supports interoperability with other runtimes. This means that workloads can be freely moved to other runtimes and prevents vendor lock in.
 
 #### Remediation
 
-Check if your Kuberentes Platform is using an [OCI Compliant Runtime](https://opencontainers.org/). If you platform is not using an OCI Compliant Runtime, you'll need to switch to a new runtime that is OCI Compliant in order to pass this test.
+Check if your Kuberentes Platform is using an [OCI Compliant Runtime](https://opencontainers.org/). If your platform is not using an OCI Compliant Runtime, you'll need to switch to a new runtime that is OCI Compliant in order to pass this test.
 
 #### Usage
 
@@ -1739,7 +1737,7 @@ Expectation: Pods should reschedule after a node failure.
 
 #### Rationale
 
-Cloud native systems should be self-healing. To follow cloud-native best practices your platform should be  resiliant and reschedule all workloads when such node failures occur.
+Cloud native systems should be self-healing. To follow cloud-native best practices your platform should be resilient and reschedule all workloads when such node failures occur.
 
 #### Remediation
 
@@ -1778,7 +1776,7 @@ You should apply least privilege principle. Make sure cluster admin permissions 
 #### Overview
 
 Checks if the insecure-port flag is set for the K8s API Server.
-Expectation: That the the k8s control plane is secure and not hosted on an [insecure port](https://bit.ly/C0005_Control_Plane)
+Expectation: That the k8s control plane is secure and not hosted on an [insecure port](https://bit.ly/C0005_Control_Plane)
 
 #### Rationale
 
