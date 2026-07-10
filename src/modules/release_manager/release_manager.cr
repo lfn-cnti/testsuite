@@ -62,11 +62,11 @@ module ReleaseManager
         upsert_version = upsert_version.sub("HEAD", "main")
       end
       if upsert_version =~ /(?i)(main)/
-        prerelease = true 
+        prerelease = true
         draft = false
       else
-        prerelease = true
-        draft = true 
+        prerelease = false
+        draft = false
       end
       Log.info {"upsert_version: #{upsert_version}"}
       Log.info {"upsert_version comparison: upsert_version =~ /(?i)(main|v[0-9]|test_version)/ : #{upsert_version =~ /(?i)(main|v[0-9]|test_version)/}"}
@@ -100,9 +100,6 @@ module ReleaseManager
         # cnf_bin_asset_name = "#{cnf_bin_path}-static" # change upload name for static builds
         cnf_bin_asset_name = "#{cnf_tarball_name}" # change upload name for static builds
       end
-      # sha_checksum = `sha256sum #{cnf_bin_path}`.split(" ")[0]
-      sha_checksum = `sha256sum #{cnf_bin_asset_name}`.split(" ")[0]
-
       Log.info {"upsert_version: #{upsert_version}"}
       release_resp = self.github_releases
       Log.info {"release_resp size: #{release_resp.size}"}
@@ -110,41 +107,14 @@ module ReleaseManager
       found_release = release_resp.find {|x| x["tag_name"] == upsert_version} 
       Log.info {"find found_release?: #{found_release}"}
 
-      if upsert_version =~ /(?i)(main)/
-        latest_build = self.latest_snapshot
-      else
-        latest_build = self.latest_release
-      end
-      Log.info {"latest_build: #{latest_build}"}
-      issues = ReleaseManager.commit_message_issues(latest_build, "HEAD")
-      Log.info {"issues: #{issues}"}
-      titles = issues.reduce("") do |acc, x| 
-        acc + "- #{x} - #{self.issue_title(x)}\n"
-      end
-      # Log.info {"titles: #{titles}"}
-notes_template = <<-TEMPLATE
-UPDATES
----
-Issues addressed in this release:
-#{titles}
-
-Artifact info:
-- Commit: #{upsert_version}
-- SHA256SUM: #{sha_checksum} #{cnf_bin_asset_name}
-
-TEMPLATE
-
       release_url = "#{self.repo_url}/releases"
       unless found_release
-        # /repos/:owner/:repo/releases
-          # post(release_url, headers: {Accept: "application/vnd.github.v3+json"}, json: { "tag_name" => upsert_version, "draft" => draft, "prerelease" => prerelease, "name" => "#{upsert_version} #{Time.local.to_s("%B, %d %Y")}", "body" => notes_template }) found_release = JSON.parse(found_resp.body)
-         
         headers = {Accept: "application/vnd.github.v3+json"}
-        json = { "tag_name" => upsert_version, 
-                 "draft" => draft, 
-                 "prerelease" => prerelease, 
-                 "name" => "#{upsert_version} #{Time.local.to_s("%B %d, %Y")}", 
-                 "body" => notes_template }
+        json = { "tag_name" => upsert_version,
+                 "draft" => draft,
+                 "prerelease" => prerelease,
+                 "name" => "#{upsert_version} #{Time.local.to_s("%B %d, %Y")}",
+                 "generate_release_notes" => true }
 
         Log.info {"Release not found.  Creating a release: # url: #{release_url} headers: #{headers} json #{json}"}
 
@@ -161,7 +131,7 @@ TEMPLATE
                       "draft" => draft,
                       "prerelease" => prerelease,
                       "name" => "#{upsert_version} #{Time.local.to_s("%B %d, %Y")}",
-                      "body" => notes_template })
+                      "generate_release_notes" => true })
       found_release = JSON.parse(found_resp.body)
 
       Log.info {"found_release (after create): #{found_release}"}
@@ -214,53 +184,13 @@ TEMPLATE
       resp_code
     end 
 
-    def latest_release
-      resp = `curl -H "Authorization: Bearer #{ENV["GITHUB_TOKEN"]}" --silent "#{self.repo_url}/releases/latest"`
-      Log.info {"latest_release: #{resp}"}
-      parsed_resp = JSON.parse(resp)
-      parsed_resp["tag_name"]?.not_nil!.to_s
-    end
 
-    def latest_snapshot
-      resp = `curl -H "Authorization: Bearer #{ENV["GITHUB_TOKEN"]}" --silent "#{self.repo_url}/releases"`
-      Log.info {"latest_snapshot: #{resp}"}
-      parsed_resp = JSON.parse(resp)
-      prerelease = parsed_resp.as_a.select{ | x | x["prerelease"]==true && !("#{x["published_at"]?}".empty?) }
-      latest_snapshot = prerelease.sort do |a, b|
-        Log.debug { "a #{a}" }
-        Log.debug { "b #{b}" }
-        if (b["published_at"]? && a["published_at"]?)
-          Time.parse(b["published_at"].as_s,
-                    "%Y-%m-%dT%H:%M:%SZ",
-                    Time::Location::UTC) <=>
-            Time.parse(a["published_at"].as_s,
-                      "%Y-%m-%dT%H:%M:%SZ",
-                      Time::Location::UTC)
-        else
-          0
-        end
-      end
-      Log.debug { "latest_snapshot: #{latest_snapshot}" }
-      latest_snapshot[0]["tag_name"]?.not_nil!.to_s
-    end
-
-    def issue_title(issue_number)
-      pure_issue = issue_number.gsub("#", "")
-      resp = `curl -H "Authorization: Bearer #{ENV["GITHUB_TOKEN"]}" "#{self.repo_url}/issues/#{pure_issue}"`
-      Log.debug {"issue_resp: #{resp}"}
-      parsed_resp = JSON.parse(resp)
-      parsed_resp["title"]?.not_nil!.to_s
-    end
   end
 
   def self.tag(options="")
     results = `git tag #{options}`
     Log.info {"git tag: #{results}"}
     results.split("\n")
-  end
-
-  def self.on_a_tag?
-    ReleaseManager.tag("--points-at HEAD") != [""]
   end
 
   def self.current_tag
@@ -296,30 +226,4 @@ TEMPLATE
     asset
   end
 
-  def self.commit_message_issues(start_ref, end_ref)
-    # github actions checkout must be set with this option for the git log command to work:
-    # steps: 
-    # - name: Checkout code
-    #   uses: actions/checkout@v2
-    #   with:
-    #     fetch-depth: 0
-    fetch_tags = `git fetch --tags`
-    Log.info {"git fetch --tags: #{fetch_tags}"}
-    fetch = `git status`
-    Log.info {"git status: #{fetch}"}
-    fetch = `git branch`
-    Log.info {"git branch: #{fetch}"}
-    commit_messages = `git log #{start_ref}..#{end_ref}`
-    # Log.info {"commit_messages: #{commit_messages}"}
-    #TODO scrape issue urls
-    uniq_issues = commit_messages.scan(/(#[0-9]{1,9})/).not_nil!.map{|x| x[1]}.uniq
-    Log.info {"uniq_issues: #{uniq_issues}"}
-    uniq_issues.map {|x| x.strip("\n")}
-  end
-
-  def self.detached_head?
-    resp = `git rev-parse --abbrev-ref --symbolic-full-name HEAD`
-    Log.info {"detached_head: #{resp}"}
-    resp.strip("\n") == "HEAD"
-  end
 end 
