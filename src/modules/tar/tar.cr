@@ -88,7 +88,7 @@ module TarClient
     TarClient.untar(tar_file, TAR_MODIFY_DIR)
     yield TAR_MODIFY_DIR
     FileUtils.rm_rf(tar_file)
-    file_list = `ls #{TAR_MODIFY_DIR}`.gsub("\n", " ") 
+    file_list = Dir.children(TAR_MODIFY_DIR).join(" ")
     TarClient.tar(tar_file, TAR_MODIFY_DIR, file_list)
     FileUtils.rm_rf(TAR_MODIFY_DIR)
   end
