@@ -1,4 +1,5 @@
 require "halite"
+require "http/client"
 require "log"
 
 
@@ -209,21 +210,27 @@ module ReleaseManager
     results.strip("\n")
   end
 
-  # def self.upload_release_asset(release_id, asset_path, asset_name)
   def self.upload_release_asset(release_id, asset_name)
       # TODO Add test that checks for uploaded corrupted binary.
       # POST :server/repos/:owner/:repo/releases/:release_id/assets{?name,label}
-      # asset_resp = Halite.basic_auth(user: ENV["GITHUB_USER"], pass: ENV["GITHUB_TOKEN"]).
-      #   post("https://uploads.github.com/repos/lfn-cnti/testsuite/releases/#{found_release["id"]}/assets?name=#{cnf_tarball_name}",
-      #        headers: {
-      #           "Content-Type" => "application/gzip",
-      #           "Content-Length" => File.size("#{cnf_tarball_name}").to_s
-      #   }, raw: "#{File.open("#{cnf_tarball_name}")}")A
-    asset_resp = `curl --http1.1 -H "Authorization: Bearer #{ENV["GITHUB_TOKEN"]}" -H "Content-Type: $(file -b --mime-type #{asset_name})" --data-binary @#{asset_name} "https://uploads.github.com/repos/lfn-cnti/testsuite/releases/#{release_id}/assets?name=$(basename #{asset_name})"`
-    Log.info {"asset_resp: #{asset_resp}"}
-    asset = JSON.parse(asset_resp.strip)
-    Log.info {"asset: #{asset}"}
-    asset
+      uri = URI.parse("https://uploads.github.com/repos/lfn-cnti/testsuite/releases/#{release_id}/assets")
+      client = HTTP::Client.new(uri, tls: true)
+      mime_type = MIME.from_filename(asset_name) || "application/octet-stream"
+      asset_name_base = File.basename(asset_name)
+      response = client.post(
+        "#{uri.path}?name=#{asset_name_base}",
+        headers: HTTP::Headers{
+          "Authorization" => "Bearer #{ENV["GITHUB_TOKEN"]}",
+          "Content-Type" => mime_type,
+        },
+        body: File.read(asset_name)
+      )
+      client.close
+      asset_resp = response.body
+      Log.info {"asset_resp: #{asset_resp}"}
+      asset = JSON.parse(asset_resp.strip)
+      Log.info {"asset: #{asset}"}
+      asset
   end
 
 end 
