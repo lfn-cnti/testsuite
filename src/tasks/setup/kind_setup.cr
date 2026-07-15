@@ -22,10 +22,11 @@ task "install_kind" do |_, args|
     end
     Retriable.retry(on_retry: do_this_on_each_retry, times: 3, base_interval: 1.second) do
       download_file("#{url}","#{write_file}")
-      stderr = IO::Memory.new
-      status = Process.run("chmod +x #{write_file}", shell: true, output: stderr, error: stderr)
-      success = status.success?
-      raise "Unable to make #{write_file} executable" if success == false
+      begin
+        File.chmod(write_file, 0o755)
+      rescue
+        raise "Unable to make #{write_file} executable"
+      end
     end
   end
 end
