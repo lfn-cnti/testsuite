@@ -10,6 +10,29 @@ module Helm
 end
 
 describe "Helm" do
+  describe "missing" do
+    it "installs Helm instead of exposing a missing-binary backtrace", tags: ["helm"] do
+      path_without_helm = File.tempname("path-without-helm")
+      FileUtils.mkdir_p(path_without_helm)
+      tar = Process.find_executable("tar") || raise "spec requires tar in PATH"
+      gzip = Process.find_executable("gzip") || raise "spec requires gzip in PATH"
+      File.symlink(tar, File.join(path_without_helm, "tar"))
+      # GNU tar resolves gzip through PATH when extracting the Helm archive.
+      File.symlink(gzip, File.join(path_without_helm, "gzip"))
+      Helm.uninstall_local_helm
+
+      result = ShellCmd.run_testsuite("setup:install_local_helm", "PATH=#{path_without_helm}")
+
+      result[:status].success?.should be_true
+      File.exists?(Setup::HELM_BINARY).should be_true
+      result[:output].should_not contain("No Helm binary found")
+      Dir.glob(File.join(Setup::HELM_DIR, "helm-*.tar.gz")).should be_empty
+    ensure
+      FileUtils.rm_rf(path_without_helm.not_nil!)
+      Helm.uninstall_local_helm
+    end
+  end
+
   describe "global" do
     before_all do
       Helm.uninstall_local_helm
