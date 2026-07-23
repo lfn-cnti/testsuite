@@ -7,7 +7,7 @@ namespace "setup" do
     logger = SLOG.for("install_local_helm")
     logger.info { "Installing Helm tool" }
 
-    if !Helm::Binary.get.empty? && !ENV.has_key?("force_install")
+    if Helm.installation_found? && !ENV.has_key?("force_install")
       logger.notice { "Helm installation has been found on the system, skipping" }
       next
     end
