@@ -10,6 +10,26 @@ module Helm
 end
 
 describe "Helm" do
+  describe "missing" do
+    it "installs Helm instead of exposing a missing-binary backtrace", tags: ["helm"] do
+      path_without_helm = "spec/fixtures/path-without-helm-#{Process.pid}"
+      FileUtils.mkdir_p(path_without_helm)
+      File.symlink(Process.find_executable("tar").not_nil!, File.join(path_without_helm, "tar"))
+      File.symlink(Process.find_executable("gzip").not_nil!, File.join(path_without_helm, "gzip"))
+      Helm.uninstall_local_helm
+      Helm::Binary.clear_cache
+
+      result = ShellCmd.run_testsuite("setup:install_local_helm", "PATH=#{path_without_helm}")
+
+      result[:status].success?.should be_true
+      result[:output].should_not contain("HelmBinaryNotFoundError")
+    ensure
+      FileUtils.rm_rf(path_without_helm.not_nil!)
+      Helm.uninstall_local_helm
+      Helm::Binary.clear_cache
+    end
+  end
+
   describe "global" do
     before_all do
       Helm.uninstall_local_helm
