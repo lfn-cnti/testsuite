@@ -2,8 +2,10 @@ require "../../modules/cluster_tools"
 module UERANSIM 
 
   def self.uninstall
-    Log.debug { "uninstall_ueransim" } 
+    Log.debug { "uninstall_ueransim" }
     Helm.uninstall("ueransim", "testsuite-5g")
+  rescue Helm::ShellCMD::ReleaseNotFound
+    Log.info { "UERANSIM release not found, nothing to uninstall" }
   end
 
   def self.install(config)

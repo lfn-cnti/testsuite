@@ -35,7 +35,6 @@ namespace "setup" do
 
     begin
       FileUtils.mkdir_p(CNF_DIR)
-      FileUtils.mkdir_p("tools")
     rescue ex : Exception
       logger.error { "Error while creating directories for testsuite: #{ex.message}" }
       stdout_failure "Task 'cnf_directory_setup' failed. Check logs for more info."
