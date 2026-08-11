@@ -1,7 +1,4 @@
 /lib/
-/utils/tar/lib/
-/utils/tar/bin/
-/utils/tar/tmp/
 /bin/
 /.shards/
 *.dwarf
@@ -10,11 +7,6 @@
 /cnfs
 /installed_cnf_files
 /results
-/tools/chaos_mesh
-/tools/helm
-/tools/sonobuoy
-/tools/cluster-api
-/tools/dockerd-manifest.yml
 admin.conf
 cnf-testsuite
 results.yml
@@ -32,7 +24,6 @@ reasonable_startup_orig_gobal.yml
 reasonable_startup_orig_local.yml
 sam.cr
 github.env
-tools/k8s-infra/
 tmp/
 chaos_network_loss.yml
 chaos_cpu_hog.yml
@@ -41,14 +32,11 @@ chaos_container_kill.yml
 *.log
 points.yml
 containerd-*-linux-amd64.tar.gz
-tools/LICENSE
 /cnf-testsuite.yml
 /*.tgz
 /enforce-image-tag.yml
 /constraint_template.yml
 /install.sh
-/tools/kubescape/kubescape
-/tools/kind
 /kubescape_results.json
 /cilium
 /tigera-operator
@@ -58,12 +46,6 @@ tools/LICENSE
 /.env
 /*.kubeconfig
 /*.config
-/tools/apisnoop
-/tools/kyverno-policies
-/tools/kyverno
-tools/custom-kyverno-policies/
-tools/chaos-experiments
-/tools/kubescape
 ueransim-gnb/
 gnb-ues-values.yaml
 .icr*
@@ -71,3 +53,13 @@ configadm.yml
 litmus-operator-downloaded.yaml
 litmus-operator-modified.yaml
 
+kubescape_C-*_results.json
+/fluentbit-values.yml
+/fluentd-bitnami-values.yml
+/node_failure_values.yml
+/reboot_daemon_pod.yml
+/helm-*.tar.gz
+/capi.yaml
+/clusterctl
+*sonobuoy*.tar.gz
+/downloaded.tar.gz

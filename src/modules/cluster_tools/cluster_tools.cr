@@ -54,6 +54,9 @@ module ClusterTools
     KubectlClient::Delete.file("cluster_tools.yml", namespace: self.namespace!)
     #todo make this work with cluster-tools-host-namespace
     KubectlClient::Wait.resource_wait_for_uninstall("Daemonset", "cluster-tools", namespace: self.namespace!)
+  ensure
+    # Do not leave the rendered manifest behind after uninstalling
+    FileUtils.rm_rf("cluster_tools.yml")
   end
 
   def self.exec(cli : String) : KubectlClient::CMDResult

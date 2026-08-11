@@ -7,8 +7,10 @@ module JaegerManager
     ClusterTools.local_match_by_image_name_with_retries("jaegertracing/jaeger-collector")
   end
   def self.uninstall
-    Log.debug { "uninstall_jaeger" } 
+    Log.debug { "uninstall_jaeger" }
     Helm.uninstall("jaeger", "jaeger")
+  rescue Helm::ShellCMD::ReleaseNotFound
+    Log.info { "Jaeger release not found, nothing to uninstall" }
   end
 
   def self.install

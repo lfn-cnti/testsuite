@@ -112,7 +112,7 @@ module Helm
     end
 
     begin
-      helm_archive = "helm-#{Setup::HELM_VERSION}.tar.gz"
+      helm_archive = File.join(Setup::HELM_DIR, "helm-#{Setup::HELM_VERSION}.tar.gz")
       download_file(Setup::HELM_URL, helm_archive)
     rescue ex : Exception
       logger.error { "Error while downloading Helm binary: #{ex.message}" }
@@ -124,6 +124,7 @@ module Helm
       return false
     end
 
+    File.delete(helm_archive)
     true
   end
 

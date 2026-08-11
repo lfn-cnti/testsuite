@@ -157,18 +157,18 @@ module CNFManager
 
     class Results
       @@file : String = ""
-      # @@file_used variable is needed to avoid recreation of the file
-      @@file_used : Bool = false
 
       @@logger : ::Log = Log.for("Points").for("Results")
 
       def self.file
-        unless @@file_used || self.file_exists?
+        # (Re)create the file when it does not exist - including when something
+        # external (e.g. delete_results in another process) removed it while
+        # this process holds a handle to its path.
+        unless self.file_exists?
           @@file = CNFManager::Points.create_final_results_yml_name
           self.create_file
           @@logger.for("file").debug { "Results file created: #{@@file}" }
         end
-        @@file_used = true
         @@file
       end
 

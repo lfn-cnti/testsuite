@@ -31,6 +31,8 @@ module FluentManager
     def uninstall
       Log.info { "Uninstalling #{flavor_name} in #{TESTSUITE_NAMESPACE}" }
       Helm.uninstall(flavor_name, TESTSUITE_NAMESPACE)
+    rescue Helm::ShellCMD::ReleaseNotFound
+      Log.info { "#{flavor_name} release not found, nothing to uninstall" }
     end
 
     def installed?
