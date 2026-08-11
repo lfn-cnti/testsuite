@@ -120,7 +120,7 @@ items:
 | `schema_version` | Integer version of this results-file schema; bumped on breaking changes. |
 | `status` | Overall run verdict, derived from `exit_code`: `passed` (0), `failed` (1), `error` (2). |
 | `command` | The command line that produced this file. |
-| `exit_code` | Process exit code: `0` passed, `1` failed (a required test failed), `2` error (a test raised). |
+| `exit_code` | Process exit code: `0` passed, `1` failed (a required test failed), `2` error (a test raised). Additionally, the process exits with `64` (usage error) on unknown or malformed command-line arguments, before any test runs. |
 | `summary` | Aggregate numbers for the whole run (see below). |
 | `items` | One entry per test that ran (see below). |
 

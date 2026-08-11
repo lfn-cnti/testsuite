@@ -158,7 +158,7 @@ describe "Microservice" do
   end
 
   it "'reasonable_startup_time' should fail if the cnf doesn't has a reasonable startup time(helm_directory)", tags: ["reasonable_startup_time"] do
-    ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_envoy_slow_startup/cnf-testsuite.yml force=true")
+    ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_envoy_slow_startup/cnf-testsuite.yml")
     begin
       result = ShellCmd.run_testsuite("reasonable_startup_time")
       result[:status].success?.should be_true

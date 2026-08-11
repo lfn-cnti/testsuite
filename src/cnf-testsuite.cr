@@ -120,6 +120,7 @@ end
 # Sam.help
 begin
   puts `#{PROGRAM_NAME} help` if ARGV.empty?
+  validate_cli_args!(ARGV)
   # See issue #426 for exit code requirement
   Sam.process_tasks(ARGV.clone)
 
