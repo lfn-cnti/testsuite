@@ -343,15 +343,6 @@ task "reasonable_image_size" do |t, args|
 end
 
 desc "Do the containers in a pod have only one process type?"
-task "process_search" do |_, args|
-  pod_info = KernelIntrospection::K8s.find_first_process("sleep 30000")
-  Log.debug { "pod_info: #{pod_info}" }
-  proctree = KernelIntrospection::K8s::Node.proctree_by_pid(pod_info[:pid], pod_info[:node]) if pod_info
-  Log.debug { "proctree size: #{proctree.try(&.size)}" }
-
-end
-
-desc "Do the containers in a pod have only one process type?"
 task "single_process_type" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     fail_msgs = Set(String).new
