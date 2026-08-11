@@ -28,7 +28,7 @@
 
 * [**Category: Configuration Tests**](#category-configuration-tests)
 
-   [[Default namespaces]](#default-namespaces) | [[Latest tag]](#latest-tag) | [[Require labels]](#require-labels) | [[Versioned tag]](#versioned-tag) | [[NodePort not used]](#nodeport-not-used) | [[HostPort not used]](#hostport-not-used) | [[Hardcoded IP addresses in K8s runtime configuration]](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | [[Secrets used]](#secrets-used) | [[Immutable configmap]](#immutable-configmap) | [[Kubernetes Alpha APIs **PoC**]](#kubernetes-alpha-apis-poc)
+   [[Default namespaces]](#default-namespaces) | [[Latest tag]](#latest-tag) | [[Require labels]](#require-labels) | [[Versioned tag]](#versioned-tag) | [[NodePort not used]](#nodeport-not-used) | [[HostPort not used]](#hostport-not-used) | [[Hardcoded IP addresses in K8s runtime configuration]](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | [[Secrets used]](#secrets-used) | [[Immutable configmap]](#immutable-configmap) | [[Kubernetes Alpha APIs **PoC**]](#kubernetes-alpha-apis-poc) | [[Operator installed]](#operator-installed)
 * [**Category: 5G Tests**](#category-5g-tests)
 
    [[SMF UPF core validator]](#smf-upf-core-validator) | [[SUCI enabled]](#suci-enabled)
@@ -1565,6 +1565,27 @@ Make sure your CNFs are not utilizing any Kubernetes alpha APIs. You can learn m
 #### Usage
 
 `./cnf-testsuite alpha_k8s_apis`
+
+----------
+
+### Operator installed
+
+#### Overview
+
+This test checks if the CNF installs an Operator using the [Operator Lifecycle Manager (OLM)](https://olm.operatorframework.io/). It scans the CNF's resources for OLM Subscriptions and verifies that each Subscription results in a ClusterServiceVersion (CSV) that reaches the `Succeeded` phase.
+Expectation: If the CNF ships an Operator, it is installed through OLM and its ClusterServiceVersion reports a successful installation. If no Operator is found, the test is not applicable.
+
+#### Rationale
+
+[Operators](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/) encode operational knowledge for a workload in software, enabling declarative, self-healing lifecycle management. Installing Operators through OLM makes their installation, upgrade, and dependency handling declarative and verifiable instead of relying on manual or ad-hoc installation steps.
+
+#### Remediation
+
+If your CNF uses an Operator, package it for the Operator Lifecycle Manager and install it via an OLM Subscription, so that the resulting ClusterServiceVersion reports a successful installation. Ensure the Subscription and its target namespace are part of the CNF's resources.
+
+#### Usage
+
+`./cnf-testsuite operator_installed`
 
 ----------
 
