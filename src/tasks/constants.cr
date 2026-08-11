@@ -13,7 +13,6 @@ DEPLOYMENT_MANIFEST_FILE_NAME = "deployment_manifest.yml"
 # CHART_YAML = "Chart.yaml"
 DEFAULT_POINTSFILENAME = "points_v1.yml"
 SONOBUOY_K8S_VERSION = "0.56.14"
-SONOBUOY_OS = "linux"
 IGNORED_SECRET_TYPES = ["kubernetes.io/service-account-token", "kubernetes.io/dockercfg", "kubernetes.io/dockerconfigjson", "helm.sh/release.v1"]
 EMPTY_JSON = JSON.parse(%({}))
 EMPTY_JSON_ARRAY = JSON.parse(%([]))

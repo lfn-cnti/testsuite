@@ -10,12 +10,12 @@ desc "Install Kind"
 task "install_kind" do |_, args|
   Log.info {"install_kind"}
   current_dir = FileUtils.pwd 
-  unless Dir.exists?("#{tools_path}/kind")
-    FileUtils.mkdir_p("#{tools_path}/kind")
-    write_file = "#{tools_path}/kind/kind"
+  unless Dir.exists?("#{Setup::KIND_DIR}")
+    FileUtils.mkdir_p("#{Setup::KIND_DIR}")
+    write_file = Setup::KIND_BINARY
     Log.info { "write_file: #{write_file}" }
     Log.info { "install kind" }
-    url = "https://github.com/kubernetes-sigs/kind/releases/download/v#{Setup::KIND_VERSION}/kind-linux-amd64"
+    url = Setup::KIND_DOWNLOAD_URL
     Log.info { "url: #{url}" }
     do_this_on_each_retry = ->(ex : Exception, attempt : Int32, elapsed_time : Time::Span, next_interval : Time::Span) do
         Log.info { "#{ex.class}: '#{ex.message}' - #{attempt} attempt in #{elapsed_time} seconds and #{next_interval} seconds until the next try."}
@@ -35,7 +35,7 @@ desc "Uninstall Kind"
 task "uninstall_kind" do |_, args|
   current_dir = FileUtils.pwd 
   Log.debug { "uninstall_kind" }
-  FileUtils.rm_rf("#{tools_path}/kind")
+  FileUtils.rm_rf("#{Setup::KIND_DIR}")
 end
 
 # USAGE:
@@ -50,14 +50,14 @@ class KindManager
   property kind : String
 
   def initialize
-    @kind = "#{tools_path}/kind/kind"
+    @kind = Setup::KIND_BINARY
   end
 
   #totod make a create cluster with flannel
 
   def create_cluster(name : String, kind_config : String?, k8s_version = "1.21.1") : KindManager::Cluster?
     Log.info { "Creating Kind Cluster" }
-    kubeconfig = "#{tools_path}/kind/#{name}_admin.conf"
+    kubeconfig = "#{Setup::KIND_DIR}/#{name}_admin.conf"
     Log.for("kind_kubeconfig").info { kubeconfig }
 
     kind_config_opt = ""
@@ -80,14 +80,14 @@ class KindManager
     Log.info {"Deleting Kind Cluster: #{name}"}
     ShellCmd.run("#{kind} delete cluster --name #{name}", "KindManager#delete_cluster")
 
-    if File.exists? "#{tools_path}/kind/#{name}_admin.conf"
+    if File.exists? "#{Setup::KIND_DIR}/#{name}_admin.conf"
       Log.info {"Deleting kubeconfig for kind cluster: #{name}"}
-      File.delete "#{tools_path}/kind/#{name}_admin.conf"
+      File.delete "#{Setup::KIND_DIR}/#{name}_admin.conf"
     end
   end
 
   def self.disable_cni_config
-    kind_config = "#{tools_path}/kind/disable_cni.yml"
+    kind_config = "#{Setup::KIND_DIR}/disable_cni.yml"
     unless File.exists?(kind_config)
       File.write(kind_config, DISABLE_CNI)
     end

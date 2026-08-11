@@ -28,7 +28,7 @@ task "k8s_conformance" do |t, args|
   CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
     current_dir = FileUtils.pwd
     Log.for(t.name).debug { "current dir: #{current_dir}" }
-    sonobuoy = "#{tools_path}/sonobuoy/sonobuoy"
+    sonobuoy = Setup::SONOBUOY_BINARY
 
     # Clean up old results
     delete_cmd = "#{sonobuoy} delete --all --wait"

@@ -28,5 +28,5 @@ def local_git_path
     end
   end
 
-  FileUtils.pwd + GitClient::DEFAULT_LOCAL_BINARY_PATH
+  File.join(FileUtils.pwd, GitClient::DEFAULT_LOCAL_BINARY_PATH)
 end

@@ -40,11 +40,10 @@ module Setup
   # Useful consts grouped by tools
   CLUSTER_API_URL    = "https://github.com/kubernetes-sigs/cluster-api/releases/download/" +
                        "v#{CLUSTER_API_VERSION}/clusterctl-#{TARGET_OS}-#{TARGET_ARCH}"
-  CLUSTER_API_DIR    = "\#{tools_path}/cluster-api"
-  CLUSTERCTL_BINARY  = "#{CLUSTER_API_DIR}/clusterctl"
 
   KIND_DOWNLOAD_URL  = "https://github.com/kubernetes-sigs/kind/releases/download/v#{KIND_VERSION}/kind-#{TARGET_OS}-#{TARGET_ARCH}"
   KIND_DIR           = "#{tools_path}/kind"
+  KIND_BINARY        = "#{KIND_DIR}/kind"
 
   KUBESCAPE_DIR      = "#{tools_path}/kubescape"
   KUBESCAPE_URL      = "https://github.com/kubescape/kubescape/releases/download/" +
@@ -56,7 +55,7 @@ module Setup
 
   SONOBUOY_DIR       = "#{tools_path}/sonobuoy"
   SONOBUOY_URL       = "https://github.com/vmware-tanzu/sonobuoy/releases/download/" +
-                       "v#{SONOBUOY_K8S_VERSION}/sonobuoy_#{SONOBUOY_K8S_VERSION}_#{TARGET_OS}-#{TARGET_ARCH}.tar.gz"
+                       "v#{SONOBUOY_K8S_VERSION}/sonobuoy_#{SONOBUOY_K8S_VERSION}_#{TARGET_OS}_#{TARGET_ARCH}.tar.gz"
   SONOBUOY_BINARY    = "#{SONOBUOY_DIR}/sonobuoy"
 
   HELM_DIR           = "#{tools_path}/helm"

@@ -28,5 +28,5 @@ def local_kubectl_path
     end
   end
 
-  FileUtils.pwd + KubectlClient::DEFAULT_LOCAL_BINARY_PATH
+  File.join(FileUtils.pwd, KubectlClient::DEFAULT_LOCAL_BINARY_PATH)
 end
