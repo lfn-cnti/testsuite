@@ -47,7 +47,7 @@ jobs:
           shards install
           crystal build src/cnf-testsuite.cr
           ./cnf-testsuite setup
-          ./cnf-testsuite cnf_install cnf-config=example-cnfs/coredns || true
+          ./cnf-testsuite cnf_install cnf-config=example-cnfs/coredns
           ./cnf-testsuite cert
           ./cnf-testsuite uninstall_all
         continue-on-error: true
