@@ -14,7 +14,7 @@ desc "The CNF test suite checks to see if the CNFs are resilient to failures."
   tags = ["resilience", "cert"]
   tags << "essential" if essential_only
 
-  invoke_tasks_by_tag_list(t, tags, exclude_tasks: exclude)
+  invoke_tasks_by_tag_list(t, args, tags, exclude_tasks: exclude)
 
   Log.debug { "resilience" }
   Log.trace { "resilience args.raw: #{args.raw}" }

@@ -17,7 +17,7 @@ task "cert_configuration" do |t, args|
   tags = ["configuration", "cert"]
   tags << "essential" if essential_only
 
-  invoke_tasks_by_tag_list(t, tags, exclude_tasks: exclude)
+  invoke_tasks_by_tag_list(t, args, tags, exclude_tasks: exclude)
 
   cert_stdout_score(tags, "configuration", exclude_warning: !exclude.empty?)
   case "#{ARGV.join(" ")}" 

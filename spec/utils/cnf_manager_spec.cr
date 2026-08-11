@@ -85,7 +85,16 @@ describe "SampleUtils" do
   end
 
   it "'points_yml' should parse and return the points yaml file", tags: ["points"]  do
-    (CNFManager::Points.points_yml.find {|x| x["name"] =="liveness"}).should be_truthy 
+    (CNFManager::Points.points_yml.find {|x| x["name"] =="liveness"}).should be_truthy
+  end
+
+  it "cert tasks should forward CLI args to their sub-tests", tags: ["points"] do
+    # node_drain is the only cert-tagged state test, so excluding it must leave
+    # cert_state with nothing to run. Without arg forwarding the exclusion is
+    # dropped and node_drain aborts the run because no CNF is installed.
+    result = ShellCmd.run_testsuite("cert_state ~node_drain")
+    result[:status].success?.should be_true
+    result[:output].should_not contain("You must install a CNF first")
   end
 
   it  "'task_points' should return the amount of points for a passing test", tags: ["points"] do

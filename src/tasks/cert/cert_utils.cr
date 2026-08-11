@@ -25,11 +25,11 @@ def get_excluded_tasks(args)
 end
 
   
-def invoke_tasks_by_tag_list(parent_task, tags, exclude_tasks=[] of String)
+def invoke_tasks_by_tag_list(parent_task, args, tags, exclude_tasks=[] of String)
   tasks = CNFManager::Points.tasks_by_tag_intersection(tags)
   tasks.each do |task|
     unless exclude_tasks.includes? task
-      parent_task.invoke(task)
+      parent_task.invoke(task, args)
     end
   end
 end
