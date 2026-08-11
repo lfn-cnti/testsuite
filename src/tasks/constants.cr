@@ -32,7 +32,6 @@ EmbeddedFileManager.chaos_network_loss
 EmbeddedFileManager.chaos_cpu_hog
 EmbeddedFileManager.chaos_container_kill
 EmbeddedFileManager.points_yml
-EmbeddedFileManager.points_yml_write_file
 EmbeddedFileManager.enforce_image_tag
 EmbeddedFileManager.constraint_template
 EmbeddedFileManager.disable_cni

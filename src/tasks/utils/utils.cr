@@ -79,6 +79,16 @@ def check_cnf_config(args)
   cnf
 end
 
+module BaseConfigWarning
+  @@warned = false
+
+  def self.warn_missing_once
+    return if @@warned
+    @@warned = true
+    stdout_warning "No #{BASE_CONFIG} found in the current directory; feature toggles (wip, alpha, beta, poc, destructive, multi-cnf) default to disabled."
+  end
+end
+
 def toggle(toggle_name)
   toggle_on = false
   if File.exists?(BASE_CONFIG)
@@ -90,6 +100,7 @@ def toggle(toggle_name)
       toggle_on = feature_flag["toggle_on"].as_bool if feature_flag
     end
   else
+    BaseConfigWarning.warn_missing_once
     toggle_on = false
   end
   toggle_on

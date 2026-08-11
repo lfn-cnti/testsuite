@@ -187,7 +187,18 @@ module CNFManager
       end
     end
 
+    @@points_yml_ensured = false
+
     def self.points_yml
+      # points.yml used to be rewritten into the CWD at require time on every
+      # invocation, even for help/version. Materialize (or refresh, when a copy
+      # from another release lingers) the embedded points.yml only when scoring
+      # actually needs it, so non-scoring commands stay free of side effects
+      # and work from read-only directories.
+      unless @@points_yml_ensured
+        create_points_yml unless File.exists?("points.yml") && File.read("points.yml") == POINTSFILE
+        @@points_yml_ensured = true
+      end
       points = File.open("points.yml") { |f| YAML.parse(f) }
       points.as_a
     end
@@ -228,7 +239,13 @@ module CNFManager
 
     private def self.dynamic_task_points(task, status_name) : Int32?
       points = points_yml.find { |x| x["name"] == task }
-      @@logger.for("dynamic_task_points").warn { "Task: #{task} not found in points.yml" } unless points
+      unless points
+        # points.yml is kept in sync with the embedded copy, so a missing entry
+        # means the test genuinely has no scoring definition; surface it instead
+        # of silently falling back to default_scoring.
+        @@logger.for("dynamic_task_points").warn { "Task: #{task} not found in points.yml" }
+        stdout_warning "Test '#{task}' has no entry in points.yml, scoring it with default_scoring."
+      end
 
       if points && points[status_name]?
         resp = points[status_name].as_i if points
