@@ -1,5 +1,5 @@
 module KubectlClient
-  DEFAULT_LOCAL_BINARY_PATH  = "tools/git/linux-amd64/docker"
+  DEFAULT_LOCAL_BINARY_PATH  = "tools/kubectl/linux-amd64/kubectl"
   BASE_CONFIG                = "./config.yml"
   RESOURCE_WAIT_LOG_INTERVAL = 10
   # https://www.capitalone.com/tech/cloud/container-runtime/

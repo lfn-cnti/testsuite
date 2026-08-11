@@ -23,14 +23,12 @@ task "install_sonobuoy" do |_, args|
   Log.trace { SONOBUOY_K8S_VERSION }
   current_dir = FileUtils.pwd 
   Log.trace { current_dir }
-  unless Dir.exists?("#{tools_path}/sonobuoy")
+  unless Dir.exists?("#{Setup::SONOBUOY_DIR}")
     Log.trace { "toolsdir : #{tools_path}" }
-    Log.trace { "full path?: #{tools_path}/sonobuoy" }
-    FileUtils.mkdir_p("#{tools_path}/sonobuoy")
-    # curl = `VERSION="#{LITMUS_K8S_VERSION}" OS=linux ; curl -L "https://github.com/vmware-tanzu/sonobuoy/releases/download/v${VERSION}/sonobuoy_${VERSION}_${OS}_amd64.tar.gz" --output #{tools_path}/sonobuoy/sonobuoy.tar.gz`
-    # os="linux"
-    url = "https://github.com/vmware-tanzu/sonobuoy/releases/download/v#{SONOBUOY_K8S_VERSION}/sonobuoy_#{SONOBUOY_K8S_VERSION}_#{SONOBUOY_OS}_amd64.tar.gz"
-    write_file = "#{tools_path}/sonobuoy/sonobuoy.tar.gz"
+    Log.trace { "full path?: #{Setup::SONOBUOY_DIR}" }
+    FileUtils.mkdir_p("#{Setup::SONOBUOY_DIR}")
+    url = Setup::SONOBUOY_URL
+    write_file = "#{Setup::SONOBUOY_DIR}/sonobuoy.tar.gz"
     Log.info { "url: #{url}" }
     Log.info { "write_file: #{write_file}" }
     # todo change this to work with rel 
@@ -38,10 +36,10 @@ task "install_sonobuoy" do |_, args|
      #  i think any url can do a redirect  ....
     # it could be that http.get 'just works' now.  keyword just
     download_file("#{url}","#{write_file}")
-    `tar -xzf #{tools_path}/sonobuoy/sonobuoy.tar.gz -C #{tools_path}/sonobuoy/ && \
-     chmod +x #{tools_path}/sonobuoy/sonobuoy && \
-     rm #{tools_path}/sonobuoy/sonobuoy.tar.gz`
-    sonobuoy = "#{tools_path}/sonobuoy/sonobuoy"
+    `tar -xzf #{Setup::SONOBUOY_DIR}/sonobuoy.tar.gz -C #{Setup::SONOBUOY_DIR}/ && \
+     chmod +x #{Setup::SONOBUOY_DIR}/sonobuoy && \
+     rm #{Setup::SONOBUOY_DIR}/sonobuoy.tar.gz`
+    sonobuoy = Setup::SONOBUOY_BINARY
     sonobuoy_details(sonobuoy)
   end
 end
@@ -49,7 +47,7 @@ end
 desc "Uninstalls Sonobuoy"
 task "uninstall_sonobuoy" do |_, args|
   current_dir = FileUtils.pwd 
-  sonobuoy = "#{tools_path}/sonobuoy/sonobuoy"
+  sonobuoy = Setup::SONOBUOY_BINARY
   status = Process.run(
     "#{sonobuoy} delete --wait 2>&1",
     shell: true,
@@ -57,6 +55,6 @@ task "uninstall_sonobuoy" do |_, args|
     error: stderr = IO::Memory.new
   ) if File.exists?(sonobuoy)
   Log.debug { stdout }
-  FileUtils.rm_rf("#{tools_path}/sonobuoy")
+  FileUtils.rm_rf("#{Setup::SONOBUOY_DIR}")
 end
 

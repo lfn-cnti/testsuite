@@ -12,5 +12,5 @@ def local_docker_path
     end
   end
 
-  FileUtils.pwd + DockerClient::DEFAULT_LOCAL_BINARY_PATH
+  File.join(FileUtils.pwd, DockerClient::DEFAULT_LOCAL_BINARY_PATH)
 end
