@@ -15,7 +15,7 @@ task "cert_compatibility" do |t, args|
   tags = ["compatibility", "cert"]
   tags << "essential" if essential_only
 
-  invoke_tasks_by_tag_list(t, tags, exclude_tasks: exclude)
+  invoke_tasks_by_tag_list(t, args, tags, exclude_tasks: exclude)
   
   cert_stdout_score(tags, "Compatibility, Installability, and Upgradeability", exclude_warning: !exclude.empty?)
 
