@@ -5,6 +5,8 @@ This example demonstrates how free5GC can be deployed as a Cloud-Native Network 
 
 The goal of this example is to provide a working reference deployment that is compatible with Kubernetes environments, including **kind clusters**.
 
+> **free5GC is the official reference CNF for the CNTi Test Suite** — a realistic telecom workload used to validate the suite's tests against carrier-grade CNFs and to demonstrate cloud native best practices. Read the announcements: [LF Networking](https://lfnetworking.org/introducing-free5gc-as-a-reference-cnf-for-the-cnti-test-suite/) · [free5GC blog](https://free5gc.org/blog/20260415/20260415/). This deployment is validated nightly in the test suite's CI.
+
 ---
 
 # Architecture Overview

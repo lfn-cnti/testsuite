@@ -2,7 +2,7 @@
 
 | Main                                                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| [![Build Status](https://github.com/lfn-cnti/testsuite/workflows/Crystal%20Specs/badge.svg)](https://github.com/lfn-cnti/testsuite/actions) |
+| [![Build Status](https://github.com/lfn-cnti/testsuite/workflows/Crystal%20Specs/badge.svg)](https://github.com/lfn-cnti/testsuite/actions) [![free5GC validation](https://github.com/lfn-cnti/testsuite/actions/workflows/nightly_free5gc.yml/badge.svg)](https://github.com/lfn-cnti/testsuite/actions/workflows/nightly_free5gc.yml) |
 
 The CNTi Test Suite is an open source and vendor neutral tool that can be used to validate a telco application's adherence to [cloud native principles](https://networking.cloud-native-principles.org/) and best practices. 
 
@@ -39,6 +39,16 @@ The CNTi Test Suite will inspect CNFs for the following characteristics:
 - **Security** - CNF containers should be isolated from one another and the host. CNFs are to be verified against any common CVE or other vulnerabilities.
 
 See the [Test Documentation](docs/TEST_DOCUMENTATION.md) for a complete overview of the tests.
+
+## Reference CNF: free5GC
+
+[free5GC](https://free5gc.org/), an open source 5G core, is the **reference CNF** for the CNTi Test Suite: a realistic telecom workload used to validate that the suite's tests work against carrier-grade CNFs, demonstrate cloud native best practices, and serve as a worked example for onboarding your own CNF.
+
+- Try it: [example-cnfs/free5gc](example-cnfs/free5gc/README.md) — deployment guide (Helm chart via git submodule, kind cluster configuration, known limitations) and a ready-to-use `cnf-testsuite.yml`.
+- It is exercised nightly in CI against the certification test set (see the badge above).
+- Read the announcements: [LF Networking](https://lfnetworking.org/introducing-free5gc-as-a-reference-cnf-for-the-cnti-test-suite/) · [free5GC blog](https://free5gc.org/blog/20260415/20260415/)
+
+For a lightweight first try of the test suite itself, start with the CoreDNS example from the quick install steps above — free5GC has additional host requirements (the `gtp5g` kernel module and unsafe sysctls for the UPF).
 
 ## Contributing
 

@@ -1,5 +1,20 @@
 ### EXAMPLE-CNFs
 
+## Example CNFs included in this repository
+
+The [example-cnfs/](example-cnfs/) directory contains curated, ready-to-run CNF configurations, each with its own `cnf-testsuite.yml` (and a README where applicable):
+
+- **[free5GC](example-cnfs/free5gc/)** — an open source 5G core and the **reference CNF** for the CNTi Test Suite ([LF Networking announcement](https://lfnetworking.org/introducing-free5gc-as-a-reference-cnf-for-the-cnti-test-suite/)). Validated nightly in CI against the certification test set.
+- [CoreDNS](example-cnfs/coredns/) — DNS server; the lightweight example used in the quick install steps.
+- [Envoy](example-cnfs/envoy/) — L3/L4/L7 proxy.
+- [linkerd2](example-cnfs/linkerd2/) — service mesh.
+- [NSM](example-cnfs/nsm/) — Network Service Mesh.
+- [Pantheon NSM NAT](example-cnfs/pantheon-nsm-nat/) — NSM-based NAT.
+- [IP Forwarder](example-cnfs/ip-forwarder/) — VPP-based IP forwarder.
+- [VPP 3c2n-csp use case](example-cnfs/vpp-3c2n-csp-use-case/) — VPP-based CNF Testbed use case.
+
+## CNF samples by OSI layer
+
 This is a preliminary list of CNF samples for each layer in the [OSI model](https://www.osi-model.com/presentation-layer/) which we plan to test in the CNF Test Suite. CNFs can be thought of as functionality occupying one or more of the following network layers:
 
 <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/OSI_Model_v1.svg/440px-OSI_Model_v1.svg.png" width="25%" height="25%"><img src="https://cnf-test-suite.s3-us-west-2.amazonaws.com/inet-protocol.png" width="25%" height="25%">
@@ -47,7 +62,7 @@ This is a preliminary list of CNF samples for each layer in the [OSI model](http
 - [Tungsten Fabric](https://tungsten.io/)
 - [OpenSwitch NAS Layer 3](https://github.com/open-switch/opx-nas-l3)
 - CNI K8s add-ons operating on Layer 3 such as the Calico kube-policy-controller container
-- [A dockerized version of free5gc](https://github.com/free5gc/free5gc-compose/)
+- [free5GC](example-cnfs/free5gc/) — 5G core; included in this repo as the reference CNF (see above)
 
 ## [Layer 2 - Data](https://en.wikipedia.org/wiki/Data_link_layer)
 
