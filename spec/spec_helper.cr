@@ -13,8 +13,13 @@ require "../src/modules/k8s_netstat"
 require "../src/modules/cluster_tools"
 require "../src/modules/kubectl_client"
 
-ENV["CRYSTAL_ENV"] = "TEST" 
+ENV["CRYSTAL_ENV"] = "TEST"
 
+# Specs assume no CNF is installed; a leftover installation can make them fail
+# in ways that are hard to trace back to the environment.
+if Dir.exists?(CNF_DIR)
+  Log.warn { "A CNF appears to be installed ('#{CNF_DIR}' directory present). Spec tests assume a clean environment and may behave unexpectedly. Consider running './cnf-testsuite cnf_uninstall' first.".colorize(:yellow) }
+end
 
 # Skip the build when a caller (e.g. CI) has already built the binary and sets
 # CNF_TESTSUITE_SKIP_BUILD, avoiding a redundant full recompile per spec run.
