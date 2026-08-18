@@ -2,14 +2,15 @@ config_version: v2
 common:
   auth_defaults:
     oci_registries:
-      localhost:53123:
+      # port is docker-assigned and exported by spec/setup_spec.cr
+      localhost:{{ ENV.SPEC_OCI_REGISTRY_PORT }}:
         username: "dummy"
         password: "secret"
 deployments:
   helm_charts:
     - name: nginx-oci
       namespace: cnf-default
-      registry_url: "oci://localhost:53123/helm/nginx"
+      registry_url: "oci://localhost:{{ ENV.SPEC_OCI_REGISTRY_PORT }}/helm/nginx"
       chart_version: "15.10.0"
       plain_http: true
       helm_values: --set global.security.allowInsecureImages=true --set image.repository=bitnamilegacy/nginx
