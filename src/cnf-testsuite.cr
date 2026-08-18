@@ -29,7 +29,6 @@ task "all", ["workload", "platform"] do  |_, args|
       YAML.parse(file)
     end
 
-    Log.debug { "results yaml: #{yaml}" }
     if (yaml["exit_code"]) != 2
       update_yml("#{CNFManager::Points::Results.file}", "exit_code", "1")
     end
@@ -59,7 +58,6 @@ task "workload", ["ensure_cnf_installed", "setup:configuration_file_setup", "com
     yaml = File.open("#{CNFManager::Points::Results.file}") do |file|
       YAML.parse(file)
     end
-    Log.info { "results yaml: #{yaml}" }
     if (yaml["exit_code"]) != 2
       update_yml("#{CNFManager::Points::Results.file}", "exit_code", "1")
     end
@@ -117,18 +115,18 @@ TEMPLATE
 puts completion_template
 end
 
-# Sam.help
 begin
-  puts `#{PROGRAM_NAME} help` if ARGV.empty?
-  validate_cli_args!(ARGV)
+  # A bare invocation shows help. Run the help task in-process instead of
+  # re-executing the binary in a subshell and echoing its captured output.
+  argv = ARGV.empty? ? ["help"] : ARGV.clone
+  validate_cli_args!(argv)
   # See issue #426 for exit code requirement
-  Sam.process_tasks(ARGV.clone)
+  Sam.process_tasks(argv)
 
   if CNFManager::Points::Results.file_exists?
     yaml = File.open("#{CNFManager::Points::Results.file}") do |file|
       YAML.parse(file)
     end
-    Log.info { "results yaml: #{yaml}" }
     case (yaml["exit_code"])
     when 1
       exit 1

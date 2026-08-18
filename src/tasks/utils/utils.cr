@@ -283,15 +283,17 @@ def tools_path
 end
 
 def stdout_info(msg, same_line = false)
-  if same_line
+  if same_line && STDOUT.tty?
     msg = "#{"\e[1A\e[K"}#{msg}"
   end
   puts msg
 end
 
-# \e[1A\e[K is a sequence that allows to clear current line and place cursor at its beginning
+# \e[1A\e[K is a sequence that allows to clear current line and place cursor at
+# its beginning. Like color, it is only emitted on a TTY - in piped/captured
+# output the rewritten lines are simply printed one after another.
 def stdout_colored(msg, color, same_line = false)
-  if same_line
+  if same_line && STDOUT.tty?
     msg = "#{"\e[1A\e[K"}#{msg}"
   end
   puts msg.colorize(color)
