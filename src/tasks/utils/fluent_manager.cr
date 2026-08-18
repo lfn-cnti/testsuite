@@ -16,6 +16,13 @@ module FluentManager
       @chart = chart
     end
 
+    # Digest pinned in image_name ("repo:tag@sha256:..."). The helm values files
+    # pin the same digest, so a collector installed by the testsuite always runs
+    # exactly this image. Empty when the flavor pins no digest.
+    def image_digest : String
+      image_name.partition("@")[2]
+    end
+
     def install
       Log.info { "Installing #{flavor_name} daemonset using #{values_file}" }
       Helm.helm_repo_add(flavor_name, repo_url)
@@ -75,13 +82,16 @@ module FluentManager
 
   def self.find_active_match_pods : Array(JSON::Any)?
     all_flavors.each do |flavor|
-      # Look for images of all flavors stored on node.
-      matching_image = ClusterTools.local_match_by_image_name_with_retries(flavor.image_name)
-      # When image name found on any of the nodes, check if any
-      # pod with this image is currently running on the cluster.
-      matching_pods = KubectlClient::Get.pods_by_digest(matching_image[:digest]) if matching_image[:found]
+      # Match running pods by the digest pinned in the flavor definition, read
+      # from pod container statuses. Detection used to resolve that digest via
+      # node .status.images first, which the kubelet refreshes asynchronously:
+      # a freshly installed collector could stay invisible there for over 30s,
+      # longer than the retry budget, making routed_logs detection flaky.
+      digest = flavor.image_digest
+      next if digest.empty?
+      matching_pods = KubectlClient::Get.pods_by_digest(digest)
 
-      return matching_pods if !matching_pods.nil? && matching_pods.first?
+      return matching_pods if matching_pods.first?
     end
     nil
   end
