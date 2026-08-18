@@ -40,7 +40,9 @@ private def log_backend
   end
 
   if log_file.empty?
-    backend = Log::IOBackend.new(formatter: log_formatter)
+    # Logs are diagnostics, not output: they go to stderr so that stdout stays
+    # reserved for results and pipes/redirection stay clean (issue #2431).
+    backend = Log::IOBackend.new(STDERR, formatter: log_formatter)
   else
     log_io = File.open(log_file, "a")
     backend = Log::IOBackend.new(io: log_io, formatter: log_formatter)

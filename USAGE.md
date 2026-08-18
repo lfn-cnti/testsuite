@@ -161,6 +161,15 @@ Each `impacted_resources` entry has `kind` and `name`, plus optional `namespace`
 - **LOG_LEVEL** environment variable: sets minimal log level to display: error (default); info; debug.
 - **LOG_PATH** environment variable: if set - all logs would be appended to the file defined by that variable.
 
+#### Output streams
+
+Result lines, scores and summaries are the suite's output and go to **stdout**; log messages are
+diagnostics and go to **stderr** (or to the `LOG_PATH` file when set). This means
+`./cnf-testsuite <test> > results.txt 2> debug.log` cleanly separates the two even with
+`LOG_LEVEL=debug`. When capturing the streams separately, their relative ordering is not
+guaranteed — merge them with `2>&1` if strict interleaving matters. Cursor-control progress
+rewrites and colors are only emitted when stdout is a terminal.
+
 ---
 
 ### Common Example Commands
