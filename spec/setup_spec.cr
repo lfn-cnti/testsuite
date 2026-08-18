@@ -20,6 +20,17 @@ def fetch_nginx_chart_tgz(dest_dir : String, version = "15.10.0") : String
   tgz
 end
 
+# Returns the host port docker assigned to a published container port.
+# Registry containers are published with "-p 127.0.0.1::<port>" so docker picks
+# a free host port; hardcoded ports collide when concurrent CI jobs run this
+# spec shard on a shared runner.
+def docker_published_port(container : String, container_port : Int32) : Int32
+  result = DockerClient.run("port #{container} #{container_port}/tcp")
+  result[:status].success?.should be_true
+  # Output is one "<address>:<port>" line per bound address.
+  result[:output].to_s.lines.first.strip.rpartition(":")[2].to_i
+end
+
 describe "Installation" do
   it "'setup' should install all cnf-testsuite dependencies before installing cnfs", tags: ["cnf_installation1"]  do
     result = ShellCmd.run_testsuite("setup")
@@ -331,19 +342,22 @@ describe "Installation" do
   end
 
   it "'cnf_install' should pass for oci repository", tags: ["cnf_installation2"] do
-    local_registry_port = 53123
     tgz = fetch_nginx_chart_tgz("sample-cnfs/sample_oci_repo")
 
     begin
       # Start registry
       DockerClient.run(
         "run -d --name oci-reg \
-        -p #{local_registry_port}:5000 \
+        -p 127.0.0.1::5000 \
         -e REGISTRY_AUTH=htpasswd \
         -e REGISTRY_AUTH_HTPASSWD_REALM=\"Registry\" \
         -e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd \
         registry:2"
       )[:status].success?.should be_true
+      local_registry_port = docker_published_port("oci-reg", 5000)
+      # The fixture config references the registry via {{ ENV.SPEC_OCI_REGISTRY_PORT }};
+      # cnf_uninstall re-renders it, so keep the variable set until after uninstall.
+      ENV["SPEC_OCI_REGISTRY_PORT"] = local_registry_port.to_s
 
       # Wait for port
       ok = repeat_with_timeout(15, "Local OCI registry didn't open port #{local_registry_port}", false, 1) do
@@ -374,24 +388,28 @@ describe "Installation" do
 
       result = ShellCmd.cnf_uninstall
       result[:status].success?.should be_true
+      ENV.delete("SPEC_OCI_REGISTRY_PORT")
     end
   end
 
   it "'cnf_install' should pass for private helm repository", tags: ["cnf_installation2"] do
-    chart_museum_port = 53124
     tgz = fetch_nginx_chart_tgz("sample-cnfs/sample_private_repo")
 
     begin
       # Start ChartMuseum with basic auth
       DockerClient.run(
         "run -d --name cm \
-        -p #{chart_museum_port}:8080 \
+        -p 127.0.0.1::8080 \
         -e STORAGE=local \
         -e STORAGE_LOCAL_ROOTDIR=/tmp/charts \
         -e BASIC_AUTH_USER=dummy \
         -e BASIC_AUTH_PASS=secret \
         chartmuseum/chartmuseum:latest"
       )[:status].success?.should be_true
+      chart_museum_port = docker_published_port("cm", 8080)
+      # Referenced by the fixture config as {{ ENV.SPEC_CHART_MUSEUM_PORT }};
+      # cnf_uninstall re-renders it, so keep the variable set until after uninstall.
+      ENV["SPEC_CHART_MUSEUM_PORT"] = chart_museum_port.to_s
 
       # Wait for port
       ok = repeat_with_timeout(15, "ChartMuseum didn't open port #{chart_museum_port}", false, 1) do
@@ -419,13 +437,12 @@ describe "Installation" do
 
       result = ShellCmd.cnf_uninstall
       result[:status].success?.should be_true
+      ENV.delete("SPEC_CHART_MUSEUM_PORT")
     end
   end
 
   it "'cnf_install' should require client cert for OCI registry (mTLS)", tags: ["cnf_installation2"] do
-    registry_port = 54125
-    reg_host      = "127.0.0.1.nip.io"
-    reg_host_port = "#{reg_host}:#{registry_port}"
+    reg_host = "127.0.0.1.nip.io"
     tgz = fetch_nginx_chart_tgz("sample-cnfs/sample_tls_repo")
 
     # TLS material
@@ -464,11 +481,16 @@ describe "Installation" do
       config_path = "sample-cnfs/sample_tls_repo/config.yml"
       DockerClient.run(
         "run -d --name oci-reg-mtls " \
-        "-p #{registry_port}:5000 " \
+        "-p 127.0.0.1::5000 " \
         "-v #{File.expand_path(tls_dir)}:/certs:ro " \
         "-v #{File.expand_path(config_path)}:/etc/docker/registry/config.yml:ro " \
         "registry:2"
       )[:status].success?.should be_true
+      registry_port = docker_published_port("oci-reg-mtls", 5000)
+      reg_host_port = "#{reg_host}:#{registry_port}"
+      # Referenced by the fixture config as {{ ENV.SPEC_MTLS_REGISTRY_PORT }};
+      # cnf_uninstall re-renders it, so keep the variable set until after uninstall.
+      ENV["SPEC_MTLS_REGISTRY_PORT"] = registry_port.to_s
 
       # Wait for port and TLS handshake (ignore HTTP code)
       ok = repeat_with_timeout(30, "mTLS registry didn't become ready", false, 1) do
@@ -503,6 +525,7 @@ describe "Installation" do
 
       result = ShellCmd.cnf_uninstall
       result[:status].success?.should be_true
+      ENV.delete("SPEC_MTLS_REGISTRY_PORT")
     end
   end
 
