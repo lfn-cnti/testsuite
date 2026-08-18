@@ -9,8 +9,7 @@ require "../../modules/kubectl_client"
 desc "The CNF test suite checks if state is stored in a custom resource definition or a separate database (e.g. etcd) rather than requiring local storage.  It also checks to see if state is resilient to node failure"
 task "state", ["no_local_volume_configuration", "elastic_volumes", "database_persistence", "node_drain"] do |_, args|
   stdout_score("state")
-  case "#{ARGV.join(" ")}" 
-  when /state/
+  if invoked_task?("state")
     stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
   end
 end

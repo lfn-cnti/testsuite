@@ -24,8 +24,7 @@ task "configuration", [
     "versioned_tag"
   ] do |_, args|
   stdout_score("configuration", "configuration")
-  case "#{ARGV.join(" ")}" 
-  when /configuration/
+  if invoked_task?("configuration")
     stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
   end
 end

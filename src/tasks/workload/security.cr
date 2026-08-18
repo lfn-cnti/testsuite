@@ -28,8 +28,7 @@ task "security", [
     "application_credentials"
   ] do |_, args|
   stdout_score("security")
-  case "#{ARGV.join(" ")}" 
-  when /security/
+  if invoked_task?("security")
     stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
   end
 end

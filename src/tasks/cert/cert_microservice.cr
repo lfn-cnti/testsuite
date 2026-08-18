@@ -21,8 +21,7 @@ task "cert_microservice" do |t, args|
   invoke_tasks_by_tag_list(t, args, tags, exclude_tasks: exclude)
 
   cert_stdout_score(tags, "microservice", exclude_warning: !exclude.empty?)
-  case "#{ARGV.join(" ")}" 
-  when /cert_microservice/
+  if invoked_task?("cert_microservice")
     stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
   end
 end

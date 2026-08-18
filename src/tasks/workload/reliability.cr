@@ -21,8 +21,7 @@ desc "The CNF test suite checks to see if the CNFs are resilient to failures."
   Log.trace { "resilience args.raw: #{args.raw}" }
   Log.trace { "resilience args.named: #{args.named}" }
   stdout_score("resilience", "Reliability, Resilience, and Availability")
-  case "#{ARGV.join(" ")}" 
-  when /reliability/
+  if invoked_task?("resilience")
     stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
   end
 end
