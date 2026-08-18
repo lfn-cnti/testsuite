@@ -19,8 +19,7 @@ task "cert_compatibility" do |t, args|
   
   cert_stdout_score(tags, "Compatibility, Installability, and Upgradeability", exclude_warning: !exclude.empty?)
 
-  case "#{ARGV.join(" ")}" 
-  when /cert_compatibility/
+  if invoked_task?("cert_compatibility")
     stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
   end
 

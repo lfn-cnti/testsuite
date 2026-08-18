@@ -8,8 +8,7 @@ require "../utils/utils.cr"
 desc "The CNF test suite checks to see if RAN CNFs follow cloud native principles"
 task "ran", ["oran_e2_connection"] do |_, args|
   stdout_score("ran")
-  case "#{ARGV.join(" ")}" 
-  when /ran/
+  if invoked_task?("ran")
     stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
   end
 end

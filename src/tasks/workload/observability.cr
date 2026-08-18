@@ -10,8 +10,7 @@ require "../utils/utils.cr"
 desc "In order to maintain, debug, and have insight into a protected environment, its infrastructure elements must have the property of being observable. This means these elements must externalize their internal states in some way that lends itself to metrics, tracing, and logging."
 task "observability", ["log_output", "prometheus_traffic", "open_metrics", "routed_logs", "tracing"] do |_, args|
   stdout_score("observability", "Observability and Diagnostics")
-  case "#{ARGV.join(" ")}" 
-  when /observability/
+  if invoked_task?("observability")
     stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
   end
 end

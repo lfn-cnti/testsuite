@@ -8,8 +8,7 @@ require "../utils/utils.cr"
 desc "The CNF test suite checks to see if 5g CNFs follow cloud native principles"
 task "5g", ["smf_upf_core_validator", "suci_enabled"] do |_, args|
   stdout_score("5g")
-  case "#{ARGV.join(" ")}" 
-  when /5g/
+  if invoked_task?("5g")
     stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
   end
 end

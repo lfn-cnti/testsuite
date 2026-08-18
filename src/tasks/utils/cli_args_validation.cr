@@ -66,3 +66,22 @@ def validate_cli_args!(argv : Array(String))
     exit USAGE_EXIT_CODE
   end
 end
+
+# True when `name` was one of the tasks invoked on the command line: the first
+# token, or any token following the '@' task separator. Replaces the old
+# unanchored `case ARGV.join(" ") when /name/` checks, where e.g. /ran/ matched
+# any invocation containing "ran" (rolling_version_change, a fixture path, ...).
+def invoked_task?(name : String) : Bool
+  expect_task = true
+  ARGV.each do |token|
+    if token == Sam::TASK_SEPARATOR
+      expect_task = true
+      next
+    end
+    if expect_task
+      return true if token == name
+      expect_task = false
+    end
+  end
+  false
+end
