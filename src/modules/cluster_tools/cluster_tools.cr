@@ -225,9 +225,9 @@ module ClusterTools
   def self.official_content_digest_by_image_name(image_name)
     Log.info { "official_content_digest_by_image_name: #{image_name}"}
 
-    if ENV["DOCKERHUB_USERNAME"]? && ENV["DOCKERHUB_PASSWORD"]?
+    if (u = ENV["DOCKERHUB_USERNAME"]?) && !u.empty? && (p = ENV["DOCKERHUB_PASSWORD"]?) && !p.empty?
       Log.info { "Using USERNAME and PASSWORD for accessing the registry via skopeo" }
-      registry_creds = "--creds #{ENV["DOCKERHUB_USERNAME"]}:#{ENV["DOCKERHUB_PASSWORD"]}"
+      registry_creds = "--creds #{u}:#{p}"
     else
       Log.info { "Access the registry anonymously via skopeo" }
       registry_creds = ""
