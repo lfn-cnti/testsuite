@@ -329,17 +329,7 @@ jobs:
         shards install  
         echo "RUNNER: $RUNNER_NAME"
     - name: Run Crystal Spec
-      env:
-        DOCKERHUB_EMAIL: ${{ secrets.DOCKERHUB_EMAIL }}
-        IMAGE_REPO: ${{ secrets.IMAGE_REPO }}
       run: |
-        EMAIL_ARRAY=($DOCKERHUB_EMAIL)
-        IMAGE_ARRAY=($IMAGE_REPO)
-        RANDOMIZER=$(( 0 + $RANDOM % 3 ))
-        export PROTECTED_DOCKERHUB_USERNAME=$DOCKERHUB_USERNAME
-        export PROTECTED_DOCKERHUB_PASSWORD=$DOCKERHUB_PASSWORD
-        export PROTECTED_DOCKERHUB_EMAIL=${EMAIL_ARRAY[$RANDOMIZER]}
-        export PROTECTED_IMAGE_REPO=${IMAGE_ARRAY[$RANDOMIZER]}
         source cluster.env
         export KUBECONFIG=$(pwd)/$CLUSTER.conf
         until [[ $(kubectl get pods -l app=local-path-provisioner --namespace=local-path-storage -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}') == "True" ]]; do
