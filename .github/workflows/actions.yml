@@ -91,20 +91,25 @@ jobs:
     name: Crystal Specs
     needs: [tests]
     runs-on: [v1.0.0]
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.tests.outputs.matrix)}}
     steps:
     - name: Login to Docker Hub
+      if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
       uses: docker/login-action@v3
       with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+        username: ${{ env.DOCKERHUB_USERNAME }}
+        password: ${{ env.DOCKERHUB_PASSWORD }}
     - name: Sign in to Docker Hub with Helm
+      if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
       run: |
         helm registry login \
-          --username ${{ secrets.DOCKERHUB_USERNAME }} \
-          --password ${{ secrets.DOCKERHUB_PASSWORD }} \
+          --username ${{ env.DOCKERHUB_USERNAME }} \
+          --password ${{ env.DOCKERHUB_PASSWORD }} \
           registry-1.docker.io
     - name: Cleanup Tmp DIR
       run: |
@@ -325,9 +330,6 @@ jobs:
         echo "RUNNER: $RUNNER_NAME"
     - name: Run Crystal Spec
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-        DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
         DOCKERHUB_EMAIL: ${{ secrets.DOCKERHUB_EMAIL }}
         IMAGE_REPO: ${{ secrets.IMAGE_REPO }}
       run: |
@@ -368,6 +370,9 @@ jobs:
     name: Chaos & Oran Tests
     needs: [tests]
     runs-on: ubuntu-24.04
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
     strategy:
       fail-fast: false
       # Derived from CHAOS_TAGS in the `tests` job so the chaos matrix and the
@@ -375,15 +380,17 @@ jobs:
       matrix: ${{ fromJson(needs.tests.outputs.chaos_matrix) }}
     steps:
     - name: Login to Docker Hub
+      if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
       uses: docker/login-action@v3
       with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+        username: ${{ env.DOCKERHUB_USERNAME }}
+        password: ${{ env.DOCKERHUB_PASSWORD }}
     - name: Sign in to Docker Hub with Helm
+      if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
       run: |
         helm registry login \
-          --username ${{ secrets.DOCKERHUB_USERNAME }} \
-          --password ${{ secrets.DOCKERHUB_PASSWORD }} \
+          --username ${{ env.DOCKERHUB_USERNAME }} \
+          --password ${{ env.DOCKERHUB_PASSWORD }} \
           registry-1.docker.io
     - name: Checkout code
       uses: actions/checkout@v4
@@ -447,17 +454,22 @@ jobs:
   test_binary_configuration_lifecycle:
     name: Test Binary Without Source(config_lifecycle)
     runs-on: [v1.0.0]
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
     steps:
     - name: Login to Docker Hub
+      if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
       uses: docker/login-action@v3
       with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+        username: ${{ env.DOCKERHUB_USERNAME }}
+        password: ${{ env.DOCKERHUB_PASSWORD }}
     - name: Sign in to Docker Hub with Helm
+      if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
       run: |
         helm registry login \
-          --username ${{ secrets.DOCKERHUB_USERNAME }} \
-          --password ${{ secrets.DOCKERHUB_PASSWORD }} \
+          --username ${{ env.DOCKERHUB_USERNAME }} \
+          --password ${{ env.DOCKERHUB_PASSWORD }} \
           registry-1.docker.io
     - name: Cleanup Tmp DIR
       run: |
@@ -535,17 +547,22 @@ jobs:
   test_binary_microservice:
     name: Test Binary Without Source(microservice)
     runs-on: [v1.0.0]
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
     steps:
     - name: Login to Docker Hub
+      if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
       uses: docker/login-action@v3
       with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+        username: ${{ env.DOCKERHUB_USERNAME }}
+        password: ${{ env.DOCKERHUB_PASSWORD }}
     - name: Sign in to Docker Hub with Helm
+      if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
       run: |
         helm registry login \
-          --username ${{ secrets.DOCKERHUB_USERNAME }} \
-          --password ${{ secrets.DOCKERHUB_PASSWORD }} \
+          --username ${{ env.DOCKERHUB_USERNAME }} \
+          --password ${{ env.DOCKERHUB_PASSWORD }} \
           registry-1.docker.io
     - name: Cleanup Tmp DIR
       run: |
@@ -621,17 +638,22 @@ jobs:
   test_binary_all:
     name: Test Binary Without Source(all)
     runs-on: [v1.0.0]
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
     steps:
     - name: Login to Docker Hub
+      if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
       uses: docker/login-action@v3
       with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+        username: ${{ env.DOCKERHUB_USERNAME }}
+        password: ${{ env.DOCKERHUB_PASSWORD }}
     - name: Sign in to Docker Hub with Helm
+      if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
       run: |
         helm registry login \
-          --username ${{ secrets.DOCKERHUB_USERNAME }} \
-          --password ${{ secrets.DOCKERHUB_PASSWORD }} \
+          --username ${{ env.DOCKERHUB_USERNAME }} \
+          --password ${{ env.DOCKERHUB_PASSWORD }} \
           registry-1.docker.io
     - name: Cleanup Tmp DIR
       run: |
