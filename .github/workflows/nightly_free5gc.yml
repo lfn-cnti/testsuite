@@ -3,12 +3,23 @@ on:
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
-  push:
-    branches:
-      - main
+
+# The validation owns a whole kind cluster on a shared self-hosted runner, so
+# runs must not overlap. Queue them instead of cancelling: a nightly run that
+# is already exercising free5GC is worth finishing.
+concurrency:
+  group: free5gc-validation
+  cancel-in-progress: false
+
 jobs:
   free5gc-validation:
     runs-on: [v1.0.0]
+    env:
+      # Unique per run. A fixed name ("free5gc-dev") collided whenever a second
+      # run started before the first had cleaned up, and a leaked cluster then
+      # blocked every later run: "node(s) already exist for a cluster with the
+      # name free5gc-dev".
+      KIND_CLUSTER_NAME: free5gc-${{ github.run_id }}
     steps:
       - name: Checkout Code & Submodules
         uses: actions/checkout@v4
@@ -66,7 +77,7 @@ jobs:
             - containerPath: /var/lib/kubelet/config.json
               hostPath: $HOME/.docker/config.json
           EOF
-          kind create cluster --name free5gc-dev --config kind_setup.yaml --wait 5m
+          kind create cluster --name "$KIND_CLUSTER_NAME" --config kind_setup.yaml --wait 5m
       - name: Build CNF Testsuite
         run: |
           shards install
@@ -75,6 +86,8 @@ jobs:
         run: |
           LOG_LEVEL=INFO crystal spec spec/free5gc_cert_spec.cr -v
       - name: Delete Kind Cluster
+        if: always()
         continue-on-error: true
+        timeout-minutes: 10
         run: |
-          until kind delete cluster --name free5gc-dev  --verbosity 1; do sleep 1; done
+          until kind delete cluster --name "$KIND_CLUSTER_NAME" --verbosity 1; do sleep 1; done
