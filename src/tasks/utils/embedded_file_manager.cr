@@ -19,9 +19,6 @@ module EmbeddedFileManager
   macro chaos_container_kill
     CHAOS_CONTAINER_KILL = Base64.decode_string("{{ `cat ./embedded_files/chaos_container_kill.yml  | base64`}}")
   end
-  macro points_yml
-    POINTSFILE = Base64.decode_string("{{ `cat ./embedded_files/points.yml  | base64`}}")
-  end
   macro enforce_image_tag
     ENFORCE_IMAGE_TAG = Base64.decode_string("{{ `cat ./embedded_files/enforce-image-tag.yml  | base64`}}")
   end
@@ -42,13 +39,5 @@ module EmbeddedFileManager
   end
   macro ueransim_helmconfig
     UERANSIM_HELMCONFIG = Base64.decode_string("{{ `cat ./embedded_files/ue.yaml | base64`}}")
-  end
-  def self.points_yml_write_file
-    begin
-      File.write("points.yml", POINTSFILE)
-    rescue File::AccessDeniedError
-      Log.error {"ERROR: missing write permission in current directory"}
-      exit 1
-    end
   end
 end

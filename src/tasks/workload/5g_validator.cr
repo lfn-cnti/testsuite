@@ -6,7 +6,7 @@ require "totem"
 require "../utils/utils.cr"
 
 desc "The CNF test suite checks to see if 5g CNFs follow cloud native principles"
-task "5g", ["smf_upf_core_validator", "suci_enabled"] do |_, args|
+task "5g", ["smf_upf_core_validator", "smf_upf_heartbeat", "suci_enabled"] do |_, args|
   stdout_score("5g")
   if invoked_task?("5g")
     stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
@@ -14,7 +14,7 @@ task "5g", ["smf_upf_core_validator", "suci_enabled"] do |_, args|
 end
 
 desc "Test if a 5G core is valid"
-task "smf_upf_core_validator" do |t, args|
+scored_task "smf_upf_core_validator" do |t, args|
   #todo change to 5g_core_validator
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
 
@@ -26,7 +26,7 @@ task "smf_upf_core_validator" do |t, args|
 end
 
 desc "Test if a 5G core has SMF/UPF heartbeat"
-task "smf_upf_heartbeat" do |t, args|
+scored_task "smf_upf_heartbeat" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     Log.for(t.name).info { "named args: #{args.named}" }
     baseline_count : Int32 | Float64 | String | Nil
@@ -119,7 +119,7 @@ end
 
 #todo move to 5g test files
 desc "Test if a 5G core supports SUCI Concealment"
-task "suci_enabled" do |t, args|
+scored_task "suci_enabled" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     suci_found : Bool | Nil
     core = config.common.five_g_parameters.amf_label

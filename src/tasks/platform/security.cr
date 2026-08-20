@@ -12,7 +12,9 @@ namespace "platform" do
   end
 
   desc "Is the platform control plane hardened"
-  task "control_plane_hardening", ["setup:kubescape_scan"] do |t, args|
+  scored_task "control_plane_hardening",
+    deps: ["setup:kubescape_scan"],
+    emoji: "🔓🔑" do |t, args|
     CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       results_json = Kubescape.parse
       test_json = Kubescape.test_by_test_name(results_json, "API server insecure port is enabled")
@@ -29,7 +31,9 @@ namespace "platform" do
   end
 
   desc "Attackers who have Cluster-admin permissions (can perform any action on any resource), can take advantage of their high privileges for malicious intentions. Determines which subjects have cluster admin permissions."
-  task "cluster_admin", ["setup:kubescape_scan"] do |t, args|
+  scored_task "cluster_admin",
+    deps: ["setup:kubescape_scan"],
+    emoji: "🔓🔑" do |t, args|
     CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       results_json = Kubescape.parse
       test_json = Kubescape.test_by_test_name(results_json, "Administrative Roles")
@@ -46,7 +50,8 @@ namespace "platform" do
   end
 
   desc "Check if the CNF is running containers with name tiller in their image name?"
-  task "helm_tiller" do |t, args|
+  scored_task "helm_tiller",
+    emoji: "🔓🔑" do |t, args|
     Kyverno.install
     CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       policy_path = Kyverno.best_practice_policy("disallow_helm_tiller/disallow_helm_tiller.yaml")
@@ -66,7 +71,8 @@ namespace "platform" do
   end
 
   desc "Verify if ConfigMaps are encrypted"
-  task "verify_configmaps_encryption" do |t, args|
+  scored_task "verify_configmaps_encryption",
+    emoji: "🔓🔑" do |t, args|
     logger = Log.for("verify_configmaps_encryption")
     kube_system_ns = "kube-system"
     cm_name = generate_cm_name
@@ -179,8 +185,11 @@ end
     end
   end
 
+namespace "platform" do
   desc "Verify if Secrets are encrypted"
-  task "verify_secrets_encryption", ["setup:kubescape_scan"] do |t, args|
+  scored_task "verify_secrets_encryption",
+    deps: ["setup:kubescape_scan"],
+    emoji: "🔓🔑" do |t, args|
     CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       namespace="kube-system"
       Kubescape.scan(namespace: namespace)
@@ -197,4 +206,4 @@ end
       end
     end
   end
-
+end

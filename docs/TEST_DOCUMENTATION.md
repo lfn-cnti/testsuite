@@ -1702,7 +1702,7 @@ Check that [Sonobuoy](https://github.com/vmware-tanzu/sonobuoy) can be successfu
 
 #### Usage
 
-`./cnf-testsuite k8s_conformance`
+`./cnf-testsuite platform:k8s_conformance`
 
 ----------
 
@@ -1723,7 +1723,7 @@ Enable ClusterAPI and start using it to manage the provisioning and lifecycle of
 
 #### Usage
 
-`./cnf-testsuite clusterapi_enabled`
+`./cnf-testsuite platform:clusterapi_enabled`
 
 ----------
 

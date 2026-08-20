@@ -15,7 +15,9 @@ namespace "platform" do
   end
 
   desc "Does the Platform have Kube State Metrics installed"
-  task "kube_state_metrics", ["setup:install_cluster_tools"] do |t, args|
+  scored_task "kube_state_metrics",
+    deps: ["setup:install_cluster_tools"],
+    emoji: "📶☠" do |t, args|
     CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       unless check_poc(args)
         result.skipped("Kube State Metrics not in poc mode")
@@ -34,7 +36,9 @@ namespace "platform" do
   end
 
   desc "Does the Platform have a Node Exporter installed"
-  task "node_exporter", ["setup:install_cluster_tools"] do |t, args|
+  scored_task "node_exporter",
+    deps: ["setup:install_cluster_tools"],
+    emoji: "📶☠" do |t, args|
     CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       unless check_poc(args)
         result.skipped("node exporter not in poc mode")
@@ -53,7 +57,9 @@ namespace "platform" do
 
 
   desc "Does the Platform have the prometheus adapter installed"
-  task "prometheus_adapter", ["setup:install_cluster_tools"] do |t, args|
+  scored_task "prometheus_adapter",
+    deps: ["setup:install_cluster_tools"],
+    emoji: "📶☠" do |t, args|
     CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       unless check_poc(args)
         result.skipped("prometheus adapter not in poc mode")
@@ -72,7 +78,9 @@ namespace "platform" do
   end
 
   desc "Does the Platform have the K8s Metrics Server installed"
-  task "metrics_server", ["setup:install_cluster_tools"] do |t, args|
+  scored_task "metrics_server",
+    deps: ["setup:install_cluster_tools"],
+    emoji: "📶☠" do |t, args|
     CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       unless check_poc(args)
         result.skipped("Metrics server not in poc mode")

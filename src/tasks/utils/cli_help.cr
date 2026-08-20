@@ -59,10 +59,24 @@ module CLIHelp
     all_tasks.find { |task| task.path == path }
   end
 
+  # Resolves a dependency the way SAM does: a task inside a namespace names its
+  # siblings without the namespace prefix, so "cluster_admin" written inside
+  # `platform:security` means `platform:cluster_admin`.
+  def self.find_task_near(context : Sam::Task, name : String) : Sam::Task?
+    prefix = context.path.rpartition(":")[0]
+    return find_task(name) if prefix.empty?
+    find_task("#{prefix}:#{name}") || find_task(name)
+  end
+
   # Closest visible task name to `name`, when one is near enough to be worth
   # suggesting.
   def self.suggestion_for(name : String) : String?
-    Levenshtein.find(name, visible_tasks.map(&.path), 3)
+    paths = visible_tasks.map(&.path)
+    # A namespaced task is far from its own bare name by edit distance - the
+    # prefix alone is nine characters - so match the last segment first. That is
+    # what someone typing `k8s_conformance` for `platform:k8s_conformance` needs.
+    exact_segment = paths.find { |path| path.rpartition(":")[2] == name && path != name }
+    exact_segment || Levenshtein.find(name, paths, 3)
   end
 
   # Ordered groups of {title, tasks}. The test groups expand the suite's own
@@ -210,7 +224,7 @@ module CLIHelp
         wrap(description, WIDTH - 2).each { |line| io << "  " << line << "\n" }
       end
 
-      deps = task.dependency_names.compact_map { |name| find_task(name) }.reject { |t| hidden?(t) }
+      deps = task.dependency_names.compact_map { |name| find_task_near(task, name) }.reject { |t| hidden?(t) }
       parents = visible_tasks.select do |candidate|
         candidate.path != task.path && candidate.dependency_names.includes?(task.path)
       end

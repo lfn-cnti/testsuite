@@ -38,7 +38,7 @@ task "all", ["workload", "platform"] do  |_, args|
 end
 
 desc "Run every workload test against the installed CNF"
-task "workload", ["ensure_cnf_installed", "setup:configuration_file_setup", "compatibility","state", "security", "configuration", "observability", "microservice", "resilience"] do  |_, args|
+task "workload", ["compatibility","state", "security", "configuration", "observability", "microservice", "resilience"] do  |_, args|
   Log.debug { "workload" }
 
   total = CNFManager::Points.total_points("workload")
@@ -132,7 +132,7 @@ begin
     exit 0
   end
 
-  argv = ARGV.clone
+  argv = TaskAliases.resolve_exclusions(ARGV.clone)
   validate_cli_args!(argv)
   # See issue #426 for exit code requirement
   Sam.process_tasks(argv)
