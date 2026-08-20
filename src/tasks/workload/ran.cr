@@ -6,12 +6,7 @@ require "totem"
 require "../utils/utils.cr"
 
 desc "The CNF test suite checks to see if RAN CNFs follow cloud native principles"
-task "ran", ["oran_e2_connection"] do |_, args|
-  stdout_score("ran")
-  if invoked_task?("ran")
-    stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
-  end
-end
+category_task "ran", ["oran_e2_connection"]
 desc "Test if RAN uses the ORAN e2 interface"
 scored_task "oran_e2_connection" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|

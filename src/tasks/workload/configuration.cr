@@ -10,7 +10,7 @@ rolling_version_change_test_names = ["rolling_update", "rolling_downgrade", "rol
 
 desc "Configuration should be managed in a declarative manner, using ConfigMaps, Operators, or other declarative interfaces."
 
-task "configuration", [
+category_task "configuration", [
     "nodeport_not_used",
     "hostport_not_used",
     "hardcoded_ip_addresses_in_k8s_runtime_configuration",
@@ -22,12 +22,7 @@ task "configuration", [
     "default_namespace",
     "operator_installed",
     "versioned_tag"
-  ] do |_, args|
-  stdout_score("configuration", "configuration")
-  if invoked_task?("configuration")
-    stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
-  end
-end
+  ]
 
 desc "Check if the CNF is running containers with labels configured?"
 scored_task "require_labels",

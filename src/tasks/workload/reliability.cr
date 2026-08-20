@@ -5,7 +5,7 @@ require "colorize"
 require "../utils/utils.cr"
 
 desc "The CNF test suite checks to see if the CNFs are resilient to failures."
- task "resilience", [
+category_task "resilience", [
    "pod_network_latency",
    "pod_network_corruption",
    "disk_fill",
@@ -16,15 +16,8 @@ desc "The CNF test suite checks to see if the CNFs are resilient to failures."
    "pod_network_duplication",
    "liveness",
    "readiness"
-  ] do |t, args|
-  Log.debug { "resilience" }
-  Log.trace { "resilience args.raw: #{args.raw}" }
-  Log.trace { "resilience args.named: #{args.named}" }
-  stdout_score("resilience", "Reliability, Resilience, and Availability")
-  if invoked_task?("resilience")
-    stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
-  end
-end
+  ],
+  title: "Reliability, Resilience, and Availability"
 
 def run_probe_task(t, args, probe_type : String)
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|

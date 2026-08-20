@@ -344,6 +344,60 @@ STRING
   else
     stdout_failure test_log_msg
   end
+
+end
+
+# Prints the success-criterion verdict for a group, when it declares one.
+# Kept in a stable "<Group>: PASSED|FAILED (reason)" shape so CI can grep it.
+# The "Final <name> score" line the top-level suites report. A suite whose
+# criterion covers every test scores over the whole run rather than one tag.
+def stdout_suite_score(path : String, title : String, criterion : CNFManager::GroupCriterion)
+  scope = criterion.scope == CNFManager::EVERY_TEST ? [] of String : [path]
+  total = CNFManager::Points.total_points(scope)
+  max_points = CNFManager::Points.total_max_points(scope)
+  total_passed = CNFManager::Points.total_passed(scope)
+  max_passed = CNFManager::Points.total_max_passed(scope)
+  CNFManager::Points.write_summary!
+
+  msg = "Final #{title} score: #{total} of #{max_points} points " \
+        "(#{total_passed} of #{max_passed} tests passed)"
+  total > 0 ? stdout_success(msg) : stdout_failure(msg)
+end
+
+def stdout_group_verdict(group : String)
+  result = CNFManager::Points.evaluate_group!(group)
+  return unless result
+  CNFManager::Points.write_summary!
+
+  pretty = group.split(/:|_/).map(&.capitalize).join(" ")
+  # Name whichever threshold is binding, so a verdict says why rather than just
+  # what.
+  ratio_shortfall = result.min_ratio && result.declared_count > 0 &&
+                    (result.passed_count.to_f / result.declared_count) < result.min_ratio.not_nil!
+  reason =
+    if (limit = result.max_failed) && result.failed_count > limit
+      "#{result.failed_count} of #{result.passed_count + result.failed_count} tests failed"
+    elsif ratio_shortfall
+      "#{result.passed_count} of #{result.declared_count} #{result.scope} tests passed, " \
+      "threshold #{(result.min_ratio.not_nil! * 100).round(1)}%"
+    elsif result.passed_count < result.min_passed
+      "#{result.passed_count} of #{result.declared_count} #{result.scope} tests passed, " \
+      "threshold #{result.min_passed}"
+    elsif result.min_passed > 0
+      "#{result.passed_count} of #{result.declared_count} #{result.scope} tests passed, " \
+      "threshold #{result.min_passed}"
+    elsif result.min_ratio
+      "#{result.passed_count} of #{result.declared_count} #{result.scope} tests passed, " \
+      "threshold #{(result.min_ratio.not_nil! * 100).round(1)}%"
+    else
+      "no tests failed"
+    end
+
+  if result.passed
+    stdout_success "#{pretty}: PASSED (#{reason})"
+  else
+    stdout_failure "#{pretty}: FAILED (#{reason})"
+  end
 end
 
 # this method extracts a string value from a config section if it exists

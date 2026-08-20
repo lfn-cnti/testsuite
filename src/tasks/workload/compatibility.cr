@@ -8,13 +8,8 @@ require "../utils/utils.cr"
 
 
 desc "The CNF test suite checks to see if CNFs support horizontal scaling (across multiple machines) and vertical scaling (between sizes of machines) by using the native K8s kubectl"
-task "compatibility", ["helm_chart_valid", "helm_chart_published", "helm_deploy", "cni_compatible", "increase_decrease_capacity", "rollback", "deprecated_k8s_features"].concat(ROLLING_VERSION_CHANGE_TEST_NAMES) do |_, args|
-  stdout_score("compatibility", "Compatibility, Installability, and Upgradeability")
-  if invoked_task?("compatibility")
-    stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
-  end
-
-end
+category_task "compatibility", ["helm_chart_valid", "helm_chart_published", "helm_deploy", "cni_compatible", "increase_decrease_capacity", "rollback", "deprecated_k8s_features"].concat(ROLLING_VERSION_CHANGE_TEST_NAMES),
+  title: "Compatibility, Installability, and Upgradeability"
 ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
   pretty_test_name = tn.split(/:|_/).join(" ")
   pretty_test_name_capitalized = tn.split(/:|_/).map(&.capitalize).join(" ")

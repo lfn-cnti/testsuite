@@ -7,6 +7,66 @@ require "../../src/tasks/**"
 # existing, and cannot omit its type. What remains are the few invariants that
 # span a test's declaration and something outside it.
 describe "test metadata" do
+  it "declares a criterion for every group it reports on", tags: ["points"] do
+    %w[all workload platform cert compatibility state security configuration
+       observability microservice resilience].each do |group|
+      CNFManager::Points.group_criteria(group).should_not be_nil
+    end
+  end
+
+  it "measures a ratio criterion against the tests that exist, not those that ran", tags: ["points"] do
+    # max_passed counts only the tests a run reached, and cert takes an
+    # `exclude` argument, so a ratio over it could be met by running fewer
+    # tests. The denominator is therefore how many tests carry the scope tag.
+    results_backup = File.read(CNFManager::Points::Results.file)
+    begin
+      CNFManager::Points.clean_results_yml
+      CNFManager::Points.clear_group_results
+
+      declared = CNFManager::Points.tasks_by_tag("resilience").size
+      declared.should be > 2
+
+      # One test passes out of a category of `declared`, so any ratio above
+      # 1/declared must fail no matter how few of the others ran.
+      CNFManager::Points.upsert_task(CNFManager::TestCaseResult.new(
+        "liveness", CNFManager::ResultStatus::Passed, "probe",
+        [] of String, Time.utc, Time.utc))
+
+      CNFManager::GroupRegistry.register("ratio_probe", false,
+        CNFManager::GroupCriterion.new(scope: "resilience", min_ratio: 0.9))
+      result = CNFManager::Points.evaluate_group!("ratio_probe").not_nil!
+      result.declared_count.should eq(declared)
+      result.passed_count.should eq(1)
+      result.passed.should be_false
+
+      # A ratio the single pass does clear.
+      CNFManager::GroupRegistry.register("ratio_probe", false,
+        CNFManager::GroupCriterion.new(scope: "resilience", min_ratio: 1.0 / declared))
+      CNFManager::Points.evaluate_group!("ratio_probe").not_nil!.passed.should be_true
+    ensure
+      CNFManager::GroupRegistry.unregister("ratio_probe")
+      CNFManager::Points.clear_group_results
+      File.write(CNFManager::Points::Results.file, results_backup)
+    end
+  end
+
+  it "scopes every group's criterion to tests that exist", tags: ["points"] do
+    # A criterion counts the tests carrying its scope tag, and scope defaults to
+    # the group's own name. A group whose name is not a tag therefore counts
+    # nothing, finds no failures, and passes unconditionally - silently, with no
+    # error to notice. `all` was exactly that: no test carries an "all" tag, so
+    # a run with failing tests still exited 0, which is what #2424 exists to
+    # prevent. It now scopes to every test instead.
+    CNFManager::GroupRegistry.all.each do |path, group|
+      scope = group.criterion.scope || path
+      next if scope == CNFManager::EVERY_TEST
+
+      CNFManager::Points.tasks_by_tag(scope).empty?.should be_false,
+        "'#{path}' scopes its criterion to '#{scope}', which matches no tests, " \
+        "so it can only ever pass"
+    end
+  end
+
   it "registers a task for every declared test", tags: ["points"] do
     paths = Sam.root_namespace.all_tasks.map(&.name)
     orphans = CNFManager::TestRegistry.names.reject { |name| paths.includes?(name) }
@@ -25,7 +85,7 @@ describe "test metadata" do
     deliberate_orphans = ["clusterapi_enabled"]
 
     counts = Hash(String, Int32).new(0)
-    CNFManager::TestRegistry::CATEGORY_AGGREGATES.each do |path|
+    CNFManager::GroupRegistry.category_paths.each do |path|
       aggregate = Sam.root_namespace.all_tasks.find { |task| task.path == path }
       aggregate.should_not be_nil, "no aggregate task for category '#{path}'"
       deps = aggregate.not_nil!.dependency_names

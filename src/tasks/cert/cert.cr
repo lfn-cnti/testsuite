@@ -5,14 +5,13 @@ require "colorize"
 require "totem"
 require "../utils/utils.cr"
 
-desc "The CNF Test Suite program certifies a CNF based on passing some percentage of essential tests."
-task "cert", ["version", "cert_compatibility", "cert_state", "cert_security", "cert_configuration", "cert_observability", "cert_microservice", "cert_resilience"] do  |_, args|
+desc "Run the certification tests; exits 0 when the CNF is certified"
+suite_task "cert", ["version", "cert_compatibility", "cert_state", "cert_security", "cert_configuration", "cert_observability", "cert_microservice", "cert_resilience"],
+  scope: "essential",
+  min_passed: ESSENTIAL_PASSED_THRESHOLD,
+  max_failed: CNFManager::NO_FAILURE_LIMIT,
+  summary: false do  |_, args|
   Log.debug { "cert" }
-
-  # `cert` is judged by its certification criterion rather than by individual
-  # test failures, so the run exits 0 exactly when the CNF is certified.
-  # See Points.write_summary! for the derivation.
-  CNFManager::Points.pass_threshold = ESSENTIAL_PASSED_THRESHOLD
 
   stdout_success "RESULTS SUMMARY"
   total = CNFManager::Points.total_points("cert")
@@ -28,9 +27,6 @@ task "cert", ["version", "cert_compatibility", "cert_state", "cert_security", "c
     stdout_success "  - #{essential_total_passed} of #{essential_max_passed} essential tests passed"
   else
     stdout_failure "  - #{essential_total_passed} of #{essential_max_passed} essential tests passed"
-    stdout_failure "Certification failed! Passing threshold is #{ESSENTIAL_PASSED_THRESHOLD} essential tests"
   end
 
-  CNFManager::Points.write_summary!
-  stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
 end

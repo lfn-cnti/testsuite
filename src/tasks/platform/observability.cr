@@ -7,12 +7,7 @@ require "../../modules/k8s_kernel_introspection"
 
 namespace "platform" do
   desc "The CNF test suite checks to see if the Platform has Observability support."
-  task "observability", ["kube_state_metrics", "node_exporter", "prometheus_adapter", "metrics_server"] do |t, args|
-    Log.debug { "observability" }
-    Log.trace { "observability args.raw: #{args.raw}" }
-    Log.trace { "observability args.named: #{args.named}" }
-    stdout_score("platform:observability")
-  end
+  category_task "observability", ["kube_state_metrics", "node_exporter", "prometheus_adapter", "metrics_server"]
 
   desc "Does the Platform have Kube State Metrics installed"
   scored_task "kube_state_metrics",

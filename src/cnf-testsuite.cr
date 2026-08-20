@@ -6,66 +6,6 @@ require "./tasks/utils/utils.cr"
 require "./cnf_testsuite.cr"
 
 
-desc "Run every workload and platform test"
-task "all", ["workload", "platform"] do  |_, args|
-  Log.debug { "all" }
-
-  total = CNFManager::Points.total_points([] of String)
-  max_points = CNFManager::Points.total_max_points([] of String)
-  total_passed = CNFManager::Points.total_passed([] of String)
-  max_passed = CNFManager::Points.total_max_passed([] of String)
-
-  final_msg = "Final score: #{total} of #{max_points} points (#{total_passed} of #{max_passed} tests passed)"
-  if total > 0
-    stdout_success final_msg
-  else
-    stdout_failure final_msg
-  end
-
-  if CNFManager::Points.failed_required_tasks.size > 0
-    stdout_failure "Test Suite failed!"
-    stdout_failure "Failed required tasks: #{CNFManager::Points.failed_required_tasks.inspect}"
-    yaml = File.open("#{CNFManager::Points::Results.file}") do |file|
-      YAML.parse(file)
-    end
-
-    if (yaml["exit_code"]) != 2
-      update_yml("#{CNFManager::Points::Results.file}", "exit_code", "1")
-    end
-  end
-  CNFManager::Points.write_summary!
-  stdout_info "Test results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
-end
-
-desc "Run every workload test against the installed CNF"
-task "workload", ["compatibility","state", "security", "configuration", "observability", "microservice", "resilience"] do  |_, args|
-  Log.debug { "workload" }
-
-  total = CNFManager::Points.total_points("workload")
-  max_points = CNFManager::Points.total_max_points("workload")
-  total_passed = CNFManager::Points.total_passed("workload")
-  max_passed = CNFManager::Points.total_max_passed("workload")
-  final_msg = "Final workload score: #{total} of #{max_points} points (#{total_passed} of #{max_passed} tests passed)"
-  if total > 0
-    stdout_success final_msg
-  else
-    stdout_failure final_msg
-  end
-
-  if CNFManager::Points.failed_required_tasks.size > 0
-    stdout_failure "Test Suite failed!"
-    stdout_failure "Failed required tasks: #{CNFManager::Points.failed_required_tasks.inspect}"
-    yaml = File.open("#{CNFManager::Points::Results.file}") do |file|
-      YAML.parse(file)
-    end
-    if (yaml["exit_code"]) != 2
-      update_yml("#{CNFManager::Points::Results.file}", "exit_code", "1")
-    end
-  end
-  CNFManager::Points.write_summary!
-  stdout_info "Test results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
-end
-
 desc "Makes sure a cnf is in the cnf directory"
 task "ensure_cnf_installed" do |_, args|
   CNFManager::Task.ensure_cnf_installed!

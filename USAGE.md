@@ -136,6 +136,8 @@ All counts/scores are scoped to the tests that actually ran.
 | `essential_passed` / `essential_max_passed` | Passed vs. maximum-passable among `essential`-tagged tests. |
 | `points` | Total points scored. |
 | `maximum_points` | Maximum points achievable by the tests that ran. |
+| `criteria` | Success-criterion verdict per task group that ran (see below). Absent when no such group ran. |
+
 ##### Test scoring
 
 A test declares everything the suite knows about it at its own definition:
@@ -164,6 +166,61 @@ There is no `points.yml`. The suite used to write one into the working directory
 and read it straight back, so it needed a writable directory to read data it was
 compiled with, and edits to the file were silently reverted on the next run.
 
+##### Group success criteria
+
+Every task group — the suites (`all`, `workload`, `platform`, `cert`) and the
+categories (`security`, `configuration`, ..., and the `platform:` ones) —
+declares a success criterion in `Points::GROUP_CRITERIA`. These are group-level
+policy — what the suite certifies, and what it demands of each category — so
+they live together in one table:
+
+```crystal
+suite_task "cert", [...],
+  scope: "essential",     # whose tests count
+  min_passed: 15,         # how many of them must pass
+  max_failed: CNFManager::NO_FAILURE_LIMIT   # the threshold accounts for failures
+```
+
+A group passes when **every** threshold it declares holds:
+
+| threshold | default | meaning |
+|-----------|---------|---------|
+| `min_passed` | `0` | at least this many tests in scope passed |
+| `min_ratio` | none | at least this share of the tests that **exist** in scope passed |
+| `max_failed` | `0` | at most this many failed; `NO_FAILURE_LIMIT` for no limit |
+
+`min_ratio` counts against how many tests are declared in scope rather than how
+many a run reached, because excluding tests shrinks the latter — and `cert`
+takes an `exclude` argument, so a ratio over it could be met by running less.
+
+With the defaults — no floor, no ratio, no failures tolerated — a group passes
+when nothing in it failed, which is what these groups have always demanded.
+Only `cert` declares anything else.
+
+Each evaluated group is recorded under `summary.criteria` in evaluation order:
+
+```yaml
+summary:
+  criteria:
+    - group: security
+      scope: security
+      min_passed: 0
+      max_failed: 0
+      passed_count: 17
+      max_passed: 19
+      failed_count: 2
+      passed: false
+```
+
+A group's dependencies run before its body, so the **last** entry is the
+outermost group, and its verdict is what `exit_code` reflects.
+
+The same verdict is printed to stdout in a stable, greppable form:
+
+```
+Security: FAILED (2 of 19 tests failed)
+Certification: PASSED (17 of 19 essential tests passed, threshold 15)
+```
 
 ##### `items[]` fields
 

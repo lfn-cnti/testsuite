@@ -1,27 +1,6 @@
 # coding: utf-8
 desc "Run every test against the Kubernetes platform itself, rather than the CNF"
-task "platform", ["setup:install_local_helm", "platform:k8s_conformance", "platform:observability", "platform:resilience", "platform:hardware_and_scheduling", "platform:security"]  do |_, args|
-  Log.debug { "platform" }
-
-  total = CNFManager::Points.total_points("platform")
-  max_points = CNFManager::Points.total_max_points("platform")
-  total_passed = CNFManager::Points.total_passed("platform")
-  max_passed = CNFManager::Points.total_max_passed("platform")
-  final_msg = "Final platform score: #{total} of #{max_points} points (#{total_passed} of #{max_passed} tests passed)"
-  if total > 0
-    stdout_success final_msg
-  else
-    stdout_failure final_msg
-  end
-
-  if CNFManager::Points.failed_required_tasks.size > 0
-    stdout_failure "Test Suite failed!"
-    stdout_failure "Failed required tasks: #{CNFManager::Points.failed_required_tasks.inspect}"
-    update_yml("#{CNFManager::Points::Results.file}", "exit_code", "1")
-  end
-  CNFManager::Points.write_summary!
-  stdout_info "Test results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
-end
+suite_task "platform", ["setup:install_local_helm", "platform:k8s_conformance", "platform:observability", "platform:resilience", "platform:hardware_and_scheduling", "platform:security"]
 
 # These two moved into the platform namespace; the old names keep working.
 alias_task "k8s_conformance", "platform:k8s_conformance"
