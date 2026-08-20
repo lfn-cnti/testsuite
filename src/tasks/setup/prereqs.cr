@@ -5,6 +5,7 @@ require "totem"
 require "../../modules/helm"
 
 namespace "setup" do
+  desc "Verify the tools and cluster access the test suite needs"
   task "prereqs" do |_, args|
     kubectl_ok = KubectlClient.installation_found?
     helm_ok = Helm.installation_found?

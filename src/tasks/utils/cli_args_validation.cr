@@ -25,6 +25,7 @@ def validate_cli_args!(argv : Array(String))
   task_paths = Sam.root_namespace.all_tasks.map(&.path)
   errors = [] of String
   expect_task = true
+  current_task = ""
 
   argv.each do |token|
     if token == Sam::TASK_SEPARATOR
@@ -33,9 +34,13 @@ def validate_cli_args!(argv : Array(String))
     end
     if expect_task
       # Task names themselves are validated by SAM (Sam::NotFound).
+      current_task = token
       expect_task = false
       next
     end
+    # `help` takes a topic - "tasks" or a task name - rather than the flags and
+    # key=value arguments every other task takes.
+    next if current_task == "help"
 
     if token.empty?
       errors << "Empty argument given."
@@ -51,7 +56,7 @@ def validate_cli_args!(argv : Array(String))
         errors << "Invalid value for '#{key}=': '#{value}' is not a number."
       end
     elsif token.starts_with?("-")
-      errors << "Unknown option '#{token}'. Supported options: -l/--loglevel LEVEL, -h/--help."
+      errors << "Unknown option '#{token}'. Supported options: -l/--loglevel LEVEL, -h/--help, --version."
     elsif KNOWN_CLI_FLAGS.includes?(token)
       # valid bare flag
     elsif task_paths.includes?(token)

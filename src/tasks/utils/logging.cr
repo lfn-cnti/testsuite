@@ -1,4 +1,5 @@
 require "colorize"
+require "./cli_invocation"
 
 private class CLILogLevel
   class_property level : String = ""
@@ -11,11 +12,14 @@ Colorize.enabled = STDOUT.tty? && !ENV.has_key?("NO_COLOR")
 
 begin
   OptionParser.parse do |parser|
-    parser.banner = "Usage: cnf-testsuite [arguments]"
+    parser.banner = "Usage: cnf-testsuite [options] <task> [arguments]"
     parser.on("-l LEVEL", "--loglevel=LEVEL", "Specifies the logging level for cnf-testsuite suite") do |level|
       CLILogLevel.level = level
     end
-    parser.on("-h", "--help", "Show this help") { puts parser }
+    # These only record the request: this parser runs at require time, before
+    # the tasks exist, so the entry point is what acts on them.
+    parser.on("-h", "--help", "Show usage and exit") { CLIInvocation.help_requested = true }
+    parser.on("--version", "Print the version and exit") { CLIInvocation.version_requested = true }
   end
 rescue ex : OptionParser::InvalidOption
   puts ex

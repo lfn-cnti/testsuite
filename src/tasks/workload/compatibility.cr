@@ -388,6 +388,7 @@ task "helm_deploy" do |t, args|
   end
 end
 
+desc "Checks if the CNF's helm chart is published in a helm repository"
 task "helm_chart_published", ["setup:install_local_helm"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     helm = Helm::Binary.get
@@ -439,6 +440,7 @@ task "helm_chart_published", ["setup:install_local_helm"] do |t, args|
   end
 end
 
+desc "Checks if the CNF's helm chart passes `helm lint`"
 task "helm_chart_valid", ["setup:install_local_helm"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     current_dir = FileUtils.pwd

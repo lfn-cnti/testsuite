@@ -1,5 +1,5 @@
 # coding: utf-8
-desc "Platform Tests"
+desc "Run every test against the Kubernetes platform itself, rather than the CNF"
 task "platform", ["setup:install_local_helm", "k8s_conformance", "platform:observability", "platform:resilience", "platform:hardware_and_scheduling", "platform:security"]  do |_, args|
   Log.debug { "platform" }
 

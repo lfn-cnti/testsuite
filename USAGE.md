@@ -262,8 +262,35 @@ cnf-config=<path_to_your_config_file>/cnf-testsuite.yml
 
 #### Get available options and to see all available tests from command line:
 
+`help` prints a usage page: the typical workflow, the options, the `key=value`
+arguments, the flags, and the `~exclusion` / `@` syntax. `-h` and a bare
+invocation print the same page.
+
 ```
 ./cnf-testsuite help
+./cnf-testsuite -h
+```
+
+To list every task, grouped by category:
+
+```
+./cnf-testsuite help tasks
+```
+
+To see what a single task does, what it runs first, and which suites it belongs
+to:
+
+```
+./cnf-testsuite help liveness
+```
+
+An unknown task name is answered with the closest match, e.g. `./cnf-testsuite
+livenes` suggests `liveness`.
+
+#### Print the version:
+
+```
+./cnf-testsuite --version
 ```
 
 #### Clean up the CNTI Test Suite, the K8s cluster, and upstream projects:

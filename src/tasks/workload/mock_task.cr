@@ -7,7 +7,7 @@ require "../utils/utils.cr"
 require "../../modules/kubectl_client"
 
 
-task "divide_by_zero" do |_, args|
+task "_divide_by_zero" do |_, args|
   CNFManager::Task.task_runner(args, check_cnf_installed: false) do |args, config, result|
     Log.info {"divide by zero"}
     raise "divide by zero" 
