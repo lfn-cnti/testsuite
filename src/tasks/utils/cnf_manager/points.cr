@@ -187,6 +187,19 @@ module CNFManager
       end
     end
 
+    # Pass criteria for the running task group, when it has one. `cert` sets the
+    # essential-test threshold it certifies against; runs without a criterion
+    # (all/workload/platform) leave this nil and fall back to "no test failed".
+    @@pass_threshold : Int32? = nil
+
+    def self.pass_threshold : Int32?
+      @@pass_threshold
+    end
+
+    def self.pass_threshold=(threshold : Int32?)
+      @@pass_threshold = threshold
+    end
+
     @@points_yml_ensured = false
 
     def self.points_yml
@@ -226,11 +239,13 @@ module CNFManager
       if File.exists?("#{Results.file}")
         results = File.open("#{Results.file}") { |f| YAML.parse(f) }
         File.open("#{Results.file}", "w") do |f|
+          # With no items left, the derived verdict is passed/0; carrying the
+          # previous status/exit_code over would contradict the (empty) items.
           YAML.dump({name:              results["name"],
                      testsuite_version: ReleaseManager::VERSION,
                      schema_version:    RESULTS_SCHEMA_VERSION,
-                     status:            results["status"],
-                     exit_code:         results["exit_code"],
+                     status:            "passed",
+                     exit_code:         0,
                      items:             [] of YAML::Any},
             f)
         end
@@ -504,12 +519,37 @@ module CNFManager
         maximum_points:       max_points,
       }
 
+      # Derive the exit code purely from the run's outcomes, so it stays an exact
+      # function of the recorded items: it drops back to 0 when the items are
+      # cleaned, and cannot be clobbered by a later aggregate.
+      #
+      # An errored test always wins with 2 - that means the suite itself broke,
+      # which is never an acceptable result. Otherwise the exit code answers
+      # "did this run meet its objective?":
+      #
+      #   * A task group with a pass criterion (cert) is judged by that criterion
+      #     alone. Individual test failures are inputs to the verdict, not a
+      #     separate failure mode - the threshold already accounts for them - so
+      #     `cnf-testsuite cert` exits 0 exactly when the CNF is certified.
+      #   * Without a criterion (all/workload/platform) the objective is simply
+      #     that nothing failed (issue #2411 - failures previously only mapped to
+      #     exit 1 via the unused `required:` points.yml field, so failing runs
+      #     exited 0).
+      exit_code =
+        if error > 0
+          2
+        elsif threshold = @@pass_threshold
+          essential_passed >= threshold ? 0 : 1
+        else
+          failed > 0 ? 1 : 0
+        end
+
       # Top-level `status` is the overall run verdict, derived from the exit code:
       # 0 -> passed, 2 -> error (critical), anything else (1) -> failed.
-      exit_code = results["exit_code"]?.try(&.as_i?) || 0
       run_status = exit_code == 0 ? "passed" : (exit_code == 2 ? "error" : "failed")
 
       merged = results.as_h
+      merged[YAML::Any.new("exit_code")] = YAML::Any.new(exit_code.to_i64)
       merged[YAML::Any.new("status")] = YAML::Any.new(run_status)
       merged[YAML::Any.new("summary")] = YAML.parse(summary.to_yaml)
       File.open("#{Results.file}", "w") { |f| YAML.dump(merged, f) }

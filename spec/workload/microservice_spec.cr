@@ -56,7 +56,7 @@ describe "Microservice" do
     begin
       ShellCmd.cnf_install("cnf-path=sample-cnfs/ndn-multi-db-connections-fail/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("shared_database")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Found a shared database)/ =~ result[:output]).should_not be_nil
       verify_task_result("shared_database", "failed")
     ensure
@@ -122,7 +122,7 @@ describe "Microservice" do
     begin
       ShellCmd.cnf_install("cnf-path=sample-cnfs/k8s-multiple-processes")
       result = ShellCmd.run_testsuite("single_process_type")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(More than one process type used)/ =~ result[:output]).should_not be_nil
       verify_task_result("single_process_type", "failed")
     ensure
@@ -135,7 +135,7 @@ describe "Microservice" do
     begin
       ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-multiple-processes")
       result = ShellCmd.run_testsuite("single_process_type")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(More than one process type used)/ =~ result[:output]).should_not be_nil
       verify_task_result("single_process_type", "failed")
     ensure
@@ -161,7 +161,7 @@ describe "Microservice" do
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_envoy_slow_startup/cnf-testsuite.yml")
     begin
       result = ShellCmd.run_testsuite("reasonable_startup_time")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(CNF had a startup time of)/ =~ result[:output]).should_not be_nil
       verify_task_result("reasonable_startup_time", "failed")
     ensure
@@ -192,7 +192,7 @@ describe "Microservice" do
   it "'reasonable_image_size' should fail if image is larger than 5gb", tags: ["reasonable_image_size"] do
     ShellCmd.cnf_install("cnf-path=./sample-cnfs/ndn-reasonable-image-size skip_wait_for_install")
     result = ShellCmd.run_testsuite("reasonable_image_size")
-    result[:status].success?.should be_true
+    result[:status].exit_code.should eq(1)
     (/Image size too large/ =~ result[:output]).should_not be_nil
     verify_task_result("reasonable_image_size", "failed")
   end
@@ -225,7 +225,7 @@ describe "Microservice" do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-operator/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("specialized_init_system")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
 
       latest_results = Dir.glob("results/cnf-testsuite-results-*.yml").max_by { |path| File.info(path).modification_time }
       latest_results.should_not be_nil
@@ -261,7 +261,7 @@ describe "Microservice" do
     begin
       ShellCmd.cnf_install("cnf-path=./sample-cnfs/sample-ndn-privileged")
       result = ShellCmd.run_testsuite("service_discovery")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(No containers exposed as a service)/ =~ result[:output]).should_not be_nil
       verify_task_result("service_discovery", "failed")
     ensure
@@ -297,7 +297,7 @@ describe "Microservice" do
       #todo 4. Make sure that threads are not counted as new processes.  A thread does not get a signal (sigterm or sigkill)
       ShellCmd.cnf_install("cnf-path=./sample-cnfs/sample_bad_signal_handling/")
       result = ShellCmd.run_testsuite("sig_term_handled")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Sig Term not handled)/ =~ result[:output]).should_not be_nil
       verify_task_result("sig_term_handled", "failed")
     ensure
@@ -347,7 +347,7 @@ describe "Microservice" do
 
       ShellCmd.cnf_install("cnf-path=./sample-cnfs/sample-bad-zombie/")
       result = ShellCmd.run_testsuite("zombie_handled")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Zombie not handled)/ =~ result[:output]).should_not be_nil
       verify_task_result("zombie_handled", "failed")
     ensure

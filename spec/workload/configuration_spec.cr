@@ -30,7 +30,7 @@ describe CnfTestSuite do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_coredns_bad_liveness/cnf-testsuite.yml skip_wait_for_install")
       result = ShellCmd.run_testsuite("liveness")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(One or more workload resources have no containers with a liveness probe)/ =~ result[:output]).should_not be_nil
       verify_task_result("liveness", "failed")
     ensure
@@ -54,7 +54,7 @@ describe CnfTestSuite do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_coredns_bad_liveness/cnf-testsuite.yml skip_wait_for_install")
       result = ShellCmd.run_testsuite("readiness")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(One or more workload resources have no containers with a readiness probe)/ =~ result[:output]).should_not be_nil
       verify_task_result("readiness", "failed")
     ensure
@@ -77,7 +77,7 @@ describe CnfTestSuite do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_rolling_invalid_version/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("rolling_update")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/Failed/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -108,7 +108,7 @@ describe CnfTestSuite do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_rolling_invalid_version/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("rolling_downgrade")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/Failed/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -130,7 +130,7 @@ describe CnfTestSuite do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_rolling_invalid_version/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("rolling_version_change")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/Failed/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -154,7 +154,7 @@ describe CnfTestSuite do
     begin
       ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_nodeport")
       result = ShellCmd.run_testsuite("nodeport_not_used")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(NodePort is being used)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -177,7 +177,7 @@ describe CnfTestSuite do
     begin
       ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_hostport")
       result = ShellCmd.run_testsuite("hostport_not_used")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(HostPort is being used)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -200,7 +200,7 @@ describe CnfTestSuite do
     begin
       ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_coredns_hardcoded_ips")
       result = ShellCmd.run_testsuite("hardcoded_ip_addresses_in_k8s_runtime_configuration", cmd_prefix: "LOG_LEVEL=info")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Hard-coded IP addresses found in the runtime K8s configuration)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -278,7 +278,7 @@ describe CnfTestSuite do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/ndn-mutable-configmap")
       result = ShellCmd.run_testsuite("immutable_configmap")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Found mutable configmap)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -300,7 +300,7 @@ describe CnfTestSuite do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_nonroot/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("require_labels")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Pods should have the app.kubernetes.io\/name label)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -323,7 +323,7 @@ describe CnfTestSuite do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_coredns_default_namespace")
       result = ShellCmd.run_testsuite("default_namespace")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Resources are created in the default namespace)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -347,7 +347,7 @@ describe CnfTestSuite do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_latest_tag")
       result = ShellCmd.run_testsuite("latest_tag")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Container images are using the latest tag)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()

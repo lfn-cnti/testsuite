@@ -56,7 +56,7 @@ describe "Compatibility" do
     it "should fail if the CNF uses any deprecated K8s features (no matter the installation type)" do
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-deprecated-k8s-v1.32/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("deprecated_k8s_features")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(CNF uses deprecated K8s features)/ =~ result[:output]).should_not be_nil
       (/annotation "kubernetes.io\/ingress.class" is deprecated/ =~ result[:output]).should_not be_nil
       (/metadata\.annotations\[kubernetes\.io\/enforce-mountable-secrets\]: deprecated in v1\.32\+/ =~

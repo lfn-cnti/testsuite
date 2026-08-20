@@ -26,7 +26,7 @@ describe "Observability" do
     begin
       ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_no_logs/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("log_output")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Resources do not output logs to stdout and stderr)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()

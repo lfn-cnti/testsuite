@@ -97,6 +97,59 @@ describe "SampleUtils" do
     result[:output].should_not contain("You must install a CNF first")
   end
 
+  it "'write_summary!' should derive the exit code from item outcomes", tags: ["points"] do
+    results_backup = File.read(CNFManager::Points::Results.file)
+    begin
+      failed_result = CNFManager::TestCaseResult.new(
+        "fake_exit_code_derivation_test", CNFManager::ResultStatus::Failed, "fake failure",
+        [] of String, Time.utc, Time.utc)
+      CNFManager::Points.upsert_task(failed_result)
+      yaml = YAML.parse(File.read(CNFManager::Points::Results.file))
+      yaml["exit_code"].as_i.should eq(1)
+      yaml["status"].as_s.should eq("failed")
+
+      # The derivation is pure: once no failed/errored items remain, the exit
+      # code returns to 0 instead of sticking at the highest value seen.
+      CNFManager::Points.clean_results_yml
+      CNFManager::Points.write_summary!
+      yaml = YAML.parse(File.read(CNFManager::Points::Results.file))
+      yaml["exit_code"].as_i.should eq(0)
+      yaml["status"].as_s.should eq("passed")
+    ensure
+      File.write(CNFManager::Points::Results.file, results_backup)
+    end
+  end
+
+  it "'write_summary!' should derive the exit code from the run's pass criterion", tags: ["points"] do
+    results_backup = File.read(CNFManager::Points::Results.file)
+    begin
+      failed_result = CNFManager::TestCaseResult.new(
+        "fake_pass_criterion_test", CNFManager::ResultStatus::Failed, "fake failure",
+        [] of String, Time.utc, Time.utc)
+      CNFManager::Points.upsert_task(failed_result)
+      # Without a criterion, a failed test alone means the run missed its objective.
+      YAML.parse(File.read(CNFManager::Points::Results.file))["exit_code"].as_i.should eq(1)
+
+      # With a criterion (cert), the group is judged by that criterion alone:
+      # the same failed test no longer forces exit 1 once the threshold is met.
+      CNFManager::Points.pass_threshold = 0
+      CNFManager::Points.write_summary!
+      yaml = YAML.parse(File.read(CNFManager::Points::Results.file))
+      yaml["exit_code"].as_i.should eq(0)
+      yaml["status"].as_s.should eq("passed")
+
+      # An unmet criterion exits 1 even when no individual test failed.
+      CNFManager::Points.pass_threshold = Int32::MAX
+      CNFManager::Points.write_summary!
+      yaml = YAML.parse(File.read(CNFManager::Points::Results.file))
+      yaml["exit_code"].as_i.should eq(1)
+      yaml["status"].as_s.should eq("failed")
+    ensure
+      CNFManager::Points.pass_threshold = nil
+      File.write(CNFManager::Points::Results.file, results_backup)
+    end
+  end
+
   it  "'task_points' should return the amount of points for a passing test", tags: ["points"] do
     # default
     (CNFManager::Points.task_points("liveness")).should eq(100)

@@ -19,7 +19,7 @@ describe "Security" do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_privileged_cnf/cnf-testsuite.yml skip_wait_for_install")
       result = ShellCmd.run_testsuite("privileged_containers")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/Found.*privileged containers.*/ =~ result[:output]).should_not be_nil
       (/impacted: .*\(container privileged-coredns\): privileged container/ =~ result[:output]).should_not be_nil
     ensure
@@ -42,7 +42,7 @@ describe "Security" do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-privilege-escalation/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("privilege_escalation")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(PASSED).*(No containers that allow privilege escalation were found)/ =~ result[:output]).should be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -86,7 +86,7 @@ describe "Security" do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-insecure-capabilities/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("insecure_capabilities")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(PASSED).*(Containers with insecure capabilities were not found)/ =~ result[:output]).should be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -97,7 +97,7 @@ describe "Security" do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-coredns-cnf")
       result = ShellCmd.run_testsuite("linux_hardening")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(PASSED).*(Security services are being used to harden applications)/ =~ result[:output]).should be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -108,7 +108,7 @@ describe "Security" do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-appliciation-credentials/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("application_credentials")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Found applications credentials in configuration files)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -130,7 +130,7 @@ describe "Security" do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-service-accounts/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("service_account_mapping")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Service accounts automatically mapped)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -152,7 +152,7 @@ describe "Security" do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-operator/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("cpu_limits")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (result[:output].scan(/Failed resource: Deployment demo-labeled in cnf-default namespace/).size > 0).should be_true
       (result[:output].scan(/Failed resource: Deployment demo-owned in cnf-default namespace/).size > 0).should be_true
       (/remediation: Set the CPU limits or use exception mechanism to avoid unnecessary notifications\./ =~ result[:output]).should_not be_nil
@@ -176,7 +176,7 @@ describe "Security" do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-coredns-cnf")
       result = ShellCmd.run_testsuite("ingress_egress_blocked")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(PASSED).*(Ingress and Egress traffic blocked on pods)/ =~ result[:output]).should be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -209,7 +209,7 @@ describe "Security" do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-coredns-cnf")
       result = ShellCmd.run_testsuite("non_root_containers")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(PASSED).*(Containers are running with non-root user with non-root group membership)/ =~ result[:output]).should be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -220,7 +220,7 @@ describe "Security" do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-coredns-cnf")
       result = ShellCmd.run_testsuite("immutable_file_systems")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(PASSED).*(Containers have immutable file systems)/ =~ result[:output]).should be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -256,7 +256,7 @@ describe "Security" do
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-hostpath")
       ClusterTools.uninstall
       result = ShellCmd.run_testsuite("hostpath_mounts")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Found containers with hostPath mounts)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -279,7 +279,7 @@ describe "Security" do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_container_sock_mount/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("container_sock_mounts")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Container engine daemon sockets are mounted as volumes)/ =~ result[:output]).should_not be_nil
       (/Unix socket is not allowed/ =~ result[:output]).should_not be_nil
     ensure
@@ -302,7 +302,7 @@ describe "Security" do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_external_ips/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("external_ips")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Services are using external IPs)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -313,7 +313,7 @@ describe "Security" do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_latest_tag")
       result = ShellCmd.run_testsuite("selinux_options")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Pods are using custom SELinux options that can be used for privilege escalations)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -346,7 +346,7 @@ describe "Security" do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_sysctls")
       result = ShellCmd.run_testsuite("sysctls")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Restricted values for are being used for sysctls)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()

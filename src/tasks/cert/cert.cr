@@ -9,6 +9,11 @@ desc "The CNF Test Suite program certifies a CNF based on passing some percentag
 task "cert", ["version", "cert_compatibility", "cert_state", "cert_security", "cert_configuration", "cert_observability", "cert_microservice", "cert_resilience"] do  |_, args|
   Log.debug { "cert" }
 
+  # `cert` is judged by its certification criterion rather than by individual
+  # test failures, so the run exits 0 exactly when the CNF is certified.
+  # See Points.write_summary! for the derivation.
+  CNFManager::Points.pass_threshold = ESSENTIAL_PASSED_THRESHOLD
+
   stdout_success "RESULTS SUMMARY"
   total = CNFManager::Points.total_points("cert")
   max_points = CNFManager::Points.total_max_points("cert")
@@ -26,17 +31,6 @@ task "cert", ["version", "cert_compatibility", "cert_state", "cert_security", "c
     stdout_failure "Certification failed! Passing threshold is #{ESSENTIAL_PASSED_THRESHOLD} essential tests"
   end
 
-  if CNFManager::Points.failed_required_tasks.size > 0
-    stdout_failure "Test Suite failed!"
-    stdout_failure "Failed required tasks: #{CNFManager::Points.failed_required_tasks.inspect}"
-    yaml = File.open("#{CNFManager::Points::Results.file}") do |file|
-      YAML.parse(file)
-    end
-    Log.debug { "results yaml: #{yaml}" }
-    if (yaml["exit_code"]) != 2
-      update_yml("#{CNFManager::Points::Results.file}", "exit_code", "1")
-    end
-  end
   CNFManager::Points.write_summary!
   stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
 end

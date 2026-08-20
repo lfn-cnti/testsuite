@@ -93,11 +93,8 @@ module CNFManager
         end
       ensure
         result.set_end_time()
-        # An errored task is a critical failure; record it before the summary is
-        # written so the run status/exit code reflect it even outside strict mode.
-        if result.status == CNFManager::ResultStatus::Error
-          update_yml("#{CNFManager::Points::Results.file}", "exit_code", "#{CRITICAL_FAILURE_CODE}")
-        end
+        # Recording the result is what drives the run's exit code: the summary
+        # (recomputed on every upsert) derives it from the item outcomes.
         upsert_decorated_task(result)
       end
 
@@ -109,9 +106,9 @@ module CNFManager
           if CNFManager::Points.failed_required_tasks.size > 0
             stdout_failure "Failed required tasks: #{CNFManager::Points.failed_required_tasks.inspect}"
           end
+          # The failing/erroring item was upserted above, so the summary already
+          # carries the derived exit code; exit with the matching value.
           exit_code = result.status == CNFManager::ResultStatus::Error ? CRITICAL_FAILURE_CODE : FAILURE_CODE
-          update_yml("#{CNFManager::Points::Results.file}", "exit_code", "#{exit_code}")
-          CNFManager::Points.write_summary!
           exit exit_code
         end
       end

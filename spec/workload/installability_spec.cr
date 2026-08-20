@@ -10,7 +10,7 @@ describe CnfTestSuite do
   it "'helm_deploy' should fail on a manifest CNF", tags: ["helm_validation"] do
     ShellCmd.cnf_install("cnf-path=./sample-cnfs/k8s-non-helm")
     result = ShellCmd.run_testsuite("helm_deploy")
-    result[:status].success?.should be_true
+    result[:status].exit_code.should eq(1)
     (/(FAILED).*(CNF has deployments that are not installed with helm)/ =~ result[:output]).should_not be_nil
   ensure
     result = ShellCmd.cnf_uninstall()
@@ -18,7 +18,7 @@ describe CnfTestSuite do
 
   it "'helm_deploy' should fail if command is not supplied cnf-config argument", tags: ["helm_validation"] do
     result = ShellCmd.run_testsuite("helm_deploy")
-    result[:status].success?.should be_true
+    result[:status].exit_code.should eq(1)
     (/No cnf_testsuite.yml found! Did you run the \"cnf_install\" task?/ =~ result[:output]).should_not be_nil
   end
 
@@ -44,7 +44,7 @@ describe CnfTestSuite do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-bad_helm_coredns-cnf/cnf-testsuite.yml skip_wait_for_install", expect_failure: true)
       result = ShellCmd.run_testsuite("helm_chart_valid")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/Helm chart lint failed on one or more charts/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -68,7 +68,7 @@ describe CnfTestSuite do
       ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-bad-helm-repo skip_wait_for_install", expect_failure: true)
       result = ShellCmd.run("helm search repo stable/coredns", force_output: true)
       result = ShellCmd.run_testsuite("helm_chart_published")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(One or more Helm charts are not published)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.run("#{Helm::Binary.get} repo remove badrepo")
