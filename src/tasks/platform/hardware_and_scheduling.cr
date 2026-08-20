@@ -5,12 +5,7 @@ require "../utils/utils.cr"
 
 namespace "platform" do
   desc "The CNF container should access all hardware and schedule to specific worker nodes by using a device plugin."
-  task "hardware_and_scheduling", ["oci_compliant"] do |t, args|
-    Log.debug { "hardware_and_scheduling" }
-    Log.trace { "hardware_and_scheduling args.raw: #{args.raw}" }
-    Log.trace { "hardware_and_scheduling args.named: #{args.named}" }
-    stdout_score("platform:hardware_and_scheduling")
-  end
+  category_task "hardware_and_scheduling", ["oci_compliant"]
 
   desc "Does the Platform use a runtime that is oci compliant"
   scored_task "oci_compliant",

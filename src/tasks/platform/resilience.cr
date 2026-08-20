@@ -5,12 +5,7 @@ require "../utils/utils.cr"
 
 namespace "platform" do
   desc "The CNF test suite checks to see if the CNFs are resilient to failures."
-  task "resilience", ["worker_reboot_recovery"] do |t, args|
-    Log.debug { "resilience" }
-    Log.trace { "resilience args.raw: #{args.raw}" }
-    Log.trace { "resilience args.named: #{args.named}" }
-    stdout_score("platform:resilience")
-  end
+  category_task "resilience", ["worker_reboot_recovery"]
 
   desc "Does the Platform recover the node and reschedule pods when a worker node fails"
   scored_task "worker_reboot_recovery" do |t, args|

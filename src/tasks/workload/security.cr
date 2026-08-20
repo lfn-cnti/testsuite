@@ -6,7 +6,7 @@ require "totem"
 require "../utils/utils.cr"
 
 desc "CNF containers should be isolated from one another and the host.  The CNF Test suite uses tools like Sysdig Inspect and gVisor"
-task "security", [
+category_task "security", [
     "symlink_file_system",
     "privilege_escalation",
     "insecure_capabilities",
@@ -26,12 +26,7 @@ task "security", [
     "host_network",
     "service_account_mapping",
     "application_credentials"
-  ] do |_, args|
-  stdout_score("security")
-  if invoked_task?("security")
-    stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
-  end
-end
+  ]
 
 desc "Check if pods in the CNF use sysctls with restricted values"
 scored_task "sysctls",

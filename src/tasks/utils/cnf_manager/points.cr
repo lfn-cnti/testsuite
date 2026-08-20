@@ -178,17 +178,96 @@ module CNFManager
       end
     end
 
-    # Pass criteria for the running task group, when it has one. `cert` sets the
-    # essential-test threshold it certifies against; runs without a criterion
-    # (all/workload/platform) leave this nil and fall back to "no test failed".
-    @@pass_threshold : Int32? = nil
+    # The evaluated success criterion of one task group.
+    record GroupResult,
+      group : String,
+      scope : String,
+      min_passed : Int32,
+      min_ratio : Float64?,
+      declared_count : Int32,
+      max_failed : Int32?,
+      passed_count : Int32,
+      max_passed : Int32,
+      failed_count : Int32,
+      passed : Bool
 
-    def self.pass_threshold : Int32?
-      @@pass_threshold
+    # Groups evaluated so far, in evaluation order. SAM runs a task's
+    # dependencies before its body, so a group is always recorded after the
+    # groups nested inside it: the last entry is the outermost group, and its
+    # verdict is the run's.
+    @@group_results = [] of GroupResult
+
+    def self.group_results : Array(GroupResult)
+      @@group_results
     end
 
-    def self.pass_threshold=(threshold : Int32?)
-      @@pass_threshold = threshold
+    def self.clear_group_results
+      @@group_results.clear
+    end
+
+    def self.group_criteria(group : String) : CNFManager::GroupCriterion?
+      CNFManager::GroupRegistry.criterion_for(group)
+    end
+
+    # Evaluates `group` against its criterion and records the verdict. Called by
+    # each group's task once its members have run.
+    def self.evaluate_group!(group : String) : GroupResult?
+      criteria = group_criteria(group)
+      return nil if criteria.nil?
+
+      scope = criteria.scope || group
+      min_passed = criteria.min_passed
+      max_failed = criteria.max_failed
+
+      if scope == CNFManager::EVERY_TEST
+        passed_count = total_passed([] of String)
+        max_passed = total_max_passed([] of String)
+        failed_count = failed_count_for(nil)
+      else
+        passed_count = total_passed(scope)
+        max_passed = total_max_passed(scope)
+        failed_count = failed_count_for(scope)
+      end
+
+      # The ratio is taken against the tests that exist in scope, not the ones
+      # this run reached: max_passed shrinks when tests are excluded, and cert
+      # takes an `exclude` argument, so a ratio over it could be satisfied by
+      # running fewer tests.
+      declared_count = scope == CNFManager::EVERY_TEST ? all_task_test_names.size : tasks_by_tag(scope).size
+      ratio = criteria.min_ratio
+
+      passed = passed_count >= min_passed
+      if ratio
+        # An empty scope would make the ratio vacuously true - the same trap as
+        # a criterion scoped to a tag no test carries - so fail instead.
+        passed = passed && declared_count > 0 && (passed_count.to_f / declared_count) >= ratio
+      end
+      passed = passed && failed_count <= max_failed if max_failed
+
+      result = GroupResult.new(group: group, scope: scope, min_passed: min_passed,
+                               min_ratio: ratio, declared_count: declared_count,
+                               max_failed: max_failed, passed_count: passed_count,
+                               max_passed: max_passed, failed_count: failed_count,
+                               passed: passed)
+      @@group_results.reject! { |existing| existing.group == group }
+      @@group_results << result
+      result
+    end
+
+    # Number of recorded items that failed. With a scope, only the tests carrying
+    # that tag count; with nil, every recorded item does.
+    def self.failed_count_for(scope : String?) : Int32
+      scoped = scope ? tasks_by_tag(scope) : nil
+      return 0 if scoped && scoped.empty?
+
+      yaml = File.open("#{Results.file}") { |file| YAML.parse(file) }
+      items = yaml["items"]?.try(&.as_a?) || [] of YAML::Any
+      items.count do |item|
+        name = item["name"]?.try(&.as_s?)
+        next false unless name
+        next false if scoped && !scoped.includes?(name)
+        item["status"]?.try(&.as_s?) == "failed"
+      end
     end
 
     def self.create_final_results_yml_name
@@ -508,8 +587,8 @@ module CNFManager
       exit_code =
         if error > 0
           2
-        elsif threshold = @@pass_threshold
-          essential_passed >= threshold ? 0 : 1
+        elsif outermost = @@group_results.last?
+          outermost.passed ? 0 : 1
         else
           failed > 0 ? 1 : 0
         end
@@ -518,10 +597,27 @@ module CNFManager
       # 0 -> passed, 2 -> error (critical), anything else (1) -> failed.
       run_status = exit_code == 0 ? "passed" : (exit_code == 2 ? "error" : "failed")
 
+      summary_yaml = YAML.parse(summary.to_yaml)
+      unless @@group_results.empty?
+        criteria = @@group_results.map do |result|
+          {group:          result.group,
+           scope:          result.scope,
+           min_passed:     result.min_passed,
+           min_ratio:      result.min_ratio,
+           declared_count: result.declared_count,
+           max_failed:     result.max_failed,
+           passed_count:   result.passed_count,
+           max_passed:     result.max_passed,
+           failed_count:   result.failed_count,
+           passed:         result.passed}
+        end
+        summary_yaml.as_h[YAML::Any.new("criteria")] = YAML.parse(criteria.to_yaml)
+      end
+
       merged = results.as_h
       merged[YAML::Any.new("exit_code")] = YAML::Any.new(exit_code.to_i64)
       merged[YAML::Any.new("status")] = YAML::Any.new(run_status)
-      merged[YAML::Any.new("summary")] = YAML.parse(summary.to_yaml)
+      merged[YAML::Any.new("summary")] = summary_yaml
       File.open("#{Results.file}", "w") { |f| YAML.dump(merged, f) }
     end
 

@@ -59,16 +59,6 @@ module CNFManager
 
   # Every test, registered as its task is defined.
   module TestRegistry
-    # The aggregates that define a category. A test's category is whichever of
-    # these runs it, so membership is stated once - in the aggregate's own
-    # dependency list - rather than on the test as well.
-    CATEGORY_AGGREGATES = %w[
-      compatibility state security configuration observability microservice
-      resilience 5g ran
-      platform:security platform:observability platform:resilience
-      platform:hardware_and_scheduling
-    ]
-
     @@tests = {} of String => TestMetadata
     @@category_of : Hash(String, String)? = nil
 
@@ -89,12 +79,14 @@ module CNFManager
       @@tests.keys
     end
 
-    # test name => the category aggregate that runs it. Built from the task
-    # graph, so a test cannot claim a category that never runs it.
+    # test name => the category group that runs it. Both halves are derived:
+    # which groups are categories comes from their own declaration, and which
+    # tests they run comes from the task graph. A test cannot claim a category
+    # that never runs it, and a category cannot be forgotten from a list.
     def self.category_of : Hash(String, String)
       @@category_of ||= begin
         mapping = {} of String => String
-        CATEGORY_AGGREGATES.each do |path|
+        CNFManager::GroupRegistry.category_paths.each do |path|
           aggregate = Sam.root_namespace.all_tasks.find { |task| task.path == path }
           next unless aggregate
           aggregate.dependency_names.each do |dep|

@@ -120,34 +120,69 @@ describe "SampleUtils" do
     end
   end
 
-  it "'write_summary!' should derive the exit code from the run's pass criterion", tags: ["points"] do
+  it "'evaluate_group!' should record a verdict per group and drive the exit code", tags: ["points"] do
     results_backup = File.read(CNFManager::Points::Results.file)
     begin
-      failed_result = CNFManager::TestCaseResult.new(
-        "fake_pass_criterion_test", CNFManager::ResultStatus::Failed, "fake failure",
+      # liveness is tagged [resilience, ..., essential], so it counts toward both
+      # the resilience group and cert's essential scope.
+      failed = CNFManager::TestCaseResult.new(
+        "liveness", CNFManager::ResultStatus::Failed, "fake failure",
         [] of String, Time.utc, Time.utc)
-      CNFManager::Points.upsert_task(failed_result)
-      # Without a criterion, a failed test alone means the run missed its objective.
+      CNFManager::Points.upsert_task(failed)
+
+      # A group whose criterion allows no failures fails on that one failure.
+      result = CNFManager::Points.evaluate_group!("resilience").not_nil!
+      result.passed.should be_false
+      result.failed_count.should eq(1)
+      CNFManager::Points.write_summary!
+
+      yaml = YAML.parse(File.read(CNFManager::Points::Results.file))
+      yaml["exit_code"].as_i.should eq(1)
+      yaml["status"].as_s.should eq("failed")
+
+      # The verdict is recorded in the summary for every evaluated group.
+      criteria = yaml["summary"]["criteria"].as_a
+      entry = criteria.find { |c| c["group"].as_s == "resilience" }.not_nil!
+      entry["passed"].as_bool.should be_false
+      entry["scope"].as_s.should eq("resilience")
+      entry["failed_count"].as_i.should eq(1)
+
+      # cert sets no failure limit, so its threshold alone decides, and the scope it
+      # counts is essential rather than its own name.
+      cert = CNFManager::Points.evaluate_group!("cert").not_nil!
+      cert.max_failed.should be_nil
+      cert.scope.should eq("essential")
+      cert.min_passed.should eq(ESSENTIAL_PASSED_THRESHOLD)
+      cert.passed.should be_false # nothing passed, so the threshold is not met
+
+      # The outermost group evaluated decides the run: SAM runs dependencies
+      # before a parent's body, so the last verdict recorded is the parent's.
+      CNFManager::Points.write_summary!
       YAML.parse(File.read(CNFManager::Points::Results.file))["exit_code"].as_i.should eq(1)
 
-      # With a criterion (cert), the group is judged by that criterion alone:
-      # the same failed test no longer forces exit 1 once the threshold is met.
-      CNFManager::Points.pass_threshold = 0
+      # Once the failure is gone the same group passes and the code returns to 0.
+      CNFManager::Points.clean_results_yml
+      CNFManager::Points.clear_group_results
+      CNFManager::Points.evaluate_group!("resilience").not_nil!.passed.should be_true
       CNFManager::Points.write_summary!
       yaml = YAML.parse(File.read(CNFManager::Points::Results.file))
       yaml["exit_code"].as_i.should eq(0)
       yaml["status"].as_s.should eq("passed")
-
-      # An unmet criterion exits 1 even when no individual test failed.
-      CNFManager::Points.pass_threshold = Int32::MAX
-      CNFManager::Points.write_summary!
-      yaml = YAML.parse(File.read(CNFManager::Points::Results.file))
-      yaml["exit_code"].as_i.should eq(1)
-      yaml["status"].as_s.should eq("failed")
     ensure
-      CNFManager::Points.pass_threshold = nil
+      CNFManager::Points.clear_group_results
       File.write(CNFManager::Points::Results.file, results_backup)
     end
+  end
+
+  it "'group_criteria' should be declared for every reported group", tags: ["points"] do
+    %w[all workload platform cert compatibility state security configuration
+       observability microservice resilience].each do |group|
+      CNFManager::Points.group_criteria(group).should_not be_nil
+    end
+    # Criteria entries are configuration, not tests, so they must not leak into
+    # the test-name list that scoring denominators are built from.
+    CNFManager::Points.all_task_test_names.should_not contain("workload")
+    CNFManager::Points.all_task_test_names.should_not contain("cert")
   end
 
   it  "'task_points' should return the amount of points for a passing test", tags: ["points"] do

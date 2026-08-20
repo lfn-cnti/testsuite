@@ -6,10 +6,7 @@ require "yaml"
 
 namespace "platform" do
   desc "The CNF test suite checks to see if the platform is hardened."
-  task "security", ["control_plane_hardening", "cluster_admin", "helm_tiller", "verify_configmaps_encryption", "verify_secrets_encryption"] do |t, args|
-    Log.debug { "security" }
-    stdout_score("platform:security")
-  end
+  category_task "security", ["control_plane_hardening", "cluster_admin", "helm_tiller", "verify_configmaps_encryption", "verify_secrets_encryption"]
 
   desc "Is the platform control plane hardened"
   scored_task "control_plane_hardening",

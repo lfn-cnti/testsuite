@@ -4,7 +4,15 @@
   "title": "CNTi Test Suite results file",
   "description": "Schema for the results/cnf-testsuite-results-<timestamp>.yml file produced by a completed CNTi Test Suite run. Matches schema_version 1. The file is YAML; this schema validates it as JSON (YAML is a JSON superset).",
   "type": "object",
-  "required": ["name", "testsuite_version", "schema_version", "status", "exit_code", "summary", "items"],
+  "required": [
+    "name",
+    "testsuite_version",
+    "schema_version",
+    "status",
+    "exit_code",
+    "summary",
+    "items"
+  ],
   "additionalProperties": false,
   "properties": {
     "name": {
@@ -23,7 +31,12 @@
     },
     "status": {
       "description": "Overall run verdict, derived from exit_code (0 -> passed, 1 -> failed, 2 -> error). May be null before any test has run.",
-      "enum": ["passed", "failed", "error", null]
+      "enum": [
+        "passed",
+        "failed",
+        "error",
+        null
+      ]
     },
     "command": {
       "description": "The command line that produced this file.",
@@ -32,13 +45,21 @@
     "exit_code": {
       "description": "Process exit code: 0 = passed, 1 = failed (a required test failed), 2 = error (a test raised).",
       "type": "integer",
-      "enum": [0, 1, 2]
+      "enum": [
+        0,
+        1,
+        2
+      ]
     },
-    "summary": { "$ref": "#/$defs/summary" },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
     "items": {
       "description": "One entry per test that ran.",
       "type": "array",
-      "items": { "$ref": "#/$defs/item" }
+      "items": {
+        "$ref": "#/$defs/item"
+      }
     }
   },
   "$defs": {
@@ -46,81 +67,246 @@
       "description": "Aggregate numbers for the run, scoped to the tests that actually ran.",
       "type": "object",
       "required": [
-        "total", "passed", "failed", "skipped", "na", "error",
-        "max_passed", "essential_passed", "essential_max_passed",
-        "points", "maximum_points"
+        "total",
+        "passed",
+        "failed",
+        "skipped",
+        "na",
+        "error",
+        "max_passed",
+        "essential_passed",
+        "essential_max_passed",
+        "points",
+        "maximum_points"
       ],
       "additionalProperties": false,
       "properties": {
-        "total": { "description": "Number of tests executed.", "type": "integer", "minimum": 0 },
-        "passed": { "type": "integer", "minimum": 0 },
-        "failed": { "type": "integer", "minimum": 0 },
-        "skipped": { "type": "integer", "minimum": 0 },
-        "na": { "type": "integer", "minimum": 0 },
-        "error": { "type": "integer", "minimum": 0 },
+        "total": {
+          "description": "Number of tests executed.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "na": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "error": {
+          "type": "integer",
+          "minimum": 0
+        },
         "max_passed": {
           "description": "Maximum number of tests that could have passed (denominator for 'X of Y tests passed').",
           "type": "integer",
           "minimum": 0
         },
-        "essential_passed": { "type": "integer", "minimum": 0 },
-        "essential_max_passed": { "type": "integer", "minimum": 0 },
-        "points": { "description": "Total points scored.", "type": "integer" },
-        "maximum_points": { "description": "Maximum points achievable by the tests that ran.", "type": "integer" }
+        "essential_passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "essential_max_passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "points": {
+          "description": "Total points scored.",
+          "type": "integer"
+        },
+        "maximum_points": {
+          "description": "Maximum points achievable by the tests that ran.",
+          "type": "integer"
+        },
+        "criteria": {
+          "description": "Success criterion verdicts, one per task group that ran, in evaluation order. A group's dependencies run before its body, so the last entry is the outermost group and its verdict decides exit_code. Absent when no group with a declared criterion ran.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "group",
+              "scope",
+              "min_passed",
+              "passed_count",
+              "max_passed",
+              "failed_count",
+              "passed",
+              "min_ratio",
+              "declared_count",
+              "max_failed"
+            ],
+            "properties": {
+              "group": {
+                "description": "Task group the criterion belongs to.",
+                "type": "string"
+              },
+              "scope": {
+                "description": "points.yml tag whose tests count toward the criterion; defaults to the group name.",
+                "type": "string"
+              },
+              "min_passed": {
+                "description": "Minimum number of tests in scope that must pass.",
+                "type": "integer",
+                "minimum": 0
+              },
+              "passed_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "max_passed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "failed_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "passed": {
+                "description": "True when the group met its criterion.",
+                "type": "boolean"
+              },
+              "min_ratio": {
+                "description": "Minimum share of the tests in scope that must pass, as a fraction of how many exist rather than how many ran. Null when the group sets no ratio.",
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1
+              },
+              "declared_count": {
+                "description": "How many tests in scope are declared, the denominator min_ratio is taken against.",
+                "type": "integer",
+                "minimum": 0
+              },
+              "max_failed": {
+                "description": "How many tests in scope may fail; null for no limit, meaning the group's other thresholds already account for failures.",
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              }
+            }
+          }
+        }
       }
     },
     "item": {
       "description": "Result of a single test.",
       "type": "object",
-      "required": ["name", "status", "type", "points", "start_time", "end_time", "task_runtime"],
+      "required": [
+        "name",
+        "status",
+        "type",
+        "points",
+        "start_time",
+        "end_time",
+        "task_runtime"
+      ],
       "additionalProperties": false,
       "properties": {
-        "name": { "description": "Test name, e.g. privileged_containers.", "type": "string" },
+        "name": {
+          "description": "Test name, e.g. privileged_containers.",
+          "type": "string"
+        },
         "status": {
           "description": "Outcome of this test.",
-          "enum": ["passed", "failed", "skipped", "na", "error"]
+          "enum": [
+            "passed",
+            "failed",
+            "skipped",
+            "na",
+            "error"
+          ]
         },
         "message": {
           "description": "One-line verdict for the test.",
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "type": {
           "description": "The test's declared type (essential, normal, bonus).",
           "type": "string"
         },
-        "points": { "description": "Points awarded for this test.", "type": "integer" },
-        "start_time": { "description": "RFC 3339 timestamp.", "type": "string" },
-        "end_time": { "description": "RFC 3339 timestamp.", "type": "string" },
-        "task_runtime": { "description": "Test duration in seconds.", "type": "number" },
+        "points": {
+          "description": "Points awarded for this test.",
+          "type": "integer"
+        },
+        "start_time": {
+          "description": "RFC 3339 timestamp.",
+          "type": "string"
+        },
+        "end_time": {
+          "description": "RFC 3339 timestamp.",
+          "type": "string"
+        },
+        "task_runtime": {
+          "description": "Test duration in seconds.",
+          "type": "number"
+        },
         "details": {
           "description": "Free-form reason/evidence strings. Present only when non-empty.",
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
         "remediation": {
           "description": "Guidance on how to fix the failure. Present only when non-empty.",
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
         "impacted_resources": {
           "description": "Structured list of offending resources. Present only when non-empty.",
           "type": "array",
-          "items": { "$ref": "#/$defs/impacted_resource" }
+          "items": {
+            "$ref": "#/$defs/impacted_resource"
+          }
         }
       }
     },
     "impacted_resource": {
       "description": "A resource that caused or participated in a test's result. Only fields that are known are recorded.",
       "type": "object",
-      "required": ["kind", "name"],
+      "required": [
+        "kind",
+        "name"
+      ],
       "additionalProperties": false,
       "properties": {
-        "kind": { "type": "string" },
-        "name": { "type": "string" },
-        "namespace": { "type": "string" },
-        "container": { "type": "string" },
-        "pod": { "type": "string" },
-        "reason": { "type": "string" }
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "container": {
+          "type": "string"
+        },
+        "pod": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
       }
     }
   }

@@ -6,12 +6,7 @@ require "totem"
 require "../utils/utils.cr"
 
 desc "The CNF test suite checks to see if 5g CNFs follow cloud native principles"
-task "5g", ["smf_upf_core_validator", "smf_upf_heartbeat", "suci_enabled"] do |_, args|
-  stdout_score("5g")
-  if invoked_task?("5g")
-    stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
-  end
-end
+category_task "5g", ["smf_upf_core_validator", "smf_upf_heartbeat", "suci_enabled"]
 
 desc "Test if a 5G core is valid"
 scored_task "smf_upf_core_validator" do |t, args|
