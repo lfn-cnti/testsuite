@@ -16,7 +16,9 @@ task "observability", ["log_output", "prometheus_traffic", "open_metrics", "rout
 end
 
 desc "Check if the CNF outputs logs to stdout or stderr"
-task "log_output" do |t, args|
+scored_task "log_output",
+  type: CNFManager::TestType::Essential,
+  emoji: "📶☠️" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
       test_passed = false
@@ -38,7 +40,9 @@ task "log_output" do |t, args|
 end
 
 desc "Does the CNF emit prometheus traffic"
-task "prometheus_traffic" do |t, args|
+scored_task "prometheus_traffic",
+  type: CNFManager::TestType::Bonus,
+  emoji: "📶☠️" do |t, args|
   task_response = CNFManager::Task.task_runner(args, task: t) do |args, config, result|
 
     do_this_on_each_retry = ->(ex : Exception, attempt : Int32, elapsed_time : Time::Span, next_interval : Time::Span) do
@@ -153,7 +157,10 @@ task "prometheus_traffic" do |t, args|
 end
 
 desc "Does the CNF emit prometheus open metric compatible traffic"
-task "open_metrics", ["prometheus_traffic"] do |t, args|
+scored_task "open_metrics",
+  type: CNFManager::TestType::Bonus,
+  deps: ["prometheus_traffic"],
+  emoji: "📶☠️" do |t, args|
   task_response = CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     begin
       configmap = KubectlClient::Get.resource("configmap", "cnf-testsuite-open-metrics")
@@ -177,7 +184,10 @@ task "open_metrics", ["prometheus_traffic"] do |t, args|
 end
 
 desc "Are the CNF's logs captured by a logging system"
-task "routed_logs", ["setup:install_cluster_tools"] do |t, args|
+scored_task "routed_logs",
+  type: CNFManager::TestType::Bonus,
+  deps: ["setup:install_cluster_tools"],
+  emoji: "📶☠️" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     fluent_pods = FluentManager.find_active_match_pods
     unless fluent_pods
@@ -209,7 +219,9 @@ task "routed_logs", ["setup:install_cluster_tools"] do |t, args|
 end
 
 desc "Does the CNF install use tracing?"
-task "tracing" do |t, args|
+scored_task "tracing",
+  type: CNFManager::TestType::Bonus,
+  emoji: "⎈🚀" do |t, args|
   Log.for(t.name).info { "Running test" }
   Log.for(t.name).info { "tracing args: #{args.inspect}" }
 

@@ -9,19 +9,10 @@ module CNFManager
     Failed
     Skipped
     NA
-    Pass5
-    Pass3
     Error
 
-    def to_basic
-      case self
-      when Pass5, Pass3 then CNFManager::ResultStatus::Passed
-      else self
-      end
-    end
-
     def to_string
-      case self.to_basic
+      case self
       when Passed then "passed"
       when Failed then "failed"
       when Skipped then "skipped"
@@ -131,7 +122,7 @@ module CNFManager
     def decorated_result_message() : String
       tc_emoji = CNFManager::Points.emoji_by_task(@testcase)
       cat_emoji = CNFManager::Points.task_emoji_by_task(@testcase)
-      case @status.to_basic
+      case @status
       when CNFManager::ResultStatus::Passed
         "   #{cat_emoji}PASSED: [#{@testcase}] #{@result_message} #{tc_emoji}"
       when CNFManager::ResultStatus::Failed
@@ -200,26 +191,6 @@ module CNFManager
       @@pass_threshold = threshold
     end
 
-    @@points_yml_ensured = false
-
-    def self.points_yml
-      # points.yml used to be rewritten into the CWD at require time on every
-      # invocation, even for help/version. Materialize (or refresh, when a copy
-      # from another release lingers) the embedded points.yml only when scoring
-      # actually needs it, so non-scoring commands stay free of side effects
-      # and work from read-only directories.
-      unless @@points_yml_ensured
-        create_points_yml unless File.exists?("points.yml") && File.read("points.yml") == POINTSFILE
-        @@points_yml_ensured = true
-      end
-      points = File.open("points.yml") { |f| YAML.parse(f) }
-      points.as_a
-    end
-
-    def self.create_points_yml
-      EmbeddedFileManager.points_yml_write_file
-    end
-
     def self.create_final_results_yml_name
       begin
         FileUtils.mkdir_p("results") unless Dir.exists?("results")
@@ -253,22 +224,21 @@ module CNFManager
     end
 
     private def self.dynamic_task_points(task, status_name) : Int32?
-      points = points_yml.find { |x| x["name"] == task }
-      unless points
-        # points.yml is kept in sync with the embedded copy, so a missing entry
-        # means the test genuinely has no scoring definition; surface it instead
-        # of silently falling back to default_scoring.
-        @@logger.for("dynamic_task_points").warn { "Task: #{task} not found in points.yml" }
-        stdout_warning "Test '#{task}' has no entry in points.yml, scoring it with default_scoring."
+      metadata = CNFManager::TestRegistry[task]?
+      unless metadata
+        # Every test declares its own scoring at its definition, so a miss means
+        # the task was never declared with scored_task. Surface it rather than
+        # silently scoring it.
+        @@logger.for("dynamic_task_points").warn { "Task: #{task} is not a declared test" }
+        stdout_warning "Test '#{task}' is not declared with scored_task, scoring it as a normal test."
+        return case status_name
+               when "pass" then CNFManager::TestType::Normal.pass_points
+               when "fail" then CNFManager::TestType::Normal.fail_points
+               else             0
+               end
       end
 
-      if points && points[status_name]?
-        resp = points[status_name].as_i if points
-      else
-        points = points_yml.find { |x| x["name"] == "default_scoring" }
-        resp = points[status_name].as_i if points
-      end
-      resp
+      metadata.points(status_name)
     end
 
     # Returns what the potential points should be (for a points type) in order to assign those points to a task
@@ -567,90 +537,34 @@ module CNFManager
     end
 
     private def self.task_required(task)
-      points = points_yml.find { |x| x["name"] == task }
-      @@logger.for("task_required").warn { "Task: '#{task}' not found in points.yml" } unless points
-      if points && points["required"]? && points["required"].as_bool == true
-        true
-      else
-        false
-      end
+      # No test has ever declared itself required; exit codes come from the
+      # group criteria now. Kept so failed_required_tasks still compiles.
+      false
     end
 
     def self.all_task_test_names
-      result_items = points_yml.reduce([] of String) do |acc, x|
-        if x["name"].as_s == "default_scoring" || x["tags"].as_a.find { |x| x == "platform" }
-          acc
-        else
-          acc << x["name"].as_s
-        end
-      end
+      # Platform tests are excluded, as they always were: this feeds the
+      # denominators for a workload run.
+      CNFManager::TestRegistry.all.reject { |_, metadata| metadata.scope.platform? }.keys
     end
 
     def self.tasks_by_tag(tag)
-      result_items = points_yml.reduce([] of String) do |acc, x|
-        if x["tags"].as_a?
-          tag_match = x["tags"].as_a.map { |parsed_tag|
-            parsed_tag if parsed_tag == tag.strip
-          }.uniq.compact
-          if !tag_match.empty?
-            acc << x["name"].as_s
-          else
-            acc
-          end
-        else
-          acc
-        end
-      end
+      result_items = CNFManager::TestRegistry.by_tag(tag)
       @@logger.for("tasks_by_tag").debug { "Found tasks: #{result_items} for tag: #{tag}" }
 
       result_items
     end
 
     def self.emoji_by_task(task)
-      logger = @@logger.for("emoji_by_task")
-
-      md = points_yml.find { |x| x["name"] == task }
-      logger.warn { "Task: '#{task}' not found in points.yml" } unless md
-
-      if md && md["emoji"]?
-        logger.debug { "Task: '#{task}' emoji: #{md["emoji"]?}" }
-        resp = md["emoji"]
-      else
-        resp = ""
-      end
+      CNFManager::TestRegistry[task]?.try(&.emoji) || ""
     end
 
-    def self.tags_by_task(task)
-      logger = @@logger.for("tags_by_task")
-
-      points = points_yml.find { |x| x["name"] == task }
-      logger.warn { "Task: '#{task}' not found in points.yml" } unless points
-
-      if points && points["tags"]?
-        logger.debug { "Task: '#{task}' tags: #{points["tags"]?}" }
-        resp = points["tags"].as_a
-      else
-        resp = [] of String
-      end
+    def self.tags_by_task(task) : Array(String)
+      CNFManager::TestRegistry.tags_for(task)
     end
 
     private def self.task_type_by_task(task)
-      task_type = tags_by_task(task).reduce("") do |acc, x|
-        if x == "essential"
-          acc = "essential"
-        elsif x == "normal" && acc != "essential"
-          acc = "normal"
-        elsif x == "bonus" && acc != "essential" && acc != "normal"
-          acc = "bonus"
-        elsif x == "cert" && acc != "bonus" && acc != "essential" && acc != "normal"
-          acc = "cert"
-        else
-          acc
-        end
-      end
-      @@logger.debug { "Task: '#{task}' type: #{task_type}" }
-
-      task_type
+      CNFManager::TestRegistry[task]?.try(&.type.to_tag) || ""
     end
 
     def self.task_emoji_by_task(task)

@@ -20,7 +20,7 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
   pretty_test_name_capitalized = tn.split(/:|_/).map(&.capitalize).join(" ")
 
   desc "Test if the CNF containers are loosely coupled by performing a #{pretty_test_name}"
-  task "#{tn}" do |t, args|
+  scored_task "#{tn}" do |t, args|
     CNFManager::Task.task_runner(args, task: t) do |args, config, result|
       container_names = config.common.container_names
       Log.for(t.name).debug { "container_names: #{container_names}" }
@@ -92,7 +92,7 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
 end
 
 desc "Test if the CNF can perform a rollback"
-task "rollback" do |t, args|
+scored_task "rollback" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     container_names = config.common.container_names
     Log.for(t.name).debug { "container_names: #{container_names}" }
@@ -168,7 +168,9 @@ task "rollback" do |t, args|
 end
 
 desc "Test increasing/decreasing capacity"
-task "increase_decrease_capacity" do |t, args|
+scored_task "increase_decrease_capacity",
+  type: CNFManager::TestType::Essential,
+  emoji: "📦📈📉" do |t, args|
 
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     increase_test_base_replicas = "1"
@@ -370,7 +372,8 @@ def extract_f_flags(helm_values : String?) : String?
 end
 
 desc "Will the CNF install using helm with helm_deploy?"
-task "helm_deploy" do |t, args|
+scored_task "helm_deploy",
+  emoji: "⚙🛠️⬆☁" do |t, args|
   Log.for(t.name).debug { "helm_deploy args: #{args.inspect}" }
 
   CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
@@ -389,7 +392,9 @@ task "helm_deploy" do |t, args|
 end
 
 desc "Checks if the CNF's helm chart is published in a helm repository"
-task "helm_chart_published", ["setup:install_local_helm"] do |t, args|
+scored_task "helm_chart_published",
+  deps: ["setup:install_local_helm"],
+  emoji: "⎈📦🌐" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     helm = Helm::Binary.get
 
@@ -441,7 +446,9 @@ task "helm_chart_published", ["setup:install_local_helm"] do |t, args|
 end
 
 desc "Checks if the CNF's helm chart passes `helm lint`"
-task "helm_chart_valid", ["setup:install_local_helm"] do |t, args|
+scored_task "helm_chart_valid",
+  deps: ["setup:install_local_helm"],
+  emoji: "⎈📝☑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     current_dir = FileUtils.pwd
     helm = Helm::Binary.get
@@ -546,7 +553,8 @@ def setup_cilium_cluster(cluster_name : String) : KindManager::Cluster
 end
 
 desc "CNFs should work with any Certified Kubernetes product and any CNI-compatible network that meet their functionality requirements."
-task "cni_compatible" do |t, args|
+scored_task "cni_compatible",
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
      # TODO (kosstennbl) adapt cnf_to_new_cluster metod to new installation process. Until then - test is disabled. More info: #2153
     result.skipped("cni_compatible test was temporarily disabled, check #2153")
@@ -585,7 +593,7 @@ task "cni_compatible" do |t, args|
 end
 
 desc "CNF should not use any deprecated Kubernetes features"
-task "deprecated_k8s_features" do |t, args|
+scored_task "deprecated_k8s_features" do |t, args|
   logger = WLOG.for("deprecated_k8s_features")
   logger.info { "Testing CNF for usage of deprecated Kubernetes features" }
 

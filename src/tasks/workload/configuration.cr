@@ -30,7 +30,8 @@ task "configuration", [
 end
 
 desc "Check if the CNF is running containers with labels configured?"
-task "require_labels" do |t, args|
+scored_task "require_labels",
+  emoji: "🏷️" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     Kyverno.install
     policy_path = Kyverno.best_practice_policy("require_labels/require_labels.yaml")
@@ -53,7 +54,8 @@ task "require_labels" do |t, args|
 end
 
 desc "Check if the CNF installs resources in the default namespace"
-task "default_namespace" do |t, args|
+scored_task "default_namespace",
+  emoji: "🏷️" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     Kyverno.install
     policy_path = Kyverno.best_practice_policy("disallow_default_namespace/disallow_default_namespace.yaml")
@@ -76,7 +78,9 @@ task "default_namespace" do |t, args|
 end
 
 desc "Check if the CNF uses container images with the latest tag"
-task "latest_tag" do |t, args|
+scored_task "latest_tag",
+  type: CNFManager::TestType::Essential,
+  emoji: "🏷️" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     Kyverno.install
 
@@ -100,7 +104,9 @@ task "latest_tag" do |t, args|
 end
 
 desc "Do all cnf images have versioned tags?"
-task "versioned_tag", ["install_opa"] do |t, args|
+scored_task "versioned_tag",
+  deps: ["install_opa"],
+  emoji: "🏷️" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     fail_msgs = [] of String
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
@@ -140,7 +146,7 @@ task "versioned_tag", ["install_opa"] do |t, args|
 end
 
 desc "Does the CNF use NodePort"
-task "nodeport_not_used" do |t, args|
+scored_task "nodeport_not_used" do |t, args|
   # TODO rename task_runner to multi_cnf_task_runner
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     test_passed = true
@@ -168,7 +174,8 @@ task "nodeport_not_used" do |t, args|
 end
 
 desc "Does the CNF use HostPort"
-task "hostport_not_used" do |t, args|
+scored_task "hostport_not_used",
+  type: CNFManager::TestType::Essential do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
       Log.for(t.name).info { "hostport_not_used resource: #{resource}" }
@@ -209,7 +216,8 @@ task "hostport_not_used" do |t, args|
 end
 
 desc "Does the CNF have hardcoded IPs in the K8s resource configuration"
-task "hardcoded_ip_addresses_in_k8s_runtime_configuration" do |t, args|
+scored_task "hardcoded_ip_addresses_in_k8s_runtime_configuration",
+  type: CNFManager::TestType::Essential do |t, args|
   task_response = CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     current_dir = FileUtils.pwd
     allowed_ip_addresses = [
@@ -254,7 +262,9 @@ task "hardcoded_ip_addresses_in_k8s_runtime_configuration" do |t, args|
 end
 
 desc "Does the CNF use K8s Secrets?"
-task "secrets_used" do |t, args|
+scored_task "secrets_used",
+  type: CNFManager::TestType::Bonus,
+  emoji: "🧫" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     # Parse the cnf-testsuite.yml
     resp = ""
@@ -447,7 +457,9 @@ def container_env_configmap_refs(
 end
 
 desc "Does the CNF use immutable configmaps?"
-task "immutable_configmap" do |t, args|
+scored_task "immutable_configmap",
+  type: CNFManager::TestType::Bonus,
+  emoji: "⚖️" do |t, args|
   resp = ""
 
   task_response = CNFManager::Task.task_runner(args, task: t) do |args, config, result|
@@ -549,7 +561,8 @@ task "immutable_configmap" do |t, args|
 end
 
 desc "Check if CNF uses Kubernetes alpha APIs"
-task "alpha_k8s_apis" do |t, args|
+scored_task "alpha_k8s_apis",
+  emoji: "⭕🔍" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     unless check_poc(args)
       result.skipped("alpha_k8s_apis not in poc mode")
@@ -613,7 +626,9 @@ task "alpha_k8s_apis" do |t, args|
 end
 
 desc "Does the CNF install an Operator with OLM?"
-task "operator_installed" do |t, args|
+scored_task "operator_installed",
+  type: CNFManager::TestType::Bonus,
+  emoji: "⚖️👀" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     subscription_names = CNFManager.cnf_resources(args, config) do |resource|
       kind = resource.dig("kind").as_s

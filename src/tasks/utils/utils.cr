@@ -205,7 +205,7 @@ def upsert_decorated_task(result : CNFManager::TestCaseResult)
   status = result.status
   CNFManager::Points.upsert_task(result)
   decorated_message = result.decorated_result_message
-  case status.to_basic
+  case status
   when CNFManager::ResultStatus::Passed
     stdout_success decorated_message
   when CNFManager::ResultStatus::Failed

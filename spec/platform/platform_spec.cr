@@ -18,7 +18,7 @@ describe "Platform" do
     (/kind=namespace namespace=sonobuoy/ =~ (result[:output] + result[:error])).should be_nil
   end
   it "'k8s_conformance' should pass if the sonobuoy tests pass", tags: ["platform"] do
-    result = ShellCmd.run_testsuite("k8s_conformance")
+    result = ShellCmd.run_testsuite("platform:k8s_conformance")
     (/(PASSED).*(K8s conformance test has no failures)/ =~ result[:output]).should_not be_nil
   end
   

@@ -1,6 +1,6 @@
 # coding: utf-8
 desc "Run every test against the Kubernetes platform itself, rather than the CNF"
-task "platform", ["setup:install_local_helm", "k8s_conformance", "platform:observability", "platform:resilience", "platform:hardware_and_scheduling", "platform:security"]  do |_, args|
+task "platform", ["setup:install_local_helm", "platform:k8s_conformance", "platform:observability", "platform:resilience", "platform:hardware_and_scheduling", "platform:security"]  do |_, args|
   Log.debug { "platform" }
 
   total = CNFManager::Points.total_points("platform")
@@ -23,135 +23,142 @@ task "platform", ["setup:install_local_helm", "k8s_conformance", "platform:obser
   stdout_info "Test results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
 end
 
-desc "Does the platform pass the K8s conformance tests?"
-task "k8s_conformance" do |t, args|
-  CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
-    current_dir = FileUtils.pwd
-    Log.for(t.name).debug { "current dir: #{current_dir}" }
-    sonobuoy = Setup::SONOBUOY_BINARY
+# These two moved into the platform namespace; the old names keep working.
+alias_task "k8s_conformance", "platform:k8s_conformance"
+alias_task "clusterapi_enabled", "platform:clusterapi_enabled"
 
-    # Clean up old results
-    delete_cmd = "#{sonobuoy} delete --all --wait"
-    Process.run(
-      delete_cmd,
-      shell: true,
-      output: delete_stdout = IO::Memory.new,
-      error: delete_stderr = IO::Memory.new
-    )
-    Log.for(t.name).debug { "sonobuoy delete output: #{delete_stdout}" }
+namespace "platform" do
+  desc "Does the platform pass the K8s conformance tests?"
+  scored_task "k8s_conformance" do |t, args|
+    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
+      current_dir = FileUtils.pwd
+      Log.for(t.name).debug { "current dir: #{current_dir}" }
+      sonobuoy = Setup::SONOBUOY_BINARY
 
-    # Run the tests
-    testrun_stdout = IO::Memory.new
-    Log.debug { "CRYSTAL_ENV: #{ENV["CRYSTAL_ENV"]?}" }
-    if ENV["CRYSTAL_ENV"]? == "TEST"
-      Log.info { "Running Sonobuoy using Quick Mode" }
-      cmd = "#{sonobuoy} run --wait --mode quick"
+      # Clean up old results
+      delete_cmd = "#{sonobuoy} delete --all --wait"
       Process.run(
-        cmd,
+        delete_cmd,
         shell: true,
-        output: testrun_stdout,
-        error: testrun_stderr = IO::Memory.new
+        output: delete_stdout = IO::Memory.new,
+        error: delete_stderr = IO::Memory.new
       )
-    else
-      Log.info { "Running Sonobuoy Conformance" }
-      cmd = "#{sonobuoy} run --wait"
-      Process.run(
-        cmd,
-        shell: true,
-        output: testrun_stdout,
-        error: testrun_stderr = IO::Memory.new
-      )
-    end
-    Log.debug { testrun_stdout.to_s }
+      Log.for(t.name).debug { "sonobuoy delete output: #{delete_stdout}" }
 
-    cmd = "results=$(#{sonobuoy} retrieve); #{sonobuoy} results $results"
-    results_stdout = IO::Memory.new
-    Process.run(cmd, shell: true, output: results_stdout, error: results_stdout)
-    results = results_stdout.to_s
-    Log.debug { results }
+      # Run the tests
+      testrun_stdout = IO::Memory.new
+      Log.debug { "CRYSTAL_ENV: #{ENV["CRYSTAL_ENV"]?}" }
+      if ENV["CRYSTAL_ENV"]? == "TEST"
+        Log.info { "Running Sonobuoy using Quick Mode" }
+        cmd = "#{sonobuoy} run --wait --mode quick"
+        Process.run(
+          cmd,
+          shell: true,
+          output: testrun_stdout,
+          error: testrun_stderr = IO::Memory.new
+        )
+      else
+        Log.info { "Running Sonobuoy Conformance" }
+        cmd = "#{sonobuoy} run --wait"
+        Process.run(
+          cmd,
+          shell: true,
+          output: testrun_stdout,
+          error: testrun_stderr = IO::Memory.new
+        )
+      end
+      Log.debug { testrun_stdout.to_s }
 
-    failed_count = nil
-    if failed_match_data = results.match(/Failed:\s+(\S+)/)
-      failed_raw_value = failed_match_data[1]
-      if failed_integer = failed_raw_value.to_i?
-        Log.debug { "Sonobuoy summary: Failed=#{failed_raw_value}" }
-        failed_count = failed_integer
+      cmd = "results=$(#{sonobuoy} retrieve); #{sonobuoy} results $results"
+      results_stdout = IO::Memory.new
+      Process.run(cmd, shell: true, output: results_stdout, error: results_stdout)
+      results = results_stdout.to_s
+      Log.debug { results }
+
+      failed_count = nil
+      if failed_match_data = results.match(/Failed:\s+(\S+)/)
+        failed_raw_value = failed_match_data[1]
+        if failed_integer = failed_raw_value.to_i?
+          Log.debug { "Sonobuoy summary: Failed=#{failed_raw_value}" }
+          failed_count = failed_integer
+        else
+          Log.warn {
+            "Matched non-numeric 'Failed:' value #{failed_raw_value.inspect} — cannot determine result.\nRaw results:\n#{results}"
+          }
+        end
       else
         Log.warn {
-          "Matched non-numeric 'Failed:' value #{failed_raw_value.inspect} — cannot determine result.\nRaw results:\n#{results}"
+          "No 'Failed:' line found in Sonobuoy results — cannot determine result.\nRaw results:\n#{results}"
         }
       end
-    else
-      Log.warn {
-        "No 'Failed:' line found in Sonobuoy results — cannot determine result.\nRaw results:\n#{results}"
-      }
-    end
 
-    if failed_count.nil?
-      result.error("Unable to determine failure count from Sonobuoy results")
-    elsif failed_count > 0
-      result.failed("K8s conformance test has #{failed_count} failure(s)!")
-    else
-      result.passed("K8s conformance test has no failures")
-    end
-  rescue ex
-    result.error("Error occurred while running the K8s conformance test")
-    Log.error { ex.message }
-    ex.backtrace.each do |x|
-      Log.error { x }
-    end
-  ensure
-    FileUtils.rm_rf(Dir.glob("*sonobuoy*.tar.gz"))
-  end
-end
-
-desc "Is Cluster Api available and managing a cluster?"
-task "clusterapi_enabled" do |t, args|
-  CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
-    unless check_poc(args)
-      result.skipped("Cluster API not in poc mode")
-      next
-    end
-
-    Log.debug { "clusterapi_enabled" }
-    Log.info { "clusterapi_enabled args #{args.inspect}" }
-
-    # We test that the namespaces for cluster resources exist by looking for labels
-    # I found those by running
-    # clusterctl init
-    # kubectl -n capi-system describe deployments.apps capi-controller-manager
-    # https://cluster-api.sigs.k8s.io/clusterctl/commands/init.html#additional-information
-
-    # this indicates that cluster-api is installed
-    clusterapi_namespaces_json = KubectlClient::Get.resource("namespace", selector: "clusterctl.cluster.x-k8s.io")
-    Log.info { "clusterapi_namespaces_json: #{clusterapi_namespaces_json}" }
-
-    # check that a node is actually being manageed
-    # TODO: suppress msg in the case that this resource does-not-exist which is what happens when cluster-api is not installed
-    cmd = "kubectl get kubeadmcontrolplanes.controlplane.cluster.x-k8s.io -o json"
-    Process.run(
-      cmd,
-      shell: true,
-      output: clusterapi_control_planes_output = IO::Memory.new,
-      error: stderr = IO::Memory.new
-    )
-
-    proc_clusterapi_control_planes_json = -> do
-      begin
-        JSON.parse(clusterapi_control_planes_output.to_s)
-      rescue JSON::ParseException
-        # resource does-not-exist rescue to empty json
-        JSON.parse("{}")
+      if failed_count.nil?
+        result.error("Unable to determine failure count from Sonobuoy results")
+      elsif failed_count > 0
+        result.failed("K8s conformance test has #{failed_count} failure(s)!")
+      else
+        result.passed("K8s conformance test has no failures")
       end
+    rescue ex
+      result.error("Error occurred while running the K8s conformance test")
+      Log.error { ex.message }
+      ex.backtrace.each do |x|
+        Log.error { x }
+      end
+    ensure
+      FileUtils.rm_rf(Dir.glob("*sonobuoy*.tar.gz"))
     end
+  end
 
-    clusterapi_control_planes_json = proc_clusterapi_control_planes_json.call
-    Log.info { "clusterapi_control_planes_json: #{clusterapi_control_planes_json}" }
+  desc "Is Cluster Api available and managing a cluster?"
+  scored_task "clusterapi_enabled",
+    emoji: "✨" do |t, args|
+    CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
+      unless check_poc(args)
+        result.skipped("Cluster API not in poc mode")
+        next
+      end
 
-    if clusterapi_namespaces_json["items"]? && clusterapi_namespaces_json["items"].as_a.size > 0 && clusterapi_control_planes_json["items"]? && clusterapi_control_planes_json["items"].as_a.size > 0
-      result.passed("Cluster API is enabled")
-    else
-      result.failed("Cluster API NOT enabled")
+      Log.debug { "clusterapi_enabled" }
+      Log.info { "clusterapi_enabled args #{args.inspect}" }
+
+      # We test that the namespaces for cluster resources exist by looking for labels
+      # I found those by running
+      # clusterctl init
+      # kubectl -n capi-system describe deployments.apps capi-controller-manager
+      # https://cluster-api.sigs.k8s.io/clusterctl/commands/init.html#additional-information
+
+      # this indicates that cluster-api is installed
+      clusterapi_namespaces_json = KubectlClient::Get.resource("namespace", selector: "clusterctl.cluster.x-k8s.io")
+      Log.info { "clusterapi_namespaces_json: #{clusterapi_namespaces_json}" }
+
+      # check that a node is actually being manageed
+      # TODO: suppress msg in the case that this resource does-not-exist which is what happens when cluster-api is not installed
+      cmd = "kubectl get kubeadmcontrolplanes.controlplane.cluster.x-k8s.io -o json"
+      Process.run(
+        cmd,
+        shell: true,
+        output: clusterapi_control_planes_output = IO::Memory.new,
+        error: stderr = IO::Memory.new
+      )
+
+      proc_clusterapi_control_planes_json = -> do
+        begin
+          JSON.parse(clusterapi_control_planes_output.to_s)
+        rescue JSON::ParseException
+          # resource does-not-exist rescue to empty json
+          JSON.parse("{}")
+        end
+      end
+
+      clusterapi_control_planes_json = proc_clusterapi_control_planes_json.call
+      Log.info { "clusterapi_control_planes_json: #{clusterapi_control_planes_json}" }
+
+      if clusterapi_namespaces_json["items"]? && clusterapi_namespaces_json["items"].as_a.size > 0 && clusterapi_control_planes_json["items"]? && clusterapi_control_planes_json["items"].as_a.size > 0
+        result.passed("Cluster API is enabled")
+      else
+        result.failed("Cluster API NOT enabled")
+      end
     end
   end
 end

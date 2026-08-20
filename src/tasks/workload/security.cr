@@ -34,7 +34,8 @@ task "security", [
 end
 
 desc "Check if pods in the CNF use sysctls with restricted values"
-task "sysctls" do |t, args|
+scored_task "sysctls",
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     Kyverno.install
     policy_path = Kyverno.policy_path("pod-security/baseline/restrict-sysctls/restrict-sysctls.yaml")
@@ -56,7 +57,8 @@ task "sysctls" do |t, args|
 end
 
 desc "Check if the CNF has services with external IPs configured"
-task "external_ips" do |t, args|
+scored_task "external_ips",
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     Kyverno.install
     policy_path = Kyverno.best_practice_policy("restrict-service-external-ips/restrict-service-external-ips.yaml")
@@ -82,7 +84,9 @@ task "external_ips" do |t, args|
 end
 
 desc "Check if the CNF or the cluster resources have custom SELinux options"
-task "selinux_options" do |t, args|
+scored_task "selinux_options",
+  type: CNFManager::TestType::Essential,
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     Kyverno.install
     check_policy_path = Kyverno::CustomPolicies::SELinuxEnabled.new.policy_path
@@ -118,7 +122,9 @@ task "selinux_options" do |t, args|
 end
 
 desc "Check if the CNF is running containers with container sock mounts"
-task "container_sock_mounts" do |t, args|
+scored_task "container_sock_mounts",
+  type: CNFManager::TestType::Essential,
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     Kyverno.install
     policy_path = Kyverno.best_practice_policy("disallow_cri_sock_mount/disallow_cri_sock_mount.yaml")
@@ -138,7 +144,9 @@ task "container_sock_mounts" do |t, args|
 end
 
 desc "Check if any containers are running in privileged mode"
-task "privileged_containers" do |t, args|
+scored_task "privileged_containers",
+  type: CNFManager::TestType::Essential,
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     white_list_container_names = config.common.white_list_container_names
     Log.debug { "white_list_container_names #{white_list_container_names.inspect}" }
@@ -171,7 +179,9 @@ task "privileged_containers" do |t, args|
 end
 
 desc "Check if any containers are running in privileged mode"
-task "privilege_escalation", ["setup:kubescape_scan"] do |t, args|
+scored_task "privilege_escalation",
+  deps: ["setup:kubescape_scan"],
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     results_json = Kubescape.parse
     test_json = Kubescape.test_by_test_name(results_json, "Allow privilege escalation")
@@ -190,7 +200,9 @@ task "privilege_escalation", ["setup:kubescape_scan"] do |t, args|
 end
 
 desc "Check if an attacker can use symlink for arbitrary host file system access."
-task "symlink_file_system", ["setup:kubescape_scan"] do |t, args|
+scored_task "symlink_file_system",
+  deps: ["setup:kubescape_scan"],
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     results_json = Kubescape.parse
     test_json = Kubescape.test_by_test_name(results_json, "CVE-2021-25741 - Using symlink for arbitrary host file system access.")
@@ -209,7 +221,9 @@ task "symlink_file_system", ["setup:kubescape_scan"] do |t, args|
 end
 
 desc "Check if applications credentials are in configuration files."
-task "application_credentials", ["setup:kubescape_scan"] do |t, args|
+scored_task "application_credentials",
+  deps: ["setup:kubescape_scan"],
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     results_json = Kubescape.parse
     test_json = Kubescape.test_by_test_name(results_json, "Applications credentials in configuration files")
@@ -228,7 +242,9 @@ task "application_credentials", ["setup:kubescape_scan"] do |t, args|
 end
 
 desc "Check if potential attackers may gain access to a POD and inherit access to the entire host network. For example, in AWS case, they will have access to the entire VPC."
-task "host_network", ["setup:kubescape_scan"] do |t, args|
+scored_task "host_network",
+  deps: ["setup:kubescape_scan"],
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     results_json = Kubescape.parse
     test_json = Kubescape.test_by_test_name(results_json, "HostNetwork access")
@@ -247,7 +263,9 @@ task "host_network", ["setup:kubescape_scan"] do |t, args|
 end
 
 desc "Potential attacker may gain access to a POD and steal its service account token. Therefore, it is recommended to disable automatic mapping of the service account tokens in service account configuration and enable it only for PODs that need to use them."
-task "service_account_mapping", ["setup:kubescape_scan"] do |t, args|
+scored_task "service_account_mapping",
+  deps: ["setup:kubescape_scan"],
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     results_json = Kubescape.parse
     test_json = Kubescape.test_by_test_name(results_json, "Automatic mapping of service account")
@@ -268,7 +286,10 @@ task "service_account_mapping", ["setup:kubescape_scan"] do |t, args|
 end
 
 desc "Check if security services are being used to harden the application"
-task "linux_hardening", ["setup:kubescape_scan"] do |t, args|
+scored_task "linux_hardening",
+  type: CNFManager::TestType::Bonus,
+  deps: ["setup:kubescape_scan"],
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     results_json = Kubescape.parse
     test_json = Kubescape.test_by_test_name(results_json, "Linux hardening")
@@ -287,7 +308,9 @@ task "linux_hardening", ["setup:kubescape_scan"] do |t, args|
 end
 
 desc "Check if the containers have insecure capabilities."
-task "insecure_capabilities", ["setup:kubescape_scan"] do |t, args|
+scored_task "insecure_capabilities",
+  deps: ["setup:kubescape_scan"],
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     results_json = Kubescape.parse
     test_json = Kubescape.test_by_test_name(results_json, "Insecure capabilities")
@@ -306,7 +329,10 @@ task "insecure_capabilities", ["setup:kubescape_scan"] do |t, args|
 end
 
 desc "Check if the containers have CPU limits set"
-task "cpu_limits", ["setup:kubescape_scan"] do |t, args|
+scored_task "cpu_limits",
+  type: CNFManager::TestType::Essential,
+  deps: ["setup:kubescape_scan"],
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     results_json = Kubescape.parse
     test_json = Kubescape.test_by_test_name(results_json, "Ensure CPU limits are set")
@@ -325,7 +351,10 @@ task "cpu_limits", ["setup:kubescape_scan"] do |t, args|
 end
 
 desc "Check if the containers have memory limits set"
-task "memory_limits", ["setup:kubescape_scan"] do |t, args|
+scored_task "memory_limits",
+  type: CNFManager::TestType::Essential,
+  deps: ["setup:kubescape_scan"],
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     results_json = Kubescape.parse
     test_json = Kubescape.test_by_test_name(results_json, "Ensure memory limits are set")
@@ -344,7 +373,10 @@ task "memory_limits", ["setup:kubescape_scan"] do |t, args|
 end
 
 desc "Check Ingress and Egress traffic policy"
-task "ingress_egress_blocked", ["setup:kubescape_scan"] do |t, args|
+scored_task "ingress_egress_blocked",
+  type: CNFManager::TestType::Bonus,
+  deps: ["setup:kubescape_scan"],
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     results_json = Kubescape.parse
     test_json = Kubescape.test_by_test_name(results_json, "Ingress and Egress blocked")
@@ -363,7 +395,9 @@ task "ingress_egress_blocked", ["setup:kubescape_scan"] do |t, args|
 end
 
 desc "Check the Host PID/IPC privileges of the containers"
-task "host_pid_ipc_privileges", ["setup:kubescape_scan"] do |t, args|
+scored_task "host_pid_ipc_privileges",
+  deps: ["setup:kubescape_scan"],
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     results_json = Kubescape.parse
     test_json = Kubescape.test_by_test_name(results_json, "Host PID/IPC privileges")
@@ -382,7 +416,10 @@ task "host_pid_ipc_privileges", ["setup:kubescape_scan"] do |t, args|
 end
 
 desc "Check if the containers are running with non-root user with non-root group membership"
-task "non_root_containers", ["setup:kubescape_scan"] do |t, args|
+scored_task "non_root_containers",
+  type: CNFManager::TestType::Essential,
+  deps: ["setup:kubescape_scan"],
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     results_json = Kubescape.parse
     test_json = Kubescape.test_by_test_name(results_json, "Non-root containers")
@@ -401,7 +438,10 @@ task "non_root_containers", ["setup:kubescape_scan"] do |t, args|
 end
 
 desc "Check if containers have immutable file systems"
-task "immutable_file_systems", ["setup:kubescape_scan"] do |t, args|
+scored_task "immutable_file_systems",
+  type: CNFManager::TestType::Bonus,
+  deps: ["setup:kubescape_scan"],
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     results_json = Kubescape.parse
     test_json = Kubescape.test_by_test_name(results_json, "Immutable container filesystem")
@@ -420,7 +460,10 @@ task "immutable_file_systems", ["setup:kubescape_scan"] do |t, args|
 end
 
 desc "Check if containers have hostPath mounts"
-task "hostpath_mounts", ["setup:install_kubescape"] do |t, args|
+scored_task "hostpath_mounts",
+  type: CNFManager::TestType::Essential,
+  deps: ["setup:install_kubescape"],
+  emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     kubescape_control_id = "C-0048"
     Kubescape.scan(control_id: kubescape_control_id)
