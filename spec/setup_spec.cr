@@ -24,6 +24,14 @@ end
 # Registry containers are published with "-p 127.0.0.1::<port>" so docker picks
 # a free host port; hardcoded ports collide when concurrent CI jobs run this
 # spec shard on a shared runner.
+# Container names have to be unique per run for the same reason ports do:
+# concurrent CI jobs share the runner's docker daemon, so a fixed name both
+# collides on startup ("the container name is already in use") and makes each
+# job's cleanup tear down the other job's container.
+def unique_container_name(base : String) : String
+  "#{base}-#{Process.pid}"
+end
+
 def docker_published_port(container : String, container_port : Int32) : Int32
   result = DockerClient.run("port #{container} #{container_port}/tcp")
   result[:status].success?.should be_true
@@ -344,17 +352,19 @@ describe "Installation" do
   it "'cnf_install' should pass for oci repository", tags: ["cnf_installation2"] do
     tgz = fetch_nginx_chart_tgz("sample-cnfs/sample_oci_repo")
 
+    registry_container = unique_container_name("oci-reg")
+
     begin
       # Start registry
       DockerClient.run(
-        "run -d --name oci-reg \
+        "run -d --name #{registry_container} \
         -p 127.0.0.1::5000 \
         -e REGISTRY_AUTH=htpasswd \
         -e REGISTRY_AUTH_HTPASSWD_REALM=\"Registry\" \
         -e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd \
         registry:2"
       )[:status].success?.should be_true
-      local_registry_port = docker_published_port("oci-reg", 5000)
+      local_registry_port = docker_published_port(registry_container, 5000)
       # The fixture config references the registry via {{ ENV.SPEC_OCI_REGISTRY_PORT }};
       # cnf_uninstall re-renders it, so keep the variable set until after uninstall.
       ENV["SPEC_OCI_REGISTRY_PORT"] = local_registry_port.to_s
@@ -368,7 +378,7 @@ describe "Installation" do
       # Create htpasswd inside container
       DockerClient.run(
         "run --rm --entrypoint htpasswd httpd:2 -Bbn dummy secret \
-        | docker exec -i oci-reg sh -lc 'mkdir -p /auth && cat > /auth/htpasswd'"
+        | docker exec -i #{registry_container} sh -lc 'mkdir -p /auth && cat > /auth/htpasswd'"
       )[:status].success?.should be_true
 
       # Push chart to the registry
@@ -382,7 +392,7 @@ describe "Installation" do
       result[:status].success?.should be_true
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
-      result = DockerClient.run("rm -fv oci-reg")
+      result = DockerClient.run("rm -fv #{registry_container}")
       Log.for("verbose").debug { "#{result} #{result[:output]}" }
       FileUtils.rm_rf(tgz) rescue nil
 
@@ -395,10 +405,12 @@ describe "Installation" do
   it "'cnf_install' should pass for private helm repository", tags: ["cnf_installation2"] do
     tgz = fetch_nginx_chart_tgz("sample-cnfs/sample_private_repo")
 
+    chart_museum_container = unique_container_name("cm")
+
     begin
       # Start ChartMuseum with basic auth
       DockerClient.run(
-        "run -d --name cm \
+        "run -d --name #{chart_museum_container} \
         -p 127.0.0.1::8080 \
         -e STORAGE=local \
         -e STORAGE_LOCAL_ROOTDIR=/tmp/charts \
@@ -406,7 +418,7 @@ describe "Installation" do
         -e BASIC_AUTH_PASS=secret \
         chartmuseum/chartmuseum:latest"
       )[:status].success?.should be_true
-      chart_museum_port = docker_published_port("cm", 8080)
+      chart_museum_port = docker_published_port(chart_museum_container, 8080)
       # Referenced by the fixture config as {{ ENV.SPEC_CHART_MUSEUM_PORT }};
       # cnf_uninstall re-renders it, so keep the variable set until after uninstall.
       ENV["SPEC_CHART_MUSEUM_PORT"] = chart_museum_port.to_s
@@ -431,7 +443,7 @@ describe "Installation" do
       result[:status].success?.should be_true
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
-      result = DockerClient.run("rm -fv cm")
+      result = DockerClient.run("rm -fv #{chart_museum_container}")
       Log.for("verbose").debug { "#{result} #{result[:output]}" }
       FileUtils.rm_rf(tgz) rescue nil
 
@@ -443,6 +455,7 @@ describe "Installation" do
 
   it "'cnf_install' should require client cert for OCI registry (mTLS)", tags: ["cnf_installation2"] do
     reg_host = "127.0.0.1.nip.io"
+    mtls_container = unique_container_name("oci-reg-mtls")
     tgz = fetch_nginx_chart_tgz("sample-cnfs/sample_tls_repo")
 
     # TLS material
@@ -480,13 +493,13 @@ describe "Installation" do
       # Start registry (mTLS)
       config_path = "sample-cnfs/sample_tls_repo/config.yml"
       DockerClient.run(
-        "run -d --name oci-reg-mtls " \
+        "run -d --name #{mtls_container} " \
         "-p 127.0.0.1::5000 " \
         "-v #{File.expand_path(tls_dir)}:/certs:ro " \
         "-v #{File.expand_path(config_path)}:/etc/docker/registry/config.yml:ro " \
         "registry:2"
       )[:status].success?.should be_true
-      registry_port = docker_published_port("oci-reg-mtls", 5000)
+      registry_port = docker_published_port(mtls_container, 5000)
       reg_host_port = "#{reg_host}:#{registry_port}"
       # Referenced by the fixture config as {{ ENV.SPEC_MTLS_REGISTRY_PORT }};
       # cnf_uninstall re-renders it, so keep the variable set until after uninstall.
@@ -517,7 +530,7 @@ describe "Installation" do
       result[:status].success?.should be_true
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
-      result = DockerClient.run("rm -fv oci-reg-mtls")
+      result = DockerClient.run("rm -fv #{mtls_container}")
       Log.for("verbose").debug { "#{result} #{result[:output]}" }
       FileUtils.rm_rf(tls_dir) rescue nil
       FileUtils.rm_rf(tgz) rescue nil
