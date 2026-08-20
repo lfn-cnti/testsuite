@@ -85,7 +85,7 @@
           "type": ["string", "null"]
         },
         "type": {
-          "description": "Scoring class from points.yml (essential, bonus, normal, cert, ...).",
+          "description": "The test's declared type (essential, normal, bonus).",
           "type": "string"
         },
         "points": { "description": "Points awarded for this test.", "type": "integer" },

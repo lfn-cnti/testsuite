@@ -86,7 +86,7 @@ items:
   - name: privileged_containers
     status: failed                # passed | failed | skipped | na | error
     message: Found 2 privileged containers
-    type: essential               # scoring class from points.yml (essential | bonus | normal | cert | ...)
+    type: essential               # the test's declared type (essential | normal | bonus)
     points: 0
     start_time: "2026-07-07T10:00:00.000000000Z"   # RFC 3339
     end_time: "2026-07-07T10:00:03.000000000Z"
@@ -136,6 +136,29 @@ All counts/scores are scoped to the tests that actually ran.
 | `essential_passed` / `essential_max_passed` | Passed vs. maximum-passable among `essential`-tagged tests. |
 | `points` | Total points scored. |
 | `maximum_points` | Maximum points achievable by the tests that ran. |
+##### Test scoring
+
+A test declares everything the suite knows about it at its own definition:
+
+```crystal
+scored_task "liveness",
+  type: CNFManager::TestType::Essential,
+  emoji: "🥑" do |t, args|
+  ...
+end
+```
+
+The **type** decides the point value — `essential` 100, `normal` 5, `bonus` 1 —
+so no test restates its own score, and every essential test is by definition a
+certification test. Everything else is read back rather than declared: a test's
+**scope** from the namespace it registers in, and its **category** from the
+aggregate that runs it. Individual `pass:`/`fail:` overrides exist for the rare
+test that needs one.
+
+There is no `points.yml`. The suite used to write one into the working directory
+and read it straight back, so it needed a writable directory to read data it was
+compiled with, and edits to the file were silently reverted on the next run.
+
 
 ##### `items[]` fields
 
@@ -144,7 +167,7 @@ All counts/scores are scoped to the tests that actually ran.
 | `name` | Test name (e.g. `privileged_containers`). |
 | `status` | `passed`, `failed`, `skipped`, `na`, or `error`. |
 | `message` | One-line verdict for the test. |
-| `type` | Scoring class from `points.yml` (`essential`, `bonus`, `normal`, `cert`, …). |
+| `type` | The test's declared type (`essential`, `normal`, `bonus`). |
 | `points` | Points awarded for this test. |
 | `start_time` / `end_time` | RFC 3339 timestamps for the test's start and end. |
 | `task_runtime` | Test duration in seconds (number). |

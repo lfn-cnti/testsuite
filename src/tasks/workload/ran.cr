@@ -13,7 +13,8 @@ task "ran", ["oran_e2_connection"] do |_, args|
   end
 end
 desc "Test if RAN uses the ORAN e2 interface"
-task "oran_e2_connection" do |t, args|
+scored_task "oran_e2_connection",
+  type: CNFManager::TestType::Normal do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     if ORANMonitor.isCNFaRIC?(config)
       # (kosstennbl) TODO: Redesign oran_e2_connection test, preferably without usage of installation configmaps. More info in issue #2153

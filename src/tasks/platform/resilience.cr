@@ -13,7 +13,8 @@ namespace "platform" do
   end
 
   desc "Does the Platform recover the node and reschedule pods when a worker node fails"
-  task "worker_reboot_recovery" do |t, args|
+  scored_task "worker_reboot_recovery",
+    type: CNFManager::TestType::Normal do |t, args|
     CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       unless check_destructive(args)
         result.skipped("Node not in destructive mode")

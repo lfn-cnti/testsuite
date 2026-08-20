@@ -47,6 +47,5 @@ namespace "setup" do
   desc "Materialize the suite's runtime configuration files in the working directory"
   task "configuration_file_setup" do |_, args|
     logger = SLOG.for("configuration_file_setup").info { "Creating configuration file" }
-    CNFManager::Points.create_points_yml
   end
 end

@@ -12,7 +12,7 @@ require "../../modules/k8s_kernel_introspection"
 require "../utils/utils.cr"
 
 desc "The CNF test suite checks to see if CNFs follows microservice principles"
-task "microservice", ["reasonable_image_size", "reasonable_startup_time", "single_process_type", "service_discovery", "shared_database", "specialized_init_system", "sig_term_handled"] do |_, args|
+task "microservice", ["reasonable_image_size", "reasonable_startup_time", "single_process_type", "service_discovery", "shared_database", "specialized_init_system", "sig_term_handled", "zombie_handled"] do |_, args|
   stdout_score("microservice")
   if invoked_task?("microservice")
     stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green)
@@ -29,7 +29,10 @@ enum StraceAttachResult
 end
 
 desc "To check if the CNF has multiple microservices that share a database"
-task "shared_database", ["setup:install_cluster_tools"] do |t, args|
+scored_task "shared_database",
+  type: CNFManager::TestType::Normal,
+  deps: ["setup:install_cluster_tools"],
+  emoji: "💾" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     # todo loop through local resources and see if db match found
     db_match = Netstat::Mariadb.match
@@ -107,7 +110,8 @@ task "shared_database", ["setup:install_cluster_tools"] do |t, args|
 end
 
 desc "Does the CNF have a reasonable startup time (< 30 seconds)?"
-task "reasonable_startup_time" do |t, args|
+scored_task "reasonable_startup_time",
+  type: CNFManager::TestType::Normal do |t, args|
   # TODO (kosstennbl) Redesign this test, now it is based only on livness probes. 
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     current_dir = FileUtils.pwd
@@ -239,7 +243,9 @@ end
 #    CRYSTAL_ENV=TEST ./cnf-testsuite reasonable_image_size
 #
 desc "Does the CNF have a reasonable container image size (< 5GB)?"
-task "reasonable_image_size" do |t, args|
+scored_task "reasonable_image_size",
+  type: CNFManager::TestType::Normal,
+  emoji: "⚖👀" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     docker_insecure_registries = config.common.docker_insecure_registries || [] of String
     unless Dockerd.install(docker_insecure_registries)
@@ -342,7 +348,9 @@ task "reasonable_image_size" do |t, args|
 end
 
 desc "Do the containers in a pod have only one process type?"
-task "single_process_type" do |t, args|
+scored_task "single_process_type",
+  type: CNFManager::TestType::Essential,
+  emoji: "⚖👀" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     fail_msgs = Set(String).new
     ignored_init_msgs = Set(String).new
@@ -447,7 +455,9 @@ end
 
 
 desc "Are the zombie processes handled?"
-task "zombie_handled" do |t, args|
+scored_task "zombie_handled",
+  type: CNFManager::TestType::Essential,
+  emoji: "⚖👀" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     CNFManager.resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |resource|
       ClusterTools.all_containers_by_resource?(resource, resource[:namespace], include_proctree: false) do |container_id, container_pid_on_node, node|
@@ -565,7 +575,9 @@ def check_sigterm_in_strace_logs(pid : String, node : JSON::Any) : Bool
 end
 
 desc "Are the SIGTERM signals handled?"
-task "sig_term_handled" do |t, args|
+scored_task "sig_term_handled",
+  type: CNFManager::TestType::Essential,
+  emoji: "⚖👀" do |t, args|
   logger = ::Log.for(t.name)
 
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
@@ -750,7 +762,9 @@ task "sig_term_handled" do |t, args|
 end
 
 desc "Are any of the containers exposed as a service?"
-task "service_discovery" do |t, args|
+scored_task "service_discovery",
+  type: CNFManager::TestType::Bonus,
+  emoji: "⚖👀" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     # Collect service names from the CNF resource list
     cnf_service_names = CNFManager.resource_refs(args, config, ["service"]) do |service|
@@ -789,7 +803,10 @@ task "service_discovery" do |t, args|
 end
 
 desc "To check if the CNF uses a specialized init system"
-task "specialized_init_system", ["setup:install_cluster_tools"] do |t, args|
+scored_task "specialized_init_system",
+  type: CNFManager::TestType::Essential,
+  deps: ["setup:install_cluster_tools"],
+  emoji: "🚀" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     error_occurred    = false
     resources_checked = false

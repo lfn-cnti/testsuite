@@ -30,7 +30,6 @@ chaos_cpu_hog.yml
 chaos_container_kill.yml
 /.idea/
 *.log
-points.yml
 containerd-*-linux-amd64.tar.gz
 /cnf-testsuite.yml
 /*.tgz

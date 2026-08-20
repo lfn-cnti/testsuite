@@ -132,7 +132,7 @@ begin
     exit 0
   end
 
-  argv = ARGV.clone
+  argv = TaskAliases.resolve_exclusions(ARGV.clone)
   validate_cli_args!(argv)
   # See issue #426 for exit code requirement
   Sam.process_tasks(argv)

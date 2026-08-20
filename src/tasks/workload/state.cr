@@ -215,7 +215,10 @@ module WorkloadResource
 end
 
 desc "Does the CNF crash when node-drain occurs"
-task "node_drain", ["setup:install_litmus"] do |t, args|
+scored_task "node_drain",
+  type: CNFManager::TestType::Essential,
+  deps: ["setup:install_litmus"],
+  emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     skipped = false
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
@@ -356,7 +359,9 @@ task "node_drain", ["setup:install_litmus"] do |t, args|
 end
 
 desc "Does the CNF use an elastic persistent volume"
-task "elastic_volumes" do |t, args|
+scored_task "elastic_volumes",
+  type: CNFManager::TestType::Bonus,
+  emoji: "🧫" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     all_volumes_elastic = true
     volumes_used = false
@@ -402,7 +407,10 @@ task "elastic_volumes" do |t, args|
 end
 
 desc "Does the CNF use a database which uses perisistence in a cloud native way"
-task "database_persistence" do |t, args|
+scored_task "database_persistence",
+  type: CNFManager::TestType::Normal,
+  emoji: "🧫",
+  fail: -1 do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     # Log.debug { "database_persistence" }
     # todo K8s Database persistence test: if a mysql (or any popular database) image is installed:
@@ -459,7 +467,9 @@ task "database_persistence" do |t, args|
 end
 
 desc "Does the CNF use a non-cloud native data store: local volumes on the node?"
-task "no_local_volume_configuration" do |t, args|
+scored_task "no_local_volume_configuration",
+  type: CNFManager::TestType::Bonus,
+  emoji: "💾" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     task_response = CNFManager.cnf_workload_resources(args, config) do | resource|
       hostPath_found = nil 
