@@ -25,6 +25,6 @@ task "cert_compatibility" do |t, args|
 
 end
 
-task "cert_compatibility_title" do |_, args|
+task "_cert_compatibility_title" do |_, args|
   
 end

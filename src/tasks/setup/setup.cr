@@ -8,6 +8,7 @@ task "setup", ["version", "setup:cnf_directory_setup", "setup:install_local_helm
 end
 
 namespace "setup" do
+  desc "Create the cnf-testsuite namespace used by the suite's helper tools"
   task "create_namespace" do |_, args|
     logger = SLOG.for("create_namespace")
     logger.info { "Creating namespace for CNTI testsuite" }
@@ -43,6 +44,7 @@ namespace "setup" do
     stdout_success "Successfully created directories for cnf-testsuite"
   end
 
+  desc "Materialize the suite's runtime configuration files in the working directory"
   task "configuration_file_setup" do |_, args|
     logger = SLOG.for("configuration_file_setup").info { "Creating configuration file" }
     CNFManager::Points.create_points_yml

@@ -1,6 +1,7 @@
 require "sam"
 require "../utils/utils.cr"
 
+desc "Install the CNF under test from a cnf-testsuite.yml config"
 task "cnf_install", ["setup:install_local_helm", "setup:create_namespace"] do |_, args|
   logger = SLOG.for("cnf_install")
   logger.info { "Installing CNF to cluster" }
@@ -24,6 +25,7 @@ task "cnf_install", ["setup:install_local_helm", "setup:create_namespace"] do |_
   stdout_success "CNF installation complete."
 end
 
+desc "Uninstall the CNF under test and remove its installed files"
 task "cnf_uninstall" do |_, args|
   logger = SLOG.for("cnf_uninstall")
   logger.info { "Uninstalling CNF from cluster" }
@@ -38,6 +40,7 @@ task "cnf_uninstall" do |_, args|
   end
 end
 
+desc "Check a cnf-testsuite.yml for errors without installing anything"
 task "validate_config" do |_, args|
   if args.named["cnf-config"]?
     config = CNFInstall::Config.parse_cnf_config_from_file(args.named["cnf-config"].to_s)
