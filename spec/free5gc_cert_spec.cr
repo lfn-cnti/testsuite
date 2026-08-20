@@ -11,9 +11,11 @@ describe "Free5gc certification" do
       ShellCmd.cnf_install("cnf-config=./example-cnfs/free5gc/cnf-testsuite.yml timeout=1800")
       
       result = ShellCmd.run_testsuite("cert")
-      
-      # Ensure the testsuite binary didn't crash
-      result[:status].success?.should be_true
+
+      # `cert` exits 0 when the CNF is certified and 1 when it is not; both are
+      # acceptable here since this spec asserts the score, not the verdict.
+      # Exit 2 (an errored test) means the suite itself broke and is not.
+      result[:status].exit_code.should be < 2
       
       result[:output].should match(/PASSED/)
       result[:output].should match(/(17|18|19) of 19 total tests passed/)

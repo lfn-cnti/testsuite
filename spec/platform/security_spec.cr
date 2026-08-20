@@ -17,7 +17,7 @@ describe "Platform" do
   it "'cluster_admin' should fail on a cnf that uses a cluster admin binding", tags: ["platform:security"] do
     begin
       result = ShellCmd.run_testsuite("platform:cluster_admin")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Users with cluster-admin RBAC permissions found)/ =~ result[:output]).should_not be_nil
     end
   end
@@ -26,7 +26,7 @@ describe "Platform" do
     ShellCmd.run("kubectl run tiller --image=rancher/tiller:v2.11.0", "create_tiller")
     KubectlClient::Wait.resource_wait_for_install("pod", "tiller")
     result = ShellCmd.run_testsuite("platform:helm_tiller")
-    result[:status].success?.should be_true
+    result[:status].exit_code.should eq(1)
     (/(FAILED).*(Containers with the Helm Tiller image are running)/ =~ result[:output]).should_not be_nil
   ensure
     KubectlClient::Delete.resource("pod", "tiller")
@@ -67,7 +67,7 @@ describe "Platform" do
 
       with_kubeconfig(cluster.kubeconfig) { 
         result = ShellCmd.run_testsuite("platform:verify_configmaps_encryption")
-        result[:status].success?.should be_true
+        result[:status].exit_code.should eq(1)
         (/(FAILED).*(ConfigMaps are not encrypted in etcd)/ =~ result[:output]).should_not be_nil
       }
       
@@ -106,7 +106,7 @@ describe "verify_secrets_encryption", tags: ["platform:security"] do
 
     with_kubeconfig(cluster.kubeconfig) { 
       result = ShellCmd.run_testsuite("platform:verify_secrets_encryption")
-      result[:status].success?.should be_true
+      result[:status].exit_code.should eq(1)
       (/(FAILED).*(Secret\/etcd encryption disabled)/ =~ result[:output]).should_not be_nil
     }
 
