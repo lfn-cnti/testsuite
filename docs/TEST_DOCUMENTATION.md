@@ -479,7 +479,7 @@ All state: `./cnf-testsuite state`
 
 #### Overview
 
-A node is drained and workload resources rescheduled to another node, passing with a liveness and readiness check. This will skip when the cluster only has a single node.
+A node is drained and workload resources rescheduled to another node, passing with a liveness and readiness check. This will skip when the cluster has fewer than two schedulable nodes, when the workload has no scheduled pod, or when no schedulable node is left to move the chaos operator onto.
 Expectation: All workload resources are successfully rescheduled onto other available node(s).
 
 #### Rationale
