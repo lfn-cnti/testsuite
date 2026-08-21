@@ -27,6 +27,46 @@ describe "CLI argument validation" do
     result[:output].should contain("separate them with")
   end
 
+  it "exits 64 when a task's own arguments are missing or name no file", tags: ["points"] do
+    result = ShellCmd.run_testsuite("update_config")
+    result[:status].exit_code.should eq(USAGE_EXIT_CODE)
+    result[:output].should contain("Usage: update_config")
+
+    result = ShellCmd.run_testsuite("update_config input_config=/nonexistent.yml output_config=/tmp/ignored.yml")
+    result[:status].exit_code.should eq(USAGE_EXIT_CODE)
+    result[:output].should contain("does not exist")
+
+    result = ShellCmd.run_testsuite("validate_config")
+    result[:status].exit_code.should eq(USAGE_EXIT_CODE)
+    result[:output].should contain("Usage: validate_config")
+
+    result = ShellCmd.run_testsuite("validate_config cnf-config=/nonexistent/cnf-testsuite.yml")
+    result[:status].exit_code.should eq(USAGE_EXIT_CODE)
+    result[:output].should contain("CNF configuration file not found")
+
+    result = ShellCmd.run_testsuite("cnf_install cnf-config=/nonexistent/cnf-testsuite.yml")
+    result[:status].exit_code.should eq(USAGE_EXIT_CODE)
+    result[:output].should contain("CNF configuration file not found")
+  end
+
+  it "exits 1, never 0, when a command refuses to do what was asked", tags: ["points"] do
+    output_config = File.tempname("already-latest", ".yml")
+    begin
+      result = ShellCmd.run_testsuite("update_config input_config=spec/fixtures/cnf-testsuite-v2-example.yml output_config=#{output_config}")
+      result[:status].exit_code.should eq(1)
+      result[:output].should contain("already the latest version")
+      File.exists?(output_config).should be_false
+    ensure
+      File.delete?(output_config)
+    end
+  end
+
+  it "exits 2 when the suite itself breaks outside a test", tags: ["points"] do
+    result = ShellCmd.run_testsuite("_raise_outside_task_runner")
+    result[:status].exit_code.should eq(2)
+    result[:output].should contain("unhandled")
+  end
+
   it "preserves '=' characters inside named argument values", tags: ["points"] do
     Sam::Args.new(["cnf-config=a=b"]).named["cnf-config"].should eq("a=b")
   end

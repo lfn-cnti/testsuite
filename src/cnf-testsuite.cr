@@ -89,8 +89,10 @@ rescue e : Sam::NotFound
     stdout_failure "Did you mean '#{suggestion}'?"
   end
   stdout_info "Run `#{CLIHelp::BIN_NAME} help tasks` to list every task."
-  exit 1
+  exit USAGE_EXIT_CODE
 rescue e
+  # An exception nothing caught: the suite itself broke, the same verdict as
+  # a test that errored.
   puts e.backtrace.join("\n"), e
-  exit 1
+  exit CNFManager::Task::CRITICAL_FAILURE_CODE
 end

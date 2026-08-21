@@ -83,7 +83,7 @@ describe "CLI help" do
 
     # ... and on the invocation path, not just via `help`.
     result = ShellCmd.run_testsuite("livenes")
-    result[:status].exit_code.should eq(1)
+    result[:status].exit_code.should eq(USAGE_EXIT_CODE)
     result[:output].should contain("Did you mean 'liveness'?")
 
     # Nothing close enough gets no misleading suggestion.

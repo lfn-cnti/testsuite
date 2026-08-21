@@ -6,8 +6,7 @@ def get_excluded_tasks(args)
     if exclude.is_a? String
       exclude = exclude.includes?(",") ? exclude.split(",") : exclude.split(" ")
     else
-      puts "Exclude argument should contain string value Ex.: (exclude=\"increase_decrease_capacity single_process_type\")"
-      exit 1
+      usage_error! "Exclude argument should contain string value Ex.: (exclude=\"increase_decrease_capacity single_process_type\")"
     end
   else
     exclude = [] of String
@@ -16,8 +15,7 @@ def get_excluded_tasks(args)
     cert_tests = CNFManager::Points.tasks_by_tag_intersection(["cert"])
     exclude.each do |task|
       unless cert_tests.includes? task
-        puts "Excluded task \"#{task}\" is not a cert test, check syntax"
-        exit 1
+        usage_error! "Excluded task \"#{task}\" is not a cert test, check syntax"
       end
     end
   end

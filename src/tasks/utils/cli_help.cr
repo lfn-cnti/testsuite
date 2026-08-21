@@ -192,8 +192,8 @@ module CLIHelp
       #{Sam::TASK_SEPARATOR}         run several tasks in one invocation, e.g. `#{BIN_NAME} liveness #{Sam::TASK_SEPARATOR} readiness`
 
     EXIT CODES
-      0   the run met its objective          2   a test errored (the suite broke)
-      1   it did not                         64  usage error, before any test ran
+      0   the run met its objective          2   the suite broke: a test errored, or a crash
+      1   it did not, or a command failed    64  usage error: the command line was wrong
 
     MORE
       #{BIN_NAME} help tasks     list every task, grouped by category

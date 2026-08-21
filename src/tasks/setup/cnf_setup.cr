@@ -6,10 +6,14 @@ task "cnf_install", ["setup:install_local_helm", "setup:create_namespace"] do |_
   logger = SLOG.for("cnf_install")
   logger.info { "Installing CNF to cluster" }
 
+  # A wrong command line is a usage error; find out before ClusterTools is
+  # deployed, not after.
+  CNFInstall.parse_install_cli_args(args)
+
   if CNFManager.cnf_installed?
-    stdout_warning "A CNF is already installed. Installation of multiple CNFs is not allowed."
-    stdout_warning "To install a new CNF, uninstall the existing one by running: cnf_uninstall"
-    exit 0
+    stdout_failure "A CNF is already installed. Installation of multiple CNFs is not allowed."
+    stdout_failure "To install a new CNF, uninstall the existing one by running: cnf_uninstall"
+    exit 1
   end
 
   if ClusterTools.install
@@ -43,11 +47,11 @@ end
 desc "Check a cnf-testsuite.yml for errors without installing anything"
 task "validate_config" do |_, args|
   if args.named["cnf-config"]?
-    config = CNFInstall::Config.parse_cnf_config_from_file(args.named["cnf-config"].to_s)
+    config_path = CNFInstall.ensure_cnf_config_path_file(args.named["cnf-config"].to_s)
+    config = CNFInstall::Config.parse_cnf_config_from_file(config_path)
     stdout_success "Successfully validated CNF config"
     SLOG.for("validate_config").debug { "Config: #{config.inspect}" }
   else
-    stdout_failure "cnf-config parameter needed"
-    exit 1
+    usage_error! "Usage: validate_config cnf-config=PATH"
   end
 end

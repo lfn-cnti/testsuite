@@ -18,8 +18,7 @@ module CNFInstall
     parsed_args = parse_install_cli_args(cli_args)
     cnf_config_path = parsed_args[:config_path]
     if cnf_config_path.empty?
-      stdout_failure "cnf-config or cnf-path parameter with valid CNF configuration should be provided."
-      exit(1)
+      usage_error! "cnf-config or cnf-path parameter with valid CNF configuration should be provided."
     end
     config = Config.parse_cnf_config_from_file(cnf_config_path)
     ensure_cnf_dir_structure()
@@ -67,14 +66,17 @@ module CNFInstall
   end
 
   def self.ensure_cnf_config_path_file(path)
-    if CNFManager.path_has_yml?(path)
+    if path.empty?
+      usage_error! "cnf-config=PATH is required: a cnf-testsuite.yml or the directory holding one."
+    elsif CNFManager.path_has_yml?(path)
       yml = path
     elsif File.directory?(path)
       yml = File.join(path, CONFIG_FILE)
     else
-      stdout_failure "Invalid CNF configuration file: #{path}."
-      exit(1)
+      usage_error! "Invalid CNF configuration file: #{path}."
     end
+    usage_error! "CNF configuration file not found: #{yml}." unless File.file?(yml)
+    yml
   end
 
   def self.ensure_cnf_dir_structure

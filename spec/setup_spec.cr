@@ -178,7 +178,7 @@ describe "Installation" do
     begin
       result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_coredns/cnf-testsuite.yml")
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
-      result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-minimal-cnf/cnf-testsuite.yml")
+      result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-minimal-cnf/cnf-testsuite.yml", expect_failure: true)
       (/A CNF is already installed. Installation of multiple CNFs is not allowed./ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()

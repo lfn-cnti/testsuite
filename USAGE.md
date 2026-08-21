@@ -5,6 +5,7 @@
 - [Overview](USAGE.md#overview)
 - [Syntax and Usage](USAGE.md#syntax-for-running-any-of-the-tests)
 - [Common Examples](USAGE.md#common-example-commands)
+- [Exit Codes](USAGE.md#exit-codes)
 - [Logging Options](USAGE.md#logging-options)
 
 ### Overview
@@ -127,7 +128,7 @@ items:
 | `schema_version` | Integer version of this results-file schema; bumped on breaking changes. |
 | `status` | Overall run verdict, derived from `exit_code`: `passed` (0), `failed` (1), `error` (2). |
 | `command` | The command line that produced this file. |
-| `exit_code` | Process exit code, answering "did this run meet its objective?". `2` at least one test errored (raised) - the suite itself broke, which always wins. Otherwise, for a run with a pass criterion (`cert`): `0` the criterion was met, `1` it was not. For a run without one (`all`, `workload`, `platform`): `0` no test failed (passed/skipped/na), `1` at least one test failed. Additionally, the process exits with `64` (usage error) on unknown or malformed command-line arguments, before any test runs. |
+| `exit_code` | Process exit code, answering "did this run meet its objective?". `2` at least one test errored (raised) - the suite itself broke, which always wins. Otherwise, for a run with a pass criterion (`cert`): `0` the criterion was met, `1` it was not. For a run without one (`all`, `workload`, `platform`): `0` no test failed (passed/skipped/na), `1` at least one test failed. Additionally, the process exits with `64` (usage error) on unknown or malformed command-line arguments, before any test runs. See [Exit codes](#exit-codes) for the full table. |
 | `summary` | Aggregate numbers for the whole run (see below). |
 | `items` | One entry per test that ran (see below). |
 
@@ -261,6 +262,21 @@ diagnostics and go to **stderr** (or to the `LOG_PATH` file when set). This mean
 `LOG_LEVEL=debug`. When capturing the streams separately, their relative ordering is not
 guaranteed — merge them with `2>&1` if strict interleaving matters. Cursor-control progress
 rewrites and colors are only emitted when stdout is a terminal.
+
+---
+
+### Exit codes
+
+The exit code answers one question: did the invocation do what was asked?
+
+| Code | Meaning | When |
+|------|---------|------|
+| `0` | Yes | A test run met its objective — for a run with a pass criterion (`cert`) the criterion was met, for any other run no test failed. A setup, install or uninstall command completed. |
+| `1` | No | At least one test failed, or the criterion was not met. Or a command could not do its job: a precondition was missing (no kubeconfig, no CNF installed, a CNF already installed, a tool failed to install) or an operation failed. A message says which. |
+| `2` | The suite itself broke | A test raised an unexpected exception, or the process crashed outside a test. Always wins over `1`. |
+| `64` | Usage error | The command line was wrong: an unknown task, flag or argument; a malformed value; a required argument missing; an argument naming a file that does not exist. Detected before the requested operation starts. (sysexits `EX_USAGE`.) |
+
+A script that only needs pass/fail can test for `0`. A script that wants to tell "the CNF failed" (`1`) apart from "the suite or the invocation is broken" (`2`, `64`) can branch on the code.
 
 ---
 

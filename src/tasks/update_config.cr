@@ -8,8 +8,7 @@ desc "Updates an old configuration file to the latest version and saves it to th
 task "update_config" do |_, args|
   # Ensure both arguments are provided
   if !((args.named.keys.includes? "input_config") && (args.named.keys.includes? "output_config"))
-    stdout_warning "Usage: update_config input_config=OLD_CONFIG_PATH output_config=NEW_CONFIG_PATH"
-    exit(0)
+    usage_error! "Usage: update_config input_config=OLD_CONFIG_PATH output_config=NEW_CONFIG_PATH"
   end
 
   input_config = args.named["input_config"].as(String)
@@ -17,8 +16,7 @@ task "update_config" do |_, args|
 
   # Check if the input config file exists
   unless File.exists?(input_config)
-    stdout_failure "The input config file '#{input_config}' does not exist."
-    exit(1)
+    usage_error! "The input config file '#{input_config}' does not exist."
   end
 
   begin
@@ -26,8 +24,8 @@ task "update_config" do |_, args|
 
     # Verify that config is not the latest version
     if CNFInstall::Config.config_version_is_latest?(raw_input_config)
-      stdout_warning "Input config is the latest version."
-      exit(0)
+      stdout_failure "Input config is already the latest version; nothing was written to '#{output_config}'."
+      exit(1)
     end
 
     # Initialize the ConfigUpdater
