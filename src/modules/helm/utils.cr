@@ -51,6 +51,13 @@ module Helm
 
   # Public helpers
 
+  def self.binary_found? : Bool
+    result = ToolChecker::Result.new(tool_name)
+    global_check(result)
+    local_check(result)
+    result.global_ok || result.local_ok
+  end
+
   # Temporary solution for task prereqs/specs
   def self.installation_found? : Bool
     result = check
@@ -78,8 +85,8 @@ module Helm
   class Binary
     @@helm : String = ""
 
-    # This will return path to helm binary if its found globally or installed by testsuite.
-    # If helm is not found it will return empty string.
+    # Returns the path to a global or testsuite-managed Helm binary.
+    # Raises HelmBinaryNotFoundError when neither installation exists.
     def self.get : String
       return @@helm unless @@helm.empty?
 
@@ -100,31 +107,36 @@ module Helm
     end
   end
 
-  def self.install_local_helm : Bool
+  def self.install_local_helm(force : Bool = false) : Bool
     logger = Log.for("install_local_helm")
     logger.info { "Installing Helm tool locally" }
 
     FileUtils.mkdir_p(Setup::HELM_DIR)
 
-    if File.exists?(Setup::HELM_BINARY)
+    if File.exists?(Setup::HELM_BINARY) && !force
       logger.notice { "Helm binary found in: #{Setup::HELM_BINARY}, skipping installation" }
       return true
     end
 
+    helm_archive = File.join(Setup::HELM_DIR, "helm-#{Setup::HELM_VERSION}.tar.gz")
     begin
-      helm_archive = File.join(Setup::HELM_DIR, "helm-#{Setup::HELM_VERSION}.tar.gz")
       download_file(Setup::HELM_URL, helm_archive)
     rescue ex : Exception
       logger.error { "Error while downloading Helm binary: #{ex.message}" }
       return false
     end
 
-    unless (res = TarClient.untar(helm_archive, Setup::HELM_DIR))[:status].success?
+    res = begin
+      TarClient.untar(helm_archive, Setup::HELM_DIR)
+    ensure
+      File.delete?(helm_archive)
+    end
+
+    unless res[:status].success?
       logger.error { "Error while extracting Helm binary: #{res[:error]}" }
       return false
     end
 
-    File.delete(helm_archive)
     true
   end
 
