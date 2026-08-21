@@ -215,7 +215,7 @@ scored_task "node_drain",
   deps: ["setup:install_litmus"],
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    skipped = false
+    skip_reason : String? = nil
     task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
       test_passed = true
       app_namespace = resource[:namespace]
@@ -227,124 +227,128 @@ scored_task "node_drain",
         result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], reason: "no resource label found for #{t.name} test")
         test_passed = false
       else
-        schedulable_nodes_count=KubectlClient::Get.schedulable_nodes_list
-        cordon_deployment_label = "#{spec_labels.as_h.first_key}"
-        cordon_deployment_value = "#{spec_labels.as_h.first_value}"
+        schedulable_nodes = KubectlClient::Get.schedulable_nodes_list
+        deployment_label = "#{spec_labels.as_h.first_key}"
+        deployment_label_value = "#{spec_labels.as_h.first_value}"
 
         # Declare this outside the block so that the name of the node can be used to uncordon later.
         cordon_target_node_name = nil
 
-        if schedulable_nodes_count.size > 1
-          # Identify cordon node target.
-          cordon_target_node_name = LitmusManager.get_target_node_to_cordon(cordon_deployment_label, cordon_deployment_value, namespace: app_namespace)
-          Log.info { "Found node to cordon #{cordon_target_node_name} using label #{cordon_deployment_label}='#{cordon_deployment_value}' in #{app_namespace} namespace." }
+        begin
+          # Resolve the workload's node once, up front, and use that single answer for
+          # both the cordon and the chaos experiment. Asking a second time after
+          # cordoning let the two answers disagree: pods terminating from an earlier
+          # test are still listed by kubectl, so the first answer could name a node the
+          # workload had already left, and the run would cordon one node while draining
+          # another.
+          app_node_name = LitmusManager.get_workload_node_name(deployment_label, deployment_label_value, namespace: app_namespace)
 
-          # Cordon the node.
-          cordon_result = KubectlClient::Utils.cordon("#{cordon_target_node_name}")
-
-          # If cordoning fails, skip the test.
-          if cordon_result[:status].success?
-            Log.info { "Cordoned node #{cordon_target_node_name} successfully." }
+          if schedulable_nodes.size <= 1
+            skip_reason = "node_drain chaos test requires the cluster to have atleast two schedulable nodes"
+          elsif app_node_name.nil?
+            skip_reason = "node_drain chaos test found no scheduled pod for #{deployment_label}=#{deployment_label_value} in the #{app_namespace} namespace"
           else
-            Log.info { "Unable to cordon node #{cordon_target_node_name}." }
-            skipped = true
-          end
-        else
-          Log.info { "Skipping test. Scheduleable node count is not > 1." }
-          skipped = true
-        end
+            Log.info { "Found node to cordon #{app_node_name} using label #{deployment_label}='#{deployment_label_value}' in #{app_namespace} namespace." }
 
-        unless skipped
-          test_passed = true
-          deployment_label="#{spec_labels.as_h.first_key}"
-          deployment_label_value="#{spec_labels.as_h.first_value}"
-          app_nodeName_cmd = "kubectl get pods -l #{deployment_label}=#{deployment_label_value} -n #{resource["namespace"]} -o=jsonpath='{.items[0].spec.nodeName}'"
-          Log.for("node_drain").debug { "Getting the app node name #{app_nodeName_cmd}" }
-          status_code = Process.run("#{app_nodeName_cmd}", shell: true, output: appNodeName_response = IO::Memory.new, error: stderr = IO::Memory.new).exit_code
-          Log.for("node_drain").debug { "status_code: #{status_code}" }
-          app_nodeName = appNodeName_response.to_s
+            # Record the cordon target before cordoning, so the ensure block below
+            # releases the node even if the cordon only partly took effect.
+            cordon_target_node_name = app_node_name
+            cordon_result = KubectlClient::Utils.cordon(app_node_name)
 
-          litmus_nodeName_cmd = "kubectl get pods -n litmus -l app.kubernetes.io/name=litmus -o=jsonpath='{.items[0].spec.nodeName}'"
-          Log.for("node_drain").debug { "Getting the app node name #{litmus_nodeName_cmd}" }
-          status_code = Process.run("#{litmus_nodeName_cmd}", shell: true, output: litmusNodeName_response = IO::Memory.new, error: stderr = IO::Memory.new).exit_code
-          Log.for("node_drain").debug { "status_code: #{status_code}" }
-          litmus_nodeName = litmusNodeName_response.to_s
-          Log.info { "Workload Node Name: #{app_nodeName}" }
-          Log.info { "Litmus Node Name: #{litmus_nodeName}" }
-          if litmus_nodeName == app_nodeName
-            Log.info { "Litmus and the workload are scheduled to the same node. Re-scheduling Litmus" }
-            nodes = KubectlClient::Get.schedulable_nodes_list
-            node_names = nodes.map { |item|
-              Log.info { "items labels: #{item.dig?("metadata", "labels")}" }
-              node_name = item.dig?("metadata", "labels", "kubernetes.io/hostname")
-              Log.debug { "NodeName: #{node_name}" }
-              node_name
-            }
-            Log.info { "All Schedulable Nodes: #{nodes}" }
-            Log.info { "Schedulable Node Names: #{node_names}" }
-            litmus_nodes = node_names - ["#{litmus_nodeName}"]
-            Log.info { "Schedulable Litmus Nodes: #{litmus_nodes}" }
-
-            download_file("#{LitmusManager::LITMUS_OPERATOR}","#{LitmusManager::DOWNLOADED_LITMUS_FILE}")
-            Log.info {"Re-Schedule Litmus"}
-            LitmusManager.add_node_selector(litmus_nodes[0])
-            KubectlClient::Apply.file("#{LitmusManager::MODIFIED_LITMUS_FILE}")
-            KubectlClient::Wait.resource_wait_for_install(kind: "Deployment", resource_name: "chaos-operator-ce", wait_count: 180, namespace: "litmus")
+            # If cordoning fails, skip the test.
+            if cordon_result[:status].success?
+              Log.info { "Cordoned node #{app_node_name} successfully." }
+            else
+              skip_reason = "node_drain chaos test was unable to cordon node #{app_node_name}"
+            end
           end
 
-          experiment_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::Version}/faults/kubernetes/node-drain/fault.yaml"
-          rbac_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::RBAC_VERSION}/charts/generic/node-drain/rbac.yaml"
+          if skip_reason.nil? && app_node_name
+            litmus_node_name = LitmusManager.get_litmus_node_name
+            Log.info { "Workload Node Name: #{app_node_name}" }
+            Log.info { "Litmus Node Name: #{litmus_node_name}" }
 
-          experiment_path = LitmusManager.download_template(experiment_url, "#{t.name}_experiment.yaml")
-          KubectlClient::Apply.file(experiment_path, namespace: app_namespace)
-  
-          rbac_path = LitmusManager.download_template(rbac_url, "#{t.name}_rbac.yaml")
-          rbac_yaml = File.read(rbac_path)
-          rbac_yaml = rbac_yaml.gsub("namespace: default", "namespace: #{app_namespace}")
-          File.write(rbac_path, rbac_yaml)
-          KubectlClient::Apply.file(rbac_path)
+            if litmus_node_name == app_node_name
+              # Litmus would be drained along with the workload, so it has to move
+              # first. The workload's node is cordoned by now and is therefore already
+              # absent from the schedulable list.
+              Log.info { "Litmus and the workload are scheduled to the same node. Re-scheduling Litmus" }
+              litmus_nodes = KubectlClient::Get.schedulable_nodes_list.compact_map do |item|
+                item.dig?("metadata", "labels", LitmusManager::NODE_LABEL).try(&.as_s)
+              end.reject { |node_name| node_name == app_node_name }
+              Log.info { "Schedulable Litmus Nodes: #{litmus_nodes}" }
 
-          KubectlClient::Utils.annotate(resource["kind"], resource["name"], ["litmuschaos.io/chaos=\"true\""], namespace: app_namespace)
+              litmus_target_node = litmus_nodes.first?
+              if litmus_target_node.nil?
+                # Nowhere to move Litmus to. Draining this node would take the chaos
+                # operator down with the workload, so there is no test to run.
+                skip_reason = "node_drain chaos test requires a schedulable node that does not run Litmus, but #{app_node_name} is the only one left"
+              else
+                download_file("#{LitmusManager::LITMUS_OPERATOR}", "#{LitmusManager::DOWNLOADED_LITMUS_FILE}")
+                Log.info { "Re-Schedule Litmus" }
+                LitmusManager.add_node_selector(litmus_target_node)
+                KubectlClient::Apply.file("#{LitmusManager::MODIFIED_LITMUS_FILE}")
+                KubectlClient::Wait.resource_wait_for_install(kind: "Deployment", resource_name: "chaos-operator-ce", wait_count: 180, namespace: "litmus")
+              end
+            end
+          end
 
-          chaos_experiment_name = "node-drain"
-          test_name = "#{resource["name"]}-#{Random::Secure.hex(4)}"
-          chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
+          if skip_reason.nil? && app_node_name
+            experiment_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::Version}/faults/kubernetes/node-drain/fault.yaml"
+            rbac_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::RBAC_VERSION}/charts/generic/node-drain/rbac.yaml"
 
-          template = ChaosTemplates::NodeDrain.new(
-            test_name,
-            "#{chaos_experiment_name}",
-            app_namespace,
-            "#{deployment_label}",
-            "#{deployment_label_value}",
-            app_nodeName
-          ).to_s
-          Log.for("node_drain").info { "Chaos test name: #{test_name}; Experiment name: #{chaos_experiment_name}; Label #{deployment_label}=#{deployment_label_value}; namespace: #{app_namespace}" }
-          chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
-          File.write(chaos_template_path, template)
-          KubectlClient::Apply.file(chaos_template_path)
-          LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
-          test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace)
-        end
+            experiment_path = LitmusManager.download_template(experiment_url, "#{t.name}_experiment.yaml")
+            KubectlClient::Apply.file(experiment_path, namespace: app_namespace)
 
-        # Uncordon the node.
-        if cordon_target_node_name
-          uncordon_result = KubectlClient::Utils.uncordon("#{cordon_target_node_name}")
+            rbac_path = LitmusManager.download_template(rbac_url, "#{t.name}_rbac.yaml")
+            rbac_yaml = File.read(rbac_path)
+            rbac_yaml = rbac_yaml.gsub("namespace: default", "namespace: #{app_namespace}")
+            File.write(rbac_path, rbac_yaml)
+            KubectlClient::Apply.file(rbac_path)
 
-          # If uncordoning fails, log the error.
-          if uncordon_result[:status].success?
-            Log.info { "Uncordoned node #{cordon_target_node_name} successfully." }
-          else
-            Log.error { "Uncordoning node #{cordon_target_node_name} failed." }
-            skipped = true
+            KubectlClient::Utils.annotate(resource["kind"], resource["name"], ["litmuschaos.io/chaos=\"true\""], namespace: app_namespace)
+
+            chaos_experiment_name = "node-drain"
+            test_name = "#{resource["name"]}-#{Random::Secure.hex(4)}"
+            chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
+
+            template = ChaosTemplates::NodeDrain.new(
+              test_name,
+              "#{chaos_experiment_name}",
+              app_namespace,
+              "#{deployment_label}",
+              "#{deployment_label_value}",
+              app_node_name
+            ).to_s
+            Log.for("node_drain").info { "Chaos test name: #{test_name}; Experiment name: #{chaos_experiment_name}; Label #{deployment_label}=#{deployment_label_value}; namespace: #{app_namespace}" }
+            chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
+            File.write(chaos_template_path, template)
+            KubectlClient::Apply.file(chaos_template_path)
+            LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
+            test_passed = LitmusManager.check_chaos_verdict(chaos_result_name, chaos_experiment_name, args, namespace: app_namespace)
+          end
+        ensure
+          # Uncordon the node whatever happened above. Without this, a test that raises
+          # leaves the cluster one schedulable node short for every test that follows.
+          if cordon_target_node_name
+            uncordon_result = KubectlClient::Utils.uncordon("#{cordon_target_node_name}")
+
+            # If uncordoning fails, log the error.
+            if uncordon_result[:status].success?
+              Log.info { "Uncordoned node #{cordon_target_node_name} successfully." }
+            else
+              Log.error { "Uncordoning node #{cordon_target_node_name} failed." }
+              skip_reason = "node_drain chaos test was unable to uncordon node #{cordon_target_node_name}"
+            end
           end
         end
       end
 
       test_passed
     end
-    if skipped
-      Log.for(t.name).warn{"The node_drain test needs minimum 2 schedulable nodes, current number of nodes: #{KubectlClient::Get.schedulable_nodes_list.size}"}
-      result.skipped("node_drain chaos test requires the cluster to have atleast two schedulable nodes")
+    if skip_reason
+      Log.for(t.name).warn { "#{skip_reason}. Current number of schedulable nodes: #{KubectlClient::Get.schedulable_nodes_list.size}" }
+      result.skipped(skip_reason)
     elsif task_response
       result.passed("node_drain chaos test passed")
     else
