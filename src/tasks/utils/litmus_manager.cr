@@ -26,12 +26,37 @@ module LitmusManager
     File.write(MODIFIED_LITMUS_FILE, output_file) unless output_file == nil
   end
 
-  def self.get_target_node_to_cordon(deployment_label, deployment_value, namespace)
-    app_nodeName_cmd = "kubectl get pods -l #{deployment_label}=#{deployment_value} -n #{namespace} -o=jsonpath='{.items[0].spec.nodeName}'"
-    Log.info { "Getting the operator node name: #{app_nodeName_cmd}" }
-    status_code = Process.run("#{app_nodeName_cmd}", shell: true, output: appNodeName_response = IO::Memory.new, error: stderr = IO::Memory.new).exit_code
-    Log.debug { "status_code: #{status_code}" }
-    appNodeName_response.to_s
+  # Node the workload identified by `deployment_label=deployment_value` sits on,
+  # or nil when it has no pod scheduled anywhere.
+  def self.get_workload_node_name(deployment_label, deployment_value, namespace) : String?
+    scheduled_pod_node_name(namespace, "#{deployment_label}=#{deployment_value}")
+  end
+
+  # Node the Litmus operator sits on, or nil when it is not scheduled anywhere.
+  def self.get_litmus_node_name : String?
+    scheduled_pod_node_name(LITMUS_NAMESPACE, "app.kubernetes.io/name=litmus")
+  end
+
+  # Node of the pod matching `selector`, or nil when none is scheduled.
+  #
+  # Terminating pods are excluded. They are still listed by `kubectl get pods` and
+  # their phase is still Running, so only the deletion timestamp distinguishes
+  # them -- and the node one of them names is a node its workload is already
+  # leaving, which sends the caller to the wrong node moments later.
+  #
+  # A pod that is scheduled but still starting does count: it is already bound to
+  # its node. A Running pod is preferred when the selector matches several.
+  private def self.scheduled_pod_node_name(namespace : String, selector : String) : String?
+    logger = Log.for("scheduled_pod_node_name")
+    pods = KubectlClient::Get.resource("pods", namespace: namespace, selector: selector)
+    items = pods.dig?("items").try(&.as_a) || [] of JSON::Any
+    scheduled_pods = items.select do |pod|
+      pod.dig?("metadata", "deletionTimestamp").nil? && pod.dig?("spec", "nodeName")
+    end
+    pod = scheduled_pods.find { |p| p.dig?("status", "phase").try(&.as_s) == "Running" } || scheduled_pods.first?
+    node_name = pod.try(&.dig?("spec", "nodeName")).try(&.as_s)
+    logger.info { "Selector '#{selector}' in #{namespace} namespace matched #{items.size} pod(s), #{scheduled_pods.size} of them scheduled and not terminating; node: #{node_name || "none"}" }
+    node_name
   end
 
   private def self.get_status_info(chaos_resource, test_name, output_format, namespace) : {Int32, String}
