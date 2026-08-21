@@ -45,8 +45,9 @@ end
 
 desc "Deletes all results files from the results directory"
 task "delete_results" do |_, args|
-  files = Dir.glob("results/cnf-testsuite-results-*.yml")
+  files = Dir.glob(File.join(CNFManager::Points::Results.dir, "cnf-testsuite-results-*.yml"))
   files.each { |f| File.delete(f) }
+  File.delete?(CNFManager::Points::Results.latest)
   Log.info { "Deleted #{files.size} results file(s)" }
   stdout_success "Deleted #{files.size} results file(s)."
 end

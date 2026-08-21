@@ -148,8 +148,32 @@ module CNFManager
 
     class Results
       @@file : String = ""
+      @@dir : String? = nil
 
       @@logger : ::Log = Log.for("Points").for("Results")
+
+      DEFAULT_DIR     = "results"
+      RESULTS_DIR_ARG = "results-dir"
+      RESULTS_DIR_ENV = "CNF_TESTSUITE_RESULTS_DIR"
+      LATEST_NAME     = "latest.yml"
+
+      # Directory results are written to: `results-dir=PATH` on the command line,
+      # else CNF_TESTSUITE_RESULTS_DIR, else ./results. Resolved once per process
+      # and creates nothing -- delete_results reads it too.
+      def self.dir : String
+        @@dir ||= begin
+          arg = ARGV.find(&.starts_with?("#{RESULTS_DIR_ARG}="))
+          value = arg ? arg.split("=", 2)[1] : ENV[RESULTS_DIR_ENV]?
+          value.presence || DEFAULT_DIR
+        end
+      end
+
+      # Stable path to the newest results file, so scripts need not sort the
+      # directory: a relative symlink repointed whenever a results file is
+      # created (a copy, kept current, where symlinks are unsupported).
+      def self.latest : String
+        File.join(dir, LATEST_NAME)
+      end
 
       def self.file
         # (Re)create the file when it does not exist - including when something
@@ -169,6 +193,28 @@ module CNFManager
 
       private def self.create_file
         File.open(@@file, "w") { |f| YAML.dump(CNFManager::Points.template_results_yml, f) }
+        point_latest_at(@@file)
+      end
+
+      # Repoint `latest` at `path` without a window where it is missing: link
+      # under a temporary name, then rename over the old pointer. The target is
+      # relative, so a results directory stays self-contained when moved.
+      private def self.point_latest_at(path : String)
+        tmp = "#{latest}.#{Process.pid}.tmp"
+        File.delete?(tmp)
+        File.symlink(File.basename(path), tmp)
+        File.rename(tmp, latest)
+      rescue ex : File::Error
+        @@logger.for("point_latest_at").warn { "Could not symlink #{latest} -> #{path} (#{ex.message}); copying instead" }
+        FileUtils.cp(path, latest)
+      end
+
+      # Where `latest` had to be a copy, bring it up to date after a write.
+      def self.refresh_latest
+        return unless file_exists? && File.exists?(latest) && !File.symlink?(latest)
+        FileUtils.cp(@@file, latest)
+      rescue ex : File::Error
+        @@logger.for("refresh_latest").warn { "Could not refresh #{latest}: #{ex.message}" }
       end
 
       def self.ensure_results_file!
@@ -271,14 +317,15 @@ module CNFManager
     end
 
     def self.create_final_results_yml_name
+      dir = Results.dir
       begin
-        FileUtils.mkdir_p("results") unless Dir.exists?("results")
+        FileUtils.mkdir_p(dir) unless Dir.exists?(dir)
       rescue File::AccessDeniedError
-        stdout_failure("ERROR: missing write permission in current directory")
-        @@logger.for("create_final_results_yml_name").error { "Could not create ./results directory, access denied" }
+        stdout_failure("ERROR: missing write permission for results directory #{dir}")
+        @@logger.for("create_final_results_yml_name").error { "Could not create #{dir} directory, access denied" }
         exit 1
       end
-      "results/cnf-testsuite-results-" + Time.local.to_s("%Y%m%d-%H%M%S-%L") + ".yml"
+      File.join(dir, "cnf-testsuite-results-" + Time.local.to_s("%Y%m%d-%H%M%S-%L") + ".yml")
     end
 
     # Version of the results-file schema. Bump when the file's structure changes
@@ -619,6 +666,7 @@ module CNFManager
       merged[YAML::Any.new("status")] = YAML::Any.new(run_status)
       merged[YAML::Any.new("summary")] = summary_yaml
       File.open("#{Results.file}", "w") { |f| YAML.dump(merged, f) }
+      Results.refresh_latest
     end
 
     def self.failed_required_tasks

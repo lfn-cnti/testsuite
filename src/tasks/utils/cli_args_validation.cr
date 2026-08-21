@@ -6,7 +6,7 @@ USAGE_EXIT_CODE = 64
 # Every key=value argument some task actually reads.
 KNOWN_CLI_NAMED_ARGS = [
   "cnf-config", "cnf-path", "timeout", "input_config", "output_config",
-  "exclude", "pod_labels", "baseline_count",
+  "exclude", "pod_labels", "baseline_count", "results-dir",
 ]
 # Named arguments whose value must be an integer.
 NUMERIC_CLI_NAMED_ARGS = ["timeout", "baseline_count"]
@@ -54,6 +54,8 @@ def validate_cli_args!(argv : Array(String))
         errors << "Unknown argument '#{key}='. Known arguments: #{KNOWN_CLI_NAMED_ARGS.join(", ")}."
       elsif NUMERIC_CLI_NAMED_ARGS.includes?(key) && value.to_i?.nil?
         errors << "Invalid value for '#{key}=': '#{value}' is not a number."
+      elsif key == "results-dir" && value.blank?
+        errors << "Invalid value for 'results-dir=': a directory path is required."
       end
     elsif token.starts_with?("-")
       errors << "Unknown option '#{token}'. Supported options: -l/--loglevel LEVEL, -h/--help, --version."

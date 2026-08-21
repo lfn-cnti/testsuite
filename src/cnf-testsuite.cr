@@ -70,6 +70,9 @@ begin
   Sam.process_tasks(argv)
 
   if CNFManager::Points::Results.file_exists?
+    # One stable line per run for scripts to grep; the pointer is the path
+    # that does not change between runs.
+    stdout_info "Results: #{CNFManager::Points::Results.file} (latest: #{CNFManager::Points::Results.latest})"
     yaml = File.open("#{CNFManager::Points::Results.file}") do |file|
       YAML.parse(file)
     end
