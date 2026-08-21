@@ -202,9 +202,9 @@ describe "Microservice" do
     result = ShellCmd.run_testsuite("specialized_init_system")
     (/Containers do not use specialized init systems/ =~ result[:output]).should_not be_nil
 
-    latest_results = Dir.glob("results/cnf-testsuite-results-*.yml").max_by { |path| File.info(path).modification_time }
-    latest_results.should_not be_nil
-    yaml = YAML.parse(File.read(latest_results.not_nil!))
+    latest_results = CNFManager::Points::Results.latest
+    File.exists?(latest_results).should be_true
+    yaml = YAML.parse(File.read(latest_results))
     item = yaml["items"].as_a.find { |i| i["name"].as_s == "specialized_init_system" }
     item.should_not be_nil
     item.not_nil!["status"].as_s.should eq("failed")
@@ -227,9 +227,9 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("specialized_init_system")
       result[:status].exit_code.should eq(1)
 
-      latest_results = Dir.glob("results/cnf-testsuite-results-*.yml").max_by { |path| File.info(path).modification_time }
-      latest_results.should_not be_nil
-      yaml = YAML.parse(File.read(latest_results.not_nil!))
+      latest_results = CNFManager::Points::Results.latest
+      File.exists?(latest_results).should be_true
+      yaml = YAML.parse(File.read(latest_results))
       item = yaml["items"].as_a.find { |i| i["name"].as_s == "specialized_init_system" }
       item.should_not be_nil
       item.not_nil!["status"].as_s.should eq("failed")

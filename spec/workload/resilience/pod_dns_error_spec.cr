@@ -19,9 +19,9 @@ describe "Resilience pod dns error Chaos" do
       ((/( SKIPPED).*(pod_dns_error docker runtime not found)/)  =~ result[:output] || 
        (/(PASSED).*(pod_dns_error chaos test passed)/ =~ result[:output])).should_not be_nil
       
-      latest_results = Dir.glob("results/cnf-testsuite-results-*.yml").max_by { |path| File.info(path).modification_time }
-      latest_results.should_not be_nil
-      yaml = YAML.parse(File.read(latest_results.not_nil!))
+      latest_results = CNFManager::Points::Results.latest
+      File.exists?(latest_results).should be_true
+      yaml = YAML.parse(File.read(latest_results))
       item = yaml["items"].as_a.find { |i| i["name"].as_s == "pod_dns_error" }
       item.should_not be_nil
       (item.not_nil!["status"].as_s == "skipped" || item.not_nil!["status"].as_s == "passed").should be_true
