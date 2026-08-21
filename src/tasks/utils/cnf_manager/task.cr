@@ -16,7 +16,7 @@ module CNFManager
       @@logger.for("ensure_cnf_installed!").info { "Is CNF installed: #{cnf_installed}" }
 
       unless cnf_installed
-        stdout_warning("You must install a CNF first.")
+        stdout_failure("You must install a CNF first.")
         exit FAILURE_CODE
       end
     end

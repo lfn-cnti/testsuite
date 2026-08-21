@@ -3,6 +3,14 @@ require "sam"
 # Exit code for CLI usage errors (sysexits EX_USAGE).
 USAGE_EXIT_CODE = 64
 
+# Report a usage error and exit with USAGE_EXIT_CODE. For mistakes that are
+# visible from the command line alone -- a missing or unknown argument, a
+# malformed value, a path that names no file -- before anything has run.
+def usage_error!(message : String) : NoReturn
+  stdout_failure message
+  exit USAGE_EXIT_CODE
+end
+
 # Every key=value argument some task actually reads.
 KNOWN_CLI_NAMED_ARGS = [
   "cnf-config", "cnf-path", "timeout", "input_config", "output_config",

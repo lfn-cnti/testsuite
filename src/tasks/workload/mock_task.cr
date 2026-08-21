@@ -14,3 +14,9 @@ task "_divide_by_zero" do |_, args|
     "divided by zero" 
   end
 end
+
+# Raises outside task_runner, so nothing catches it before the entrypoint's
+# last-resort rescue. Exercises the "the suite itself broke" exit code.
+task "_raise_outside_task_runner" do |_, args|
+  raise "unhandled"
+end
