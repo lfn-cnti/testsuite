@@ -100,22 +100,14 @@ task "test" do
   puts "ping"
 end
 
-# https://www.thegeekstuff.com/2013/12/bash-completion-complete/
-# https://kubernetes.io/docs/tasks/tools/install-kubectl/#enable-kubectl-autocompletion
-# https://stackoverflow.com/questions/43794270/disable-or-unset-specific-bash-completion
-desc "Install Shell Completion: check https://github.com/lfn-cnti/testsuite/blob/main/USAGE.md for usage"
-task "completion" do |_|
-
-# assumes bash completion feel free to make a pr for zsh and check an arg for it
-bin_name = "cnf-testsuite"
-
-completion_template = <<-TEMPLATE
-# to remove
-# complete -r #{bin_name}
-complete -W "#{CLIHelp.visible_tasks.map(&.path).join(" ")}" #{bin_name}
-TEMPLATE
-
-puts completion_template
+desc "Print a shell completion script; `completion bash` (default) or `completion zsh`, see USAGE.md"
+task "completion" do |_, args|
+  shell = args.raw.first?.try(&.to_s) || CLICompletion::DEFAULT_SHELL
+  unless CLICompletion::SHELLS.includes?(shell)
+    stdout_failure "Unknown shell '#{shell}'. Usage: #{CLIHelp::BIN_NAME} completion [#{CLICompletion::SHELLS.join("|")}]"
+    exit USAGE_EXIT_CODE
+  end
+  puts CLICompletion.script(shell)
 end
 
 begin

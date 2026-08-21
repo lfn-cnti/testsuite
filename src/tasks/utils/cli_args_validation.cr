@@ -38,9 +38,9 @@ def validate_cli_args!(argv : Array(String))
       expect_task = false
       next
     end
-    # `help` takes a topic - "tasks" or a task name - rather than the flags and
-    # key=value arguments every other task takes.
-    next if current_task == "help"
+    # `help` takes a topic - "tasks" or a task name - and `completion` a shell
+    # name, rather than the flags and key=value arguments every other task takes.
+    next if current_task == "help" || current_task == "completion"
 
     if token.empty?
       errors << "Empty argument given."

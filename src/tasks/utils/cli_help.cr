@@ -197,6 +197,7 @@ module CLIHelp
     MORE
       #{BIN_NAME} help tasks     list every task, grouped by category
       #{BIN_NAME} help <task>    show what a single task does
+      #{BIN_NAME} completion bash|zsh   print a shell completion script (source <(#{BIN_NAME} completion bash))
       Documentation: https://github.com/lfn-cnti/testsuite/blob/main/USAGE.md
     HELP
   end
