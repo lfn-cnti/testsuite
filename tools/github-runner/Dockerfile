@@ -1,13 +1,14 @@
-FROM myoung34/github-runner:2.313.0-ubuntu-bionic
+FROM myoung34/github-runner:2.336.0-ubuntu-noble
 
 # renovate: datasource=github-releases depName=crystal-lang/crystal
-ARG CRYSTAL_VERSION=1.6.2
+ARG CRYSTAL_VERSION=1.19.1
 ARG CRYSTAL_URL=https://github.com/crystal-lang/crystal/releases/download
+ARG KIND_VERSION=v0.32.0
+ARG KUSTOMIZE_VERSION=v5.8.1
 
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg --output /usr/share/keyrings/githubcli-archive-keyring.gpg && \
-    sudo gpg --dearmor /usr/share/keyrings/githubcli-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list && \
     chmod 644 /usr/share/keyrings/githubcli-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list && \
     chmod 644 /etc/apt/sources.list.d/github-cli.list
 
 RUN mkdir /crystal && \
@@ -21,34 +22,29 @@ RUN mkdir /crystal && \
 RUN apt update && \
     apt install -y --no-install-recommends \
     git \
+    gh \
+    uuid-runtime \
+    python3 \
     libssl-dev \
     libxml2-dev \
     libyaml-dev \
     libgmp-dev \
     libevent-dev \
+    libpcre2-dev \
     libz-dev && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    ln -sf /usr/bin/python3 /usr/bin/python
 
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
-    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
+    rm kubectl
 
-RUN apt-get install apt-transport-https --yes && \
-    curl https://baltocdn.com/helm/signing.asc | apt-key add - && \
-    echo "deb https://baltocdn.com/helm/stable/debian/ all main" | tee /etc/apt/sources.list.d/helm-stable-debian.list && \
-    apt-get update && \
-    apt-get install helm uuid-runtime && \
-    ln -s /usr/bin/python3 /usr/bin/python
+RUN curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 | bash
 
-RUN wget -O /tmp/kustomize.tar.gz "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv4.1.3/kustomize_v4.1.3_linux_amd64.tar.gz" && \
-    tar -xvf /tmp/kustomize.tar.gz -C /tmp && \
-    chmod +x /tmp/kustomize && \
-    mv /tmp/kustomize /usr/local/bin/
+RUN wget -O /tmp/kustomize.tar.gz "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" && \
+    tar -xf /tmp/kustomize.tar.gz -C /tmp && \
+    install -m 0755 /tmp/kustomize /usr/local/bin/kustomize && \
+    rm /tmp/kustomize /tmp/kustomize.tar.gz
 
-RUN curl -Lo ./kind "https://kind.sigs.k8s.io/dl/v0.13.0/kind-$(uname)-amd64" && \
-    chmod +x ./kind && \
-    mv ./kind /usr/local/bin
-
-RUN add-apt-repository ppa:git-core/ppa -y && \
-    apt update && \
-    apt install -y git
-
+RUN curl -Lo /usr/local/bin/kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64" && \
+    chmod +x /usr/local/bin/kind

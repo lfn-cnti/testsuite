@@ -1,4 +1,6 @@
 class ApiSnoop
+  # cncf/apisnoop has no releases; pin the clone to a known commit.
+  APISNOOP_COMMIT = "256fcf371911"
 
   def initialize()
   end
@@ -14,6 +16,7 @@ class ApiSnoop
       Log.info { "apisnoop already installed. Skipping git clone for apisnoop." }
     else
       GitClient.clone("https://github.com/cncf/apisnoop #{install_path}")
+      ShellCmd.run("git -C #{install_path} checkout --quiet #{APISNOOP_COMMIT}", "apisnoop_checkout")
     end
 
     # Only for cnf-testsuite CI
