@@ -1,4 +1,5 @@
 require "../kubectl_client"
+require "../net_retry"
 require "./utils.cr"
 
 module Helm
@@ -285,7 +286,9 @@ module Helm
 
     resp = nil
     begin
-      resp = ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger, false, stdin: password) }
+      resp = NetRetry.with_retries("helm repo add #{helm_repo_name}", logger) do
+        ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger, false, stdin: password) }
+      end
     rescue ex : ShellCMD::RepoNotFound
       logger.error { "Failed to add helm repository '#{helm_repo_name}': #{ex.message}" }
     rescue ex : ShellCMD::HelmCMDException
@@ -351,7 +354,12 @@ module Helm
     cmd = "#{cmd} --create-namespace" if create_namespace
     cmd = "#{cmd} #{values}" if values
 
-    ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+    # A remote chart reference is fetched by this command, so it is as
+    # network-bound as a pull; the transient filter keeps chart/values errors
+    # failing immediately.
+    NetRetry.with_retries("helm install #{helm_chart}", logger) do
+      ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+    end
   end
 
   def self.uninstall(release_name : String, namespace : String? = nil, wait : Bool = false) : CMDResult
@@ -381,7 +389,9 @@ module Helm
     cmd = "#{cmd} --untar" if untar
     cmd = "#{cmd} --destination #{destination}" if destination
 
-    ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+    NetRetry.with_retries("helm pull #{full_chart_name}", logger) do
+      ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+    end
   end
 
   def self.pull_oci(
@@ -408,7 +418,9 @@ module Helm
     cmd = "#{cmd} --insecure-skip-tls-verify"   if insecure_skip_tls_verify
     cmd = "#{cmd} --plain-http"                 if plain_http
 
-    ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+    NetRetry.with_retries("helm pull #{oci_address}", logger) do
+      ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+    end
   end
 
   # Create a new chart directory

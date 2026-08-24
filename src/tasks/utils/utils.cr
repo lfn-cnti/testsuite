@@ -13,6 +13,7 @@ require "./timeouts.cr"
 require "./cnf_installation/config.cr"
 require "ecr"
 require "http/client"
+require "../../modules/net_retry"
 
 module ShellCmd
   def self.run(cmd, log_prefix = "ShellCmd.run", force_output = false, joined_output = false)
@@ -468,17 +469,26 @@ end
 
 def download_file(url : String, output_path : String,
                   redirect_limit : Int = 5, headers : HTTP::Headers? = nil)
+  NetRetry.with_retries("download #{url}") do
+    follow_and_download(url, output_path, redirect_limit, headers)
+  end
+end
+
+private def follow_and_download(url : String, output_path : String,
+                                redirect_limit : Int, headers : HTTP::Headers?)
   raise "Too many redirects" if redirect_limit == 0
 
   response = HTTP::Client.get(url, headers: headers)
   if response.status_code >= 300 && response.status_code < 400
     new_location = response.headers["Location"]
     raise "Status code 3xx, but redirect location missing" unless new_location
-    return download_file(new_location, output_path, redirect_limit - 1, headers)
+    return follow_and_download(new_location, output_path, redirect_limit - 1, headers)
   end
 
   unless response.success?
-    raise "Unsuccessful request, status code: [#{response.status_code}], msg: #{response.status_message}"
+    message = "Unsuccessful request, status code: [#{response.status_code}], msg: #{response.status_message}"
+    raise NetRetry::TransientError.new(message) if response.status_code >= 500
+    raise message
   end
   File.write(output_path, response.body.to_s)
 end
