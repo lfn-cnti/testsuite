@@ -14,7 +14,7 @@ To get the CNTi Test Suite up and running, see the [Installation Guide](INSTALL.
 
 #### To give it a try immediately you can use these quick install steps
 
-Prereqs: Kubernetes cluster, wget, curl, helm 3.1.1 or greater on your system already.
+Prereqs: Kubernetes cluster, wget, curl, helm 3.8.2 or greater (helm 4 supported) on your system already.
 
 1. Install the latest test suite binary: `source <(curl -s https://raw.githubusercontent.com/lfn-cnti/testsuite/main/curl_install.sh)`
 2. Run `setup` to prepare the cnf-testsuite: `cnf-testsuite setup`

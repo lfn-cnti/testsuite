@@ -25,7 +25,7 @@ module Setup
   # renovate: datasource=github-releases depName=kubescape/regolibrary
   KUBESCAPE_FRAMEWORK_VERSION = "2.0.33"
   # renovate: datasource=github-releases depName=helm/helm
-  HELM_VERSION                = "3.21.4"
+  HELM_VERSION                = "4.2.4"
   # renovate: datasource=helm depName=gatekeeper registryUrl=https://open-policy-agent.github.io/gatekeeper/charts
   GATEKEEPER_VERSION          = "3.23.0"
 
