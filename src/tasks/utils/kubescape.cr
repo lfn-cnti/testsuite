@@ -3,10 +3,13 @@ require "log"
 
 module Kubescape
 
+  # Scan output lives with the tool, not in the working directory.
+  RESULTS_FILE = "#{tools_path}/kubescape/kubescape_results.json"
+
   #kubescape scan framework nsa --exclude-namespaces kube-system,kube-public
   def self.scan(cli : String? = nil, control_id : String? = nil, namespace : String? = nil)
     default_options = "--format json --format-version=v1"
-    output_file = "kubescape_results.json"
+    output_file = RESULTS_FILE
     exclude_namespaces = EXCLUDE_NAMESPACES.join(",")
 
     namespace_option = "--exclude-namespaces #{exclude_namespaces}"
@@ -30,7 +33,7 @@ module Kubescape
     {status: status, output: output.to_s, error: stderr.to_s}
   end
 
-  def self.parse(results_file="kubescape_results.json")
+  def self.parse(results_file = RESULTS_FILE)
     Log.info { "kubescape parse" }
     results_json = File.open(results_file) do |f| 
       JSON.parse(f)
@@ -68,7 +71,7 @@ module Kubescape
   end
 
   def self.control_results_file(control_id)
-    "kubescape_#{control_id}_results.json"
+    "#{tools_path}/kubescape/kubescape_#{control_id}_results.json"
   end
 
   class TestReportParser

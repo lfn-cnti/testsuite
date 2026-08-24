@@ -26,17 +26,22 @@ task "install_opa", ["setup:install_local_helm", "setup:create_namespace"] do |_
     stdout_warning "gatekeeper already installed"
   end
 
-  File.write("enforce-image-tag.yml", ENFORCE_IMAGE_TAG)
-  File.write("constraint_template.yml", CONSTRAINT_TEMPLATE)
-  KubectlClient::Wait.wait_for_install_by_apply("constraint_template.yml")
+  FileUtils.mkdir_p(Setup::RENDERED_MANIFESTS_DIR)
+  enforce_manifest = File.join(Setup::RENDERED_MANIFESTS_DIR, "enforce-image-tag.yml")
+  template_manifest = File.join(Setup::RENDERED_MANIFESTS_DIR, "constraint_template.yml")
+  File.write(enforce_manifest, ENFORCE_IMAGE_TAG)
+  File.write(template_manifest, CONSTRAINT_TEMPLATE)
+  KubectlClient::Wait.wait_for_install_by_apply(template_manifest)
   KubectlClient::Wait.wait_for_condition("crd", "requiretags.constraints.gatekeeper.sh", "condition=established", 300)
-  KubectlClient::Apply.file("enforce-image-tag.yml")
+  KubectlClient::Apply.file(enforce_manifest)
 end
 
 desc "Uninstall OPA"
 task "uninstall_opa" do |_, args|
   Log.debug { "uninstall_opa" }
+  enforce_manifest = File.join(Setup::RENDERED_MANIFESTS_DIR, "enforce-image-tag.yml")
+  template_manifest = File.join(Setup::RENDERED_MANIFESTS_DIR, "constraint_template.yml")
   begin Helm.uninstall("opa-gatekeeper", TESTSUITE_NAMESPACE) rescue Helm::ShellCMD::ReleaseNotFound end
-  begin KubectlClient::Delete.file("enforce-image-tag.yml") rescue KubectlClient::ShellCMD::NotFoundError end
-  begin KubectlClient::Delete.file("constraint_template.yml") rescue KubectlClient::ShellCMD::NotFoundError end
+  begin KubectlClient::Delete.file(enforce_manifest) rescue KubectlClient::ShellCMD::NotFoundError end
+  begin KubectlClient::Delete.file(template_manifest) rescue KubectlClient::ShellCMD::NotFoundError end
 end

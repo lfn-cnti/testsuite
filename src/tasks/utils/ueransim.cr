@@ -37,7 +37,8 @@ module UERANSIM
         Log.info { "Found ueransim ... deleting" }
         Helm.uninstall("ueransim", "testsuite-5g")
       end
-      Helm.pull_oci("oci://registry-1.docker.io/gradiant/ueransim-gnb", version: "0.2.5")
+      FileUtils.mkdir_p(Setup::FIVE_G_TOOLS_DIR)
+      Helm.pull_oci("oci://registry-1.docker.io/gradiant/ueransim-gnb", version: "0.2.5", destination: Setup::FIVE_G_TOOLS_DIR)
 
       protectionScheme = config.common.five_g_parameters.protectionScheme
       unless protectionScheme.nil? || protectionScheme.empty?
@@ -77,11 +78,12 @@ module UERANSIM
                                          emergency 
                                         ).to_s
       Log.info { "ue_values: #{ue_values}" }
-      File.write("gnb-ues-values.yaml", ue_values)
-      # File.write("gnb-ues-values.yaml", UES_VALUES)
-      File.write("#{Dir.current}/ueransim-gnb/resources/ue.yaml", UERANSIM_HELMCONFIG)
+      FileUtils.mkdir_p(Setup::RENDERED_MANIFESTS_DIR)
+      ues_values_path = File.join(Setup::RENDERED_MANIFESTS_DIR, "gnb-ues-values.yaml")
+      File.write(ues_values_path, ue_values)
+      File.write(File.join(Setup::FIVE_G_TOOLS_DIR, "ueransim-gnb", "resources", "ue.yaml"), UERANSIM_HELMCONFIG)
       CNFManager.ensure_namespace_exists!("testsuite-5g")
-      Helm.install("ueransim", "#{Dir.current}/ueransim-gnb", namespace: "testsuite-5g", values: "--values ./gnb-ues-values.yaml")
+      Helm.install("ueransim", File.join(Setup::FIVE_G_TOOLS_DIR, "ueransim-gnb"), namespace: "testsuite-5g", values: "--values #{ues_values_path}")
       Log.info { "after helm install" }
       KubectlClient::Wait.resource_wait_for_install("Pod", "ueransim", namespace: "testsuite-5g")
       true

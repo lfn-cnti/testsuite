@@ -1,3 +1,5 @@
+require "file_utils"
+
 module FluentManager
   abstract class FluentBase
     getter flavor_name : String
@@ -26,9 +28,11 @@ module FluentManager
     def install
       Log.info { "Installing #{flavor_name} daemonset using #{values_file}" }
       Helm.helm_repo_add(flavor_name, repo_url)
-      File.write(values_file, values_macro)
+      FileUtils.mkdir_p(Setup::RENDERED_MANIFESTS_DIR)
+      values_path = File.join(Setup::RENDERED_MANIFESTS_DIR, values_file)
+      File.write(values_path, values_macro)
       begin
-        Helm.install(flavor_name, chart, namespace: TESTSUITE_NAMESPACE, values: "--values #{values_file}")
+        Helm.install(flavor_name, chart, namespace: TESTSUITE_NAMESPACE, values: "--values #{values_path}")
         KubectlClient::Wait.resource_wait_for_install("Daemonset", flavor_name, namespace: TESTSUITE_NAMESPACE)
       rescue Helm::ShellCMD::CannotReuseReleaseNameError
         Log.info { "Release #{flavor_name} already installed" }

@@ -48,7 +48,7 @@ namespace "platform" do
       end
       Log.debug { testrun_stdout.to_s }
 
-      cmd = "results=$(#{sonobuoy} retrieve); #{sonobuoy} results $results"
+      cmd = "results=$(#{sonobuoy} retrieve #{Setup::SONOBUOY_DIR}); #{sonobuoy} results $results"
       results_stdout = IO::Memory.new
       Process.run(cmd, shell: true, output: results_stdout, error: results_stdout)
       results = results_stdout.to_s

@@ -11,22 +11,10 @@ require "yaml"
 namespace "setup" do
   desc "Install Cluster API for Kind"
   task "cluster_api_install" do |_, args|
-    current_dir = FileUtils.pwd
-
-    download_file(Setup::CLUSTER_API_URL, "./clusterctl")
-
-    Process.run(
-      "sudo chmod +x ./clusterctl",
-      shell: true,
-      output: stdout = IO::Memory.new,
-      error: stderr = IO::Memory.new
-    )
-    Process.run(
-      "sudo mv ./clusterctl /usr/local/bin/clusterctl",
-      shell: true,
-      output: stdout = IO::Memory.new,
-      error: stderr = IO::Memory.new
-    )
+    # The binary lives with the other tools; no sudo, no /usr/local/bin.
+    FileUtils.mkdir_p(Setup::CLUSTER_API_DIR)
+    download_file(Setup::CLUSTER_API_URL, Setup::CLUSTERCTL_BINARY)
+    File.chmod(Setup::CLUSTERCTL_BINARY, 0o755)
 
     Log.info { "Completed downloading clusterctl" }
 
@@ -36,14 +24,14 @@ namespace "setup" do
 
     File.write("#{clusterctl}/clusterctl.yaml", "CLUSTER_TOPOLOGY: \"true\"")
 
-    cluster_init_cmd = "clusterctl init --infrastructure docker --wait-providers"
+    cluster_init_cmd = "#{Setup::CLUSTERCTL_BINARY} init --infrastructure docker --wait-providers"
     stdout = IO::Memory.new
     Process.run(cluster_init_cmd, shell: true, output: stdout, error: stdout)
     Log.for("clusterctl init").info { stdout }
 
-    create_cluster_file = "#{current_dir}/capi.yaml"
+    create_cluster_file = File.join(Setup::CLUSTER_API_DIR, "capi.yaml")
 
-    create_cluster_cmd = "clusterctl generate cluster capi-quickstart   --kubernetes-version v1.24.0   --control-plane-machine-count=3 --worker-machine-count=3  --flavor development > #{create_cluster_file} "
+    create_cluster_cmd = "#{Setup::CLUSTERCTL_BINARY} generate cluster capi-quickstart   --kubernetes-version v1.24.0   --control-plane-machine-count=3 --worker-machine-count=3  --flavor development > #{create_cluster_file} "
 
     Process.run(
       create_cluster_cmd,
@@ -79,7 +67,7 @@ namespace "setup" do
     Process.run(cmd, shell: true, output: stdout = IO::Memory.new, error: stderr = IO::Memory.new)
     Log.debug { "#{cmd}: #{stdout.to_s}" }
 
-    cmd = "clusterctl delete --all --include-crd --include-namespace"
+    cmd = "#{Setup::CLUSTERCTL_BINARY} delete --all --include-crd --include-namespace"
     Process.run(cmd, shell: true, output: stdout = IO::Memory.new, error: stderr = IO::Memory.new)
     Log.debug { "#{cmd}: #{stdout.to_s}" }
   end

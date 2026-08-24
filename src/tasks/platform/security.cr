@@ -190,7 +190,7 @@ namespace "platform" do
     CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       namespace="kube-system"
       Kubescape.scan(namespace: namespace)
-      results_json = Kubescape.parse("kubescape_results.json")
+      results_json = Kubescape.parse
       test_json = Kubescape.test_by_test_name(results_json, "Secret/etcd encryption enabled")
       test_report = Kubescape.parse_test_report(test_json)
 

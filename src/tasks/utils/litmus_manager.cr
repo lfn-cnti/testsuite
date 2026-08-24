@@ -7,23 +7,28 @@ module LitmusManager
   NODE_LABEL = "kubernetes.io/hostname"
   #https://raw.githubusercontent.com/litmuschaos/chaos-operator/v2.14.x/deploy/operator.yaml
   LITMUS_OPERATOR = "https://litmuschaos.github.io/litmus/litmus-operator-v#{LitmusManager::Version}.yaml"
-  # for node drain
-  DOWNLOADED_LITMUS_FILE = "litmus-operator-downloaded.yaml"
-  MODIFIED_LITMUS_FILE = "litmus-operator-modified.yaml"
+  # for node drain; live with the chaos templates, not in the CWD
+  def self.downloaded_operator_file : String
+    File.join(chaos_manifests_path, "litmus-operator-downloaded.yaml")
+  end
+
+  def self.modified_operator_file : String
+    File.join(chaos_manifests_path, "litmus-operator-modified.yaml")
+  end
   LITMUS_NAMESPACE = "litmus"
   LITMUS_K8S_DOMAIN = "litmuschaos.io"
 
 
 
   def self.add_node_selector(node_name)
-    file = File.read(DOWNLOADED_LITMUS_FILE)
+    file = File.read(downloaded_operator_file)
     deploy_index = file.index("kind: Deployment") || 0 
     spec_literal = "spec:"
     template = "\n      nodeSelector:\n        kubernetes.io/hostname: #{node_name}"
     spec1_index = file.index(spec_literal, deploy_index + 1)  || 0
     spec2_index = file.index(spec_literal, spec1_index + 1) || 0
     output_file = file.insert(spec2_index + spec_literal.size, template) unless spec2_index == 0
-    File.write(MODIFIED_LITMUS_FILE, output_file) unless output_file == nil
+    File.write(modified_operator_file, output_file) unless output_file == nil
   end
 
   # Node the workload identified by `deployment_label=deployment_value` sits on,
