@@ -2,30 +2,45 @@ require "http/client"
 
 module Kyverno
   # renovate: datasource=github-releases depName=kyverno/kyverno
-  VERSION = "1.8.4"
+  VERSION = "1.19.0"
+  # Branch of github.com/kyverno/policies the sample policies are taken from.
+  POLICIES_BRANCH = "release-1.19"
 
-  def self.binary_path
-    "#{tools_path}/kyverno"
+  def self.cli_dir
+    "#{tools_path}/kyverno-cli"
   end
 
+  def self.binary_path
+    "#{cli_dir}/kyverno"
+  end
+
+  # The CLI and the policies repo each carry a marker with the version they were
+  # fetched at, so a suite built against a newer Kyverno replaces what an older
+  # one left behind instead of silently reusing it.
   def self.install
-    cli_path = "#{tools_path}/kyverno"
-    return true if File.exists?(cli_path)
+    return true if installed?(cli_dir, ".kyverno_version", VERSION) &&
+                   installed?(policies_repo_path, ".policies_version", POLICIES_BRANCH)
+
+    FileUtils.rm_rf(cli_dir)
+    FileUtils.mkdir_p(cli_dir)
     tempfile = File.tempfile("kyverno", ".tar.gz")
-
     download_file(download_url, tempfile.path)
-
-    result = TarClient.untar(tempfile.path, tools_path)
+    result = TarClient.untar(tempfile.path, cli_dir)
     tempfile.delete
+    return false unless result[:status].success?
+    File.write("#{cli_dir}/.kyverno_version", VERSION)
+
     download_policies_repo
-    return true if result[:status].success?
-    return false
   end
 
   def self.uninstall
-    FileUtils.rm_rf(binary_path)
+    FileUtils.rm_rf(cli_dir)
     delete_policies_repo
     KubectlClient::Wait.resource_wait_for_uninstall("deployment", "kyverno",  namespace: "kyverno", wait_count: 180)
+  end
+
+  private def self.installed?(dir : String, marker : String, version : String) : Bool
+    Dir.exists?(dir) && File.exists?("#{dir}/#{marker}") && File.read("#{dir}/#{marker}") == version
   end
 
   def self.download_url
@@ -62,9 +77,12 @@ module Kyverno
   end
 
   def self.download_policies_repo
+    delete_policies_repo
     url = "https://github.com/kyverno/policies.git"
-    result = GitClient.clone("--branch release-1.9 #{url} #{policies_repo_path}")
-    result[:status].success?
+    result = GitClient.clone("--depth 1 --branch #{POLICIES_BRANCH} #{url} #{policies_repo_path}")
+    return false unless result[:status].success?
+    File.write("#{policies_repo_path}/.policies_version", POLICIES_BRANCH)
+    true
   end
 
   def self.delete_policies_repo
@@ -103,12 +121,19 @@ module Kyverno
       end
     end
 
+    # The report is the YAML document in the CLI output; older CLIs print a
+    # few progress lines before it, so start at its `apiVersion:` line.
+    private def self.report_document(output : String) : String
+      lines = output.lines
+      start = lines.index { |line| line.starts_with?("apiVersion:") } || 0
+      lines[start..].join("\n")
+    end
+
     def self.run(policy_path : String, exclude_namespaces : Array(String) = [] of String)
       cmd = "#{Kyverno.binary_path} apply #{policy_path} --cluster --policy-report"
       ShellCmd.run("ls #{policy_path}", "kyverno_policy_path", force_output: true)
       result = ShellCmd.run(cmd, "Kyverno::PolicyAudit.run", force_output: true)
-      policy_report_yaml = result[:output].split("\n")[5..-1].join("\n")
-      policy_report = YAML.parse(policy_report_yaml)
+      policy_report = YAML.parse(report_document(result[:output]))
 
       failures = [] of PolicyFailure
       policy_report["results"].as_a.each do |test_result|

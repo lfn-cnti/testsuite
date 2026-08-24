@@ -29,7 +29,7 @@ scored_task "require_labels",
   emoji: "🏷️" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     Kyverno.install
-    policy_path = Kyverno.best_practice_policy("require_labels/require_labels.yaml")
+    policy_path = Kyverno.best_practice_policy("require-labels/require-labels.yaml")
     failures = Kyverno::PolicyAudit.run(policy_path, EXCLUDE_NAMESPACES)
 
     resource_keys = CNFManager.workload_resource_keys(args, config)
@@ -53,7 +53,7 @@ scored_task "default_namespace",
   emoji: "🏷️" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     Kyverno.install
-    policy_path = Kyverno.best_practice_policy("disallow_default_namespace/disallow_default_namespace.yaml")
+    policy_path = Kyverno.best_practice_policy("disallow-default-namespace/disallow-default-namespace.yaml")
     failures = Kyverno::PolicyAudit.run(policy_path, EXCLUDE_NAMESPACES)
 
     resource_keys = CNFManager.workload_resource_keys(args, config)
@@ -79,7 +79,7 @@ scored_task "latest_tag",
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     Kyverno.install
 
-    policy_path = Kyverno.best_practice_policy("disallow_latest_tag/disallow_latest_tag.yaml")
+    policy_path = Kyverno.best_practice_policy("disallow-latest-tag/disallow-latest-tag.yaml")
     failures = Kyverno::PolicyAudit.run(policy_path, EXCLUDE_NAMESPACES)
 
     resource_keys = CNFManager.workload_resource_keys(args, config)
