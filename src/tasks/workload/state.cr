@@ -294,17 +294,7 @@ scored_task "node_drain",
           end
 
           if skip_reason.nil? && app_node_name
-            experiment_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::Version}/faults/kubernetes/node-drain/fault.yaml"
-            rbac_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::RBAC_VERSION}/charts/generic/node-drain/rbac.yaml"
-
-            experiment_path = LitmusManager.download_template(experiment_url, "#{t.name}_experiment.yaml")
-            KubectlClient::Apply.file(experiment_path, namespace: app_namespace)
-
-            rbac_path = LitmusManager.download_template(rbac_url, "#{t.name}_rbac.yaml")
-            rbac_yaml = File.read(rbac_path)
-            rbac_yaml = rbac_yaml.gsub("namespace: default", "namespace: #{app_namespace}")
-            File.write(rbac_path, rbac_yaml)
-            KubectlClient::Apply.file(rbac_path)
+            LitmusManager.install_fault("node-drain", app_namespace, t.name)
 
             KubectlClient::Utils.annotate(resource["kind"], resource["name"], ["litmuschaos.io/chaos=\"true\""], namespace: app_namespace)
 
