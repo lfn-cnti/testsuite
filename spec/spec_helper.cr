@@ -13,7 +13,7 @@ require "../src/modules/k8s_netstat"
 require "../src/modules/cluster_tools"
 require "../src/modules/kubectl_client"
 
-ENV["CRYSTAL_ENV"] = "TEST"
+ENV["CNF_TESTSUITE_ENV"] = "TEST"
 
 # Specs assume no CNF is installed; a leftover installation can make them fail
 # in ways that are hard to trace back to the environment.

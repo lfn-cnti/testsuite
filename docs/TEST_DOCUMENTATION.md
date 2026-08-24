@@ -535,7 +535,7 @@ Setup and use elastic persistent volumes instead of local storage.
 
 #### Usage
 
-`./cnf-testsuite elastic_volume`
+`./cnf-testsuite elastic_volumes`
 
 ----------
 
@@ -1346,7 +1346,7 @@ Declarative APIs for an immutable infrastructure are anything that configures th
 
 ### Usage
 
-All configuration: `./cnf-testsuite configuration_lifecycle`
+All configuration: `./cnf-testsuite configuration`
 
 ----------
 

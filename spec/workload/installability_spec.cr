@@ -8,7 +8,7 @@ describe CnfTestSuite do
 
 
   it "'helm_deploy' should fail on a manifest CNF", tags: ["helm_validation"] do
-    ShellCmd.cnf_install("cnf-path=./sample-cnfs/k8s-non-helm")
+    ShellCmd.cnf_install("cnf-config=./sample-cnfs/k8s-non-helm")
     result = ShellCmd.run_testsuite("helm_deploy")
     result[:status].exit_code.should eq(1)
     (/(FAILED).*(CNF has deployments that are not installed with helm)/ =~ result[:output]).should_not be_nil
@@ -53,7 +53,7 @@ describe CnfTestSuite do
 
   it "'helm_chart_published' should pass on a good helm chart repo", tags: ["helm_validation"]  do
     begin
-      ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-coredns-cnf")
+      ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf")
       result = ShellCmd.run_testsuite("helm_chart_published")
       result[:status].success?.should be_true
       (/(PASSED).*(All Helm charts are published)/ =~ result[:output]).should_not be_nil
@@ -65,7 +65,7 @@ describe CnfTestSuite do
   it "'helm_chart_published' should fail on a bad helm chart repo", tags: ["helm_validation"] do
     begin
       result = ShellCmd.run("helm search repo stable/coredns", force_output: true)
-      ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-bad-helm-repo skip_wait_for_install", expect_failure: true)
+      ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-bad-helm-repo skip_wait_for_install", expect_failure: true)
       result = ShellCmd.run("helm search repo stable/coredns", force_output: true)
       result = ShellCmd.run_testsuite("helm_chart_published")
       result[:status].exit_code.should eq(1)

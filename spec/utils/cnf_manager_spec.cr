@@ -396,7 +396,7 @@ describe "SampleUtils" do
   it "Helm_values should be used during the installation of a cnf", tags: ["cnf-config"]  do
     begin
       # fails because doesn't have a service
-      ShellCmd.cnf_install("cnf-path=./sample-cnfs/sample_coredns_values")
+      ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_coredns_values")
       deployment_containers = KubectlClient::Get.resource_containers("deployment", "coredns-coredns", "cnf-default")
       image_tags = KubectlClient::Get.container_image_tags(deployment_containers)
       Log.info { "image_tags: #{image_tags}" }

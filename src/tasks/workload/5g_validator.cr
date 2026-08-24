@@ -25,8 +25,8 @@ scored_task "smf_upf_heartbeat" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     Log.for(t.name).info { "named args: #{args.named}" }
     baseline_count : Int32 | Float64 | String | Nil
-    if args.named["baseline_count"]?
-      baseline_count = args.named["baseline_count"].to_i
+    if args.named["baseline-count"]?
+      baseline_count = args.named["baseline-count"].to_i
     else
       baseline_count = nil
     end
@@ -57,7 +57,7 @@ scored_task "smf_upf_heartbeat" do |t, args|
       sync_channel = Channel(Nil).new
       spawn do
         Log.info { "before invoke of pod delete" }
-        args.named["pod_labels"]="#{smf},#{upf}"
+        args.named["pod-labels"]="#{smf},#{upf}"
       # t.invoke("pod_delete", args)
         t.invoke("pod_network_latency", args)
         Log.info { "after invoke of pod delete" }

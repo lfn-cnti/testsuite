@@ -18,7 +18,7 @@ module CNFInstall
     parsed_args = parse_install_cli_args(cli_args)
     cnf_config_path = parsed_args[:config_path]
     if cnf_config_path.empty?
-      usage_error! "cnf-config or cnf-path parameter with valid CNF configuration should be provided."
+      usage_error! "cnf-config parameter with valid CNF configuration should be provided."
     end
     config = Config.parse_cnf_config_from_file(cnf_config_path)
     ensure_cnf_dir_structure()
@@ -40,8 +40,6 @@ module CNFInstall
 
     if cli_args.named.keys.includes? "cnf-config"
       cnf_config_path = cli_args.named["cnf-config"].as(String)
-    elsif cli_args.named.keys.includes? "cnf-path"
-      cnf_config_path = cli_args.named["cnf-path"].as(String)
     end
     cnf_config_path = self.ensure_cnf_config_path_file(cnf_config_path)
 

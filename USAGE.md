@@ -251,15 +251,15 @@ Each `impacted_resources` entry has `kind` and `name`, plus optional `namespace`
 
 ### Logging Parameters
 
-- **LOG_LEVEL** environment variable: sets minimal log level to display: error (default); info; debug.
-- **LOG_PATH** environment variable: if set - all logs would be appended to the file defined by that variable.
+- **CNF_TESTSUITE_LOG_LEVEL** environment variable: sets minimal log level to display: error (default); info; debug.
+- **CNF_TESTSUITE_LOG_PATH** environment variable: if set - all logs would be appended to the file defined by that variable.
 
 #### Output streams
 
 Result lines, scores and summaries are the suite's output and go to **stdout**; log messages are
-diagnostics and go to **stderr** (or to the `LOG_PATH` file when set). This means
+diagnostics and go to **stderr** (or to the `CNF_TESTSUITE_LOG_PATH` file when set). This means
 `./cnf-testsuite <test> > results.txt 2> debug.log` cleanly separates the two even with
-`LOG_LEVEL=debug`. When capturing the streams separately, their relative ordering is not
+`CNF_TESTSUITE_LOG_LEVEL=debug`. When capturing the streams separately, their relative ordering is not
 guaranteed — merge them with `2>&1` if strict interleaving matters. Cursor-control progress
 rewrites and colors are only emitted when stdout is a terminal.
 
@@ -450,7 +450,7 @@ crystal src/cnf-testsuite.cr -- -l debug test
 #### You can also use env var for logging:
 
 ```
-LOGLEVEL=DEBUG ./cnf-testsuite test
+CNF_TESTSUITE_LOG_LEVEL=DEBUG ./cnf-testsuite test
 ```
 
 :star: Note: When setting log level, the following is the order of precedence:
@@ -484,6 +484,18 @@ immediately:
 CNF_TESTSUITE_NETWORK_RETRY_ATTEMPTS=3   # attempts per fetch
 CNF_TESTSUITE_NETWORK_RETRY_BACKOFF=2    # base seconds between attempts (attempt N waits N x backoff)
 ```
+
+#### Other environment variables:
+
+- **CNF_TESTSUITE_FORCE_INSTALL**: set (to any value) to reinstall the suite-managed local Helm even when an installation is already present.
+- **CNF_TESTSUITE_ENV**: set to `TEST` for test-mode shortcuts (smaller samples, quicker platform checks). Used by the spec suite; not meant for normal runs.
+- **CNF_TESTSUITE_RESULTS_DIR**: redirect the results directory; see [Results file](#results-file).
+
+Every variable that configures the suite's own behavior carries the `CNF_TESTSUITE_` prefix.
+Credentials and ecosystem-wide standards deliberately keep their conventional names, so one
+export serves every tool that honors them: `KUBECONFIG`, `GITHUB_TOKEN`,
+`DOCKERHUB_USERNAME`/`DOCKERHUB_PASSWORD` (shared by `docker login`, `helm registry login`,
+and the suite's registry queries — see [INSTALL.md](INSTALL.md)), `NO_COLOR`, and `HOME`.
 
 #### Running The Linter
 

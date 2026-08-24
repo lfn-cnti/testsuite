@@ -7,12 +7,12 @@ require "./utils/cnf_installation/config"
 desc "Updates an old configuration file to the latest version and saves it to the specified location"
 task "update_config" do |_, args|
   # Ensure both arguments are provided
-  if !((args.named.keys.includes? "input_config") && (args.named.keys.includes? "output_config"))
-    usage_error! "Usage: update_config input_config=OLD_CONFIG_PATH output_config=NEW_CONFIG_PATH"
+  if !((args.named.keys.includes? "input-config") && (args.named.keys.includes? "output-config"))
+    usage_error! "Usage: update_config input-config=OLD_CONFIG_PATH output-config=NEW_CONFIG_PATH"
   end
 
-  input_config = args.named["input_config"].as(String)
-  output_config = args.named["output_config"].as(String)
+  input_config = args.named["input-config"].as(String)
+  output_config = args.named["output-config"].as(String)
 
   # Check if the input config file exists
   unless File.exists?(input_config)

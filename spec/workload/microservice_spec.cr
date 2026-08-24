@@ -15,7 +15,7 @@ describe "Microservice" do
 
   it "'shared_database' should be skipped no MariaDB containers are found", tags: ["shared_database1"]  do
     begin
-      ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_coredns/cnf-testsuite.yml")
+      ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_coredns/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].success?.should be_true
       (/(N\/A).*(No MariaDB containers were found)/ =~ result[:output]).should_not be_nil
@@ -28,7 +28,7 @@ describe "Microservice" do
 
   it "'shared_database' should pass if no database is used by two microservices", tags: ["shared_database2"]  do
     begin
-      ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-statefulset-cnf/cnf-testsuite.yml")
+      ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-statefulset-cnf/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].success?.should be_true
       (/(PASSED).*(No shared database found)/ =~ result[:output]).should_not be_nil
@@ -41,7 +41,7 @@ describe "Microservice" do
 
   it "'shared_database' should pass if one service connects to a database but other non-service connections are made to the database", tags: ["shared_database3"]  do
     begin
-      ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-multi-db-connections-exempt/cnf-testsuite.yml")
+      ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-multi-db-connections-exempt/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].success?.should be_true
       (/(PASSED).*(No shared database found)/ =~ result[:output]).should_not be_nil
@@ -54,7 +54,7 @@ describe "Microservice" do
 
   it "'shared_database' should fail if two services on the cluster connect to the same database", tags: ["shared_database_flaky"]  do
     begin
-      ShellCmd.cnf_install("cnf-path=sample-cnfs/ndn-multi-db-connections-fail/cnf-testsuite.yml")
+      ShellCmd.cnf_install("cnf-config=sample-cnfs/ndn-multi-db-connections-fail/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Found a shared database)/ =~ result[:output]).should_not be_nil
@@ -68,7 +68,7 @@ describe "Microservice" do
 
   it "'shared_database' should pass if two services on the cluster connect to the same database but they are not in the helm chart of the cnf", tags: ["shared_database4"]  do
     begin
-      ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_coredns")
+      ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_coredns")
       KubectlClient::Apply.namespace(DEFAULT_CNF_NAMESPACE)
       ShellCmd.run("kubectl label namespace #{DEFAULT_CNF_NAMESPACE} pod-security.kubernetes.io/enforce=privileged", "Label.namespace")
       Helm.install("multi-db", "sample-cnfs/ndn-multi-db-connections-fail/wordpress/", DEFAULT_CNF_NAMESPACE)
@@ -93,7 +93,7 @@ describe "Microservice" do
 
   it "'single_process_type' should pass if the containers in the cnf have only one process type", tags: ["process_check"]  do
     begin
-      ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_coredns")
+      ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_coredns")
       result = ShellCmd.run_testsuite("single_process_type")
       result[:status].success?.should be_true
       (/(PASSED).*(Only one process type used)/ =~ result[:output]).should_not be_nil
@@ -106,7 +106,7 @@ describe "Microservice" do
 
   it "'single_process_type' should pass if a container uses a non-specialized init system supervising a single process type", tags: ["process_check"]  do
     begin
-      ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-nonspecialized-init")
+      ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-nonspecialized-init")
       result = ShellCmd.run_testsuite("single_process_type")
       result[:status].success?.should be_true
       (/(PASSED).*(Only one process type used)/ =~ result[:output]).should_not be_nil
@@ -120,7 +120,7 @@ describe "Microservice" do
 
   it "'single_process_type' should fail if the containers in the cnf have more than one process type", tags: ["process_check"]  do
     begin
-      ShellCmd.cnf_install("cnf-path=sample-cnfs/k8s-multiple-processes")
+      ShellCmd.cnf_install("cnf-config=sample-cnfs/k8s-multiple-processes")
       result = ShellCmd.run_testsuite("single_process_type")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(More than one process type used)/ =~ result[:output]).should_not be_nil
@@ -133,7 +133,7 @@ describe "Microservice" do
 
   it "'single_process_type' should fail if the containers in the cnf have more than one process type and in a pod", tags: ["process_check"]  do
     begin
-      ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-multiple-processes")
+      ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-multiple-processes")
       result = ShellCmd.run_testsuite("single_process_type")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(More than one process type used)/ =~ result[:output]).should_not be_nil
@@ -146,7 +146,7 @@ describe "Microservice" do
 
   it "'reasonable_startup_time' should pass if the cnf has a reasonable startup time(helm_directory)", tags: ["reasonable_startup_time"]  do
     begin
-      ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_coredns")
+      ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_coredns")
       result = ShellCmd.run_testsuite("reasonable_startup_time")
       result[:status].success?.should be_true
       (/(PASSED).*(CNF had a reasonable startup time)/ =~ result[:output]).should_not be_nil
@@ -180,7 +180,7 @@ describe "Microservice" do
     #else
     cnf = "./sample-cnfs/sample-coredns-cnf"
     #end
-    ShellCmd.cnf_install("cnf-path=#{cnf}")
+    ShellCmd.cnf_install("cnf-config=#{cnf}")
     result = ShellCmd.run_testsuite("reasonable_image_size")
     result[:status].success?.should be_true
     (/Image size is good/ =~ result[:output]).should_not be_nil
@@ -190,7 +190,7 @@ describe "Microservice" do
   end
 
   it "'reasonable_image_size' should fail if image is larger than 5gb", tags: ["reasonable_image_size"] do
-    ShellCmd.cnf_install("cnf-path=./sample-cnfs/ndn-reasonable-image-size skip_wait_for_install")
+    ShellCmd.cnf_install("cnf-config=./sample-cnfs/ndn-reasonable-image-size skip_wait_for_install")
     result = ShellCmd.run_testsuite("reasonable_image_size")
     result[:status].exit_code.should eq(1)
     (/Image size too large/ =~ result[:output]).should_not be_nil
@@ -198,7 +198,7 @@ describe "Microservice" do
   end
 
   it "'specialized_init_system' should fail if pods do not use specialized init systems", tags: ["specialized_init_system"] do
-    ShellCmd.cnf_install("cnf-path=./sample-cnfs/sample-coredns-cnf")
+    ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-coredns-cnf")
     result = ShellCmd.run_testsuite("specialized_init_system")
     (/Containers do not use specialized init systems/ =~ result[:output]).should_not be_nil
 
@@ -213,7 +213,7 @@ describe "Microservice" do
   end
 
   it "'specialized_init_system' should pass if pods use specialized init systems", tags: ["specialized_init_system"] do
-    ShellCmd.cnf_install("cnf-path=./sample-cnfs/sample-init-systems")
+    ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-init-systems")
     result = ShellCmd.run_testsuite("specialized_init_system")
     result[:status].success?.should be_true
     (/Containers use specialized init systems/ =~ result[:output]).should_not be_nil
@@ -246,7 +246,7 @@ describe "Microservice" do
 
   it "'service_discovery' should pass if any containers in the cnf are exposed as a service", tags: ["service_discovery"]  do
     begin
-      ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_coredns")
+      ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_coredns")
       result = ShellCmd.run_testsuite("service_discovery")
       result[:status].success?.should be_true
       (/(PASSED).*(Some containers exposed as a service)/ =~ result[:output]).should_not be_nil
@@ -259,7 +259,7 @@ describe "Microservice" do
 
   it "'service_discovery' should fail if no containers in the cnf are exposed as a service", tags: ["service_discovery"]  do
     begin
-      ShellCmd.cnf_install("cnf-path=./sample-cnfs/sample-ndn-privileged")
+      ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-ndn-privileged")
       result = ShellCmd.run_testsuite("service_discovery")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(No containers exposed as a service)/ =~ result[:output]).should_not be_nil
@@ -277,7 +277,7 @@ describe "Microservice" do
       #todo 3. Collect all signals sent, if SIGKILL is captured, application fails test because it doesn't exit child processes cleanly
       #todo 3. Collect all signals sent, if SIGTERM is captured, application pass test because it  exits child processes cleanly
       #todo 4. Make sure that threads are not counted as new processes.  A thread does not get a signal (sigterm or sigkill)
-      ShellCmd.cnf_install("cnf-path=./sample-cnfs/sample_good_signal_handling/")
+      ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_good_signal_handling/")
       result = ShellCmd.run_testsuite("sig_term_handled")
       result[:status].success?.should be_true
       (/(PASSED).*(Sig Term handled)/ =~ result[:output]).should_not be_nil
@@ -295,7 +295,7 @@ describe "Microservice" do
       #todo 3. Collect all signals sent, if SIGKILL is captured, application fails test because it doesn't exit child processes cleanly
       #todo 3. Collect all signals sent, if SIGTERM is captured, application pass test because it  exits child processes cleanly
       #todo 4. Make sure that threads are not counted as new processes.  A thread does not get a signal (sigterm or sigkill)
-      ShellCmd.cnf_install("cnf-path=./sample-cnfs/sample_bad_signal_handling/")
+      ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_bad_signal_handling/")
       result = ShellCmd.run_testsuite("sig_term_handled")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Sig Term not handled)/ =~ result[:output]).should_not be_nil
@@ -313,7 +313,7 @@ describe "Microservice" do
       #todo 3. Collect all signals sent, if SIGKILL is captured, application fails test because it doesn't exit child processes cleanly
       #todo 3. Collect all signals sent, if SIGTERM is captured, application pass test because it  exits child processes cleanly
       #todo 4. Make sure that threads are not counted as new processes.  A thread does not get a signal (sigterm or sigkill)
-      ShellCmd.cnf_install("cnf-path=./sample-cnfs/sample_good_signal_handling_tini/")
+      ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_good_signal_handling_tini/")
 
       # Workaround to wait using kubectl because Jenkins pod takes a LONG time to start.
       result = ShellCmd.run("kubectl wait --for=condition=ready=True pod/jenkins-0 -n cnfspace --timeout=500s", force_output: true)
@@ -331,7 +331,7 @@ describe "Microservice" do
   it "'zombie_handled' should pass if a zombie is succesfully reaped by PID 1", tags: ["zombie"]  do
     begin
 
-      ShellCmd.cnf_install("cnf-path=./sample-cnfs/sample_good_zombie_handling/")
+      ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_good_zombie_handling/")
       result = ShellCmd.run_testsuite("zombie_handled")
       result[:status].success?.should be_true
       (/(PASSED).*(Zombie handled)/ =~ result[:output]).should_not be_nil
@@ -345,7 +345,7 @@ describe "Microservice" do
   it "'zombie_handled' should failed if a zombie is not succesfully reaped by PID 1", tags: ["zombie"]  do
     begin
 
-      ShellCmd.cnf_install("cnf-path=./sample-cnfs/sample-bad-zombie/")
+      ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-bad-zombie/")
       result = ShellCmd.run_testsuite("zombie_handled")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Zombie not handled)/ =~ result[:output]).should_not be_nil

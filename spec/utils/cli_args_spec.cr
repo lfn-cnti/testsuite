@@ -15,6 +15,11 @@ describe "CLI argument validation" do
     result = ShellCmd.run_testsuite("cnf_install cnf-config=whatever timeout=abc")
     result[:status].exit_code.should eq(64)
     result[:output].should contain("not a number")
+
+    # cnf-path was an undocumented alias of cnf-config; retired.
+    result = ShellCmd.run_testsuite("cnf_install cnf-path=whatever")
+    result[:status].exit_code.should eq(64)
+    result[:output].should contain("Unknown argument 'cnf-path='")
   end
 
   it "warns on unmatched exclusions and task names in argument positions", tags: ["points"] do
@@ -32,7 +37,7 @@ describe "CLI argument validation" do
     result[:status].exit_code.should eq(USAGE_EXIT_CODE)
     result[:output].should contain("Usage: update_config")
 
-    result = ShellCmd.run_testsuite("update_config input_config=/nonexistent.yml output_config=/tmp/ignored.yml")
+    result = ShellCmd.run_testsuite("update_config input-config=/nonexistent.yml output-config=/tmp/ignored.yml")
     result[:status].exit_code.should eq(USAGE_EXIT_CODE)
     result[:output].should contain("does not exist")
 
@@ -52,7 +57,7 @@ describe "CLI argument validation" do
   it "exits 1, never 0, when a command refuses to do what was asked", tags: ["points"] do
     output_config = File.tempname("already-latest", ".yml")
     begin
-      result = ShellCmd.run_testsuite("update_config input_config=spec/fixtures/cnf-testsuite-v2-example.yml output_config=#{output_config}")
+      result = ShellCmd.run_testsuite("update_config input-config=spec/fixtures/cnf-testsuite-v2-example.yml output-config=#{output_config}")
       result[:status].exit_code.should eq(1)
       result[:output].should contain("already the latest version")
       File.exists?(output_config).should be_false

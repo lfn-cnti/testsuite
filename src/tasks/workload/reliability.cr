@@ -91,8 +91,8 @@ scored_task "pod_network_latency",
 
       current_pod_key = ""
       current_pod_value = ""
-      if args.named["pod_labels"]?
-          pod_label = args.named["pod_labels"]?
+      if args.named["pod-labels"]?
+          pod_label = args.named["pod-labels"]?
           match_array = pod_label.to_s.split(",")
 
         test_passed = match_array.any? do |key_value|
@@ -109,12 +109,12 @@ scored_task "pod_network_latency",
         end
       end
 
-      Log.info { "Spec Hash: #{args.named["pod_labels"]?}" }
+      Log.info { "Spec Hash: #{args.named["pod-labels"]?}" }
 
 
       if test_passed
         Log.info { "Running for: #{spec_labels}"}
-        Log.info { "Spec Hash: #{args.named["pod_labels"]?}" }
+        Log.info { "Spec Hash: #{args.named["pod-labels"]?}" }
         experiment_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::Version}/faults/kubernetes/pod-network-latency/fault.yaml"
         rbac_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::RBAC_VERSION}/charts/generic/pod-network-latency/rbac.yaml"
         
@@ -134,7 +134,7 @@ scored_task "pod_network_latency",
         chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
 
         #spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"]).as_h
-        if args.named["pod_labels"]?
+        if args.named["pod-labels"]?
             template = ChaosTemplates::PodNetworkLatency.new(
               test_name,
               "#{chaos_experiment_name}",
@@ -160,7 +160,7 @@ scored_task "pod_network_latency",
 
       test_passed
     end
-    unless args.named["pod_labels"]?
+    unless args.named["pod-labels"]?
         #todo if in pod specific mode, dont do upserts and resp = ""
         if task_response
           result.passed("pod_network_latency chaos test passed")
@@ -370,8 +370,8 @@ scored_task "pod_delete",
 
       current_pod_key = ""
       current_pod_value = ""
-      if args.named["pod_labels"]?
-          pod_label = args.named["pod_labels"]?
+      if args.named["pod-labels"]?
+          pod_label = args.named["pod-labels"]?
           match_array = pod_label.to_s.split(",")
 
         test_passed = match_array.any? do |key_value|
@@ -388,12 +388,12 @@ scored_task "pod_delete",
         end
       end
 
-      Log.info { "Spec Hash: #{args.named["pod_labels"]?}" }
+      Log.info { "Spec Hash: #{args.named["pod-labels"]?}" }
 
 
       if test_passed
         Log.info { "Running for: #{spec_labels}"}
-        Log.info { "Spec Hash: #{args.named["pod_labels"]?}" }
+        Log.info { "Spec Hash: #{args.named["pod-labels"]?}" }
         experiment_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::Version}/faults/kubernetes/pod-delete/fault.yaml"
         rbac_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::RBAC_VERSION}/charts/generic/pod-delete/rbac.yaml"
 
@@ -417,7 +417,7 @@ scored_task "pod_delete",
         chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
 
         # spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"]).as_h
-      if args.named["pod_labels"]?
+      if args.named["pod-labels"]?
         template = ChaosTemplates::PodDelete.new(
           test_name,
           "#{chaos_experiment_name}",
@@ -446,7 +446,7 @@ scored_task "pod_delete",
       test_passed=LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result)
       test_passed
     end
-    unless args.named["pod_labels"]?
+    unless args.named["pod-labels"]?
         if task_response
           result.passed("pod_delete chaos test passed")
         else

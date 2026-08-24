@@ -26,7 +26,7 @@ describe "Core" do
   it "'smf_upf_heartbeat' should fail if the smf_upf core is not resilient to network latency", tags: ["core"]  do
     begin
       ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_open5gs/cnf-testsuite.yml")
-      result = ShellCmd.run_testsuite("smf_upf_heartbeat baseline_count=300")
+      result = ShellCmd.run_testsuite("smf_upf_heartbeat baseline-count=300")
       (/(FAILED).*(Chaos service degradation is more than 50%)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
