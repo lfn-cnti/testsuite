@@ -94,7 +94,7 @@ module TarClient
   end
 
 
-  def self.tar_file_by_url(url, append_file : String = "./downloaded.tar.gz", output_file="")
+  def self.tar_file_by_url(url, append_file : String = File.join(TAR_TMP_BASE, "downloaded.tar.gz"), output_file="")
     download_path = "download/" 
     FileUtils.rm_rf("/tmp/#{download_path}")
     FileUtils.mkdir_p("/tmp/" + download_path)

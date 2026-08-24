@@ -1,6 +1,7 @@
 # coding: utf-8
 require "sam"
 require "colorize"
+require "file_utils"
 require "../utils/utils.cr"
 
 namespace "platform" do
@@ -15,18 +16,19 @@ namespace "platform" do
         next
       end
       Log.info { "Running POC in destructive mode!" }
-      current_dir = FileUtils.pwd
-
       #Select the first node that isn't a master and is also schedulable
       worker_nodes = KubectlClient::Get.worker_nodes
       worker_node = worker_nodes[0]
 
-      File.write("node_failure_values.yml", NODE_FAILED_VALUES)
-      install_coredns = Helm.install("node-failure", "stable/coredns", values: "-f ./node_failure_values.yml --set nodeSelector.\"kubernetes\\.io/hostname\"=#{worker_node}")
+      FileUtils.mkdir_p(Setup::RENDERED_MANIFESTS_DIR)
+      values_manifest = File.join(Setup::RENDERED_MANIFESTS_DIR, "node_failure_values.yml")
+      reboot_daemon_manifest = File.join(Setup::RENDERED_MANIFESTS_DIR, "reboot_daemon_pod.yml")
+      File.write(values_manifest, NODE_FAILED_VALUES)
+      install_coredns = Helm.install("node-failure", "stable/coredns", values: "-f #{values_manifest} --set nodeSelector.\"kubernetes\\.io/hostname\"=#{worker_node}")
       KubectlClient::Wait.resource_wait_for_install("deployment", "node-failure-coredns")
 
-      File.write("reboot_daemon_pod.yml", REBOOT_DAEMON)
-      KubectlClient::Apply.file("reboot_daemon_pod.yml")
+      File.write(reboot_daemon_manifest, REBOOT_DAEMON)
+      KubectlClient::Apply.file(reboot_daemon_manifest)
       KubectlClient::Wait.resource_wait_for_install("deployment", "node-failure-coredns")
 
       begin
@@ -79,13 +81,13 @@ namespace "platform" do
       ensure
         Log.info { "node_failure cleanup" }
         begin
-          delete_reboot_daemon = KubectlClient::Delete.file("reboot_daemon_pod.yml")
+          delete_reboot_daemon = KubectlClient::Delete.file(reboot_daemon_manifest)
         rescue ex: KubectlClient::ShellCMD::NotFoundError
-          Log.warn { "Cannot delete file \"reboot_daemon_pod.yml\". File not found." }
+          Log.warn { "Cannot delete file \"#{reboot_daemon_manifest}\". File not found." }
         end
         delete_coredns = Helm.uninstall("node-failure")
-        File.delete("reboot_daemon_pod.yml")
-        File.delete("node_failure_values.yml")
+        File.delete?(reboot_daemon_manifest)
+        File.delete?(values_manifest)
       end
     end
   end

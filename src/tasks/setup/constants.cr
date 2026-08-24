@@ -41,6 +41,16 @@ module Setup
   CLUSTER_API_URL    = "https://github.com/kubernetes-sigs/cluster-api/releases/download/" +
                        "v#{CLUSTER_API_VERSION}/clusterctl-#{TARGET_OS}-#{TARGET_ARCH}"
 
+  CLUSTER_API_DIR    = "#{tools_path}/cluster-api"
+  CLUSTERCTL_BINARY  = "#{CLUSTER_API_DIR}/clusterctl"
+
+  # Manifests and helm values the suite renders at runtime. Kept with the
+  # tools rather than scattered into the user's working directory: a run must
+  # only ever touch results/ and installed_cnf_files/ in the CWD.
+  RENDERED_MANIFESTS_DIR = "#{tools_path}/rendered-manifests"
+  CLUSTER_TOOLS_MANIFEST = "#{RENDERED_MANIFESTS_DIR}/cluster_tools.yml"
+  FIVE_G_TOOLS_DIR       = "#{tools_path}/5g"
+
   KIND_DOWNLOAD_URL  = "https://github.com/kubernetes-sigs/kind/releases/download/v#{KIND_VERSION}/kind-#{TARGET_OS}-#{TARGET_ARCH}"
   KIND_DIR           = "#{tools_path}/kind"
   KIND_BINARY        = "#{KIND_DIR}/kind"

@@ -1,5 +1,7 @@
 require "../kubectl_client"
 require "../docker_client"
+require "../../tasks/setup/constants.cr"
+require "file_utils"
 require "log"
 require "ecr"
 
@@ -42,21 +44,23 @@ module ClusterTools
 
   def self.install()
     Log.info { "ClusterTools install" }
-    File.write("cluster_tools.yml", ManifestTemplate.new().to_s)
-    KubectlClient::Apply.file("cluster_tools.yml", namespace: self.namespace!)
+    FileUtils.mkdir_p(File.dirname(Setup::CLUSTER_TOOLS_MANIFEST))
+    File.write(Setup::CLUSTER_TOOLS_MANIFEST, ManifestTemplate.new().to_s)
+    KubectlClient::Apply.file(Setup::CLUSTER_TOOLS_MANIFEST, namespace: self.namespace!)
     wait_for_cluster_tools
   end
 
   def self.uninstall()
     Log.info { "ClusterTools uninstall" }
-    File.write("cluster_tools.yml", ManifestTemplate.new().to_s)
+    FileUtils.mkdir_p(File.dirname(Setup::CLUSTER_TOOLS_MANIFEST))
+    File.write(Setup::CLUSTER_TOOLS_MANIFEST, ManifestTemplate.new().to_s)
 
-    KubectlClient::Delete.file("cluster_tools.yml", namespace: self.namespace!)
+    KubectlClient::Delete.file(Setup::CLUSTER_TOOLS_MANIFEST, namespace: self.namespace!)
     #todo make this work with cluster-tools-host-namespace
     KubectlClient::Wait.resource_wait_for_uninstall("Daemonset", "cluster-tools", namespace: self.namespace!)
   ensure
     # Do not leave the rendered manifest behind after uninstalling
-    FileUtils.rm_rf("cluster_tools.yml")
+    FileUtils.rm_rf(Setup::CLUSTER_TOOLS_MANIFEST)
   end
 
   def self.exec(cli : String) : KubectlClient::CMDResult

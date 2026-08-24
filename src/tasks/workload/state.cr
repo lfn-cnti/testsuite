@@ -284,10 +284,10 @@ scored_task "node_drain",
                 # operator down with the workload, so there is no test to run.
                 skip_reason = "node_drain chaos test requires a schedulable node that does not run Litmus, but #{app_node_name} is the only one left"
               else
-                download_file("#{LitmusManager::LITMUS_OPERATOR}", "#{LitmusManager::DOWNLOADED_LITMUS_FILE}")
+                download_file(LitmusManager::LITMUS_OPERATOR, LitmusManager.downloaded_operator_file)
                 Log.info { "Re-Schedule Litmus" }
                 LitmusManager.add_node_selector(litmus_target_node)
-                KubectlClient::Apply.file("#{LitmusManager::MODIFIED_LITMUS_FILE}")
+                KubectlClient::Apply.file(LitmusManager.modified_operator_file)
                 KubectlClient::Wait.resource_wait_for_install(kind: "Deployment", resource_name: "chaos-operator-ce", wait_count: 180, namespace: "litmus")
               end
             end
