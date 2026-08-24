@@ -58,19 +58,8 @@ module FluentManager
             "fluentd-values.yml",
             FLUENTD_VALUES,
             # renovate: datasource=docker depName=fluent/fluentd-kubernetes-daemonset
-            "fluent/fluentd-kubernetes-daemonset:v1.19.1-debian-elasticsearch8-1.0@sha256:4bad75452717d2de0e3c4857339d8e91f11b2712fa9319302a401d9c86388c90",
+            "fluent/fluentd-kubernetes-daemonset:v1.19.3-debian-elasticsearch8-1.1@sha256:88da01d42636bb6f659f4116d66cafe44f7ee2436ddbd5c3b8bd595449f2a639",
             "fluentd/fluentd")
-    end
-  end
-
-  class FluentDBitnami < FluentBase
-    def initialize
-      super("fluentdbitnami",
-            "https://charts.bitnami.com/bitnami",
-            "fluentd-bitnami-values.yml",
-            FLUENTD_BITNAMI_VALUES,
-            "bitnamilegacy/fluentd:latest@sha256:6771c744cbd368eca969b49c160f3ffc24873c4b3743b1df04cc59721b9b73d0",
-            "fluentdbitnami/fluentd")
     end
   end
 
@@ -81,7 +70,7 @@ module FluentManager
             "fluentbit-values.yml",
             FLUENTBIT_VALUES,
             # renovate: datasource=docker depName=fluent/fluent-bit
-            "fluent/fluent-bit:latest@sha256:7d727245767ae632eb296c2ff4d206bf2e205b5f244c1f37b8fdd61f9fb33985",
+            "fluent/fluent-bit:5.1.1@sha256:a941bdd5ca552b2c6597fc7b3bccf2e61d30873939bab5700963de0e94ac6169",
             "fluent-bit/fluent-bit")
     end
   end
@@ -117,7 +106,7 @@ module FluentManager
   end
 
   def self.all_flavors : Array(FluentBase)
-    [FluentD.new, FluentDBitnami.new, FluentBit.new]
+    [FluentD.new, FluentBit.new]
   end
 
 end

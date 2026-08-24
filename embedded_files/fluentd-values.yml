@@ -1,8 +1,9 @@
+# The fluentd chart has no image.digest value; FluentManager fingerprints the
+# running collector by the digest this tag resolves to on Docker Hub.
 # renovate: datasource=docker depName=fluent/fluentd-kubernetes-daemonset
 image:
   repository: fluent/fluentd-kubernetes-daemonset
-  tag: v1.19.1-debian-elasticsearch8-1.0
-  digest: sha256:4bad75452717d2de0e3c4857339d8e91f11b2712fa9319302a401d9c86388c90
+  tag: v1.19.3-debian-elasticsearch8-1.1
 
 fileConfigs:
   04_outputs.conf: |-

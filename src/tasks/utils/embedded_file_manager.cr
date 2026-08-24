@@ -34,9 +34,6 @@ module EmbeddedFileManager
   macro fluentbit_values
     FLUENTBIT_VALUES = Base64.decode_string("{{ `cat ./embedded_files/fluentbit-values.yml | base64`}}")
   end
-  macro fluentd_bitnami_values
-    FLUENTD_BITNAMI_VALUES = Base64.decode_string("{{ `cat ./embedded_files/fluentd-bitnami-values.yml | base64`}}")
-  end
   macro ueransim_helmconfig
     UERANSIM_HELMCONFIG = Base64.decode_string("{{ `cat ./embedded_files/ue.yaml | base64`}}")
   end
