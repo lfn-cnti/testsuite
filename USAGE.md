@@ -46,20 +46,20 @@ Failed/errored tests also print indented detail lines beneath the result:
 
 #### Results file
 
-Each run writes a **timestamped YAML file** into the results directory — `results/` under the
+Each run writes a **timestamped YAML file** into the results directory — `cnti/results/` under the
 current working directory unless redirected (see below):
 
 ```
-results/cnf-testsuite-results-<YYYYMMDD-HHMMSS-mmm>.yml
+cnti/results/cnf-testsuite-results-<YYYYMMDD-HHMMSS-mmm>.yml
 ```
 
-A new file is created per run, and **`results/latest.yml` always points at the newest one** — a
+A new file is created per run, and **`cnti/results/latest.yml` always points at the newest one** — a
 relative symlink, repointed whenever a results file is created (a copy, kept current, on
 filesystems without symlinks). Scripts should read `latest.yml` rather than sorting the
 directory. Every run also ends with one stable line naming both paths:
 
 ```
-Results: results/cnf-testsuite-results-<timestamp>.yml (latest: results/latest.yml)
+Results: cnti/results/cnf-testsuite-results-<timestamp>.yml (latest: cnti/results/latest.yml)
 ```
 
 To write somewhere else, pass `results-dir=PATH` on the command line or set the

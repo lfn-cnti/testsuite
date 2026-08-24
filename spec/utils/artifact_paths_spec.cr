@@ -1,7 +1,7 @@
 require "../spec_helper"
 
-# A run must only ever touch results/ and installed_cnf_files/ in the working
-# directory; every other runtime artifact lives with the tools.
+# A run must only ever touch the cnti/ workspace in the working directory;
+# every other runtime artifact lives with the tools.
 describe "Runtime artifact locations" do
   it "keeps runtime artifacts out of the working directory", tags: ["points"] do
     [
