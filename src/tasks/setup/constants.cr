@@ -15,28 +15,15 @@ module Setup
     {% end %}
   end
 
-  KUBESCAPE_TARGET_BINARY_NAME = begin
-    case {TARGET_OS, TARGET_ARCH}
-    when {"darwin", "arm64"}
-      "kubescape-arm64-macos-latest"
-    when {"darwin", "amd64"}
-      "kubescape-macos-latest"
-    when {"linux", "arm64"}
-      "kubescape-arm64-ubuntu-latest"
-    else
-      "kubescape-ubuntu-latest"
-    end
-  end
-
   # Versions of the tools
   # renovate: datasource=github-releases depName=kubernetes-sigs/cluster-api
   CLUSTER_API_VERSION         = "1.14.0"
   # renovate: datasource=github-releases depName=kubernetes-sigs/kind
   KIND_VERSION                = "0.32.0"
   # renovate: datasource=github-releases depName=kubescape/kubescape
-  KUBESCAPE_VERSION           = "3.0.30"
+  KUBESCAPE_VERSION           = "4.0.12"
   # renovate: datasource=github-releases depName=kubescape/regolibrary
-  KUBESCAPE_FRAMEWORK_VERSION = "1.0.316"
+  KUBESCAPE_FRAMEWORK_VERSION = "2.0.33"
   # renovate: datasource=github-releases depName=helm/helm
   HELM_VERSION                = "3.21.4"
   # renovate: datasource=helm depName=gatekeeper registryUrl=https://open-policy-agent.github.io/gatekeeper/charts
@@ -62,7 +49,8 @@ module Setup
 
   KUBESCAPE_DIR      = "#{tools_path}/kubescape"
   KUBESCAPE_URL      = "https://github.com/kubescape/kubescape/releases/download/" +
-                       "v#{KUBESCAPE_VERSION}/#{KUBESCAPE_TARGET_BINARY_NAME}"
+                       "v#{KUBESCAPE_VERSION}/kubescape_#{KUBESCAPE_VERSION}_#{TARGET_OS}_#{TARGET_ARCH}.tar.gz"
+  KUBESCAPE_BINARY   = "#{KUBESCAPE_DIR}/kubescape"
   KUBESCAPE_FRAMEWORK_URL = "https://github.com/kubescape/regolibrary/releases/download/" +
                              "v#{KUBESCAPE_FRAMEWORK_VERSION}/nsa"
 

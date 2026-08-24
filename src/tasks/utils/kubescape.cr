@@ -20,7 +20,7 @@ module Kubescape
     elsif cli == nil
       cli = "framework nsa --use-from #{tools_path}/kubescape/nsa.json --output #{output_file} #{default_options} #{namespace_option}"
     end
-    cmd = "#{tools_path}/kubescape/kubescape scan #{cli}"
+    cmd = "#{Setup::KUBESCAPE_BINARY} scan #{cli}"
     Log.info { "scan command: #{cmd}" }
     status = Process.run(
       cmd,
