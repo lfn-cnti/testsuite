@@ -184,7 +184,6 @@ module GroupTaskDSL
         end
       end
       stdout_group_verdict(path)
-      stdout_info "Results have been saved to #{CNFManager::Points::Results.file}".colorize(:green) if invoked_task?(name)
     end
   end
 end
