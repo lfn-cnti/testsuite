@@ -21,12 +21,5 @@ def stdout_failure(msg)
 end
 
 def local_kubectl_path
-  if File.exists?(KubectlClient::BASE_CONFIG)
-    config = Totem.from_file KubectlClient::BASE_CONFIG
-    if config[":kubectl_binary_path"]? && config[":kubectl_binary_path"].as_s?
-      return config[":kubectl_binary_path"].as_s
-    end
-  end
-
   File.join(FileUtils.pwd, KubectlClient::DEFAULT_LOCAL_BINARY_PATH)
 end

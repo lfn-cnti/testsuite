@@ -457,7 +457,7 @@ LOGLEVEL=DEBUG ./cnf-testsuite test
 
 1. CLI or Command line flag
 2. Environment variable
-3. CNF-Testsuite [Config file](config.yml)
+3. CNF-Testsuite [Config file](config.yml) — `./config.yml` in the working directory, else `config.yml` in the suite home (`~/.cnf-testsuite`, relocatable via `CNF_TESTSUITE_DIR`)
 
 > Note: Available log levels are: `trace`, `debug`, `info`, `notice`, `warn`, `error` and `fatal`.
 

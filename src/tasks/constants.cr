@@ -6,7 +6,6 @@ DEPLOYMENTS_DIR = File.join(CNF_DIR, "deployments")
 CNF_TEMP_FILES_DIR = File.join(CNF_DIR, "temp_files")
 CNF_INSTALL_LOG_FILE = File.join(CNF_TEMP_FILES_DIR, "installation.log")
 CONFIG_FILE = "cnf-testsuite.yml"
-BASE_CONFIG = "./config.yml"
 COMMON_MANIFEST_FILE_PATH = "#{CNF_DIR}/common_manifest.yml"
 DEPLOYMENT_MANIFEST_FILE_NAME = "deployment_manifest.yml"
 # todo move to helm module

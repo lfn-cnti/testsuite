@@ -77,8 +77,8 @@ private def loglevel
   # 3. Config file is last level of precedence
 
   # lowest priority is first
-  if File.exists?(BASE_CONFIG)
-    config = Totem.from_file BASE_CONFIG
+  if config_path = base_config_path
+    config = Totem.from_file config_path
     if config["loglevel"].as_s?
       level_str = config["loglevel"].as_s
     end
