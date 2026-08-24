@@ -474,6 +474,17 @@ CNF_TESTSUITE_NODE_DRAIN_TOTAL_CHAOS_DURATION=90
 CNF_TESTSUITE_LABEL_RESOURCE_SLEEP=5
 ```
 
+#### Network retries:
+
+Network-bound fetches (chart pulls, repo adds, binary downloads) are retried on transient
+failures — resets, timeouts, DNS blips, 5xx — while a missing chart or auth error still fails
+immediately:
+
+```
+CNF_TESTSUITE_NETWORK_RETRY_ATTEMPTS=3   # attempts per fetch
+CNF_TESTSUITE_NETWORK_RETRY_BACKOFF=2    # base seconds between attempts (attempt N waits N x backoff)
+```
+
 #### Running The Linter
 
 Ameba (https://github.com/crystal-ameba/ameba) is a static code linter for crystal-lang.

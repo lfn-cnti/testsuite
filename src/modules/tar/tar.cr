@@ -1,5 +1,6 @@
 require "colorize"
 require "log"
+require "../net_retry"
 
 # todo put in a separate library. it shold go under ./tools for now
 module TarClient
@@ -106,10 +107,12 @@ module TarClient
     download_full_path = download_path + download_name
     Log.info { "download_name: #{download_name}" }
     Log.info { "download_full_path: #{download_full_path}" }
-    Halite.get("#{url}") do |response| 
-       File.open("/tmp/" + download_full_path, "w") do |file| 
-         IO.copy(response.body_io, file)
-       end
+    NetRetry.with_retries("download #{url}") do
+      Halite.get("#{url}") do |response|
+        File.open("/tmp/" + download_full_path, "w") do |file|
+          IO.copy(response.body_io, file)
+        end
+      end
     end
     TarClient.append(append_file, "/tmp", download_full_path)
   ensure
