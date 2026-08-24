@@ -1,9 +1,5 @@
 version: 2.0
 shards:
-  commander:
-    git: https://github.com/mrrooijen/commander.git
-    version: 0.4.0
-
   crinja:
     git: https://github.com/straight-shoota/crinja.git
     version: 0.9.0
@@ -12,10 +8,6 @@ shards:
     git: https://github.com/icyleaf/halite.git
     version: 0.12.1
 
-  icr:
-    git: https://github.com/crystal-community/icr.git
-    version: 0.9.0+git.commit.f62bfcdfbe65ee31c46c3d9951cee08ac2e0bee0
-
   popcorn:
     git: https://github.com/icyleaf/popcorn.git
     version: 0.3.0
@@ -23,10 +15,6 @@ shards:
   protobuf:
     git: https://github.com/jeromegn/protobuf.cr.git
     version: 2.3.1
-
-  readline:
-    git: https://github.com/crystal-lang/crystal-readline.git
-    version: 0.1.1+git.commit.69ecf33d7cad5568d7d19333510cfd9d17cb1bbd
 
   retriable:
     git: https://github.com/sija/retriable.cr.git

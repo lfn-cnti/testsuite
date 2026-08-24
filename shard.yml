@@ -10,11 +10,12 @@ targets:
   cnf_testsuite:
     main: src/cnf_testsuite.cr
 
-crystal: '>= 1.6.0'
+crystal: '>= 1.19.0'
 
 dependencies:
   crinja:
     github: straight-shoota/crinja
+    version: ~> 0.9.0
   sam:
     github: vulk/sam.cr
     commit: 4e3b271d31d7
@@ -24,16 +25,11 @@ dependencies:
   halite:
     github: icyleaf/halite
     version: ~> 0.12.0
-  icr:
-    github: crystal-community/icr
-    branch: master
-  commander:
-    github: mrrooijen/commander
-    version: ~> 0.4.0
   retriable:
     github: Sija/retriable.cr
     version: ~> 0.2.4
   protobuf:
     github: jeromegn/protobuf.cr
+    version: ~> 2.3.1
 
 license: MIT

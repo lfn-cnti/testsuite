@@ -8,7 +8,7 @@ jobs:
     name: Build Release
     runs-on: ubuntu-24.04
     env:
-      CRYSTAL_IMAGE: "conformance/crystal:1.6.2-alpine"
+      CRYSTAL_IMAGE: "crystallang/crystal:1.19.1-alpine-build"
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -26,8 +26,10 @@ jobs:
     - name: Build Release
       run: |
         docker pull $CRYSTAL_IMAGE
-        docker run --rm -v $PWD:/workspace -w /workspace $CRYSTAL_IMAGE shards install
-        docker run --rm -v $PWD:/workspace -w /workspace $CRYSTAL_IMAGE crystal build src/cnf-testsuite.cr --release --static --link-flags '-lxml2 -llzma'
+        docker run --rm -v $PWD:/workspace -w /workspace $CRYSTAL_IMAGE sh -c "\
+          git config --global --add safe.directory /workspace && \
+          shards install && \
+          crystal build src/cnf-testsuite.cr --release --static --link-flags '-lxml2 -llzma'"
     - name: Publish Release
       if: ${{ env.GITHUB_TOKEN != '' }}
       run: |

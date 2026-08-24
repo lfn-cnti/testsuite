@@ -112,10 +112,10 @@ _This build method is static and DOES NOT have any runtime dependencies._
 - To build using docker crystal alpine image (great if you don't have crystal installed)
 
 ```
-docker pull crystallang/crystal:1.6.2-alpine-build
+docker pull crystallang/crystal:1.19.1-alpine-build
  ## Note: $PWD is your cnf-testsuite source directory in the following commands 
-docker run --rm -it -v $PWD:/workspace -w /workspace crystallang/crystal:1.6.2-alpine-build shards install
-docker run --rm -it -v $PWD:/workspace -w /workspace crystallang/crystal:1.6.2-alpine-build crystal build src/cnf-testsuite.cr --release --static --link-flags "-lxml2 -llzma"
+docker run --rm -it -v $PWD:/workspace -w /workspace crystallang/crystal:1.19.1-alpine-build shards install
+docker run --rm -it -v $PWD:/workspace -w /workspace crystallang/crystal:1.19.1-alpine-build crystal build src/cnf-testsuite.cr --release --static --link-flags "-lxml2 -llzma"
 ```
 
 </p>

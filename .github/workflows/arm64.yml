@@ -43,6 +43,8 @@ jobs:
           kind create cluster --name arm64 --config=/tmp/cluster.yml
           rm /tmp/cluster.yml
       - uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: 1.19.1
       - run: |
           curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl"
           sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
