@@ -79,20 +79,33 @@ def check_cnf_config(args)
   cnf
 end
 
+BASE_CONFIG_NAME = "config.yml"
+
+# The suite's own settings file (feature toggles, loglevel): the working
+# directory wins as a project-local override, else the suite home. Home is
+# checked without creating it, so read-only invocations stay side-effect free.
+def base_config_path : String?
+  return BASE_CONFIG_NAME if File.exists?(BASE_CONFIG_NAME)
+  home_config = File.join(ENV.fetch("CNF_TESTSUITE_DIR", "#{ENV["HOME"]}/.cnf-testsuite"), BASE_CONFIG_NAME)
+  File.exists?(home_config) ? home_config : nil
+end
+
 module BaseConfigWarning
   @@warned = false
 
   def self.warn_missing_once
     return if @@warned
     @@warned = true
-    stdout_warning "No #{BASE_CONFIG} found in the current directory; feature toggles (wip, alpha, beta, poc, destructive, multi-cnf) default to disabled."
+    stdout_warning "No #{BASE_CONFIG_NAME} found in the current directory or the suite home " \
+                   "(#{ENV.fetch("CNF_TESTSUITE_DIR", "~/.cnf-testsuite")}); feature toggles " \
+                   "(wip, alpha, beta, poc, destructive, multi-cnf) default to disabled."
   end
 end
 
 def toggle(toggle_name)
   toggle_on = false
-  if File.exists?(BASE_CONFIG)
-    config = Totem.from_file BASE_CONFIG
+  if config_path = base_config_path
+    config = Totem.from_file config_path
     if config["toggles"].as_a?
       feature_flag = config["toggles"].as_a.find do |x|
         x["name"] == toggle_name
