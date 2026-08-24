@@ -181,7 +181,7 @@ module CLIHelp
     ARGUMENTS (key=value, after the task name)
       cnf-config=PATH   a cnf-testsuite.yml or the directory holding one (alias: cnf-path)
       timeout=SECONDS   how long to wait for install and uninstall operations
-      results-dir=PATH  where results files go (default: ./results, or $CNF_TESTSUITE_RESULTS_DIR)
+      results-dir=PATH  where results files go (default: ./cnti/results, or $CNF_TESTSUITE_RESULTS_DIR)
       All known arguments: #{named_args}
 
     FLAGS

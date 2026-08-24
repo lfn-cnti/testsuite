@@ -5,8 +5,7 @@
 *.swp
 *.swo
 /cnfs
-/installed_cnf_files
-/results
+/cnti
 admin.conf
 cnf-testsuite
 results.yml

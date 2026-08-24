@@ -8,7 +8,7 @@ Operators are Kubernetes controllers that manage custom resources and automate a
 
 1. **Label-based Identification**
    - The test suite fetches resources matching label selectors defined in `cnf-testsuite.yml` under `workload_resource_labels`.
-   - After all deployments are installed, resources with these labels are identified and appended to the composite manifest (`installed_cnf_files/common-manifest.yml`).
+   - After all deployments are installed, resources with these labels are identified and appended to the composite manifest (`cnti/installed-cnf/common_manifest.yml`).
    - This enables tests to reference resources reliably, regardless of when or how they are created by the operator.
 
 2. **OwnerReference-based Identification**

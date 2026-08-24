@@ -151,7 +151,7 @@ crystal spec
 
 ### Preparation
 
-Now that we have a `cnf-testsuite` binary, we can run `setup` to ensure it has all the pre-requisites needed in order to successfully run tests and prepare required installed_cnf_files/ directory and other files required for cnf-testsuite.
+Now that we have a `cnf-testsuite` binary, we can run `setup` to ensure it has all the pre-requisites needed in order to successfully run tests and prepare the required `cnti/` workspace directory and other files required for cnf-testsuite.
 
 - Run the following to prepare cnf-testsuite:
   ```

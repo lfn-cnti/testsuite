@@ -1,7 +1,12 @@
 require "./utils/embedded_file_manager.cr"
 
 ESSENTIAL_PASSED_THRESHOLD = 15
-CNF_DIR = "installed_cnf_files"
+# The one directory the suite owns in the user's working directory. Everything
+# a run writes into the CWD lives under it: the installed CNF's files and the
+# results (unless results-dir/CNF_TESTSUITE_RESULTS_DIR redirect those).
+CNTI_DIR = "cnti"
+
+CNF_DIR = File.join(CNTI_DIR, "installed-cnf")
 DEPLOYMENTS_DIR = File.join(CNF_DIR, "deployments")
 CNF_TEMP_FILES_DIR = File.join(CNF_DIR, "temp_files")
 CNF_INSTALL_LOG_FILE = File.join(CNF_TEMP_FILES_DIR, "installation.log")

@@ -152,14 +152,14 @@ module CNFManager
 
       @@logger : ::Log = Log.for("Points").for("Results")
 
-      DEFAULT_DIR     = "results"
+      DEFAULT_DIR     = File.join(CNTI_DIR, "results")
       RESULTS_DIR_ARG = "results-dir"
       RESULTS_DIR_ENV = "CNF_TESTSUITE_RESULTS_DIR"
       LATEST_NAME     = "latest.yml"
 
       # Directory results are written to: `results-dir=PATH` on the command line,
-      # else CNF_TESTSUITE_RESULTS_DIR, else ./results. Resolved once per process
-      # and creates nothing -- delete_results reads it too.
+      # else CNF_TESTSUITE_RESULTS_DIR, else ./cnti/results. Resolved once
+      # per process and creates nothing -- delete_results reads it too.
       def self.dir : String
         @@dir ||= begin
           arg = ARGV.find(&.starts_with?("#{RESULTS_DIR_ARG}="))

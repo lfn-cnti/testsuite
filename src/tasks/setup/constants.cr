@@ -46,7 +46,7 @@ module Setup
 
   # Manifests and helm values the suite renders at runtime. Kept with the
   # tools rather than scattered into the user's working directory: a run must
-  # only ever touch results/ and installed_cnf_files/ in the CWD.
+  # only ever touch the cnti/ workspace in the CWD.
   RENDERED_MANIFESTS_DIR = "#{tools_path}/rendered-manifests"
   CLUSTER_TOOLS_MANIFEST = "#{RENDERED_MANIFESTS_DIR}/cluster_tools.yml"
   FIVE_G_TOOLS_DIR       = "#{tools_path}/5g"
