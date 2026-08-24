@@ -40,4 +40,21 @@ module EmbeddedFileManager
   macro ueransim_helmconfig
     UERANSIM_HELMCONFIG = Base64.decode_string("{{ `cat ./embedded_files/ue.yaml | base64`}}")
   end
+  # Minimal per-fault RBAC for the LitmusChaos faults the suite runs, as
+  # published in the Litmus docs (chaos-charts stopped shipping rbac.yaml in 3.x).
+  # Each manifest targets the "default" namespace; LitmusManager.install_fault
+  # rewrites that to the CNF's namespace before applying.
+  macro litmus_rbac
+    LITMUS_RBAC = {
+      "pod-network-latency" => Base64.decode_string("{{ `cat ./embedded_files/litmus_rbac/pod-network-latency.yaml | base64` }}"),
+      "pod-network-corruption" => Base64.decode_string("{{ `cat ./embedded_files/litmus_rbac/pod-network-corruption.yaml | base64` }}"),
+      "pod-network-duplication" => Base64.decode_string("{{ `cat ./embedded_files/litmus_rbac/pod-network-duplication.yaml | base64` }}"),
+      "disk-fill" => Base64.decode_string("{{ `cat ./embedded_files/litmus_rbac/disk-fill.yaml | base64` }}"),
+      "pod-delete" => Base64.decode_string("{{ `cat ./embedded_files/litmus_rbac/pod-delete.yaml | base64` }}"),
+      "pod-memory-hog" => Base64.decode_string("{{ `cat ./embedded_files/litmus_rbac/pod-memory-hog.yaml | base64` }}"),
+      "pod-io-stress" => Base64.decode_string("{{ `cat ./embedded_files/litmus_rbac/pod-io-stress.yaml | base64` }}"),
+      "pod-dns-error" => Base64.decode_string("{{ `cat ./embedded_files/litmus_rbac/pod-dns-error.yaml | base64` }}"),
+      "node-drain" => Base64.decode_string("{{ `cat ./embedded_files/litmus_rbac/node-drain.yaml | base64` }}"),
+    }
+  end
 end

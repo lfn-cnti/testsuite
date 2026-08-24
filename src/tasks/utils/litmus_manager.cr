@@ -1,11 +1,8 @@
 module LitmusManager
 
   # renovate: datasource=github-tags depName=litmuschaos/chaos-charts
-  Version = "3.6.0"
-  # renovate: datasource=github-tags depName=litmuschaos/chaos-charts
-  RBAC_VERSION = "2.6.0"
-  # Version = "1.13.8"
-  # Version = "3.0.0-beta12"
+  Version = "3.31.0"
+  CHAOS_CHARTS = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{Version}"
   NODE_LABEL = "kubernetes.io/hostname"
   #https://raw.githubusercontent.com/litmuschaos/chaos-operator/v2.14.x/deploy/operator.yaml
   LITMUS_OPERATOR = "https://litmuschaos.github.io/litmus/litmus-operator-v#{LitmusManager::Version}.yaml"
@@ -147,6 +144,21 @@ module LitmusManager
       FileUtils.mkdir_p(chaos_manifests)
     end
     chaos_manifests
+  end
+
+  # Install a LitmusChaos fault into the CNF's namespace: the ChaosExperiment
+  # from chaos-charts at LitmusManager::Version, and the fault's service
+  # account, role and binding embedded in the binary. Returns the path of the
+  # downloaded experiment manifest.
+  def self.install_fault(fault : String, namespace : String, task_name : String) : String
+    experiment_path = download_template("#{CHAOS_CHARTS}/faults/kubernetes/#{fault}/fault.yaml", "#{task_name}_experiment.yaml")
+    KubectlClient::Apply.file(experiment_path, namespace: namespace)
+
+    rbac_path = "#{chaos_manifests_path}/#{task_name}_rbac.yaml"
+    File.write(rbac_path, LITMUS_RBAC[fault].gsub("namespace: default", "namespace: #{namespace}"))
+    KubectlClient::Apply.file(rbac_path)
+
+    experiment_path
   end
 
   def self.download_template(url, filename)

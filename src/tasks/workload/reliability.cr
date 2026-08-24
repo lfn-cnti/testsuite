@@ -115,16 +115,7 @@ scored_task "pod_network_latency",
       if test_passed
         Log.info { "Running for: #{spec_labels}"}
         Log.info { "Spec Hash: #{args.named["pod-labels"]?}" }
-        experiment_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::Version}/faults/kubernetes/pod-network-latency/fault.yaml"
-        rbac_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::RBAC_VERSION}/charts/generic/pod-network-latency/rbac.yaml"
-        
-        experiment_path = LitmusManager.download_template(experiment_url, "#{t.name}_experiment.yaml")
-        KubectlClient::Apply.file(experiment_path, namespace: app_namespace)
-        rbac_path = LitmusManager.download_template(rbac_url, "#{t.name}_rbac.yaml")
-        rbac_yaml = File.read(rbac_path)
-        rbac_yaml = rbac_yaml.gsub("namespace: default", "namespace: #{app_namespace}")
-        File.write(rbac_path, rbac_yaml)
-        KubectlClient::Apply.file(rbac_path)
+        LitmusManager.install_fault("pod-network-latency", app_namespace, t.name)
 
         #TODO Use Labels to Annotate, not resource["name"]
         KubectlClient::Utils.annotate(resource["kind"], resource["name"], ["litmuschaos.io/chaos=\"true\""], namespace: app_namespace)
@@ -190,15 +181,7 @@ scored_task "pod_network_corruption",
         test_passed = false
       end
       if test_passed
-        experiment_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::Version}/faults/kubernetes/pod-network-corruption/fault.yaml"
-        rbac_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::RBAC_VERSION}/charts/generic/pod-network-corruption/rbac.yaml"
-        experiment_path = LitmusManager.download_template(experiment_url, "#{t.name}_experiment.yaml")
-        KubectlClient::Apply.file(experiment_path, namespace: app_namespace)
-        rbac_path = LitmusManager.download_template(rbac_url, "#{t.name}_rbac.yaml")
-        rbac_yaml = File.read(rbac_path)
-        rbac_yaml = rbac_yaml.gsub("namespace: default", "namespace: #{app_namespace}")
-        File.write(rbac_path, rbac_yaml)
-        KubectlClient::Apply.file(rbac_path)
+        LitmusManager.install_fault("pod-network-corruption", app_namespace, t.name)
  
         KubectlClient::Utils.annotate(resource["kind"], resource["name"], ["litmuschaos.io/chaos=\"true\""], namespace: app_namespace)
 
@@ -249,17 +232,7 @@ scored_task "pod_network_duplication",
         test_passed = false
       end
       if test_passed
-        experiment_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::Version}/faults/kubernetes/pod-network-duplication/fault.yaml"
-        rbac_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::RBAC_VERSION}/charts/generic/pod-network-duplication/rbac.yaml"
-
-        experiment_path = LitmusManager.download_template(experiment_url, "#{t.name}_experiment.yaml")
-        KubectlClient::Apply.file(experiment_path, namespace: app_namespace)
-
-        rbac_path = LitmusManager.download_template(rbac_url, "#{t.name}_rbac.yaml")
-        rbac_yaml = File.read(rbac_path)
-        rbac_yaml = rbac_yaml.gsub("namespace: default", "namespace: #{app_namespace}")
-        File.write(rbac_path, rbac_yaml)
-        KubectlClient::Apply.file(rbac_path)
+        LitmusManager.install_fault("pod-network-duplication", app_namespace, t.name)
         Log.for(t.name).debug { "annotating resource for chaos: #{resource["name"]}" }
         KubectlClient::Utils.annotate(resource["kind"], resource["name"], ["litmuschaos.io/chaos=\"true\""], namespace: app_namespace)
 
@@ -307,17 +280,7 @@ scored_task "disk_fill",
         test_passed = false
       end
       if test_passed
-        experiment_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::Version}/faults/kubernetes/disk-fill/fault.yaml"
-        rbac_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::RBAC_VERSION}/charts/generic/disk-fill/rbac.yaml"
-
-        experiment_path = LitmusManager.download_template(experiment_url, "#{t.name}_experiment.yaml")
-        KubectlClient::Apply.file(experiment_path, namespace: app_namespace)
-
-        rbac_path = LitmusManager.download_template(rbac_url, "#{t.name}_rbac.yaml")
-        rbac_yaml = File.read(rbac_path)
-        rbac_yaml = rbac_yaml.gsub("namespace: default", "namespace: #{app_namespace}")
-        File.write(rbac_path, rbac_yaml)
-        KubectlClient::Apply.file(rbac_path)
+        LitmusManager.install_fault("disk-fill", app_namespace, t.name)
 
         KubectlClient::Utils.annotate(resource["kind"], resource["name"], ["litmuschaos.io/chaos=\"true\""], namespace: app_namespace)
 
@@ -394,19 +357,7 @@ scored_task "pod_delete",
       if test_passed
         Log.info { "Running for: #{spec_labels}"}
         Log.info { "Spec Hash: #{args.named["pod-labels"]?}" }
-        experiment_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::Version}/faults/kubernetes/pod-delete/fault.yaml"
-        rbac_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::RBAC_VERSION}/charts/generic/pod-delete/rbac.yaml"
-
-        experiment_path = LitmusManager.download_template(experiment_url, "#{t.name}_experiment.yaml")
-
-        rbac_path = LitmusManager.download_template(rbac_url, "#{t.name}_rbac.yaml")
-        rbac_yaml = File.read(rbac_path)
-        rbac_yaml = rbac_yaml.gsub("namespace: default", "namespace: #{app_namespace}")
-        File.write(rbac_path, rbac_yaml)
-
-
-        KubectlClient::Apply.file(experiment_path, namespace: app_namespace)
-        KubectlClient::Apply.file(rbac_path)
+        LitmusManager.install_fault("pod-delete", app_namespace, t.name)
 
         Log.info { "resource: #{resource["name"]}" }
         KubectlClient::Utils.annotate(resource["kind"], resource["name"], ["litmuschaos.io/chaos=\"true\""], namespace: app_namespace)
@@ -471,17 +422,7 @@ scored_task "pod_memory_hog",
         test_passed = false
       end
       if test_passed
-        experiment_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::Version}/faults/kubernetes/pod-memory-hog/fault.yaml"
-        rbac_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::RBAC_VERSION}/charts/generic/pod-memory-hog/rbac.yaml"
-
-        experiment_path = LitmusManager.download_template(experiment_url, "#{t.name}_experiment.yaml")
-        KubectlClient::Apply.file(experiment_path, namespace: app_namespace)
-
-        rbac_path = LitmusManager.download_template(rbac_url, "#{t.name}_rbac.yaml")
-        rbac_yaml = File.read(rbac_path)
-        rbac_yaml = rbac_yaml.gsub("namespace: default", "namespace: #{app_namespace}")
-        File.write(rbac_path, rbac_yaml)
-        KubectlClient::Apply.file(rbac_path)
+        LitmusManager.install_fault("pod-memory-hog", app_namespace, t.name)
 
         KubectlClient::Utils.annotate(resource["kind"], resource["name"], ["litmuschaos.io/chaos=\"true\""], namespace: app_namespace)
 
@@ -532,17 +473,7 @@ scored_task "pod_io_stress",
         test_passed = false
       end
       if test_passed
-        experiment_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::Version}/faults/kubernetes/pod-io-stress/fault.yaml"
-        rbac_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::RBAC_VERSION}/charts/generic/pod-io-stress/rbac.yaml"
-
-        experiment_path = LitmusManager.download_template(experiment_url, "#{t.name}_experiment.yaml")
-        KubectlClient::Apply.file(experiment_path, namespace: app_namespace)
-
-        rbac_path = LitmusManager.download_template(rbac_url, "#{t.name}_rbac.yaml")
-        rbac_yaml = File.read(rbac_path)
-        rbac_yaml = rbac_yaml.gsub("namespace: default", "namespace: #{app_namespace}")
-        File.write(rbac_path, rbac_yaml)
-        KubectlClient::Apply.file(rbac_path)
+        LitmusManager.install_fault("pod-io-stress", app_namespace, t.name)
 
         KubectlClient::Utils.annotate(resource["kind"], resource["name"], ["litmuschaos.io/chaos=\"true\""], namespace: app_namespace)
 
@@ -605,17 +536,7 @@ scored_task "pod_dns_error",
           test_passed = false
         end
         if test_passed
-          experiment_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::Version}/faults/kubernetes/pod-dns-error/fault.yaml"
-          rbac_url = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{LitmusManager::RBAC_VERSION}/charts/generic/pod-dns-error/rbac.yaml"
-
-          experiment_path = LitmusManager.download_template(experiment_url, "#{t.name}_experiment.yaml")
-          KubectlClient::Apply.file(experiment_path, namespace: app_namespace)
-
-          rbac_path = LitmusManager.download_template(rbac_url, "#{t.name}_rbac.yaml")
-          rbac_yaml = File.read(rbac_path)
-          rbac_yaml = rbac_yaml.gsub("namespace: default", "namespace: #{app_namespace}")
-          File.write(rbac_path, rbac_yaml)
-          KubectlClient::Apply.file(rbac_path)
+          LitmusManager.install_fault("pod-dns-error", app_namespace, t.name)
 
           KubectlClient::Utils.annotate(resource["kind"], resource["name"], ["litmuschaos.io/chaos=\"true\""], namespace: app_namespace)
 
