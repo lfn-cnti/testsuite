@@ -155,7 +155,7 @@ scored_task "pod_network_latency",
         File.write(chaos_template_path, template)
         KubectlClient::Apply.file(chaos_template_path)
         LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
-        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace)
+        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result)
       end
 
       test_passed
@@ -218,7 +218,7 @@ scored_task "pod_network_corruption",
         File.write(chaos_template_path, template)
         KubectlClient::Apply.file(chaos_template_path)
         LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
-        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name, args, namespace: app_namespace)
+        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name, args, namespace: app_namespace, result: result)
       end
 
       test_passed
@@ -279,7 +279,7 @@ scored_task "pod_network_duplication",
         File.write(chaos_template_path, template)
         KubectlClient::Apply.file(chaos_template_path)
         LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
-        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace)
+        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result)
       end
 
       test_passed
@@ -339,7 +339,7 @@ scored_task "disk_fill",
         File.write(chaos_template_path, template)
         KubectlClient::Apply.file(chaos_template_path)
         LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
-        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name, chaos_experiment_name, args, namespace: app_namespace)
+        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name, chaos_experiment_name, args, namespace: app_namespace, result: result)
       end
 
       test_passed
@@ -443,7 +443,7 @@ scored_task "pod_delete",
         KubectlClient::Apply.file(chaos_template_path)
         LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
       end
-      test_passed=LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace)
+      test_passed=LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result)
       test_passed
     end
     unless args.named["pod_labels"]?
@@ -504,7 +504,7 @@ scored_task "pod_memory_hog",
         File.write(chaos_template_path, template)
         KubectlClient::Apply.file(chaos_template_path)
         LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
-        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace)
+        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result)
       end
       test_passed
     end
@@ -565,7 +565,7 @@ scored_task "pod_io_stress",
         File.write(chaos_template_path, template)
         KubectlClient::Apply.file(chaos_template_path)
         LitmusManager.wait_for_test(chaos_test_name, chaos_experiment_name, args, namespace: app_namespace)
-        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace)
+        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result)
       end
 
       test_passed
@@ -636,7 +636,7 @@ scored_task "pod_dns_error",
           File.write(chaos_template_path, template)
           KubectlClient::Apply.file(chaos_template_path)
           LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
-          test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace)
+          test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result)
         end
 
         test_passed

@@ -325,7 +325,7 @@ scored_task "node_drain",
             File.write(chaos_template_path, template)
             KubectlClient::Apply.file(chaos_template_path)
             LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
-            test_passed = LitmusManager.check_chaos_verdict(chaos_result_name, chaos_experiment_name, args, namespace: app_namespace)
+            test_passed = LitmusManager.check_chaos_verdict(chaos_result_name, chaos_experiment_name, args, namespace: app_namespace, result: result)
           end
         ensure
           # Uncordon the node whatever happened above. Without this, a test that raises

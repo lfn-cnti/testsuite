@@ -90,20 +90,47 @@ module LitmusManager
   end
 
   ## check_chaos_verdict will check the verdict of chaosexperiment
-  def self.check_chaos_verdict(chaos_result_name, chaos_experiment_name, args, namespace : String = "default") : Bool
+  def self.check_chaos_verdict(chaos_result_name, chaos_experiment_name, args,
+                               namespace : String = "default",
+                               result : CNFManager::TestCaseResult? = nil) : Bool
     _, verdict = get_status_info("chaosresult", chaos_result_name, "jsonpath={.status.experimentStatus.verdict}", namespace)
+    return true if verdict == "Pass"
 
-    if verdict == "Pass"
-      return true
-    else
-      Log.for("LitmusManager.check_chaos_verdict#details").debug do
-        status_code, verdict_details_response = get_status_info("chaosresult", chaos_result_name, "json", namespace)
-        "#{verdict_details_response}"
-      end
+    # The chaosresult knows *why*: surface its failStep and failed probes into
+    # the test's details and the error log, instead of discarding them at a log
+    # level no CI run has enabled. A verdict without its reason cost a full
+    # afternoon of inference the one time node_drain flaked (#2445-adjacent).
+    logger = Log.for("LitmusManager.check_chaos_verdict")
+    status_code, raw_chaos_result = get_status_info("chaosresult", chaos_result_name, "json", namespace)
+    failure = status_code == 0 ? chaos_failure_summary(raw_chaos_result) : nil
+    summary = "#{chaos_experiment_name} verdict: #{verdict}#{failure ? " -- #{failure}" : ""}"
 
-      Log.for("LitmusManager.check_chaos_verdict").info {"#{chaos_experiment_name} chaos test failed: #{chaos_result_name}, verdict: #{verdict}"}
-      return false
+    logger.error { "#{chaos_result_name}: #{summary}" }
+    result.try(&.append_description("Litmus #{summary}"))
+    false
+  end
+
+  # Distills a chaosresult JSON into the line a human needs: the step that
+  # failed and every probe that did not pass. Returns nil when the payload
+  # holds no such detail (or is not JSON at all).
+  def self.chaos_failure_summary(raw_chaos_result : String) : String?
+    json = JSON.parse(raw_chaos_result)
+    parts = [] of String
+
+    fail_step = json.dig?("status", "experimentStatus", "failStep").try(&.as_s?)
+    parts << "failStep: #{fail_step}" if fail_step && !fail_step.empty? && fail_step != "N/A"
+
+    json.dig?("status", "probeStatuses").try(&.as_a?).try &.each do |probe|
+      probe_verdict = probe.dig?("status", "verdict").try(&.as_s?)
+      next if probe_verdict.nil? || probe_verdict == "Passed"
+      name = probe.dig?("name").try(&.as_s?) || "unnamed"
+      description = probe.dig?("status", "description").try(&.as_s?)
+      parts << "probe #{name}: #{probe_verdict}#{description ? " (#{description})" : ""}"
     end
+
+    parts.empty? ? nil : parts.join("; ")
+  rescue JSON::ParseException
+    nil
   end
 
   def self.chaos_manifests_path
