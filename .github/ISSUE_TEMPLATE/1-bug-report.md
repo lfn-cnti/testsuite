@@ -52,7 +52,7 @@ Add any other context about the problem here.
 crystal src/cnf-testsuite.cr -- -l debug test
 
 # ENV variable
-LOGLEVEL=DEBUG ./cnf-testsuite test
+CNF_TESTSUITE_LOG_LEVEL=DEBUG ./cnf-testsuite test
 ```
 
 Check [usage documentation](https://github.com/cncf/cnf-testsuite/blob/main/USAGE.md) for more info about invoking commands and logging

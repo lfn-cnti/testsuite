@@ -13,11 +13,11 @@ end
 
 # Every key=value argument some task actually reads.
 KNOWN_CLI_NAMED_ARGS = [
-  "cnf-config", "cnf-path", "timeout", "input_config", "output_config",
-  "exclude", "pod_labels", "baseline_count", "results-dir",
+  "cnf-config", "timeout", "input-config", "output-config",
+  "exclude", "pod-labels", "baseline-count", "results-dir",
 ]
 # Named arguments whose value must be an integer.
-NUMERIC_CLI_NAMED_ARGS = ["timeout", "baseline_count"]
+NUMERIC_CLI_NAMED_ARGS = ["timeout", "baseline-count"]
 # Every bare-word flag some task actually reads from the raw arguments.
 KNOWN_CLI_FLAGS = [
   "strict", "essential", "poc", "wip", "alpha", "beta", "destructive",

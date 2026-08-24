@@ -212,7 +212,7 @@ scored_task "reasonable_startup_time" do |t, args|
     else
       startup_time_limit = 30
     end
-    # if ENV["CRYSTAL_ENV"]? == "TEST"
+    # if ENV["CNF_TESTSUITE_ENV"]? == "TEST"
     #   startup_time_limit = 35 
     #   Log.info { "startup_time_limit TEST mode: #{startup_time_limit}" }
     # end
@@ -230,10 +230,10 @@ end
 
 # There aren't any 5gb images to test.
 # To run this test in a test environment or for testing purposes,
-# set the env var CRYSTAL_ENV=TEST when running the test.
+# set the env var CNF_TESTSUITE_ENV=TEST when running the test.
 #
 # Example:
-#    CRYSTAL_ENV=TEST ./cnf-testsuite reasonable_image_size
+#    CNF_TESTSUITE_ENV=TEST ./cnf-testsuite reasonable_image_size
 #
 desc "Does the CNF have a reasonable container image size (< 5GB)?"
 scored_task "reasonable_image_size",
@@ -311,7 +311,7 @@ scored_task "reasonable_image_size",
         # TODO save auths array to a file
         Log.info { "compressed_size: #{fqdn_image} = '#{compressed_size.to_s}'" }
         max_size = 5_000_000_000
-        if ENV["CRYSTAL_ENV"]? == "TEST"
+        if ENV["CNF_TESTSUITE_ENV"]? == "TEST"
            Log.info { "Using Test Mode max_size" }
            max_size = 16_000_000
         end

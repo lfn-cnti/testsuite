@@ -37,8 +37,8 @@ PLOG = Log.for("Platform")
 SLOG = Log.for("Setup")
 
 private def log_backend
-  if ENV.has_key?("LOGPATH") || ENV.has_key?("LOG_PATH")
-    log_file = ENV.has_key?("LOGPATH") ? ENV["LOGPATH"] : ENV["LOG_PATH"]
+  if ENV.has_key?("CNF_TESTSUITE_LOG_PATH")
+    log_file = ENV["CNF_TESTSUITE_LOG_PATH"]
   else
     log_file = ""
   end
@@ -84,12 +84,8 @@ private def loglevel
     end
   end
 
-  if ENV.has_key?("LOGLEVEL")
-    level_str = ENV["LOGLEVEL"]
-  end
-
-  if ENV.has_key?("LOG_LEVEL")
-    level_str = ENV["LOG_LEVEL"]
+  if ENV.has_key?("CNF_TESTSUITE_LOG_LEVEL")
+    level_str = ENV["CNF_TESTSUITE_LOG_LEVEL"]
   end
 
   # highest priority is last

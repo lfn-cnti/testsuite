@@ -17,7 +17,7 @@ describe CnfTestSuite do
   it "'liveness' should pass when livenessProbe is set", tags: ["liveness"] do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/k8s-multiple-deployments/cnf-testsuite.yml")
-      result = ShellCmd.run_testsuite("liveness", cmd_prefix:"LOG_LEVEL=debug")
+      result = ShellCmd.run_testsuite("liveness", cmd_prefix:"CNF_TESTSUITE_LOG_LEVEL=debug")
       result[:status].success?.should be_true
       (/(PASSED).*(All workload resources have at least one container with a liveness probe)/ =~ result[:output]).should_not be_nil
       verify_task_result("liveness", "passed")
@@ -41,7 +41,7 @@ describe CnfTestSuite do
   it "'readiness' should pass when readinessProbe is set", tags: ["readiness"] do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/k8s-multiple-deployments/cnf-testsuite.yml")
-      result = ShellCmd.run_testsuite("readiness", cmd_prefix: "LOG_LEVEL=debug")
+      result = ShellCmd.run_testsuite("readiness", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=debug")
       result[:status].success?.should be_true
       (/(PASSED).*(All workload resources have at least one container with a readiness probe)/ =~ result[:output]).should_not be_nil
       verify_task_result("readiness", "passed")
@@ -152,7 +152,7 @@ describe CnfTestSuite do
 
   it "'nodeport_not_used' should fail when a node port is being used", tags: ["nodeport_not_used"] do
     begin
-      ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_nodeport")
+      ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_nodeport")
       result = ShellCmd.run_testsuite("nodeport_not_used")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(NodePort is being used)/ =~ result[:output]).should_not be_nil
@@ -175,7 +175,7 @@ describe CnfTestSuite do
 
   it "'hostport_not_used' should fail when a host port is being used", tags: ["hostport_not_used"] do
     begin
-      ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_hostport")
+      ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_hostport")
       result = ShellCmd.run_testsuite("hostport_not_used")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(HostPort is being used)/ =~ result[:output]).should_not be_nil
@@ -198,8 +198,8 @@ describe CnfTestSuite do
 
   it "'hardcoded_ip_addresses_in_k8s_runtime_configuration' should fail when a hardcoded ip is found in the K8s configuration", tags: ["ip_addresses"] do
     begin
-      ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_coredns_hardcoded_ips")
-      result = ShellCmd.run_testsuite("hardcoded_ip_addresses_in_k8s_runtime_configuration", cmd_prefix: "LOG_LEVEL=info")
+      ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_coredns_hardcoded_ips")
+      result = ShellCmd.run_testsuite("hardcoded_ip_addresses_in_k8s_runtime_configuration", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=info")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Hard-coded IP addresses found in the runtime K8s configuration)/ =~ result[:output]).should_not be_nil
     ensure

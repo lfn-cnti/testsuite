@@ -58,14 +58,6 @@ describe "Installation" do
   end
 
   it "'cnf_install' should pass with a minimal cnf-testsuite.yml", tags: ["cnf_installation1"] do
-    result = ShellCmd.cnf_install("cnf-path=./sample-cnfs/sample-minimal-cnf/")
-    (/CNF installation complete/ =~ result[:output]).should_not be_nil
-  ensure
-    result = ShellCmd.cnf_uninstall()
-    (/All CNF deployments were uninstalled/ =~ result[:output]).should_not be_nil
-  end
-
-  it "'cnf_install/cnf_uninstall' should install/uninstall with cnf-config arg as an alias for cnf-path", tags: ["cnf_installation1"] do
     result = ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-minimal-cnf/")
     (/CNF installation complete/ =~ result[:output]).should_not be_nil
   ensure
@@ -73,9 +65,9 @@ describe "Installation" do
     (/All CNF deployments were uninstalled/ =~ result[:output]).should_not be_nil
   end
 
-  it "'cnf_install/cnf_uninstall' should install/uninstall with cnf-path arg as an alias for cnf-config (.yml)", tags: ["cnf_installation1"] do
+  it "'cnf_install/cnf_uninstall' should install/uninstall from a cnf-testsuite.yml file path", tags: ["cnf_installation1"] do
     begin
-      result = ShellCmd.cnf_install("cnf-path=example-cnfs/coredns/cnf-testsuite.yml")
+      result = ShellCmd.cnf_install("cnf-config=example-cnfs/coredns/cnf-testsuite.yml")
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -83,9 +75,9 @@ describe "Installation" do
     end
   end
 
-  it "'cnf_install/cnf_uninstall' should install/uninstall with cnf-path arg as an alias for cnf-config (.yaml)", tags: ["cnf_installation1"] do
+  it "'cnf_install/cnf_uninstall' should install/uninstall from a .yaml config file path", tags: ["cnf_installation1"] do
     begin
-      result = ShellCmd.cnf_install("cnf-path=spec/fixtures/cnf-testsuite.yaml")
+      result = ShellCmd.cnf_install("cnf-config=spec/fixtures/cnf-testsuite.yaml")
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -95,7 +87,7 @@ describe "Installation" do
 
   it "'cnf_install/cnf_uninstall' should fail on incorrect config", tags: ["cnf_installation1"] do
     begin
-      result = ShellCmd.cnf_install("cnf-path=spec/fixtures/sample-bad-config.yml", expect_failure: true)
+      result = ShellCmd.cnf_install("cnf-config=spec/fixtures/sample-bad-config.yml", expect_failure: true)
       (/Error during parsing CNF config/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -104,7 +96,7 @@ describe "Installation" do
 
   it "'cnf_install/cnf_uninstall' should fail on invalid config path", tags: ["cnf_installation1"] do
     begin
-      result = ShellCmd.cnf_install("cnf-path=spec/fixtures/bad-config-path", expect_failure: true)
+      result = ShellCmd.cnf_install("cnf-config=spec/fixtures/bad-config-path", expect_failure: true)
       (/Invalid CNF configuration file: spec\/fixtures\/bad-config-path\./ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -134,7 +126,7 @@ describe "Installation" do
 
   it "'cnf_install/cnf_uninstall' should install/uninstall with helm_directory that descends multiple directories", tags: ["cnf_installation1"] do
     begin
-      result = ShellCmd.cnf_install("cnf-path=sample-cnfs/multi_helm_directories/cnf-testsuite.yml")
+      result = ShellCmd.cnf_install("cnf-config=sample-cnfs/multi_helm_directories/cnf-testsuite.yml")
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -144,7 +136,7 @@ describe "Installation" do
 
   it "'cnf_install/cnf_uninstall' should install/uninstall with manifest_directory that descends multiple directories", tags: ["cnf_installation1"] do
     begin
-      result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-nested-manifest-dirs/cnf-testsuite.yml")
+      result = ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-nested-manifest-dirs/cnf-testsuite.yml")
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -154,7 +146,7 @@ describe "Installation" do
 
   it "'cnf_install/cnf_uninstall' should install/uninstall a CRD-based deployment where the Kind name doesn't directly resolve in kubectl", tags: ["cnf_installation1"] do
     begin
-      result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-nad/cnf-testsuite.yml")
+      result = ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-nad/cnf-testsuite.yml")
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
       (/All \"infra\" deployment custom resources are ready/ =~ result[:output]).should_not be_nil
     ensure
@@ -166,7 +158,7 @@ describe "Installation" do
 
   it "'cnf_install/cnf_uninstall' should properly install/uninstall old versions of cnf configs", tags: ["cnf_installation1"] do
     begin
-      result = ShellCmd.cnf_install("cnf-path=spec/fixtures/cnf-testsuite-v1-example.yml")
+      result = ShellCmd.cnf_install("cnf-config=spec/fixtures/cnf-testsuite-v1-example.yml")
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -176,9 +168,9 @@ describe "Installation" do
 
   it "'cnf_install' should fail if another CNF is already installed", tags: ["cnf_installation1"] do
     begin
-      result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_coredns/cnf-testsuite.yml")
+      result = ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_coredns/cnf-testsuite.yml")
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
-      result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-minimal-cnf/cnf-testsuite.yml", expect_failure: true)
+      result = ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-minimal-cnf/cnf-testsuite.yml", expect_failure: true)
       (/A CNF is already installed. Installation of multiple CNFs is not allowed./ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -188,7 +180,7 @@ describe "Installation" do
 
   it "'cnf_install/cnf_uninstall' should install/uninstall a cnf with multiple deployments", tags: ["cnf_installation1"] do
     begin
-      result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_multiple_deployments/cnf-testsuite.yml")
+      result = ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_multiple_deployments/cnf-testsuite.yml")
       (/All "coredns" deployment resources are up/ =~ result[:output]).should_not be_nil
       (/All "memcached" deployment resources are up/ =~ result[:output]).should_not be_nil
       (/All "nginx" deployment resources are up/ =~ result[:output]).should_not be_nil
@@ -204,7 +196,7 @@ describe "Installation" do
 
   it "'cnf_install/cnf_uninstall' should install/uninstall deployment with mixed installation methods", tags: ["cnf_installation1"] do
     begin
-      result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-nginx-redis/cnf-testsuite.yml")
+      result = ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-nginx-redis/cnf-testsuite.yml")
       (/All "nginx" deployment resources are up/ =~ result[:output]).should_not be_nil
       (/All "redis" deployment resources are up/ =~ result[:output]).should_not be_nil
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
@@ -218,7 +210,7 @@ describe "Installation" do
 
   it "'cnf_install/cnf_uninstall' should handle partial deployment failures gracefully", tags: ["cnf_installation1"] do
     begin
-      result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-partial-deployment-failure/cnf-testsuite.yml", expect_failure: true)
+      result = ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-partial-deployment-failure/cnf-testsuite.yml", expect_failure: true)
       (/All "nginx" deployment resources are up/ =~ result[:output]).should_not be_nil
       (/Deployment of "coredns" failed during CNF installation/ =~ result[:output]).should_not be_nil
     ensure
@@ -230,7 +222,7 @@ describe "Installation" do
 
   it "'cnf_install' should detect and report conflicts between deployments", tags: ["cnf_installation1"] do
     begin
-      result = ShellCmd.cnf_install("cnf-path=spec/fixtures/sample-conflicting-deployments.yml", expect_failure: true)
+      result = ShellCmd.cnf_install("cnf-config=spec/fixtures/sample-conflicting-deployments.yml", expect_failure: true)
       (/Deployment names should be unique/ =~ result[:output]).should_not be_nil
     ensure
       ShellCmd.cnf_uninstall()
@@ -240,7 +232,7 @@ describe "Installation" do
   it "'cnf_install' should correctly handle deployment priority", tags: ["cnf_installation_priority"] do
     # (kosstennbl) ELK stack requires to be installed with specific order, otherwise it would give errors
     begin
-      result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample-elk-stack/cnf-testsuite.yml", timeout: 600)
+      result = ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-elk-stack/cnf-testsuite.yml", timeout: 600)
       result[:status].success?.should be_true
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
   
@@ -298,7 +290,7 @@ describe "Installation" do
   end
 
   it "'cnf_uninstall' should fail for a stuck manifest deployment", tags: ["cnf_installation2"] do
-    result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_stuck_finalizer/cnf-testsuite.yml")
+    result = ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_stuck_finalizer/cnf-testsuite.yml")
     result[:status].success?.should be_true
 
     result = ShellCmd.cnf_uninstall(timeout: 30, expect_failure: true)
@@ -318,7 +310,7 @@ describe "Installation" do
   end
 
   it "'cnf_uninstall' should fail for a stuck helm deployment", tags: ["cnf_installation2"] do
-    result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_stuck_helm_deployment/")
+    result = ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_stuck_helm_deployment/")
     result[:status].success?.should be_true
 
     # Inject finalizer into Deployment pod template
@@ -388,7 +380,7 @@ describe "Installation" do
       # Logout before install
       ShellCmd.run("helm registry logout localhost:#{local_registry_port}")
 
-      result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_oci_repo/")
+      result = ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_oci_repo/")
       result[:status].success?.should be_true
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
@@ -439,7 +431,7 @@ describe "Installation" do
       upload = ShellCmd.run(%(curl -fsS -u dummy:secret --data-binary @#{tgz} http://localhost:#{chart_museum_port}/api/charts))
       upload[:status].success?.should be_true
 
-      result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_private_repo/")
+      result = ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_private_repo/")
       result[:status].success?.should be_true
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
@@ -526,7 +518,7 @@ describe "Installation" do
       ShellCmd.run("helm registry logout #{reg_host_port}")
 
       # Install via testsuite (pull requires mTLS)
-      result = ShellCmd.cnf_install("cnf-path=sample-cnfs/sample_tls_repo/")
+      result = ShellCmd.cnf_install("cnf-config=sample-cnfs/sample_tls_repo/")
       result[:status].success?.should be_true
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure

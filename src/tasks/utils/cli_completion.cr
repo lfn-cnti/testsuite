@@ -15,7 +15,7 @@ module CLICompletion
   FUNCTION_NAME = "_cnf_testsuite_completions"
 
   # Named arguments whose value is a path, completed with file names.
-  FILE_VALUED_ARGS = ["cnf-config", "cnf-path", "input_config", "output_config"]
+  FILE_VALUED_ARGS = ["cnf-config", "input-config", "output-config"]
 
   def self.script(shell : String, bin_name : String = self.bin_name) : String
     case shell

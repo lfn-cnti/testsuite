@@ -26,8 +26,8 @@ namespace "platform" do
 
       # Run the tests
       testrun_stdout = IO::Memory.new
-      Log.debug { "CRYSTAL_ENV: #{ENV["CRYSTAL_ENV"]?}" }
-      if ENV["CRYSTAL_ENV"]? == "TEST"
+      Log.debug { "CNF_TESTSUITE_ENV: #{ENV["CNF_TESTSUITE_ENV"]?}" }
+      if ENV["CNF_TESTSUITE_ENV"]? == "TEST"
         Log.info { "Running Sonobuoy using Quick Mode" }
         cmd = "#{sonobuoy} run --wait --mode quick"
         Process.run(

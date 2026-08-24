@@ -87,7 +87,7 @@ module ReleaseManager
 
       # NOTE: build MUST be done first so we can sha256sum for release notes
       # Build a static binary so it will be portable on other machines in non test
-      unless ENV["CRYSTAL_ENV"]? == "TEST"
+      unless ENV["CNF_TESTSUITE_ENV"]? == "TEST"
         # Rely on the docker ci to create the static binary
         # rm_resp = `rm ./cnf-testsuite`
         # Log.info {"rm_resp: #{rm_resp}"}

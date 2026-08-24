@@ -138,7 +138,7 @@ describe "Utils" do
     `sed -i 's/loglevel: error/loglevel: warn/' config.yml`
     ($?.success?).should be_true
 
-    result = ShellCmd.run_testsuite("test", cmd_prefix: "unset LOG_LEVEL;")
+    result = ShellCmd.run_testsuite("test", cmd_prefix: "unset CNF_TESTSUITE_LOG_LEVEL;")
     result[:status].success?.should be_true
     (/DEBUG -- CNTI: debug test/ =~ result[:output]).should be_nil
     (/INFO -- CNTI: info test/ =~ result[:output]).should be_nil
@@ -155,22 +155,35 @@ describe "Utils" do
     (/DEBUG -- CNTI: debug test/ =~ result[:output]).should_not be_nil
   end
 
-  it "'logger' LOGLEVEL NO underscore environment variable level setting works", tags: ["logger"]  do
+  it "'logger' ignores the retired LOGLEVEL alias", tags: ["logger"]  do
+    result = ShellCmd.run_testsuite("test", cmd_prefix: "unset CNF_TESTSUITE_LOG_LEVEL; LOGLEVEL=DEBUG")
+    result[:status].success?.should be_true
+    (/DEBUG -- CNTI: debug test/ =~ result[:output]).should be_nil
+  end
+
+  it "'logger' CNF_TESTSUITE_LOG_LEVEL environment variable level setting works", tags: ["logger"]  do
     # Note: implicitly tests the override of config.yml if it exist in repo root
-    result = ShellCmd.run_testsuite("test", cmd_prefix: "unset LOG_LEVEL; LOGLEVEL=DEBUG")
+    result = ShellCmd.run_testsuite("test", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=DEBUG")
     result[:status].success?.should be_true
     (/DEBUG -- CNTI: debug test/ =~ result[:output]).should_not be_nil
   end
 
-  it "'logger' LOG_LEVEL WITH underscore environment variable level setting works", tags: ["logger"]  do
-    # Note: implicitly tests the override of config.yml if it exist in repo root
-    result = ShellCmd.run_testsuite("test", cmd_prefix: "LOG_LEVEL=DEBUG")
+  it "'logger' ignores the retired unprefixed LOG_LEVEL", tags: ["logger"]  do
+    result = ShellCmd.run_testsuite("test", cmd_prefix: "unset CNF_TESTSUITE_LOG_LEVEL; LOG_LEVEL=DEBUG")
     result[:status].success?.should be_true
-    (/DEBUG -- CNTI: debug test/ =~ result[:output]).should_not be_nil
+    (/DEBUG -- CNTI: debug test/ =~ result[:output]).should be_nil
+  end
+
+  it "'logger' ignores the retired unprefixed LOG_PATH", tags: ["logger"] do
+    path = File.tempname("retired-log-path", ".log")
+    `LOG_PATH=#{path} ./cnf-testsuite test`
+    File.exists?(path).should be_false
+  ensure
+    File.delete?(path.not_nil!)
   end
 
   it "'logger' command line level setting overrides environment variable", tags: ["logger"]  do
-    result = ShellCmd.run_testsuite("-l error test", cmd_prefix: "LOG_LEVEL=DEBUG")
+    result = ShellCmd.run_testsuite("-l error test", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=DEBUG")
     result[:status].success?.should be_true
     (/DEBUG -- CNTI: debug test/ =~ result[:output]).should be_nil
     (/INFO -- CNTI: info test/ =~ result[:output]).should be_nil
@@ -180,13 +193,13 @@ describe "Utils" do
 
   it "'logger' defaults to error when level set is missplled", tags: ["logger"]  do
     # Note: implicitly tests the override of config.yml if it exist in repo root
-    result = ShellCmd.run_testsuite("test", cmd_prefix: "unset LOG_LEVEL; LOG_LEVEL=DEGUB")
+    result = ShellCmd.run_testsuite("test", cmd_prefix: "unset CNF_TESTSUITE_LOG_LEVEL; CNF_TESTSUITE_LOG_LEVEL=DEGUB")
     result[:status].success?.should be_true
     (/ERROR -- CNTI: Invalid logging level set. defaulting to ERROR/ =~ result[:output]).should_not be_nil
   end
 
-  it "'logger' should write logs to the file when LOG_PATH is set", tags: ["logger"] do
-    response_s = `LOG_PATH=spec-test-testsuite.log ./cnf-testsuite test`
+  it "'logger' should write logs to the file when CNF_TESTSUITE_LOG_PATH is set", tags: ["logger"] do
+    response_s = `unset LOG_PATH; CNF_TESTSUITE_LOG_PATH=spec-test-testsuite.log ./cnf-testsuite test`
     $?.success?.should be_true
     (/ERROR -- CNTI: error test/ =~ response_s).should be_nil
     File.exists?("spec-test-testsuite.log").should be_true
