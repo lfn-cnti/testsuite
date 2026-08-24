@@ -520,7 +520,7 @@ def setup_calico_cluster(cluster_name : String) : KindManager::Cluster
   calico_cluster = KindManager.create_cluster_with_chart_and_wait(
     cluster_name,
     KindManager.disable_cni_config,
-    "projectcalico/tigera-operator --version v3.20.2"
+    "projectcalico/tigera-operator --version v3.32.1"
   )
 
   return calico_cluster
@@ -539,7 +539,7 @@ def setup_cilium_cluster(cluster_name : String) : KindManager::Cluster
   cluster = kind_manager.create_cluster(cluster_name, KindManager.disable_cni_config)
   Helm.helm_repo_add("cilium","https://helm.cilium.io/")
   chart = "cilium/cilium"
-  chart_opts.push("--version 1.15.4")
+  chart_opts.push("--version 1.20.1")
   with_kubeconfig(cluster.kubeconfig) { Helm.install("#{cluster_name}-plugin", "#{chart}", namespace: "kube-system", values: "#{chart_opts.join(" ")}") }
 
   cluster.wait_until_pods_ready()

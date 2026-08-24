@@ -3,6 +3,7 @@ require "../../modules/cluster_tools"
 module JaegerManager
   # JAEGER_PORT = "14271" # agent port
   JAEGER_PORT = "14269" # collector port
+  JAEGER_CHART_VERSION = "4.12.0"
   def self.match()
     ClusterTools.local_match_by_image_name_with_retries("jaegertracing/jaeger-collector")
   end
@@ -17,7 +18,7 @@ module JaegerManager
     Log.info {"Installing Jaeger daemonset "}
     Helm.helm_repo_add("jaegertracing","https://jaegertracing.github.io/helm-charts")
     CNFManager.ensure_namespace_exists!("jaeger")
-    Helm.install("jaeger", "jaegertracing/jaeger", namespace: "jaeger", values: "--set cassandra.config.cluster_size=1 --set cassandra.config.seed_size=1")
+    Helm.install("jaeger", "jaegertracing/jaeger", namespace: "jaeger", values: "--version #{JAEGER_CHART_VERSION} --set cassandra.config.cluster_size=1 --set cassandra.config.seed_size=1")
     KubectlClient::Wait.resource_wait_for_install("Deployment", "jaeger-collector", 300, namespace: "jaeger")
     KubectlClient::Wait.resource_wait_for_install("Deployment", "jaeger-query", 300, namespace: "jaeger")
     KubectlClient::Wait.resource_wait_for_install("Daemonset", "jaeger-agent", 300, namespace: "jaeger")

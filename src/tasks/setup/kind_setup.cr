@@ -55,7 +55,7 @@ class KindManager
 
   #totod make a create cluster with flannel
 
-  def create_cluster(name : String, kind_config : String?, k8s_version = "1.21.1") : KindManager::Cluster?
+  def create_cluster(name : String, kind_config : String?, k8s_version = "1.35.5") : KindManager::Cluster?
     Log.info { "Creating Kind Cluster" }
     kubeconfig = "#{Setup::KIND_DIR}/#{name}_admin.conf"
     Log.for("kind_kubeconfig").info { kubeconfig }

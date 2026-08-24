@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Trivy vulnerability scanner (Repo mode)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: 'fs'          # 'fs' stands for filesystem (scans your code directly)
           ignore-unfixed: true     # Only show vulnerabilities that actually have a fix
