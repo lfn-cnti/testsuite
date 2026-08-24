@@ -1,6 +1,7 @@
 require "http/client"
 
 module Kyverno
+  # renovate: datasource=github-releases depName=kyverno/kyverno
   VERSION = "1.8.4"
 
   def self.binary_path

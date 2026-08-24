@@ -57,6 +57,7 @@ module FluentManager
             "https://fluent.github.io/helm-charts",
             "fluentd-values.yml",
             FLUENTD_VALUES,
+            # renovate: datasource=docker depName=fluent/fluentd-kubernetes-daemonset
             "fluent/fluentd-kubernetes-daemonset:v1.19.1-debian-elasticsearch8-1.0@sha256:4bad75452717d2de0e3c4857339d8e91f11b2712fa9319302a401d9c86388c90",
             "fluentd/fluentd")
     end
@@ -79,6 +80,7 @@ module FluentManager
             "https://fluent.github.io/helm-charts",
             "fluentbit-values.yml",
             FLUENTBIT_VALUES,
+            # renovate: datasource=docker depName=fluent/fluent-bit
             "fluent/fluent-bit:latest@sha256:7d727245767ae632eb296c2ff4d206bf2e205b5f244c1f37b8fdd61f9fb33985",
             "fluent-bit/fluent-bit")
     end

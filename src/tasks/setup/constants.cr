@@ -29,12 +29,18 @@ module Setup
   end
 
   # Versions of the tools
+  # renovate: datasource=github-releases depName=kubernetes-sigs/cluster-api
   CLUSTER_API_VERSION         = "1.9.6"
+  # renovate: datasource=github-releases depName=kubernetes-sigs/kind
   KIND_VERSION                = "0.27.0"
+  # renovate: datasource=github-releases depName=kubescape/kubescape
   KUBESCAPE_VERSION           = "3.0.30"
+  # renovate: datasource=github-releases depName=kubescape/regolibrary
   KUBESCAPE_FRAMEWORK_VERSION = "1.0.316"
+  # renovate: datasource=github-releases depName=helm/helm
   HELM_VERSION                = "3.19.0"
   # (rafal-lal) TODO: configure version of the gatekeeper
+  # renovate: datasource=helm depName=gatekeeper registryUrl=https://open-policy-agent.github.io/gatekeeper/charts
   GATEKEEPER_VERSION          = "TODO: USE THIS"
 
   # Useful consts grouped by tools
