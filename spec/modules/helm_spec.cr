@@ -31,6 +31,26 @@ describe "Helm" do
       FileUtils.rm_rf(path_without_helm.not_nil!)
       Helm.uninstall_local_helm
     end
+
+    it "fails with guidance and exit 1, not a backtrace, when Helm is missing at runtime", tags: ["helm"] do
+      # Empty PATH and an empty tools dir: no global helm, no suite-managed
+      # helm. install_jaeger reaches Binary.get without the setup guard.
+      empty_path = File.tempname("empty-path")
+      empty_tools = File.tempname("empty-tools")
+      FileUtils.mkdir_p(empty_path)
+      FileUtils.mkdir_p(empty_tools)
+
+      result = ShellCmd.run_testsuite("setup:install_jaeger",
+        "PATH=#{empty_path} CNF_TESTSUITE_DIR=#{empty_tools}")
+
+      result[:status].exit_code.should eq(1)
+      result[:output].should contain("No Helm binary found")
+      result[:output].should contain("cnf-testsuite setup")
+      result[:output].should_not contain("__crystal_main")
+    ensure
+      FileUtils.rm_rf(empty_path.not_nil!)
+      FileUtils.rm_rf(empty_tools.not_nil!)
+    end
   end
 
   describe "global" do

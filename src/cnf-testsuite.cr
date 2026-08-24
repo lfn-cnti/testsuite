@@ -90,6 +90,13 @@ rescue e : Sam::NotFound
   end
   stdout_info "Run `#{CLIHelp::BIN_NAME} help tasks` to list every task."
   exit USAGE_EXIT_CODE
+rescue e : Helm::Binary::HelmBinaryNotFoundError
+  # Not a crash: every helm shell-out funnels through Binary.get, which makes
+  # this the one choke point for "helm is not installed" (#2457). A missing
+  # prerequisite gets guidance and exit 1, not a backtrace and exit 2.
+  stdout_failure e.message.to_s
+  stdout_failure "Run `#{CLIHelp::BIN_NAME} setup` to install the prerequisites."
+  exit 1
 rescue e
   # An exception nothing caught: the suite itself broke, the same verdict as
   # a test that errored.

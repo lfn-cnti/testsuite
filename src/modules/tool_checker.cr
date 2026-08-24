@@ -39,12 +39,14 @@ module ToolChecker
   abstract def local_check(result  : Result) : Nil
   abstract def post_checks(result  : Result) : Nil
 
-  def check : Result
+  # run_post_checks: false skips the checks that need more than the binary --
+  # Helm's post_checks talks to the cluster, which a presence probe must not.
+  def check(run_post_checks : Bool = true) : Result
     result = Result.new(tool_name)
 
     global_check(result)
     local_check(result)
-    post_checks(result)
+    post_checks(result) if run_post_checks
 
     result
   end
