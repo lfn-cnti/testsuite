@@ -265,9 +265,10 @@ scored_task "service_account_mapping",
     results_json = Kubescape.parse
     test_json = Kubescape.test_by_test_name(results_json, "Automatic mapping of service account")
     test_report = Kubescape.parse_test_report(test_json)
-    resource_keys = CNFManager.resource_refs(args, config, ["serviceAccount"]) do |serviceAccount|
-      "#{serviceAccount[:namespace]},#{serviceAccount[:kind]}/#{serviceAccount[:name]}".downcase
-    end.compact   
+    # Kubescape reports the workloads that will actually mount a token (a
+    # pod-level automountServiceAccountToken overrides the service account's),
+    # so match on the CNF's workloads, not its ServiceAccount objects.
+    resource_keys = CNFManager.workload_resource_keys(args, config)
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
     if test_report.failed_resources.size == 0

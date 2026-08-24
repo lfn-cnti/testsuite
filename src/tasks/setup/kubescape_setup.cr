@@ -12,27 +12,28 @@ namespace "setup" do
     FileUtils.mkdir_p(Setup::KUBESCAPE_DIR)
     version_file = "#{Setup::KUBESCAPE_DIR}/.kubescape_version"
     installed_kubescape_version = File.read(version_file) if File.exists?(version_file)
-    if File.exists?("#{Setup::KUBESCAPE_DIR}/kubescape") && installed_kubescape_version == Setup::KUBESCAPE_VERSION
+    if File.exists?(Setup::KUBESCAPE_BINARY) && installed_kubescape_version == Setup::KUBESCAPE_VERSION
       logger.info { "Kubescape tool already exists and has the required version" }
       next
     end
 
-    kubescape_binary = "#{Setup::KUBESCAPE_DIR}/kubescape"
+    tarball = "#{Setup::KUBESCAPE_DIR}/kubescape.tar.gz"
     begin
-      download_file(Setup::KUBESCAPE_URL, kubescape_binary)
+      download_file(Setup::KUBESCAPE_URL, tarball)
     rescue ex : Exception
       logger.error { "Error while downloading kubescape tool: #{ex.message}" }
       stdout_failure(failed_msg)
       exit(1)
     end
-    logger.debug { "Downloaded Kubescape binary" }
-    File.write(version_file, Setup::KUBESCAPE_VERSION)
+    logger.debug { "Downloaded Kubescape tarball" }
 
-    unless ShellCmd.run("chmod +x #{kubescape_binary}")[:status].success?
-      logger.error { "Error while making kubescape binary: '#{kubescape_binary}' executable" }
+    unless TarClient.untar(tarball, Setup::KUBESCAPE_DIR)[:status].success?
+      logger.error { "Error while extracting kubescape tarball: '#{tarball}'" }
       stdout_failure(failed_msg)
       exit(1)
     end
+    File.delete(tarball)
+    File.write(version_file, Setup::KUBESCAPE_VERSION)
 
     logger.info { "Kubescape tool has been installed" }
   end
