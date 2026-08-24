@@ -1,0 +1,93 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":dependencyDashboard", ":semanticCommitsDisabled"],
+  "timezone": "Etc/UTC",
+  "schedule": ["before 6am on monday"],
+  "prConcurrentLimit": 10,
+  "rangeStrategy": "pin",
+  "separateMajorMinor": true,
+  "separateMultipleMinor": true,
+  "labels": ["dependencies"],
+  "commitMessagePrefix": "",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Version constant on the line after a '# renovate:' annotation (Crystal, YAML, action.yml, Dockerfile ARG)",
+      "fileMatch": ["\\.cr$", "\\.ya?ml$", "\\.ecr$", "(^|/)Dockerfile$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+?)(?: registryUrl=(?<registryUrl>[^\\s]+))?(?: versioning=(?<versioning>[^\\s]+))?\\n[^\\S\\n]*(?:ARG )?[A-Za-z0-9_]+:?\\s*=?\\s*\"?v?(?<currentValue>\\d+\\.\\d+\\.\\d+(?:[-+.][\\w.]+)?)\"?"
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
+    },
+    {
+      "customType": "regex",
+      "description": "Container image with tag and digest in a Crystal string, or a YAML image: line, after a '# renovate:' annotation",
+      "fileMatch": ["\\.cr$", "\\.ecr$"],
+      "matchStrings": [
+        "# renovate: datasource=docker depName=(?<depName>[^\\s]+)\\n[^\\S\\n]*(?:image: |\")(?:[^\\s\"@:]+/)?[^\\s\"@:]+:(?<currentValue>[^\\s\"@]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?\"?"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Helm values image block (repository/tag/digest) after a '# renovate:' annotation",
+      "fileMatch": ["^embedded_files/.*-values\\.ya?ml$"],
+      "matchStrings": [
+        "# renovate: datasource=docker depName=(?<depName>[^\\s]+)\\nimage:\\n\\s+repository: [^\\n]+\\n\\s+tag: (?<currentValue>[^\\s]+)(?:\\n\\s+digest: (?<currentDigest>sha256:[a-f0-9]{64}))?"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": ".crystal-version holds the bare Crystal version",
+      "fileMatch": ["^\\.crystal-version$"],
+      "matchStrings": ["^(?<currentValue>\\d+\\.\\d+\\.\\d+)\\s*$"],
+      "depNameTemplate": "crystal-lang/crystal",
+      "datasourceTemplate": "github-releases"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Low risk, proven by the CI matrix: automerge once green",
+      "matchDepNames": [
+        "kubernetes-sigs/kind", "helm/helm", "vmware-tanzu/sonobuoy", "kubernetes-sigs/cluster-api",
+        "lfncnti/cluster-tools", "fluent/fluent-bit", "cr.fluentbit.io/fluent/fluent-bit", "fluent/fluentd-kubernetes-daemonset"
+      ],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "tool pins",
+      "automerge": true,
+      "automergeType": "branch"
+    },
+    {
+      "description": "GitHub Actions and runner/CI images: automerge once green",
+      "matchManagers": ["github-actions", "dockerfile"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "pinDigest"],
+      "groupName": "ci",
+      "automerge": true,
+      "automergeType": "branch"
+    },
+    {
+      "description": "Tools whose rules decide test verdicts: one PR each, human review, never automerge",
+      "matchDepNames": ["kubescape/kubescape", "kubescape/regolibrary", "kyverno/kyverno", "litmuschaos/chaos-charts", "gatekeeper"],
+      "labels": ["dependencies", "needs-review"],
+      "automerge": false
+    },
+    {
+      "description": "Kubescape binary and its rule library move together",
+      "matchDepNames": ["kubescape/kubescape", "kubescape/regolibrary"],
+      "groupName": "kubescape"
+    },
+    {
+      "description": "Crystal toolchain: one PR for every place the version is pinned",
+      "matchDepNames": ["crystal-lang/crystal"],
+      "groupName": "crystal",
+      "automerge": false
+    },
+    {
+      "description": "Majors wait on the dependency dashboard until someone approves them",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true,
+      "automerge": false
+    }
+  ]
+}

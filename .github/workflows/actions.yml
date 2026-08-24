@@ -415,6 +415,7 @@ jobs:
     - name: Install Crystal
       uses: crystal-lang/install-crystal@v1
       with:
+        # renovate: datasource=github-releases depName=crystal-lang/crystal
         crystal: 1.6.2
     - name: Setup CNF-Conformance
       run: |

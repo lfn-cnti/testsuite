@@ -16,6 +16,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: cluster-tools
+          # renovate: datasource=docker depName=lfncnti/cluster-tools
           image: lfncnti/cluster-tools:v1.0.8
           imagePullPolicy: Always
           command:

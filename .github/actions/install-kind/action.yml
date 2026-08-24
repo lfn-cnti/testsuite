@@ -4,6 +4,7 @@ inputs:
   version:
     description: "kind version to install"
     required: false
+    # renovate: datasource=github-releases depName=kubernetes-sigs/kind
     default: "v0.31.0"
 runs:
   using: "composite"

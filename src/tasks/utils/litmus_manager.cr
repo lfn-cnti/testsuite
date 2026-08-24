@@ -1,6 +1,8 @@
 module LitmusManager
 
+  # renovate: datasource=github-tags depName=litmuschaos/chaos-charts
   Version = "3.6.0"
+  # renovate: datasource=github-tags depName=litmuschaos/chaos-charts
   RBAC_VERSION = "2.6.0"
   # Version = "1.13.8"
   # Version = "3.0.0-beta12"

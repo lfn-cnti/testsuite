@@ -111,6 +111,27 @@ For general advice on how to submit a pull request, please see [Creating a pull 
 7. (optional) Accept the original pull request if the review and tests pass.
 8. (optional -- changes required) Create a new PR, make changes, and merge into main (Github will automatically merge the original PR since it's changes will be included in the new PR)
 
+## Dependency updates
+
+[Renovate](https://docs.renovatebot.com/) watches the tools and images the suite pins and opens a
+pull request when a newer version exists, on a weekly schedule (`renovate.json`). It finds a pin by
+the comment on the line above it:
+
+```crystal
+# renovate: datasource=github-releases depName=kubescape/kubescape
+KUBESCAPE_VERSION = "3.0.30"
+```
+
+When you add or move a pinned version, image or chart, keep (or add) that comment so the pin stays
+watched. The datasources in use are `github-releases`, `github-tags`, `helm` (with `registryUrl=`)
+and `docker`; the version, or the `tag` and `digest` of an image, must sit on the next line.
+
+What happens to an update depends on what it can break, see `packageRules` in `renovate.json`:
+low-risk tool pins and CI images merge on their own once the spec matrix is green; tools whose rules
+decide test verdicts (kubescape, kyverno, LitmusChaos, gatekeeper) get one PR each and a human
+review, because a red CI run there usually means a rule changed meaning rather than a bug; majors
+wait on the dependency dashboard issue until someone approves them.
+
 ## Community Meeting:
 
 The CNTI community meets weekly on Tuesdays at 8:00 - 9:00 AM Pacific Time
