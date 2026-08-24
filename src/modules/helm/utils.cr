@@ -52,9 +52,7 @@ module Helm
   # Public helpers
 
   def self.binary_found? : Bool
-    result = ToolChecker::Result.new(tool_name)
-    global_check(result)
-    local_check(result)
+    result = check(run_post_checks: false)
     result.global_ok || result.local_ok
   end
 
