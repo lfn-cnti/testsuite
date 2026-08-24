@@ -21,7 +21,7 @@ task "install_opa", ["setup:install_local_helm", "setup:create_namespace"] do |_
 
   Helm.helm_repo_add("gatekeeper", "https://open-policy-agent.github.io/gatekeeper/charts")
   begin
-    Helm.install("opa-gatekeeper", "gatekeeper/gatekeeper", values: helm_install_args)
+    Helm.install("opa-gatekeeper", "gatekeeper/gatekeeper", values: "--version #{Setup::GATEKEEPER_VERSION} #{helm_install_args}")
   rescue e : Helm::ShellCMD::CannotReuseReleaseNameError
     stdout_warning "gatekeeper already installed"
   end
