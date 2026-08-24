@@ -1,8 +1,8 @@
 # renovate: datasource=docker depName=cr.fluentbit.io/fluent/fluent-bit
 image:
-  repository: cr.fluentbit.io/fluent/fluent-bit
-  tag: latest
-  digest: sha256:7d727245767ae632eb296c2ff4d206bf2e205b5f244c1f37b8fdd61f9fb33985
+  repository: fluent/fluent-bit
+  tag: 5.1.1
+  digest: sha256:a941bdd5ca552b2c6597fc7b3bccf2e61d30873939bab5700963de0e94ac6169
 config:
   outputs: |
     [OUTPUT]

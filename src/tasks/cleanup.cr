@@ -23,7 +23,6 @@ task "tools_uninstall", [
   "setup:uninstall_kyverno",
   "setup:uninstall_jaeger",
   "setup:uninstall_fluentd",
-  "setup:uninstall_fluentdbitnami",
   "setup:uninstall_fluentbit",
   "setup:cluster_api_uninstall",
   "uninstall_ueransim",

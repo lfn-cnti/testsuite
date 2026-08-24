@@ -14,18 +14,6 @@ namespace "setup" do
     FluentManager::FluentD.new.uninstall
   end
 
-  desc "Install FluentDBitnami"
-  task "install_fluentdbitnami" do |_, args|
-    SLOG.for("install_fluentdbitnami").info { "Installing Fluentd Bitnami chart" }
-    FluentManager::FluentDBitnami.new.install
-  end
-
-  desc "Uninstall FluentDBitnami"
-  task "uninstall_fluentdbitnami" do |_, args|
-    SLOG.for("uninstall_fluentdbitnami").info { "Uninstalling Fluentd Bitnami chart" }
-    FluentManager::FluentDBitnami.new.uninstall
-  end
-
   desc "Install FluentBit"
   task "install_fluentbit" do |_, args|
     SLOG.for("install_fluentbit").info { "Installing Fluentbit chart" }

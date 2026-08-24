@@ -133,17 +133,6 @@ describe "Observability" do
     result[:status].success?.should be_true
   end
 
-  it "'routed_logs' should pass if cnfs logs are captured by fluentd bitnami", tags: ["observability_routed_logs"] do
-    ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
-    result = ShellCmd.run_testsuite("setup:install_fluentdbitnami")
-    result = ShellCmd.run_testsuite("routed_logs")
-    (/(PASSED).*(Your CNF's logs are being captured)/ =~ result[:output]).should_not be_nil
-  ensure
-    result = ShellCmd.cnf_uninstall()
-    result = ShellCmd.run_testsuite("setup:uninstall_fluentdbitnami")
-    result[:status].success?.should be_true
-  end
-
   it "'routed_logs' should pass if cnfs logs are captured by fluentbit", tags: ["observability_routed_logs"] do
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-fluentbit")
     result = ShellCmd.run_testsuite("setup:install_fluentbit")
@@ -157,9 +146,8 @@ describe "Observability" do
 
   it "'routed_logs' should fail if cnfs logs are not captured", tags: ["observability_routed_logs"] do
     ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
-    Helm.helm_repo_add("bitnami","https://charts.bitnami.com/bitnami")
-    #todo  #helm install --values ./override.yml fluentd ./fluentd
-    Helm.install("fluentd", "bitnami/fluentd", namespace: TESTSUITE_NAMESPACE, values: "--values ./spec/fixtures/fluentd-values-bad.yml")
+    Helm.helm_repo_add("fluentd", "https://fluent.github.io/helm-charts")
+    Helm.install("fluentd", "fluentd/fluentd", namespace: TESTSUITE_NAMESPACE, values: "--values ./spec/fixtures/fluentd-values-bad.yml")
     Log.info { "Installing FluentD daemonset" }
     KubectlClient::Wait.resource_wait_for_install("Daemonset", "fluentd", namespace: TESTSUITE_NAMESPACE)
     result = ShellCmd.run_testsuite("routed_logs")

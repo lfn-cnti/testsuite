@@ -1,37 +1,35 @@
-global:
-  security:
-    allowInsecureImages: true
+# A fluentd that is detected as a log collector (same image as the
+# testsuite-installed one) but tails /tmp instead of the container logs,
+# so no CNF log ever reaches it.
 image:
-  repository: bitnamilegacy/fluentd
-  tag: latest
-  digest: sha256:6771c744cbd368eca969b49c160f3ffc24873c4b3743b1df04cc59721b9b73d0
-aggregator:
-  enabled: false
-forwarder:
-  configMapFiles:
-    fluentd-inputs.conf: |
-      # HTTP input for the liveness and readiness probes
-      <source>
-        @type http
-        port 9880
-      </source>
-      # Get the logs from the containers running in the node
-      <source>
-        @type tail
-        # exclude Fluentd logs
-        path /tmp/*
-        exclude_path /var/log/containers/*
-        exclude_path /var/log/containers/*fluentd*.log
-        pos_file /opt/bitnami/fluentd/logs/buffers/fluentd-docker.pos
-        tag kubernetes.*
-        read_from_head true
-        <parse>
-          @type json
-          time_key time
-          time_format %Y-%m-%dT%H:%M:%S.%NZ
-        </parse>
-      </source>
-      # enrich with kubernetes metadata
-      <filter kubernetes.**>
-        @type kubernetes_metadata
-      </filter>
+  repository: fluent/fluentd-kubernetes-daemonset
+  tag: v1.19.3-debian-elasticsearch8-1.1
+
+fileConfigs:
+  01_sources.conf: |-
+    <source>
+      @type tail
+      @id in_tail_tmp
+      @label @KUBERNETES
+      path /tmp/*.log
+      pos_file /var/log/fluentd-tmp.log.pos
+      tag kubernetes.*
+      read_from_head true
+      <parse>
+        @type none
+      </parse>
+    </source>
+    # the chart's liveness/readiness probes hit this endpoint
+    <source>
+      @type prometheus
+      bind 0.0.0.0
+      port 24231
+      metrics_path /metrics
+    </source>
+  04_outputs.conf: |-
+    <label @OUTPUT>
+      <match **>
+        @type file
+        path "/testdata"
+      </match>
+    </label>
