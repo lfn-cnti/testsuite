@@ -18,7 +18,7 @@ This will detail the required minimum requirements needed in order to support cn
 * **containerd runtime** - for K8s cluster running the CNF to be tested
 * **kubectl** *(run commands against K8s clusters, see [installing kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more details.)*
 * **curl**
-* **helm 3.8.2* *or newer* *(cnf-testsuite installs if not found locally)*
+* **helm 3.8.2** *or newer* (helm 4 supported; cnf-testsuite installs helm 4 if not found locally)
 * **docker**  *(needed for the cni_compatibility test)*
 
 #### Requirements for source installation
