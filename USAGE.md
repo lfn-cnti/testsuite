@@ -73,8 +73,8 @@ directory. Every run also ends with one stable line naming both paths:
 Results: cnti/results/cnf-testsuite-results-<timestamp>.yml (latest: cnti/results/latest.yml)
 ```
 
-To write somewhere else, pass `results-dir=PATH` on the command line or set the
-`CNF_TESTSUITE_RESULTS_DIR` environment variable; the argument wins over the variable. The
+To write somewhere else, pass `--results-dir PATH` on the command line or set the
+`CNF_TESTSUITE_RESULTS_DIR` environment variable; the option wins over the variable. The
 timestamped file and `latest.yml` both go there, and `delete_results` honours the same setting.
 
 A machine-readable [JSON Schema](docs/cnf-testsuite-results.schema.json) describes the file
@@ -304,23 +304,23 @@ crystal build src/cnf-testsuite.cr
 #### Validating a cnf-testsuite.yml file:
 
 ```
-./cnf-testsuite validate_config cnf-config=[PATH_TO]/cnf-testsuite.yml
+./cnf-testsuite validate_config --cnf-config [PATH_TO]/cnf-testsuite.yml
 ```
 
 #### Installing a cnf:
 
 ```
-./cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml
+./cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml
 ```
 
 ##### Specify a timeout for resource readiness during installation:
 ```
-./cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml timeout=1800
+./cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml --timeout 1800
 ```
 
 ##### Skip waiting for resource readiness during installation:
 ```
-./cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml skip_wait_for_install
+./cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml --skip-wait-for-install
 ```
 
 #### Uninstalling a cnf:
@@ -330,39 +330,38 @@ crystal build src/cnf-testsuite.cr
 
 ##### Specify timeout for resource removal during uninstallation
 ```
-./cnf-testsuite cnf_uninstall timeout=60
+./cnf-testsuite cnf_uninstall --timeout 60
 ```
 
 ##### Skip waiting for resource removal during uninstallation:
 ```
-./cnf-testsuite cnf_uninstall skip_wait_for_uninstall
+./cnf-testsuite cnf_uninstall --skip-wait-for-uninstall
 ```
 
 #### Running all of the platform and workload tests:
 
 ```
-./cnf-testsuite all cnf-config=<path_to_your_config_file>/cnf-testsuite.yml
+./cnf-testsuite all --cnf-config <path_to_your_config_file>/cnf-testsuite.yml
 ```
 
 #### Running all of the tests (including proofs of concepts)
 
 ```
-./cnf-testsuite all poc cnf-config=<path_to_your_config_file>/cnf-testsuite.yml
+./cnf-testsuite all --poc --cnf-config <path_to_your_config_file>/cnf-testsuite.yml
 ```
 
 #### Running all of the workload tests
 
 ```
-crystal src/cnf-testsuite.cr workload
-cnf-config=<path_to_your_config_file>/cnf-testsuite.yml
+crystal src/cnf-testsuite.cr -- workload --cnf-config <path_to_your_config_file>/cnf-testsuite.yml
 ```
 
 #### Running certification tests
 
 ```
 ./cnf-testsuite cert
-./cnf-testsuite cert essential
-./cnf-testsuite cert exclude="increase_decrease_capacity single_process_type"
+./cnf-testsuite cert --essential
+./cnf-testsuite cert --skip increase_decrease_capacity --skip single_process_type
 ```
 
 #### Running all of the platform or workload tests independently:
@@ -409,10 +408,10 @@ livenes` suggests `liveness`.
 #### Shell completion:
 
 `completion` prints a completion script for bash (default) or zsh, generated from the same
-task registry `help` uses, so it always matches the binary that printed it: namespaced task
-paths (`setup:install_kubescape`), flags, `key=` arguments (with file-name completion after
-`cnf-config=` and the other path arguments), `~exclusions`, task names again after `@`, and
-`-l` log levels.
+task and option registries `help` uses, so it always matches the binary that printed it:
+namespaced task paths (`setup:install_kubescape`), every `--option` with its value (file names
+after `--cnf-config` and the other path options, task names after `--skip`, `-l` log levels),
+and further task names.
 
 ```
 source <(./cnf-testsuite completion bash)     # this shell only

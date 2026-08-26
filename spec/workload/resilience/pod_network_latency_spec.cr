@@ -13,7 +13,7 @@ describe "Resilience Pod Network Latency Chaos" do
 
   it "'pod_network_latency' A 'Good' CNF should not crash when network latency occurs", tags: ["pod_network_latency"]  do
     begin
-      ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("pod_network_latency")
       result[:status].success?.should be_true
       (/(PASSED).*(pod_network_latency chaos test passed)/ =~ result[:output]).should_not be_nil

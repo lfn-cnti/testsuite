@@ -519,9 +519,9 @@ jobs:
         cd /shared/$DIR
         ./cnf-testsuite setup
         wget -O cnf-testsuite.yml https://raw.githubusercontent.com/lfn-cnti/testsuite/${GITHUB_SHA}/example-cnfs/coredns/cnf-testsuite.yml
-        ./cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml
+        ./cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml
         # The example CNF is expected to fail some tests (exit 1); only an errored test (exit 2+) fails the job
-        CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite all ~compatibility ~resilience ~reasonable_startup_time ~reasonable_image_size ~platform ~helm_chart_valid ~helm_chart_published || [ $? -eq 1 ]
+        CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite all --skip compatibility --skip resilience --skip reasonable_startup_time --skip reasonable_image_size --skip platform --skip helm_chart_valid --skip helm_chart_published || [ $? -eq 1 ]
         CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite cnf_uninstall
         CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite uninstall_all
     - name: Delete Cluster
@@ -613,9 +613,9 @@ jobs:
         cd /shared/$DIR
         ./cnf-testsuite setup
         wget -O cnf-testsuite.yml https://raw.githubusercontent.com/lfn-cnti/testsuite/${GITHUB_SHA}/example-cnfs/coredns/cnf-testsuite.yml
-        ./cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml
+        ./cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml
         # The example CNF is expected to fail some tests (exit 1); only an errored test (exit 2+) fails the job
-        CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite all ~resilience ~compatibility ~pod_network_latency ~platform ~liveness ~readiness ~rolling_update ~rolling_downgrade ~rolling_version_change ~nodeport_not_used ~hostport_not_used ~hardcoded_ip_addresses_in_k8s_runtime_configuration ~helm_chart_valid ~helm_chart_published ~rollback ~secrets_used ~immutable_configmap || [ $? -eq 1 ]
+        CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite all --skip resilience --skip compatibility --skip pod_network_latency --skip platform --skip liveness --skip readiness --skip rolling_update --skip rolling_downgrade --skip rolling_version_change --skip nodeport_not_used --skip hostport_not_used --skip hardcoded_ip_addresses_in_k8s_runtime_configuration --skip helm_chart_valid --skip helm_chart_published --skip rollback --skip secrets_used --skip immutable_configmap || [ $? -eq 1 ]
         CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite cnf_uninstall
         CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite uninstall_all
     - name: Delete Cluster
@@ -707,9 +707,9 @@ jobs:
         cd /shared/$DIR
         ./cnf-testsuite setup
         wget -O cnf-testsuite.yml https://raw.githubusercontent.com/lfn-cnti/testsuite/${GITHUB_SHA}/example-cnfs/coredns/cnf-testsuite.yml
-        ./cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml
+        ./cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml
         # The example CNF is expected to fail some tests (exit 1); only an errored test (exit 2+) fails the job
-        CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite all ~resilience ~platform ~liveness ~readiness ~rolling_update ~rolling_downgrade ~rolling_version_change ~nodeport_not_used ~hostport_not_used ~hardcoded_ip_addresses_in_k8s_runtime_configuration ~rollback ~secrets_used ~immutable_configmap ~reasonable_startup_time ~reasonable_image_size || [ $? -eq 1 ]
+        CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite all --skip resilience --skip platform --skip liveness --skip readiness --skip rolling_update --skip rolling_downgrade --skip rolling_version_change --skip nodeport_not_used --skip hostport_not_used --skip hardcoded_ip_addresses_in_k8s_runtime_configuration --skip rollback --skip secrets_used --skip immutable_configmap --skip reasonable_startup_time --skip reasonable_image_size || [ $? -eq 1 ]
         CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite cnf_uninstall
         CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite uninstall_all
     - name: Delete Cluster

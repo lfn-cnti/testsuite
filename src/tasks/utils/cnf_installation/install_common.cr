@@ -65,7 +65,7 @@ module CNFInstall
 
   def self.ensure_cnf_config_path_file(path)
     if path.empty?
-      usage_error! "cnf-config=PATH is required: a cnf-testsuite.yml or the directory holding one."
+      usage_error! "--cnf-config PATH is required: a cnf-testsuite.yml or the directory holding one."
     elsif CNFManager.path_has_yml?(path)
       yml = path
     elsif File.directory?(path)

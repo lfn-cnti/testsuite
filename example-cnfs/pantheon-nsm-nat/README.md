@@ -28,9 +28,9 @@ Initialize the test suite
 Configure and deploy nsm and nsm-nat as the target CNF
 
 ```
-./cnf-testsuite cnf_install cnf-config=./example-cnfs/nsm/cnf-testsuite.yml deploy_with_chart=false
+./cnf-testsuite cnf_install --cnf-config ./example-cnfs/nsm/cnf-testsuite.yml
 
-./cnf-testsuite cnf_install cnf-config=./example-cnfs/pantheon-nsm-nat/cnf-testsuite.yml deploy_with_chart=false
+./cnf-testsuite cnf_install --cnf-config ./example-cnfs/pantheon-nsm-nat/cnf-testsuite.yml
 ```
 
 Run the all the tests

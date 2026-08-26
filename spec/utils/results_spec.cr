@@ -18,7 +18,7 @@ describe "Results location" do
     begin
       default_count = Dir.glob("cnti/results/cnf-testsuite-results-*.yml").size
 
-      result = ShellCmd.run_testsuite("_divide_by_zero results-dir=#{cli_dir}", "CNF_TESTSUITE_RESULTS_DIR=#{env_dir}")
+      result = ShellCmd.run_testsuite("_divide_by_zero --results-dir #{cli_dir}", "CNF_TESTSUITE_RESULTS_DIR=#{env_dir}")
       result[:output].should contain("Results: #{cli_dir}/")
       Dir.glob(File.join(cli_dir, "cnf-testsuite-results-*.yml")).size.should eq(1)
       File.exists?(File.join(cli_dir, "latest.yml")).should be_true
@@ -30,7 +30,7 @@ describe "Results location" do
       env_files.size.should eq(1)
       File.readlink(File.join(env_dir, "latest.yml")).should eq(File.basename(env_files.first))
 
-      ShellCmd.run_testsuite("delete_results results-dir=#{cli_dir}")
+      ShellCmd.run_testsuite("delete_results --results-dir #{cli_dir}")
       Dir.glob(File.join(cli_dir, "*")).should be_empty
     ensure
       FileUtils.rm_rf(cli_dir)

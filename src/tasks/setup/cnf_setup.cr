@@ -52,6 +52,6 @@ task "validate_config" do |_, args|
     stdout_success "Successfully validated CNF config"
     SLOG.for("validate_config").debug { "Config: #{config.inspect}" }
   else
-    usage_error! "Usage: validate_config cnf-config=PATH"
+    usage_error! "Usage: validate_config --cnf-config PATH"
   end
 end

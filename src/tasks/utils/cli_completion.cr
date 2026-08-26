@@ -15,7 +15,7 @@ module CLICompletion
   FUNCTION_NAME = "_cnf_testsuite_completions"
 
   # Named arguments whose value is a path, completed with file names.
-  FILE_VALUED_ARGS = CLIOptions.visible.select(&.file).map(&.name)
+  FILE_VALUED_ARGS = CLIOptions::ALL.select(&.file).map(&.name)
 
   def self.script(shell : String, bin_name : String = self.bin_name) : String
     case shell
@@ -59,8 +59,8 @@ module CLICompletion
     # Remove with:  complete -r #{bin_name}
     #{FUNCTION_NAME}() {
       local tasks="#{task_paths.join(" ")}"
-      local flags="#{CLIOptions.visible.select(&.kind.flag?).map(&.long).join(" ")}"
-      local valued="#{CLIOptions.visible.select(&.takes_value?).map(&.long).join(" ")}"
+      local flags="#{CLIOptions::ALL.select(&.kind.flag?).map(&.long).join(" ")}"
+      local valued="#{CLIOptions::ALL.select(&.takes_value?).map(&.long).join(" ")}"
       local file_args=" #{FILE_VALUED_ARGS.map { |arg| "--#{arg}" }.join(" ")} "
       local task_args=" #{CLIOptions.multis.map(&.long).join(" ")} "
       local levels="#{log_levels.join(" ")}"

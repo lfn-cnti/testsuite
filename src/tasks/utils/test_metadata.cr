@@ -125,8 +125,8 @@ end
 
 # Top-level names kept working after a task moved into a namespace. The mapping
 # is recorded, not just the task, because SAM matches an exclusion against a
-# task's own path: without rewriting, `~k8s_conformance` would match the alias
-# and silently fail to exclude the task it points at.
+# task's own path: `--skip k8s_conformance` has to name the task the alias
+# points at, or it would match the alias and silently exclude nothing.
 module TaskAliases
   @@aliases = {} of String => String
 
@@ -136,15 +136,6 @@ module TaskAliases
 
   def self.[]?(name : String) : String?
     @@aliases[name]?
-  end
-
-  # Rewrites `~alias` exclusions to name the task the alias points at.
-  def self.resolve_exclusions(argv : Array(String)) : Array(String)
-    argv.map do |token|
-      next token unless token.starts_with?("~")
-      target = @@aliases[token[1..]]?
-      target ? "~#{target}" : token
-    end
   end
 end
 

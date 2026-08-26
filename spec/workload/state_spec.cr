@@ -9,7 +9,7 @@ describe "State" do
   
   it "'elastic_volumes' should fail if the cnf does not use volumes that are elastic volume", tags: ["elastic_volume"]  do
     begin
-      ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-elastic-volume/cnf-testsuite.yml", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=debug")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-elastic-volume/cnf-testsuite.yml", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=debug")
       result = ShellCmd.run_testsuite("elastic_volumes", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=debug")
       (/(PASSED).*(All used volumes are elastic)/ =~ result[:output]).should be_nil
     ensure
@@ -22,7 +22,7 @@ describe "State" do
   # This CNF does not use any volumes except the ones that Kubernetes might mount by default (like the service account token)
   it "'elastic_volumes' should fail if the cnf does not use any elastic volumes", tags: ["elastic_volume"]  do
     begin
-      ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_nonroot", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=debug")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_nonroot", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=debug")
       result = ShellCmd.run_testsuite("elastic_volumes", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=debug")
       (/FAILED/ =~ result[:output]).should_not be_nil
     ensure
@@ -35,7 +35,7 @@ describe "State" do
     begin
       Log.debug { "Installing Mysql " }
       # todo make helm directories work with parameters
-      ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-mysql/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-mysql/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("database_persistence", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=debug")
       (/(PASSED).*(CNF uses database with cloud-native persistence)/ =~ result[:output]).should_not be_nil
     ensure
@@ -47,7 +47,7 @@ describe "State" do
 
   it "'elastic_volumes' should fail if the cnf doesn't use an elastic volume", tags: ["elastic_volume"]  do
     begin
-      ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=debug")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=debug")
       result = ShellCmd.run_testsuite("elastic_volumes", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=debug")
       (/(FAILED).*(Some of the used volumes are not elastic)/ =~ result[:output]).should_not be_nil
     ensure
@@ -63,7 +63,7 @@ describe "State" do
       schedulable_nodes.should_not be_empty
 
       update_yml("sample-cnfs/sample-local-storage/worker-node-value.yml", "worker_node", schedulable_nodes[0].dig("metadata", "name"))
-      ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-local-storage/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-local-storage/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("no_local_volume_configuration")
       (/(FAILED).*(local storage configuration volumes found)/ =~ result[:output]).should_not be_nil
     ensure
@@ -75,7 +75,7 @@ describe "State" do
 
   it "'no_local_volume_configuration' should pass if local storage configuration is not found", tags: ["no_local_volume_configuration"]  do
     begin
-      ShellCmd.cnf_install("cnf-config=sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("no_local_volume_configuration")
       (/(PASSED).*(local storage configuration volumes not found)/ =~ result[:output]).should_not be_nil
     ensure

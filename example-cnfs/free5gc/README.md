@@ -114,7 +114,7 @@ cnf-testsuite setup
 Deploy free5GC using the CNTi test suite:
 
 ```bash
-cnf-testsuite cnf_install cnf-config=example-cnfs/free5gc/cnf-testsuite.yml
+cnf-testsuite cnf_install --cnf-config example-cnfs/free5gc/cnf-testsuite.yml
 ```
 
 The CNF is deployed into the `free5gc` namespace.
@@ -146,7 +146,7 @@ kubectl get pods -n free5gc
 To uninstall free5GC:
 
 ```bash
-cnf-testsuite cnf_uninstall cnf-config=example-cnfs/free5gc/cnf-testsuite.yml
+cnf-testsuite cnf_uninstall --cnf-config example-cnfs/free5gc/cnf-testsuite.yml
 ```
 
 In some cases, persistent resources (e.g. PersistentVolumeClaims) may remain and need to be removed manually:

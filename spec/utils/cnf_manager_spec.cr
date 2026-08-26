@@ -92,7 +92,7 @@ describe "SampleUtils" do
     # node_drain is the only cert-tagged state test, so excluding it must leave
     # cert_state with nothing to run. Without arg forwarding the exclusion is
     # dropped and node_drain aborts the run because no CNF is installed.
-    result = ShellCmd.run_testsuite("cert_state ~node_drain")
+    result = ShellCmd.run_testsuite("cert_state --skip node_drain")
     result[:status].success?.should be_true
     result[:output].should_not contain("You must install a CNF first")
   end
@@ -333,7 +333,7 @@ describe "SampleUtils" do
   end
 
   it "'validate_config' should pass, when a cnf has a valid config file yml", tags: ["validate_config"]  do
-    result = ShellCmd.run_testsuite("validate_config cnf-config=spec/fixtures/cnf-testsuite-v2-example.yml")
+    result = ShellCmd.run_testsuite("validate_config --cnf-config spec/fixtures/cnf-testsuite-v2-example.yml")
     result[:status].success?.should be_true
     (/Successfully validated CNF config/ =~ result[:output]).should_not be_nil
   end
@@ -343,7 +343,7 @@ describe "SampleUtils" do
     dir_list = get_dirs - [".", ".."]
     dir_list.each do |dir|
       testsuite_yml = "sample-cnfs/#{dir}/cnf-testsuite.yml"
-      result = ShellCmd.run_testsuite("validate_config cnf-config=#{testsuite_yml}")
+      result = ShellCmd.run_testsuite("validate_config --cnf-config #{testsuite_yml}")
       unless result[:status].success?
         Log.info {"Could not validate config: #{testsuite_yml}"}
       end
@@ -356,7 +356,7 @@ describe "SampleUtils" do
     dir_list = get_dirs - [".", ".."]
     dir_list.each do |dir|
       testsuite_yml = "example-cnfs/#{dir}/cnf-testsuite.yml"
-      result = ShellCmd.run_testsuite("validate_config cnf-config=#{testsuite_yml}")
+      result = ShellCmd.run_testsuite("validate_config --cnf-config #{testsuite_yml}")
       unless result[:status].success?
         Log.info {"Could not validate config: #{testsuite_yml}"}
       end
@@ -373,7 +373,7 @@ describe "SampleUtils" do
     begin
       args = Sam::Args.new()
       config_path = "./sample-cnfs/sample-generic-cnf/cnf-testsuite.yml"
-      ShellCmd.cnf_install("cnf-config=#{config_path}")
+      ShellCmd.cnf_install("--cnf-config #{config_path}")
       config = CNFInstall::Config.parse_cnf_config_from_file(config_path)    
       task_response = CNFManager.workload_resource_test(args, config) do |resource, container, initialized|
         test_passed = true
@@ -396,7 +396,7 @@ describe "SampleUtils" do
   it "Helm_values should be used during the installation of a cnf", tags: ["cnf-config"]  do
     begin
       # fails because doesn't have a service
-      ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_coredns_values")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns_values")
       deployment_containers = KubectlClient::Get.resource_containers("deployment", "coredns-coredns", "cnf-default")
       image_tags = KubectlClient::Get.container_image_tags(deployment_containers)
       Log.info { "image_tags: #{image_tags}" }

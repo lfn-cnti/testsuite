@@ -8,14 +8,12 @@ class CLIInvocation
   @@tasks = [] of String
   @@named = {} of String => String
 
-  # Records the parsed segments: every task named on the line, and the named
-  # option values (line-wide; the last occurrence wins).
-  def self.record(segments)
-    @@tasks = segments.flat_map(&.tasks)
+  # Records the parsed invocation: every task named on the line, and the
+  # named option values.
+  def self.record(invocation)
+    @@tasks = invocation.tasks
     @@named = {} of String => String
-    segments.each do |segment|
-      segment.args.named.each { |key, value| @@named[key] = value.to_s }
-    end
+    invocation.args.named.each { |key, value| @@named[key] = value.to_s }
   end
 
   # The tasks named on the command line, in order.

@@ -20,7 +20,7 @@ Initialize the test suite
 Configure and deploy NSM as the target CNF
 
 ```
-./cnf-testsuite cnf_install cnf-config=./example-cnfs/nsm/cnf-testsuite.yml deploy_with_chart=false
+./cnf-testsuite cnf_install --cnf-config ./example-cnfs/nsm/cnf-testsuite.yml
 ```
 
 Run the all the tests

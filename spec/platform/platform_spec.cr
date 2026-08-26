@@ -14,7 +14,7 @@ describe "Platform" do
     (/No cnf_testsuite.yml found/ =~ result[:output]).should be_nil
   end
   it "'platform' should not run prerequisites that are prefixed with a ~", tags: ["platform"] do
-    result = ShellCmd.run_testsuite("platform ~k8s_conformance")
+    result = ShellCmd.run_testsuite("platform --skip k8s_conformance")
     (/kind=namespace namespace=sonobuoy/ =~ (result[:output] + result[:error])).should be_nil
   end
   it "'k8s_conformance' should pass if the sonobuoy tests pass", tags: ["platform"] do
