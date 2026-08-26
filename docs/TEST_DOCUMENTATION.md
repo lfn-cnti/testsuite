@@ -445,6 +445,7 @@ Make the PID 1 container process to handle SIGTERM; enable process namespace sha
 #### Overview
 
 This tests if the PID 1 process of containers handles/reaps zombie processes.
+The test injects a probe into every container that creates an orphaned child process; the test is skipped when the probe cannot be injected (for example into a read-only root filesystem).
 Expectation: Zombie processes are handled/reaped by PID 1 process of containers.
 
 #### Rationale

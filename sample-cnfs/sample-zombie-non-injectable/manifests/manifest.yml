@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: zombie-non-injectable
+  name: zombie-non-injectable
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zombie-non-injectable
+  template:
+    metadata:
+      labels:
+        app: zombie-non-injectable
+    spec:
+      containers:
+      - image: busybox:1.36
+        command: ["/bin/sleep", "infinity"]
+        name: zombie-non-injectable
+        securityContext:
+          # A read-only root filesystem makes `nerdctl cp` unable to place the
+          # zombie probe into the container, which must surface as a skipped
+          # test, never as a pass (see issue #2474).
+          readOnlyRootFilesystem: true
+        resources: {}

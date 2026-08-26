@@ -451,12 +451,28 @@ scored_task "zombie_handled",
   type: CNFManager::TestType::Essential,
   emoji: "⚖👀" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    injection_failures = [] of String
     CNFManager.resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |resource|
       ClusterTools.all_containers_by_resource?(resource, resource[:namespace], include_proctree: false) do |container_id, container_pid_on_node, node|
-        ClusterTools.exec_by_node("nerdctl --namespace=k8s.io cp /zombie #{container_id}:/zombie", node)
-        ClusterTools.exec_by_node("nerdctl --namespace=k8s.io cp /sleep #{container_id}:/sleep", node)
-        ClusterTools.exec_by_node("nerdctl --namespace=k8s.io exec #{container_id} /zombie", node)
+        probe_commands = [
+          "nerdctl --namespace=k8s.io cp /zombie #{container_id}:/zombie",
+          "nerdctl --namespace=k8s.io cp /sleep #{container_id}:/sleep",
+          "nerdctl --namespace=k8s.io exec #{container_id} /zombie",
+        ]
+        probe_commands.each do |probe_command|
+          cmd_result = ClusterTools.exec_by_node(probe_command, node)
+          next if cmd_result[:status].success?
+          Log.for(t.name).error { "zombie probe injection failed for container #{container_id} (#{resource[:kind]}/#{resource[:name]}): #{probe_command}: #{cmd_result[:error]}" }
+          injection_failures << "#{resource[:kind]}/#{resource[:name]} container #{container_id}: `#{probe_command}` failed"
+          break
+        end
       end
+    end
+
+    unless injection_failures.empty?
+      injection_failures.each { |failure| result.append_description(failure) }
+      result.skipped("Zombie reaping not checked: the zombie probe could not be injected into every container")
+      next
     end
 
     sleep(Time::Span.new(seconds: 10))
@@ -464,7 +480,7 @@ scored_task "zombie_handled",
     pods_to_restart = Set(Tuple(String, String)).new
     containers_to_restart = Set(Tuple(String, JSON::Any)).new
     task_response = CNFManager.workload_resource_test(args, config, check_containers:false ) do |resource, _, _|
-      ClusterTools.all_containers_by_resource?(resource, resource[:namespace], only_container_pids:true) do | container_id, container_pid_on_node, node, container_proctree_statuses, container_status, pod_name| 
+      ClusterTools.all_containers_by_resource?(resource, resource[:namespace], only_container_pids: true, include_zombies: true) do | container_id, container_pid_on_node, node, container_proctree_statuses, container_status, pod_name| 
 
         zombies = container_proctree_statuses.map do |status|
           Log.for(t.name).debug { "status: #{status}" }
