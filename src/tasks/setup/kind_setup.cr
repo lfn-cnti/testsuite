@@ -10,8 +10,7 @@ desc "Install Kind"
 task "install_kind" do |_, args|
   Log.info {"install_kind"}
   current_dir = FileUtils.pwd 
-  unless Dir.exists?("#{Setup::KIND_DIR}")
-    FileUtils.mkdir_p("#{Setup::KIND_DIR}")
+  ToolInstall.ensure("kind", Setup::KIND_VERSION, Setup::KIND_BINARY) do
     write_file = Setup::KIND_BINARY
     Log.info { "write_file: #{write_file}" }
     Log.info { "install kind" }
@@ -28,6 +27,7 @@ task "install_kind" do |_, args|
         raise "Unable to make #{write_file} executable"
       end
     end
+    true
   end
 end
 

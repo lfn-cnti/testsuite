@@ -10,13 +10,10 @@ class ApiSnoop
   end
 
   def install
-    # IF the .git dir exists
-    # THEN assume that apisnoop was installed
-    if Dir.exists?("#{install_path}/.git")
-      Log.info { "apisnoop already installed. Skipping git clone for apisnoop." }
-    else
+    ToolInstall.ensure("apisnoop", APISNOOP_COMMIT, install_path) do
+      FileUtils.rm_rf(install_path)
       GitClient.clone("https://github.com/cncf/apisnoop #{install_path}")
-      ShellCmd.run("git -C #{install_path} checkout --quiet #{APISNOOP_COMMIT}", "apisnoop_checkout")
+      ShellCmd.run("git -C #{install_path} checkout --quiet #{APISNOOP_COMMIT}", "apisnoop_checkout")[:status].success?
     end
 
     # Only for cnf-testsuite CI

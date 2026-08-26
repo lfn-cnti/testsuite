@@ -9,31 +9,27 @@ namespace "setup" do
     logger.info { "Installing Sonobuoy tool" }
     failed_msg = "Task 'install_sonobuoy' failed"
 
-    if File.exists?(Setup::SONOBUOY_BINARY)
-      logger.info { "Sonobuoy binary: '#{Setup::SONOBUOY_BINARY}' already exists" }
-      next
-    end
+    installed = ToolInstall.ensure("sonobuoy", SONOBUOY_K8S_VERSION, Setup::SONOBUOY_BINARY) do
+      sonobuoy_archive = "#{Setup::SONOBUOY_DIR}/sonobuoy.tar.gz"
+      begin
+        download_file(Setup::SONOBUOY_URL, sonobuoy_archive)
+      rescue ex : Exception
+        logger.error { "Error while downloading sonobuoy binary: #{ex.message}" }
+        next false
+      end
 
-    FileUtils.mkdir_p(Setup::SONOBUOY_DIR)
-    sonobuoy_archive = "#{Setup::SONOBUOY_DIR}/sonobuoy.tar.gz"
-    begin
-      download_file(Setup::SONOBUOY_URL, sonobuoy_archive)
-    rescue ex : Exception
-      logger.error { "Error while downloading sonobuoy binary: #{ex.message}" }
-      stdout_failure(failed_msg)
-      next
-    end
+      untar_result = TarClient.untar(sonobuoy_archive, Setup::SONOBUOY_DIR)
+      File.delete(sonobuoy_archive) if File.exists?(sonobuoy_archive)
+      unless untar_result[:status].success?
+        logger.error { "Error while extracting sonobuoy archive: #{untar_result[:error]}" }
+        next false
+      end
 
-    untar_result = TarClient.untar(sonobuoy_archive, Setup::SONOBUOY_DIR)
-    File.delete(sonobuoy_archive) if File.exists?(sonobuoy_archive)
-    unless untar_result[:status].success?
-      logger.error { "Error while extracting sonobuoy archive: #{untar_result[:error]}" }
-      stdout_failure(failed_msg)
-      next
+      File.chmod(Setup::SONOBUOY_BINARY, 0o755)
+      logger.info { "Sonobuoy tool has been installed" }
+      true
     end
-
-    File.chmod(Setup::SONOBUOY_BINARY, 0o755)
-    logger.info { "Sonobuoy tool has been installed" }
+    stdout_failure(failed_msg) unless installed
   end
 
   desc "Uninstalls Sonobuoy"

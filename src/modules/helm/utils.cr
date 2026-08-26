@@ -109,33 +109,28 @@ module Helm
     logger = Log.for("install_local_helm")
     logger.info { "Installing Helm tool locally" }
 
-    FileUtils.mkdir_p(Setup::HELM_DIR)
+    ToolInstall.ensure("helm", Setup::HELM_VERSION, Setup::HELM_BINARY, force: force) do
+      FileUtils.mkdir_p(Setup::HELM_DIR)
+      helm_archive = File.join(Setup::HELM_DIR, "helm-#{Setup::HELM_VERSION}.tar.gz")
+      begin
+        download_file(Setup::HELM_URL, helm_archive)
+      rescue ex : Exception
+        logger.error { "Error while downloading Helm binary: #{ex.message}" }
+        next false
+      end
 
-    if File.exists?(Setup::HELM_BINARY) && !force
-      logger.notice { "Helm binary found in: #{Setup::HELM_BINARY}, skipping installation" }
-      return true
+      res = begin
+        TarClient.untar(helm_archive, Setup::HELM_DIR)
+      ensure
+        File.delete?(helm_archive)
+      end
+
+      unless res[:status].success?
+        logger.error { "Error while extracting Helm binary: #{res[:error]}" }
+        next false
+      end
+      true
     end
-
-    helm_archive = File.join(Setup::HELM_DIR, "helm-#{Setup::HELM_VERSION}.tar.gz")
-    begin
-      download_file(Setup::HELM_URL, helm_archive)
-    rescue ex : Exception
-      logger.error { "Error while downloading Helm binary: #{ex.message}" }
-      return false
-    end
-
-    res = begin
-      TarClient.untar(helm_archive, Setup::HELM_DIR)
-    ensure
-      File.delete?(helm_archive)
-    end
-
-    unless res[:status].success?
-      logger.error { "Error while extracting Helm binary: #{res[:error]}" }
-      return false
-    end
-
-    true
   end
 
   def self.uninstall_local_helm
