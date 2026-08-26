@@ -117,9 +117,9 @@ describe "test metadata" do
       paths.should contain(new_name)
 
       # SAM matches an exclusion against a task's own path, so without rewriting
-      # `~k8s_conformance` would match the alias and silently exclude nothing.
-      TaskAliases.resolve_exclusions(["platform", "~#{old_name}"])
-        .should eq(["platform", "~#{new_name}"])
+      # `--skip k8s_conformance` would match the alias and silently exclude nothing.
+      TaskAliases[old_name]?.should eq(new_name)
+      CLIParser.parse!(["platform", "--skip", old_name]).args.raw.should eq(["~#{new_name}"])
     end
 
     # An alias is not a test. The registry keys on a task's name, so if the

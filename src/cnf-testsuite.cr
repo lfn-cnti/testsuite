@@ -64,11 +64,10 @@ begin
     exit 0
   end
 
-  # Every task on the line runs in order with the arguments parsed for it;
-  # SAM only ever sees a task path and a ready-made Sam::Args.
-  CLIParser.parse!(ARGV).each do |segment|
-    segment.tasks.each { |task| Sam.invoke(task, segment.args) }
-  end
+  # Every task on the line runs in order with the parsed arguments; SAM only
+  # ever sees a task path and a ready-made Sam::Args.
+  invocation = CLIParser.parse!(ARGV)
+  invocation.tasks.each { |task| Sam.invoke(task, invocation.args) }
 
   if CNFManager::Points::Results.file_exists?
     # One stable line per run for scripts to grep; the pointer is the path

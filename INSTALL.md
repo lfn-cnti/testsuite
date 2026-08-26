@@ -208,7 +208,7 @@ wget -O cnf-testsuite.yml https://raw.githubusercontent.com/lfn-cnti/testsuite/m
 ```
 - The wget gets a working config file, now tell cnf-testsuite to use it by doing the following:
 ```
-cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml
+cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml
 ```
 
 - There are other examples in the [examples-cnfs](https://github.com/lfn-cnti/testsuite/tree/master/example-cnfs) directory that can be used for testing as well.
@@ -220,7 +220,7 @@ If you've brought your own CNF to test, review the [CNF_TESTSUITE_YML_USAGE.md](
 If you've followed the [CNF_TESTSUITE_YML_USAGE.md](CNF_TESTSUITE_YML_USAGE.md) guide and have your cnf-testsuite.yml ready, you can run the same command we ran for the example CNF to set it up:
 
 ```
-cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml
+cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml
 ```
 
 ### Running cnf-testsuite for the first time

@@ -54,7 +54,7 @@ describe "Utils" do
   end
 
   it "'check_cnf_config' should return the value for a cnf-config argument", tags: ["args"]  do
-    args = Sam::Args.new(["cnf-config=./sample-cnfs/sample-generic-cnf/cnf-testsuite.yml"])
+    args = Sam::Args.new({"cnf-config" => "./sample-cnfs/sample-generic-cnf/cnf-testsuite.yml"} of String => Sam::Args::AllowedTypes)
     (check_cnf_config(args)).should eq("./sample-cnfs/sample-generic-cnf")
   end
 
@@ -77,7 +77,7 @@ describe "Utils" do
     begin
       args = Sam::Args.new()
       config_path = "./sample-cnfs/sample-generic-cnf/cnf-testsuite.yml"
-      ShellCmd.cnf_install("cnf-config=#{config_path}")
+      ShellCmd.cnf_install("--cnf-config #{config_path}")
       CNFManager::Task.single_task_runner(args) do |args, config, result|
         result.set_testcase("privileged_containers")
         Log.info { "single_task_runner spec args #{args.inspect}" }

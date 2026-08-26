@@ -178,12 +178,12 @@ To use CoreDNS as an example CNF. Download the testsuite configuration to test C
 - Prepare the test suite to use the CNF by running:
   ```
   # via built binary
-  ./cnf-testsuite cnf_install cnf-config=./cnf-testsuite.yml
+  ./cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml
   ```
   Or
   ```
   # via crystal
-  crystal src/cnf-testsuite.cr cnf_install cnf-config=./cnf-testsuite.yml
+  crystal src/cnf-testsuite.cr cnf_install --cnf-config ./cnf-testsuite.yml
   ```
 
 There are other examples in the [example cnfs](example-cnfs) folder if you would like to test others.
@@ -222,19 +222,19 @@ You can also run via `crystal` by replacing the `./cnf-testsuite` with `crystal 
 
 ```
 # These assume you've already run the cnf_install pointing at a cnf-testsuite.yml config above. You can always specify your config at the end of each command as well, eg:
-./cnf-testsuite all cnf-config=<path to your config yml>/cnf-testsuite.yml
+./cnf-testsuite all --cnf-config <path to your config yml>/cnf-testsuite.yml
 
 # Runs all ga tests (generally available workload and platform tests)
 ./cnf-testsuite all
 
 # Runs all alpha, beta and ga tests
-./cnf-testsuite all alpha
+./cnf-testsuite all --alpha
 
 # Runs all beta and ga tests
-./cnf-testsuite all beta
+./cnf-testsuite all --beta
 
 # Run all wip, alpha, beta, and ga tests
-./cnf-testsuite all wip
+./cnf-testsuite all --wip
 
 # Run all tests in the configuration lifecycle category
 ./cnf-testsuite configuration_lifecycle

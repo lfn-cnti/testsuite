@@ -17,20 +17,18 @@ end
 
 describe "CLI parser" do
   it "maps GNU-style options onto the arguments tasks read", tags: ["points"] do
-    segments = parse("cnf_install", "--cnf-config", "x.yml", "--timeout=30", "--skip-wait-for-install")
-    segments.size.should eq(1)
-    segments[0].tasks.should eq(["cnf_install"])
-    segments[0].args.named["cnf-config"].should eq("x.yml")
-    segments[0].args.named["timeout"].should eq("30")
+    invocation = parse("cnf_install", "--cnf-config", "x.yml", "--timeout=30", "--skip-wait-for-install")
+    invocation.tasks.should eq(["cnf_install"])
+    invocation.args.named["cnf-config"].should eq("x.yml")
+    invocation.args.named["timeout"].should eq("30")
     # Flags keep the word tasks already read.
-    segments[0].args.raw.should contain("skip_wait_for_install")
+    invocation.args.raw.should contain("skip_wait_for_install")
   end
 
   it "accepts options anywhere on the line and runs several tasks in order", tags: ["points"] do
-    segments = parse("--strict", "liveness", "readiness", "--results-dir", "out")
-    segments.size.should eq(1)
-    segments[0].tasks.should eq(["liveness", "readiness"])
-    segments[0].args.raw.should eq(["strict"])
+    invocation = parse("--strict", "liveness", "readiness", "--results-dir", "out")
+    invocation.tasks.should eq(["liveness", "readiness"])
+    invocation.args.raw.should eq(["strict"])
     CLIInvocation.tasks.should eq(["liveness", "readiness"])
     CLIInvocation.option("results-dir").should eq("out")
     invoked_task?("readiness").should be_true
@@ -38,34 +36,33 @@ describe "CLI parser" do
   end
 
   it "turns --skip into the exclusion SAM honors, resolving aliases", tags: ["points"] do
-    segments = parse("all", "--skip", "resilience", "--skip=liveness")
-    segments[0].args.raw.should eq(["~resilience", "~liveness"])
-    # A top-level alias names the task it points at.
-    segments = parse("platform", "--skip", "k8s_conformance")
-    segments[0].args.raw.first.to_s.should start_with("~")
-    segments[0].args.raw.first.to_s.should_not eq("~k8s_conformance") if TaskAliases["k8s_conformance"]?
+    parse("all", "--skip", "resilience", "--skip=liveness").args.raw.should eq(["~resilience", "~liveness"])
+    # SAM matches an exclusion against a task's own path, so a top-level alias
+    # has to name the task it points at or it would silently exclude nothing.
+    parse("platform", "--skip", "k8s_conformance").args.raw.should eq(["~platform:k8s_conformance"])
   end
 
-  it "keeps the legacy spellings working until they are removed", tags: ["points"] do
-    segments = parse("cnf_install", "cnf-config=x.yml", "timeout=30", "skip_wait_for_install", "~liveness", "@", "cert", "exclude=liveness readiness")
-    segments.size.should eq(2)
-    segments[0].tasks.should eq(["cnf_install"])
-    segments[0].args.named["cnf-config"].should eq("x.yml")
-    segments[0].args.raw.should eq(["skip_wait_for_install", "~liveness"])
-    segments[1].tasks.should eq(["cert"])
-    segments[1].args.named["exclude"].should eq("liveness readiness")
-    CLIInvocation.tasks.should eq(["cnf_install", "cert"])
+  it "names the replacement for every retired spelling", tags: ["points"] do
+    errors = usage_error("cnf_install", "cnf-config=x.yml", "timeout=30", "skip_wait_for_install", "~liveness", "@", "cert", "exclude=liveness readiness")
+    errors.should eq([
+      "'cnf-config=' is no longer accepted: use `--cnf-config PATH`.",
+      "'timeout=' is no longer accepted: use `--timeout SECONDS`.",
+      "'skip_wait_for_install' is no longer accepted: use `--skip-wait-for-install`.",
+      "'~liveness' is no longer accepted: use `--skip liveness`.",
+      "'@' is no longer needed: list the tasks to run, e.g. `cnf-testsuite liveness readiness`.",
+      "'exclude=' is no longer accepted: use `--skip TASK`, once per task.",
+    ])
   end
 
   it "preserves '=' inside values", tags: ["points"] do
-    parse("cnf_install", "--cnf-config=a=b")[0].args.named["cnf-config"].should eq("a=b")
-    parse("cnf_install", "cnf-config=a=b")[0].args.named["cnf-config"].should eq("a=b")
+    parse("cnf_install", "--cnf-config=a=b").args.named["cnf-config"].should eq("a=b")
+    parse("cnf_install", "--cnf-config", "a=b").args.named["cnf-config"].should eq("a=b")
   end
 
   it "leaves help and completion topics alone", tags: ["points"] do
-    parse("help", "tasks")[0].args.raw.should eq(["tasks"])
-    parse("help", "liveness")[0].tasks.should eq(["help"])
-    parse("completion", "zsh")[0].args.raw.should eq(["zsh"])
+    parse("help", "tasks").args.raw.should eq(["tasks"])
+    parse("help", "liveness").tasks.should eq(["help"])
+    parse("completion", "zsh").args.raw.should eq(["zsh"])
   end
 
   it "reports every usage error at once, with suggestions", tags: ["points"] do
@@ -74,12 +71,12 @@ describe "CLI parser" do
     errors.join("\n").should contain("'abc' is not a number")
     errors.join("\n").should contain("'--strict' takes no value")
     errors.join("\n").should contain("Unknown task 'livenes' given to '--skip'. Did you mean 'liveness'?")
-    errors.join("\n").should contain("Unknown flag 'bogus'")
+    errors.join("\n").should contain("Unknown argument 'bogus'")
     errors.size.should eq(5)
 
     usage_error("cnf_install", "--cnf-config").join.should contain("requires a value")
     usage_error("cnf_install", "--kubeconfig", "/nonexistent").join.should contain("is not a file")
-    usage_error("version", "cnf-path=x").join.should contain("Unknown argument 'cnf-path='")
+    usage_error("version", "cnf-path=x").join.should contain("Unknown argument 'cnf-path='. Options are written --name VALUE.")
     usage_error("version", "--exclude", "x").join.should contain("Unknown option '--exclude'")
     usage_error("version", "-x").join.should contain("Unknown option '-x'")
   end

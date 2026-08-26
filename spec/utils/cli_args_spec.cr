@@ -1,19 +1,18 @@
 require "./../spec_helper"
 require "../../src/tasks/**"
-require "../../src/tasks/utils/sam_args_patch"
 require "../../src/tasks/utils/cli_args_validation"
 
 describe "CLI argument validation" do
-  it "rejects unknown flags and named arguments with a usage error", tags: ["points"] do
+  it "rejects unknown arguments with a usage error", tags: ["points"] do
     result = ShellCmd.run_testsuite("version bogus_flag")
     result[:status].exit_code.should eq(64)
-    result[:output].should contain("Unknown flag 'bogus_flag'")
+    result[:output].should contain("Unknown argument 'bogus_flag'")
 
     result = ShellCmd.run_testsuite("version bogus_key=1")
     result[:status].exit_code.should eq(64)
     result[:output].should contain("Unknown argument 'bogus_key='")
 
-    result = ShellCmd.run_testsuite("cnf_install cnf-config=whatever timeout=abc")
+    result = ShellCmd.run_testsuite("cnf_install --cnf-config whatever --timeout abc")
     result[:status].exit_code.should eq(64)
     result[:output].should contain("not a number")
 
@@ -23,10 +22,10 @@ describe "CLI argument validation" do
     result[:output].should contain("Unknown argument 'cnf-path='")
   end
 
-  it "warns on an unmatched legacy exclusion, and runs a second task named after the first", tags: ["points"] do
-    result = ShellCmd.run_testsuite("version ~no_such_task")
-    result[:status].success?.should be_true
-    result[:output].should contain("does not match any task")
+  it "points a retired spelling at its replacement, and runs a second task named after the first", tags: ["points"] do
+    result = ShellCmd.run_testsuite("all ~resilience")
+    result[:status].exit_code.should eq(USAGE_EXIT_CODE)
+    result[:output].should contain("use `--skip resilience`")
 
     # A task name in an argument position is another task to run, in order.
     result = ShellCmd.run_testsuite("version test")
@@ -54,7 +53,7 @@ describe "CLI argument validation" do
     result[:status].exit_code.should eq(USAGE_EXIT_CODE)
     result[:output].should contain("Usage: update_config")
 
-    result = ShellCmd.run_testsuite("update_config input-config=/nonexistent.yml output-config=/tmp/ignored.yml")
+    result = ShellCmd.run_testsuite("update_config --input-config /nonexistent.yml --output-config /tmp/ignored.yml")
     result[:status].exit_code.should eq(USAGE_EXIT_CODE)
     result[:output].should contain("does not exist")
 
@@ -62,11 +61,11 @@ describe "CLI argument validation" do
     result[:status].exit_code.should eq(USAGE_EXIT_CODE)
     result[:output].should contain("Usage: validate_config")
 
-    result = ShellCmd.run_testsuite("validate_config cnf-config=/nonexistent/cnf-testsuite.yml")
+    result = ShellCmd.run_testsuite("validate_config --cnf-config /nonexistent/cnf-testsuite.yml")
     result[:status].exit_code.should eq(USAGE_EXIT_CODE)
     result[:output].should contain("CNF configuration file not found")
 
-    result = ShellCmd.run_testsuite("cnf_install cnf-config=/nonexistent/cnf-testsuite.yml")
+    result = ShellCmd.run_testsuite("cnf_install --cnf-config /nonexistent/cnf-testsuite.yml")
     result[:status].exit_code.should eq(USAGE_EXIT_CODE)
     result[:output].should contain("CNF configuration file not found")
   end
@@ -74,7 +73,7 @@ describe "CLI argument validation" do
   it "exits 1, never 0, when a command refuses to do what was asked", tags: ["points"] do
     output_config = File.tempname("already-latest", ".yml")
     begin
-      result = ShellCmd.run_testsuite("update_config input-config=spec/fixtures/cnf-testsuite-v2-example.yml output-config=#{output_config}")
+      result = ShellCmd.run_testsuite("update_config --input-config spec/fixtures/cnf-testsuite-v2-example.yml --output-config #{output_config}")
       result[:status].exit_code.should eq(1)
       result[:output].should contain("already the latest version")
       File.exists?(output_config).should be_false
@@ -87,10 +86,6 @@ describe "CLI argument validation" do
     result = ShellCmd.run_testsuite("_raise_outside_task_runner")
     result[:status].exit_code.should eq(2)
     result[:output].should contain("unhandled")
-  end
-
-  it "preserves '=' characters inside named argument values", tags: ["points"] do
-    Sam::Args.new(["cnf-config=a=b"]).named["cnf-config"].should eq("a=b")
   end
 
   it "invoked_task? matches only tasks named on the command line", tags: ["points"] do

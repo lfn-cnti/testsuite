@@ -8,7 +8,7 @@ desc "Updates an old configuration file to the latest version and saves it to th
 task "update_config" do |_, args|
   # Ensure both arguments are provided
   if !((args.named.keys.includes? "input-config") && (args.named.keys.includes? "output-config"))
-    usage_error! "Usage: update_config input-config=OLD_CONFIG_PATH output-config=NEW_CONFIG_PATH"
+    usage_error! "Usage: update_config --input-config OLD_CONFIG_PATH --output-config NEW_CONFIG_PATH"
   end
 
   input_config = args.named["input-config"].as(String)

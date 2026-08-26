@@ -10,7 +10,7 @@ describe CnfTestSuite do
 
   it "a task should fail with an exit code of 2 when there is an exception", tags: ["security"] do
     begin
-      result = ShellCmd.run_testsuite("_divide_by_zero strict")
+      result = ShellCmd.run_testsuite("_divide_by_zero --strict")
       (result[:status].exit_code == 2).should be_true
     end
   end

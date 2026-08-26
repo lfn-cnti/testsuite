@@ -1679,7 +1679,7 @@ All platform: `./cnf-testsuite platform`
 
 All platform hardware and scheduling: `./cnf-testsuite platform:hardware_and_scheduling`
 
-All platform resilience: `./cnf-testsuite platform:resilience poc`
+All platform resilience: `./cnf-testsuite platform:resilience --poc`
 
 All platform security: `./cnf-testsuite platform:security`
 
@@ -1770,7 +1770,7 @@ Reboot a worker node in your Kubernetes cluster verify that the node can recover
 
 #### Usage
 
-`./cnf-testsuite platform:worker_reboot_recovery poc destructive`
+`./cnf-testsuite platform:worker_reboot_recovery --poc --destructive`
 
 ----------
 

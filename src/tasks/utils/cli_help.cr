@@ -4,8 +4,7 @@ require "levenshtein"
 # SAM keeps a task's dependency list private, and its NotFound exception drops
 # the path it could not resolve. Help groups tasks by the very aggregates the
 # suite runs, so the listing can never drift from what the tasks actually do,
-# and an unknown task can be matched against the real ones. Reopening is the
-# pattern already used for Sam::Args in sam_args_patch.cr.
+# and an unknown task can be matched against the real ones.
 class Sam::Task
   def dependency_names : Array(String)
     @deps
@@ -157,7 +156,7 @@ module CLIHelp
       io << row("-l, --loglevel LEVEL", "trace, debug, info, notice, warn, error, fatal (default: error)")
       io << row("-h, --help", "show this help and exit")
       io << row("    --version", "print the version and exit")
-      CLIOptions.visible.each do |option|
+      CLIOptions::ALL.each do |option|
         label = option.takes_value? ? "#{option.long} #{option.value_label}" : option.long
         io << row("    #{label}", option.description)
       end

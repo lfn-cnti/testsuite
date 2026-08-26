@@ -44,7 +44,7 @@ module ShellCmd
   end
 
   def self.cnf_install(install_params, timeout=300, cmd_prefix="", expect_failure=false)
-    result = run_testsuite("cnf_install #{install_params} timeout=#{timeout}", cmd_prefix)
+    result = run_testsuite("cnf_install #{install_params} --timeout #{timeout}", cmd_prefix)
     if !expect_failure
       result[:status].success?.should be_true
     else
@@ -54,7 +54,7 @@ module ShellCmd
   end
 
   def self.cnf_uninstall(timeout=300, cmd_prefix="", expect_failure=false)
-    result = run_testsuite("cnf_uninstall timeout=#{timeout}", cmd_prefix)
+    result = run_testsuite("cnf_uninstall --timeout #{timeout}", cmd_prefix)
     if !expect_failure
       result[:status].success?.should be_true
     else

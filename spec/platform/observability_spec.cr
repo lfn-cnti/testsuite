@@ -17,7 +17,7 @@ describe "Platform Observability" do
       result = ShellCmd.run("#{helm} -n #{TESTSUITE_NAMESPACE} install --version 5.3.0 kube-state-metrics prometheus-community/kube-state-metrics", force_output: true)
       KubectlClient::Wait.resource_wait_for_install("deployment", "kube-state-metrics", namespace: TESTSUITE_NAMESPACE)
 
-      result = ShellCmd.run_testsuite("platform:kube_state_metrics poc")
+      result = ShellCmd.run_testsuite("platform:kube_state_metrics --poc")
       (/(PASSED).*(Your platform is using the).*(release for kube state metrics)/ =~ result[:output]).should_not be_nil
   ensure
       result = ShellCmd.run("#{helm} delete kube-state-metrics -n #{TESTSUITE_NAMESPACE}", force_output: true)
@@ -35,7 +35,7 @@ describe "Platform Observability" do
         pod_ready = KubectlClient::Get.pod_ready?("node-exporter-prometheus", namespace: TESTSUITE_NAMESPACE)
         pod_ready
       end
-      result = ShellCmd.run_testsuite("platform:node_exporter poc")
+      result = ShellCmd.run_testsuite("platform:node_exporter --poc")
       if check_containerd
         (/(PASSED).*(Your platform is using the node exporter)/ =~ result[:output]).should_not be_nil
       else
@@ -58,7 +58,7 @@ describe "Platform Observability" do
     end
     KubectlClient::Wait.resource_wait_for_install("deployment", "prometheus-adapter", namespace: TESTSUITE_NAMESPACE)
 
-    result = ShellCmd.run_testsuite("platform:prometheus_adapter poc")
+    result = ShellCmd.run_testsuite("platform:prometheus_adapter --poc")
     (/(PASSED).*(Your platform is using the prometheus adapter)/ =~ result[:output]).should_not be_nil
   ensure
     resp = Helm.uninstall("prometheus-adapter -n #{TESTSUITE_NAMESPACE}")
@@ -76,7 +76,7 @@ describe "Platform Observability" do
     end
       Log.info { result }
       KubectlClient::Wait.resource_wait_for_install("deployment", "metrics-server", namespace: TESTSUITE_NAMESPACE)
-      result = ShellCmd.run_testsuite("platform:metrics_server poc")
+      result = ShellCmd.run_testsuite("platform:metrics_server --poc")
       (/(PASSED).*(Your platform is using the metrics server)/ =~ result[:output]).should_not be_nil
   ensure
     result = Helm.uninstall("metrics-server -n #{TESTSUITE_NAMESPACE}")

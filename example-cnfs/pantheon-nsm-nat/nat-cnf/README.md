@@ -20,7 +20,7 @@ crystal src/cnf-testsuite.cr setup
 Configure and deploy nsm-nat as the target CNF
 
 ```
-crystal src/cnf-testsuite.cr cnf_install cnf-config=./example-cnfs/pantheon-nsm-nat/cnf-testsuite.yml deploy_with_chart=false
+crystal src/cnf-testsuite.cr cnf_install --cnf-config ./example-cnfs/pantheon-nsm-nat/cnf-testsuite.yml
 ```
 
 Run the all the tests
