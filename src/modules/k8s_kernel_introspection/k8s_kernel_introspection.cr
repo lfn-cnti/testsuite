@@ -33,6 +33,20 @@ module KernelIntrospection
         pids
       end
 
+      # A task that exits is detached from every cgroup v1 hierarchy, so a
+      # zombie's /proc/<pid>/cgroup resets to "/" on all v1 controller lines
+      # and pids_by_container cannot see it on cgroup v1 nodes (only the v2
+      # "0::" line keeps its path). Zombies are therefore enumerated by
+      # state; their PPid stays valid and attributes them to a container.
+      def self.zombie_pids(node) : Array(String)
+        command = "/bin/sh -c \"grep -l '^State:.*Z (zombie)' /proc/[0-9]*/status 2>/dev/null | sed -e 's,/proc/\\([0-9]*\\)/status,\\1,'\""
+        result = ClusterTools.exec_by_node(command, node)
+        unless result[:status].success?
+          return [] of String
+        end
+        result[:output].strip.split("\n").reject(&.empty?)
+      end
+
       def self.all_statuses_by_pids(pids : Array(String), node) : Array(String)
         Log.info { "all_statuses_by_pids" }
         proc_statuses = pids.map do |pid|

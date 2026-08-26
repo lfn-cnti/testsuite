@@ -356,6 +356,20 @@ describe "Microservice" do
     end
   end
 
+  it "'zombie_handled' should be skipped if the zombie probe cannot be injected", tags: ["zombie"] do
+    begin
+      ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample-zombie-non-injectable/")
+      result = ShellCmd.run_testsuite("zombie_handled")
+      # a skipped test does not fail the run
+      result[:status].success?.should be_true
+      (/(SKIPPED).*(Zombie reaping not checked)/ =~ result[:output]).should_not be_nil
+      verify_task_result("zombie_handled", "skipped")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
   after_all do
     result = ShellCmd.run_testsuite("uninstall_all")
   end

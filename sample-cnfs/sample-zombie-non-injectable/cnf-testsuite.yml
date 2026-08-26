@@ -1,0 +1,6 @@
+---
+config_version: v2
+deployments:
+  manifests:
+  - name: zombie-non-injectable
+    manifest_directory: manifests

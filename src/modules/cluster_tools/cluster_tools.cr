@@ -133,8 +133,28 @@ module ClusterTools
     Log.info {"node_pid_by_container_id pid: #{pid}" }
     pid 
   end
+  # Zombies are invisible to cgroup-based enumeration on cgroup v1 nodes
+  # (the kernel detaches exiting tasks from every v1 hierarchy), so they are
+  # collected by state and matched to the container through their PPid: an
+  # orphaned child is reparented to the container's init, so every zombie
+  # belonging to the container has a parent among the container's pids.
+  # On cgroup v2 nodes zombies are already in container_pids; the subtraction
+  # keeps the result free of duplicates.
+  def self.container_zombie_pids(container_pids : Array(String), node) : Array(String)
+    zombie_pids = KernelIntrospection::K8s::Node.zombie_pids(node) - container_pids
+    return zombie_pids if zombie_pids.empty?
+
+    zombie_statuses = KernelIntrospection::K8s::Node.all_statuses_by_pids(zombie_pids, node)
+    zombie_statuses.compact_map do |status|
+      parsed = KernelIntrospection.parse_status(status)
+      next unless parsed
+      next unless container_pids.includes?(parsed["PPid"]?.try(&.strip))
+      parsed["Pid"]?.try(&.strip)
+    end
+  end
+
   #each_container_by_resource(resource, namespace) do | container_id, container_pid_on_node, node, container_proctree_statuses, container_status|
-  def self.all_containers_by_resource?(resource, namespace, only_container_pids : Bool = false, include_proctree : Bool = true, &block) 
+  def self.all_containers_by_resource?(resource, namespace, only_container_pids : Bool = false, include_proctree : Bool = true, include_zombies : Bool = false, &block) 
 		kind = resource["kind"].downcase
 		case kind
 		when  "deployment","statefulset","pod","replicaset", "daemonset"
@@ -184,6 +204,9 @@ module ClusterTools
             if include_proctree
               if only_container_pids 
                 pids = KernelIntrospection::K8s::Node.pids_by_container(container_id, node)
+                if include_zombies
+                  pids = pids + container_zombie_pids(pids + [container_pid_on_node], node)
+                end
               else
                 pids = KernelIntrospection::K8s::Node.pids(node)
               end
