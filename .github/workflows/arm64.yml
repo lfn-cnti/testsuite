@@ -46,9 +46,9 @@ jobs:
         with:
           crystal: 1.19.1
       - run: |
-          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl"
+          curl -fsSLO --retry 3 --retry-delay 2 "https://dl.k8s.io/release/$(curl -fsSL --retry 3 --retry-delay 2 https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl"
           sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 | bash
+          curl -fsSL --retry 3 --retry-delay 2 -o get-helm-4.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 && bash get-helm-4.sh
       - run: |
           shards install
           crystal build src/cnf-testsuite.cr
@@ -95,16 +95,16 @@ jobs:
           kind create cluster --name qemu-arm64 --config=/tmp/cluster.yml
           rm /tmp/cluster.yml
       - run: |
-            sudo apt update && sudo DEBIAN_FRONTEND=noninteractive apt install qemu-user-static -y
+            sudo apt -o Acquire::Retries=3 update && sudo DEBIAN_FRONTEND=noninteractive apt -o Acquire::Retries=3 install qemu-user-static -y
             DOCKER_DEFAULT_PLATFORM=linux/arm64 docker run --network host --name debian-arm64 \
               -v $(pwd):/testsuite -v ~/.kube/config:/root/.kube/config debian:latest /bin/bash -c "\
-            apt update && DEBIAN_FRONTEND=noninteractive apt install git curl gcc pkg-config libpcre2-dev libxml2-dev libyaml-dev zlib1g-dev libssl-dev -y && \
-            curl -LO https://github.com/crystal-lang/crystal/releases/download/1.19.1/crystal-1.19.1-1-linux-aarch64.tar.gz && \
+            apt -o Acquire::Retries=3 update && DEBIAN_FRONTEND=noninteractive apt -o Acquire::Retries=3 install git curl gcc pkg-config libpcre2-dev libxml2-dev libyaml-dev zlib1g-dev libssl-dev -y && \
+            curl -fsSLO --retry 3 --retry-delay 2 https://github.com/crystal-lang/crystal/releases/download/1.19.1/crystal-1.19.1-1-linux-aarch64.tar.gz && \
             tar zxf crystal-1.19.1-1-linux-aarch64.tar.gz && \
             export PATH=/crystal-1.19.1-1/bin:$PATH && \
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl" && \
+            curl -fsSLO --retry 3 --retry-delay 2 "https://dl.k8s.io/release/$(curl -fsSL --retry 3 --retry-delay 2 https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl" && \
             install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
-            curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 | bash && \
+            curl -fsSL --retry 3 --retry-delay 2 -o get-helm-4.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 && bash get-helm-4.sh && \
             git config --global --add safe.directory /testsuite && \
             (cd testsuite && shards install && crystal build src/cnf-testsuite.cr && \
             ./cnf-testsuite setup && ./cnf-testsuite cnf_install cnf-config=example-cnfs/coredns && ./cnf-testsuite cert && ./cnf-testsuite uninstall_all)"
