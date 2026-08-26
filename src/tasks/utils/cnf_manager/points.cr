@@ -157,13 +157,12 @@ module CNFManager
       RESULTS_DIR_ENV = "CNF_TESTSUITE_RESULTS_DIR"
       LATEST_NAME     = "latest.yml"
 
-      # Directory results are written to: `results-dir=PATH` on the command line,
-      # else CNF_TESTSUITE_RESULTS_DIR, else ./cnti/results. Resolved once
+      # Directory results are written to: `--results-dir PATH` on the command
+      # line, else CNF_TESTSUITE_RESULTS_DIR, else ./cnti/results. Resolved once
       # per process and creates nothing -- delete_results reads it too.
       def self.dir : String
         @@dir ||= begin
-          arg = ARGV.find(&.starts_with?("#{RESULTS_DIR_ARG}="))
-          value = arg ? arg.split("=", 2)[1] : ENV[RESULTS_DIR_ENV]?
+          value = CLIInvocation.option(RESULTS_DIR_ARG) || ENV[RESULTS_DIR_ENV]?
           value.presence || DEFAULT_DIR
         end
       end

@@ -38,9 +38,13 @@ describe "Results location" do
     end
   end
 
-  it "rejects an empty results-dir= as a usage error", tags: ["points"] do
-    result = ShellCmd.run_testsuite("version results-dir=")
+  it "rejects an empty --results-dir as a usage error", tags: ["points"] do
+    result = ShellCmd.run_testsuite("version --results-dir ''")
     result[:status].exit_code.should eq(USAGE_EXIT_CODE)
-    result[:output].should contain("results-dir=")
+    result[:output].should contain("Invalid value for '--results-dir'")
+
+    result = ShellCmd.run_testsuite("version --results-dir")
+    result[:status].exit_code.should eq(USAGE_EXIT_CODE)
+    result[:output].should contain("requires a value")
   end
 end
