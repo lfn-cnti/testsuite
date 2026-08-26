@@ -20,9 +20,10 @@ begin
     # the tasks exist, so the entry point is what acts on them.
     parser.on("-h", "--help", "Show usage and exit") { CLIInvocation.help_requested = true }
     parser.on("--version", "Print the version and exit") { CLIInvocation.version_requested = true }
+    # Every other option belongs to CLIParser, which runs once the tasks exist;
+    # leave them in ARGV untouched.
+    parser.invalid_option { }
   end
-rescue ex : OptionParser::InvalidOption
-  puts ex
 end
 
 # First Log.setup is necessary to make sure loglevel

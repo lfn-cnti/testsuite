@@ -150,20 +150,31 @@ module CLIHelp
     result
   end
 
-  def self.main_page : String
-    named_args = KNOWN_CLI_NAMED_ARGS.join(", ")
-    flags = KNOWN_CLI_FLAGS.join(", ")
+  # One row per option, wrapped like the task rows: the three the entry point
+  # handles itself, then everything in the registry.
+  def self.option_rows : String
+    String.build do |io|
+      io << row("-l, --loglevel LEVEL", "trace, debug, info, notice, warn, error, fatal (default: error)")
+      io << row("-h, --help", "show this help and exit")
+      io << row("    --version", "print the version and exit")
+      CLIOptions.visible.each do |option|
+        label = option.takes_value? ? "#{option.long} #{option.value_label}" : option.long
+        io << row("    #{label}", option.description)
+      end
+    end.chomp
+  end
 
+  def self.main_page : String
     <<-HELP
     The CNTi Test Suite validates a Cloud Native Function against cloud native
     best practices by running tests against a live Kubernetes cluster.
 
     USAGE
-      #{BIN_NAME} [options] <task> [arguments] [~exclusions] [#{Sam::TASK_SEPARATOR} <task> ...]
+      #{BIN_NAME} [options] <task> [<task> ...]
 
     TYPICAL WORKFLOW
       #{BIN_NAME} setup                                    install prerequisites (once)
-      #{BIN_NAME} cnf_install cnf-config=./cnf-testsuite.yml
+      #{BIN_NAME} cnf_install --cnf-config ./cnf-testsuite.yml
       #{BIN_NAME} cert                                     run the certification tests
       #{BIN_NAME} cnf_uninstall
 
@@ -173,23 +184,12 @@ module CLIHelp
       platform    tests against the Kubernetes platform itself
       cert        certification run; exits 0 when the CNF is certified
 
-    OPTIONS
-      -l, --loglevel LEVEL   trace, debug, info, notice, warn, error, fatal (default: error)
-      -h, --help             show this help and exit
-          --version          print the version and exit
+    OPTIONS (anywhere on the line; --name VALUE or --name=VALUE)
+    #{option_rows}
 
-    ARGUMENTS (key=value, after the task name)
-      cnf-config=PATH   a cnf-testsuite.yml or the directory holding one
-      timeout=SECONDS   how long to wait for install and uninstall operations
-      results-dir=PATH  where results files go (default: ./cnti/results, or $CNF_TESTSUITE_RESULTS_DIR)
-      All known arguments: #{named_args}
-
-    FLAGS
-      #{flags}
-
-    EXCLUSIONS AND MULTIPLE TASKS
-      ~<task>   skip a task within a suite, e.g. `#{BIN_NAME} all ~resilience`
-      #{Sam::TASK_SEPARATOR}         run several tasks in one invocation, e.g. `#{BIN_NAME} liveness #{Sam::TASK_SEPARATOR} readiness`
+    SKIPPING AND MULTIPLE TASKS
+      --skip <task>   skip a task within a suite, e.g. `#{BIN_NAME} all --skip resilience`
+      Several task names run in order: `#{BIN_NAME} liveness readiness --strict`
 
     EXIT CODES
       0   the run met its objective          2   the suite broke: a test errored, or a crash

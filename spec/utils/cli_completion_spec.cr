@@ -49,23 +49,27 @@ describe "Shell completion" do
     first.size.should eq(first.uniq.size)
   end
 
-  it "completes flags, key= arguments, exclusions and tasks after the separator", tags: ["points"] do
-    after_task = bash_completions("cnf-testsuite all ")
-    after_task.should contain("strict")
-    after_task.should contain("cnf-config=")
-    after_task.should contain("@")
-    after_task.should_not contain("liveness")
+  it "completes options, their values, and further task names", tags: ["points"] do
+    after_task = bash_completions("cnf-testsuite all --")
+    after_task.should contain("--strict")
+    after_task.should contain("--cnf-config")
+    after_task.should contain("--skip")
+    after_task.should_not contain("strict")
 
-    bash_completions("cnf-testsuite all ~readi").should eq(["~readiness"])
-    bash_completions("cnf-testsuite liveness @ readi").should eq(["readiness"])
+    # A task name is a valid next word: several tasks run in order.
+    bash_completions("cnf-testsuite liveness readi").should eq(["readiness"])
+    bash_completions("cnf-testsuite all --skip readi").should eq(["readiness"])
+    bash_completions("cnf-testsuite all --skip=readi").should eq(["readiness"])
     bash_completions("cnf-testsuite -l deb").should eq(["debug"])
     bash_completions("cnf-testsuite -l debug live").should eq(["liveness"])
     bash_completions("cnf-testsuite help tas").should eq(["tasks"])
     bash_completions("cnf-testsuite completion ").should eq(["bash", "zsh"])
   end
 
-  it "completes file names after path-valued arguments", tags: ["points"] do
-    bash_completions("cnf-testsuite cnf_install cnf-config=spec/fixtu").should eq(["spec/fixtures/"])
-    bash_completions("cnf-testsuite cnf_install timeout=").should be_empty
+  it "completes file names after path-valued options", tags: ["points"] do
+    bash_completions("cnf-testsuite cnf_install --cnf-config spec/fixtu").should eq(["spec/fixtures/"])
+    # bash replaces only the text after the "=" it splits on.
+    bash_completions("cnf-testsuite cnf_install --cnf-config=spec/fixtu").should eq(["spec/fixtures/"])
+    bash_completions("cnf-testsuite cnf_install --timeout ").should be_empty
   end
 end

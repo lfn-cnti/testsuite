@@ -15,7 +15,7 @@ module CLICompletion
   FUNCTION_NAME = "_cnf_testsuite_completions"
 
   # Named arguments whose value is a path, completed with file names.
-  FILE_VALUED_ARGS = ["cnf-config", "input-config", "output-config"]
+  FILE_VALUED_ARGS = CLIOptions.visible.select(&.file).map(&.name)
 
   def self.script(shell : String, bin_name : String = self.bin_name) : String
     case shell
@@ -59,11 +59,12 @@ module CLICompletion
     # Remove with:  complete -r #{bin_name}
     #{FUNCTION_NAME}() {
       local tasks="#{task_paths.join(" ")}"
-      local flags="#{KNOWN_CLI_FLAGS.join(" ")}"
-      local named="#{KNOWN_CLI_NAMED_ARGS.map { |arg| "#{arg}=" }.join(" ")}"
-      local file_args=" #{FILE_VALUED_ARGS.join(" ")} "
+      local flags="#{CLIOptions.visible.select(&.kind.flag?).map(&.long).join(" ")}"
+      local valued="#{CLIOptions.visible.select(&.takes_value?).map(&.long).join(" ")}"
+      local file_args=" #{FILE_VALUED_ARGS.map { |arg| "--#{arg}" }.join(" ")} "
+      local task_args=" #{CLIOptions.multis.map(&.long).join(" ")} "
       local levels="#{log_levels.join(" ")}"
-      local options="-l --loglevel -h --help --version"
+      local options="-l --loglevel -h --help --version $flags $valued"
 
       # Take the word under the cursor from the raw line rather than COMP_WORDS:
       # bash splits words on ':' and '=' (COMP_WORDBREAKS), which would cut
@@ -73,20 +74,24 @@ module CLICompletion
       local before="${line:0:${#line}-${#cur}}"
 
       # Walk the completed words to learn what the cursor position expects:
-      # a task (at the start, or after the '@' separator), a help topic, a shell
-      # name, a log level, or a task's arguments.
-      local state="task" expect_level=0 w
+      # the value of the option just before it, a help topic, a shell name, or
+      # - the default - a task name or an option.
+      local state="task" expect="" w
       local -a cwords=()
       for w in $before; do cwords+=("$w"); done
       local i=1
       while (( i < ${#cwords[@]} )); do
         w="${cwords[i]}"
-        if (( expect_level )); then
-          expect_level=0
+        if [[ -n "$expect" ]]; then
+          expect=""
         elif [[ "$w" == "-l" || "$w" == "--loglevel" ]]; then
-          expect_level=1
-        elif [[ "$w" == "@" ]]; then
-          state="task"
+          expect="level"
+        elif [[ "$task_args" == *" $w "* ]]; then
+          expect="task"
+        elif [[ "$file_args" == *" $w "* ]]; then
+          expect="file"
+        elif [[ "$w" == --* && "$valued" == *" $w "* ]]; then
+          expect="value"
         elif [[ "$state" == "task" && "$w" != -* ]]; then
           case "$w" in
             help)       state="help" ;;
@@ -98,34 +103,42 @@ module CLICompletion
         fi
         (( i++ ))
       done
-      (( expect_level )) && state="level"
 
       local -a candidates=() reply=()
-      case "$state" in
-        task)
-          if [[ "$cur" == -* ]]; then candidates=($options); else candidates=($tasks); fi ;;
-        help)  candidates=(tasks $tasks) ;;
-        shell) candidates=(#{SHELLS.join(" ")}) ;;
+      local prefix="" value="$cur" f
+      # --option=value completes like the value after `--option `.
+      if [[ -z "$expect" && "$cur" == --*=* ]]; then
+        w="${cur%%=*}"; value="${cur#*=}"; prefix="$w="
+        if [[ "$task_args" == *" $w "* ]]; then expect="task"
+        elif [[ "$file_args" == *" $w "* ]]; then expect="file"
+        elif [[ "$valued" == *" $w "* ]]; then expect="value"; fi
+      fi
+      case "$expect" in
         level) candidates=($levels) ;;
-        args)
-          if [[ "$cur" == *=* ]]; then
-            # key=value: complete file names for path-valued keys, nothing else.
-            local key="${cur%%=*}" value="${cur#*=}" f
-            if [[ "$file_args" == *" $key "* ]]; then
-              # A plain glob rather than compgen -f: under zsh's bashcompinit
-              # compgen ignores its word and globs the completion prefix instead.
-              for f in "$value"*; do
-                [[ -e "$f" ]] || continue
-                [[ -d "$f" ]] && f="$f/"
-                candidates+=("$key=$f")
-              done
-            fi
-          elif [[ "$cur" == "~"* ]]; then
-            for w in $tasks; do candidates+=("~$w"); done
-          else
-            candidates=($flags $named @)
-          fi ;;
+        task)  candidates=($tasks) ;;
+        file)
+          # A plain glob rather than compgen -f: under zsh's bashcompinit
+          # compgen ignores its word and globs the completion prefix instead.
+          for f in "$value"*; do
+            [[ -e "$f" ]] || continue
+            [[ -d "$f" ]] && f="$f/"
+            candidates+=("$f")
+          done ;;
+        value) ;;
+        *)
+          case "$state" in
+            help)  candidates=(tasks $tasks) ;;
+            shell) candidates=(#{SHELLS.join(" ")}) ;;
+            done)  ;;
+            *)
+              if [[ "$cur" == -* ]]; then candidates=($options); else candidates=($tasks); fi ;;
+          esac ;;
       esac
+      if [[ -n "$prefix" ]]; then
+        local -a prefixed=()
+        for w in "${candidates[@]}"; do prefixed+=("$prefix$w"); done
+        candidates=("${prefixed[@]}")
+      fi
 
       # Prefix test by substring rather than a glob pattern: zsh's sh emulation
       # does not always treat a quoted "$cur"* as literal text.
@@ -142,8 +155,8 @@ module CLICompletion
         reply=("${reply[@]#"$head"}")
       fi
 
-      # A lone `key=` or `dir/` completion continues on the same word.
-      if [[ ${#reply[@]} -eq 1 && ( "${reply[0]}" == *= || "${reply[0]}" == */ ) ]]; then
+      # A lone `dir/` completion continues on the same word.
+      if [[ ${#reply[@]} -eq 1 && "${reply[0]}" == */ ]]; then
         type compopt &>/dev/null && compopt -o nospace 2>/dev/null
       fi
       COMPREPLY=("${reply[@]}")

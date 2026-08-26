@@ -16,10 +16,21 @@ The CNTI Test Suite can be run in production mode (using an executable) or in de
 
 ```
 # Production mode
-./cnf-testsuite <testname>
+./cnf-testsuite [options] <task> [<task> ...]
 
 # Developer mode
-crystal src/cnf-testsuite.cr <testname>
+crystal src/cnf-testsuite.cr -- [options] <task> [<task> ...]
+```
+
+Options are GNU-style and may appear anywhere on the line, as `--name VALUE`
+or `--name=VALUE`; several task names run in order. `--skip <task>` leaves a
+task out of a suite. `./cnf-testsuite help` lists every option; an unknown
+option or task is a usage error (exit 64) with the closest match suggested.
+
+```
+./cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml --timeout 120
+./cnf-testsuite all --skip resilience --strict
+./cnf-testsuite liveness readiness
 ```
 
 :star: \*Note: All usage commands in this document will use the production (binary executable) syntax unless otherwise stated.
@@ -370,9 +381,9 @@ cnf-config=<path_to_your_config_file>/cnf-testsuite.yml
 
 #### Get available options and to see all available tests from command line:
 
-`help` prints a usage page: the typical workflow, the options, the `key=value`
-arguments, the flags, and the `~exclusion` / `@` syntax. `-h` and a bare
-invocation print the same page.
+`help` prints a usage page: the typical workflow, every option with its
+meaning, and how to skip tasks or run several. `-h` and a bare invocation print
+the same page.
 
 ```
 ./cnf-testsuite help

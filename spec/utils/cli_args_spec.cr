@@ -1,4 +1,5 @@
 require "./../spec_helper"
+require "../../src/tasks/**"
 require "../../src/tasks/utils/sam_args_patch"
 require "../../src/tasks/utils/cli_args_validation"
 
@@ -22,14 +23,30 @@ describe "CLI argument validation" do
     result[:output].should contain("Unknown argument 'cnf-path='")
   end
 
-  it "warns on unmatched exclusions and task names in argument positions", tags: ["points"] do
+  it "warns on an unmatched legacy exclusion, and runs a second task named after the first", tags: ["points"] do
     result = ShellCmd.run_testsuite("version ~no_such_task")
     result[:status].success?.should be_true
     result[:output].should contain("does not match any task")
 
-    result = ShellCmd.run_testsuite("version delete_results")
+    # A task name in an argument position is another task to run, in order.
+    result = ShellCmd.run_testsuite("version test")
     result[:status].success?.should be_true
-    result[:output].should contain("separate them with")
+    result[:output].should contain("CNF TestSuite version:")
+    result[:output].should contain("ping")
+  end
+
+  it "accepts GNU-style options and rejects unknown ones with a suggestion", tags: ["points"] do
+    result = ShellCmd.run_testsuite("cnf_install --cnf-config /nonexistent/cnf-testsuite.yml")
+    result[:status].exit_code.should eq(USAGE_EXIT_CODE)
+    result[:output].should contain("CNF configuration file not found")
+
+    result = ShellCmd.run_testsuite("version --cnf-confg x")
+    result[:status].exit_code.should eq(USAGE_EXIT_CODE)
+    result[:output].should contain("Did you mean '--cnf-config'?")
+
+    result = ShellCmd.run_testsuite("version --timeout abc")
+    result[:status].exit_code.should eq(USAGE_EXIT_CODE)
+    result[:output].should contain("not a number")
   end
 
   it "exits 64 when a task's own arguments are missing or name no file", tags: ["points"] do
@@ -76,25 +93,17 @@ describe "CLI argument validation" do
     Sam::Args.new(["cnf-config=a=b"]).named["cnf-config"].should eq("a=b")
   end
 
-  it "invoked_task? matches only tokens in task positions", tags: ["points"] do
-    original = ARGV.dup
-    begin
-      ARGV.clear
-      ARGV.concat(["state", "cnf-config=x", "strict", "@", "security"])
-      invoked_task?("state").should be_true
-      invoked_task?("security").should be_true      # after the '@' separator
-      invoked_task?("strict").should be_false       # flag, not a task position
-      invoked_task?("cnf-config=x").should be_false
+  it "invoked_task? matches only tasks named on the command line", tags: ["points"] do
+    CLIParser.parse!(["state", "--cnf-config", "x", "--strict", "security"])
+    invoked_task?("state").should be_true
+    invoked_task?("security").should be_true
+    invoked_task?("strict").should be_false   # option, not a task
+    invoked_task?("x").should be_false
 
-      # The old unanchored regexes matched substrings anywhere on the command
-      # line - /ran/ matched an invocation of rolling_version_change.
-      ARGV.clear
-      ARGV.concat(["rolling_version_change"])
-      invoked_task?("ran").should be_false
-      invoked_task?("rolling_version_change").should be_true
-    ensure
-      ARGV.clear
-      ARGV.concat(original)
-    end
+    # The old unanchored regexes matched substrings anywhere on the command
+    # line - /ran/ matched an invocation of rolling_version_change.
+    CLIParser.parse!(["rolling_version_change"])
+    invoked_task?("ran").should be_false
+    invoked_task?("rolling_version_change").should be_true
   end
 end

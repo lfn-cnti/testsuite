@@ -64,10 +64,11 @@ begin
     exit 0
   end
 
-  argv = TaskAliases.resolve_exclusions(ARGV.clone)
-  validate_cli_args!(argv)
-  # See issue #426 for exit code requirement
-  Sam.process_tasks(argv)
+  # Every task on the line runs in order with the arguments parsed for it;
+  # SAM only ever sees a task path and a ready-made Sam::Args.
+  CLIParser.parse!(ARGV).each do |segment|
+    segment.tasks.each { |task| Sam.invoke(task, segment.args) }
+  end
 
   if CNFManager::Points::Results.file_exists?
     # One stable line per run for scripts to grep; the pointer is the path
@@ -83,6 +84,9 @@ begin
       exit 2
     end
   end
+rescue e : CLIParser::UsageError
+  e.errors.each { |error| stdout_failure error }
+  exit USAGE_EXIT_CODE
 rescue e : Sam::NotFound
   stdout_failure e.message.to_s
   if suggestion = CLIHelp.suggestion_for(e.task_path)
