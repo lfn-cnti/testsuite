@@ -123,6 +123,7 @@ jobs:
         export CLUSTER=$(uuidgen)
         echo "export CLUSTER=$CLUSTER"
         echo "export CLUSTER=$CLUSTER" > cluster.env
+        echo "CLUSTER=$CLUSTER" >> "$GITHUB_ENV"
         mkdir -p /shared/pss
         cat <<EOF > /shared/pss/cluster-level-pss.$CLUSTER.yaml
         apiVersion: apiserver.config.k8s.io/v1
@@ -300,15 +301,11 @@ jobs:
         EOF
     - name: Install kind
       uses: ./.github/actions/install-kind
-    - name: Create Kind Cluster 
-      run: |
-        cat /tmp/cluster.yml
-        source cluster.env
-        echo kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig ./$CLUSTER.conf --retain --wait 5m
-        kind --version
-        kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig ./$CLUSTER.conf --retain --wait 5m
-        export KUBECONFIG=$(pwd)/$CLUSTER.conf
-        kubectl get nodes
+    - name: Create Kind Cluster
+      uses: ./.github/actions/create-kind-cluster
+      with:
+        name: ${{ env.CLUSTER }}
+        kubeconfig: ./${{ env.CLUSTER }}.conf
     - name: Configure registry mirror (private_registry)
       if: startsWith(matrix.spec, 'private_registry_')
       run: |
@@ -394,7 +391,7 @@ jobs:
         ls -la
         sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
-    - name: Create Kind Cluster 
+    - name: Kind cluster config
       run: |
         cat << EOF > /tmp/cluster.yml
         kind: Cluster
@@ -407,11 +404,12 @@ jobs:
         EOF
         export CLUSTER=$(uuidgen)
         echo "export CLUSTER=$CLUSTER" > cluster.env
-        echo kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig ./$CLUSTER.conf --retain --wait 5m
-        kind --version
-        kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig ./$CLUSTER.conf --retain --wait 5m
-        export KUBECONFIG=$(pwd)/$CLUSTER.conf
-        kubectl get nodes
+        echo "CLUSTER=$CLUSTER" >> "$GITHUB_ENV"
+    - name: Create Kind Cluster
+      uses: ./.github/actions/create-kind-cluster
+      with:
+        name: ${{ env.CLUSTER }}
+        kubeconfig: ./${{ env.CLUSTER }}.conf
     - name: Install Crystal
       uses: crystal-lang/install-crystal@v1
       with:
@@ -502,12 +500,13 @@ jobs:
             hostPath: $HOME/.docker/config.json
         EOF
         export CLUSTER=$(uuidgen)
-        echo "export CLUSTER=$CLUSTER"
         echo "export CLUSTER=$CLUSTER" > cluster.env
-        kind --version
-        kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig /tmp/$CLUSTER.conf --retain --wait 5m
-        export KUBECONFIG=/tmp/$CLUSTER.conf
-        kubectl get nodes
+        echo "CLUSTER=$CLUSTER" >> "$GITHUB_ENV"
+    - name: Create Kind Cluster
+      uses: ./.github/actions/create-kind-cluster
+      with:
+        name: ${{ env.CLUSTER }}
+        kubeconfig: /tmp/${{ env.CLUSTER }}.conf
     - name: Run Test Suite without source(config_lifecycle)
       run: |
         source cluster.env
@@ -597,10 +596,12 @@ jobs:
         EOF
         export CLUSTER=$(uuidgen)
         echo "export CLUSTER=$CLUSTER" > cluster.env
-        kind --version
-        kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig /tmp/$CLUSTER.conf --retain --wait 5m
-        export KUBECONFIG=/tmp/$CLUSTER.conf
-        kubectl get nodes
+        echo "CLUSTER=$CLUSTER" >> "$GITHUB_ENV"
+    - name: Create Kind Cluster
+      uses: ./.github/actions/create-kind-cluster
+      with:
+        name: ${{ env.CLUSTER }}
+        kubeconfig: /tmp/${{ env.CLUSTER }}.conf
     - name: Run Test Suite without source(microservice)
       run: |
         source cluster.env
@@ -689,10 +690,12 @@ jobs:
         EOF
         export CLUSTER=$(uuidgen)
         echo "export CLUSTER=$CLUSTER" > cluster.env
-        kind --version
-        kind create cluster --name $CLUSTER --config=/tmp/cluster.yml --kubeconfig /tmp/$CLUSTER.conf --retain --wait 5m
-        export KUBECONFIG=/tmp/$CLUSTER.conf
-        kubectl get nodes
+        echo "CLUSTER=$CLUSTER" >> "$GITHUB_ENV"
+    - name: Create Kind Cluster
+      uses: ./.github/actions/create-kind-cluster
+      with:
+        name: ${{ env.CLUSTER }}
+        kubeconfig: /tmp/${{ env.CLUSTER }}.conf
     - name: Run Test Suite without source(all)
       run: |
         source cluster.env
