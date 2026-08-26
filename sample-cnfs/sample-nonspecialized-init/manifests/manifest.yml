@@ -33,4 +33,4 @@ spec:
       - name: nonspecialized-init
         image: busybox
         command: ["/bin/sh"]
-        args: ["-c", "while true; do sleep 30; done"]
+        args: ["-c", "while true; do sleep 3600; done"]
