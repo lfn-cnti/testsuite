@@ -9,33 +9,26 @@ namespace "setup" do
     logger.info { "Installing Kubescape tool" }
     failed_msg = "Task 'install_kubescape' failed"
 
-    FileUtils.mkdir_p(Setup::KUBESCAPE_DIR)
-    version_file = "#{Setup::KUBESCAPE_DIR}/.kubescape_version"
-    installed_kubescape_version = File.read(version_file) if File.exists?(version_file)
-    if File.exists?(Setup::KUBESCAPE_BINARY) && installed_kubescape_version == Setup::KUBESCAPE_VERSION
-      logger.info { "Kubescape tool already exists and has the required version" }
-      next
-    end
+    ToolInstall.ensure("kubescape", Setup::KUBESCAPE_VERSION, Setup::KUBESCAPE_BINARY) do
+      tarball = "#{Setup::KUBESCAPE_DIR}/kubescape.tar.gz"
+      begin
+        download_file(Setup::KUBESCAPE_URL, tarball)
+      rescue ex : Exception
+        logger.error { "Error while downloading kubescape tool: #{ex.message}" }
+        stdout_failure(failed_msg)
+        exit(1)
+      end
+      logger.debug { "Downloaded Kubescape tarball" }
 
-    tarball = "#{Setup::KUBESCAPE_DIR}/kubescape.tar.gz"
-    begin
-      download_file(Setup::KUBESCAPE_URL, tarball)
-    rescue ex : Exception
-      logger.error { "Error while downloading kubescape tool: #{ex.message}" }
-      stdout_failure(failed_msg)
-      exit(1)
+      unless TarClient.untar(tarball, Setup::KUBESCAPE_DIR)[:status].success?
+        logger.error { "Error while extracting kubescape tarball: '#{tarball}'" }
+        stdout_failure(failed_msg)
+        exit(1)
+      end
+      File.delete(tarball)
+      logger.info { "Kubescape tool has been installed" }
+      true
     end
-    logger.debug { "Downloaded Kubescape tarball" }
-
-    unless TarClient.untar(tarball, Setup::KUBESCAPE_DIR)[:status].success?
-      logger.error { "Error while extracting kubescape tarball: '#{tarball}'" }
-      stdout_failure(failed_msg)
-      exit(1)
-    end
-    File.delete(tarball)
-    File.write(version_file, Setup::KUBESCAPE_VERSION)
-
-    logger.info { "Kubescape tool has been installed" }
   end
 
   desc "Kubescape framework download"
@@ -44,33 +37,23 @@ namespace "setup" do
     logger.info { "Downloading Kubescape testing framework" }
     failed_msg = "Task 'kubescape_framework_download' failed"
 
-    FileUtils.mkdir_p(Setup::KUBESCAPE_DIR)
-    version_file = "#{Setup::KUBESCAPE_DIR}/.kubescape_framework_version"
-    installed_framework_version = File.read(version_file) if File.exists?(version_file)
-
-    framework_path = "#{tools_path}/kubescape/nsa.json"
-    if File.exists?("#{Setup::KUBESCAPE_DIR}/nsa.json") &&
-       installed_framework_version == Setup::KUBESCAPE_FRAMEWORK_VERSION
-      logger.info { "Kubescape framework file already exists and has the required version" }
-      next
-    end
-
-    begin
-      if ENV.has_key?("GITHUB_TOKEN")
-        download_file(Setup::KUBESCAPE_FRAMEWORK_URL, framework_path,
-          headers: HTTP::Headers{"Authorization" => "Bearer #{ENV["GITHUB_TOKEN"]}"})
-      else
-        download_file(Setup::KUBESCAPE_FRAMEWORK_URL, framework_path)
+    framework_path = "#{Setup::KUBESCAPE_DIR}/nsa.json"
+    ToolInstall.ensure("kubescape NSA framework", Setup::KUBESCAPE_FRAMEWORK_VERSION, framework_path) do
+      begin
+        if ENV.has_key?("GITHUB_TOKEN")
+          download_file(Setup::KUBESCAPE_FRAMEWORK_URL, framework_path,
+            headers: HTTP::Headers{"Authorization" => "Bearer #{ENV["GITHUB_TOKEN"]}"})
+        else
+          download_file(Setup::KUBESCAPE_FRAMEWORK_URL, framework_path)
+        end
+      rescue ex : Exception
+        logger.error { "Error while downloading kubescape framework: #{ex.message}" }
+        stdout_failure(failed_msg)
+        exit(1)
       end
-      logger.debug { "Downloaded Kubescape framework json" }
-      File.write(version_file, Setup::KUBESCAPE_FRAMEWORK_VERSION)
-    rescue ex : Exception
-      logger.error { "Error while downloading kubescape framework: #{ex.message}" }
-      stdout_failure(failed_msg)
-      exit(1)
+      logger.info { "Kubescape framework json has been downloaded" }
+      true
     end
-
-    logger.info { "Kubescape framework json has been downloaded" }
   end
 
   desc "Kubescape Scan"

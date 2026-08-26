@@ -487,6 +487,7 @@ CNF_TESTSUITE_NETWORK_RETRY_BACKOFF=2    # base seconds between attempts (attemp
 
 #### Other environment variables:
 
+- **CNF_TESTSUITE_DIR**: the suite home (default `~/.cnf-testsuite`): where `config.yml` is looked up and where the tools the suite installs for itself are cached under `tools/`. Each cached tool carries a `<tool>.version` marker with the version it was installed at; a suite that pins a different version reinstalls it on the next run, so the cache never serves a stale tool.
 - **CNF_TESTSUITE_FORCE_INSTALL**: set (to any value) to reinstall the suite-managed local Helm even when an installation is already present.
 - **CNF_TESTSUITE_ENV**: set to `TEST` for test-mode shortcuts (smaller samples, quicker platform checks). Used by the spec suite; not meant for normal runs.
 - **CNF_TESTSUITE_RESULTS_DIR**: redirect the results directory; see [Results file](#results-file).

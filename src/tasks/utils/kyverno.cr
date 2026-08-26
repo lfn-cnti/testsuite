@@ -14,33 +14,27 @@ module Kyverno
     "#{cli_dir}/kyverno"
   end
 
-  # The CLI and the policies repo each carry a marker with the version they were
-  # fetched at, so a suite built against a newer Kyverno replaces what an older
-  # one left behind instead of silently reusing it.
   def self.install
-    return true if installed?(cli_dir, ".kyverno_version", VERSION) &&
-                   installed?(policies_repo_path, ".policies_version", POLICIES_BRANCH)
+    cli = ToolInstall.ensure("kyverno CLI", VERSION, binary_path) do
+      FileUtils.rm_rf(cli_dir)
+      FileUtils.mkdir_p(cli_dir)
+      tempfile = File.tempfile("kyverno", ".tar.gz")
+      download_file(download_url, tempfile.path)
+      result = TarClient.untar(tempfile.path, cli_dir)
+      tempfile.delete
+      result[:status].success?
+    end
+    return false unless cli
 
-    FileUtils.rm_rf(cli_dir)
-    FileUtils.mkdir_p(cli_dir)
-    tempfile = File.tempfile("kyverno", ".tar.gz")
-    download_file(download_url, tempfile.path)
-    result = TarClient.untar(tempfile.path, cli_dir)
-    tempfile.delete
-    return false unless result[:status].success?
-    File.write("#{cli_dir}/.kyverno_version", VERSION)
-
-    download_policies_repo
+    ToolInstall.ensure("kyverno policies", POLICIES_BRANCH, policies_repo_path) do
+      download_policies_repo
+    end
   end
 
   def self.uninstall
     FileUtils.rm_rf(cli_dir)
     delete_policies_repo
     KubectlClient::Wait.resource_wait_for_uninstall("deployment", "kyverno",  namespace: "kyverno", wait_count: 180)
-  end
-
-  private def self.installed?(dir : String, marker : String, version : String) : Bool
-    Dir.exists?(dir) && File.exists?("#{dir}/#{marker}") && File.read("#{dir}/#{marker}") == version
   end
 
   def self.download_url
@@ -80,13 +74,12 @@ module Kyverno
     delete_policies_repo
     url = "https://github.com/kyverno/policies.git"
     result = GitClient.clone("--depth 1 --branch #{POLICIES_BRANCH} #{url} #{policies_repo_path}")
-    return false unless result[:status].success?
-    File.write("#{policies_repo_path}/.policies_version", POLICIES_BRANCH)
-    true
+    result[:status].success?
   end
 
   def self.delete_policies_repo
     FileUtils.rm_rf(policies_repo_path)
+    ToolInstall.forget(policies_repo_path)
   end
 
   module CustomPolicies

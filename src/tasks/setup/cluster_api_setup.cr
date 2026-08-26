@@ -12,11 +12,12 @@ namespace "setup" do
   desc "Install Cluster API for Kind"
   task "cluster_api_install" do |_, args|
     # The binary lives with the other tools; no sudo, no /usr/local/bin.
-    FileUtils.mkdir_p(Setup::CLUSTER_API_DIR)
-    download_file(Setup::CLUSTER_API_URL, Setup::CLUSTERCTL_BINARY)
-    File.chmod(Setup::CLUSTERCTL_BINARY, 0o755)
-
-    Log.info { "Completed downloading clusterctl" }
+    ToolInstall.ensure("clusterctl", Setup::CLUSTER_API_VERSION, Setup::CLUSTERCTL_BINARY) do
+      download_file(Setup::CLUSTER_API_URL, Setup::CLUSTERCTL_BINARY)
+      File.chmod(Setup::CLUSTERCTL_BINARY, 0o755)
+      Log.info { "Completed downloading clusterctl" }
+      true
+    end
 
     clusterctl = Path["~/.cluster-api"].expand(home: true)
 
