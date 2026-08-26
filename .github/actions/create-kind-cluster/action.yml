@@ -1,0 +1,38 @@
+name: "Create kind cluster"
+description: "Create a kind cluster from a config file, retrying once when the node containers miss kind's fixed boot deadline. This action is the single place that creates kind clusters in actions.yml."
+inputs:
+  name:
+    description: "Cluster name"
+    required: true
+  config:
+    description: "kind config file"
+    required: false
+    default: "/tmp/cluster.yml"
+  kubeconfig:
+    description: "Where to write the kubeconfig"
+    required: true
+  wait:
+    description: "How long kind waits for the control plane to become ready"
+    required: false
+    default: "5m"
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        cat "${{ inputs.config }}"
+        kind --version
+        # kind gives the node containers a fixed 60 s to boot systemd; when several
+        # jobs boot clusters on one host at once that deadline is occasionally
+        # missed, and a host that busy can also leave the control plane too slow
+        # for kubeadm. kind removes its own failed nodes, so retrying is just
+        # trying again -- after a pause long enough for the burst to pass.
+        for attempt in 1 2; do
+          kind create cluster --name "${{ inputs.name }}" --config="${{ inputs.config }}" \
+            --kubeconfig "${{ inputs.kubeconfig }}" --wait "${{ inputs.wait }}" && break
+          if [ "$attempt" = 2 ]; then echo "::error::kind create cluster failed twice"; exit 1; fi
+          echo "::warning::kind create cluster failed (attempt $attempt); retrying in 60 s"
+          sleep 60
+        done
+        KUBECONFIG="${{ inputs.kubeconfig }}" kubectl get nodes
