@@ -108,8 +108,23 @@ module Kubescape
       return if k8s_objects == nil
   
       alert_message = rule_response.dig?("alertMessage")
+      # Where in the object the rule failed: failedPaths/reviewPaths name the
+      # field, fixPaths name it with the value to set. Any of the three may be
+      # null in a given response, so they are merged.
+      paths = [] of String
+      fixes = {} of String => String
+      ["failedPaths", "reviewPaths"].each do |key|
+        rule_response.dig?(key).try(&.as_a?).try &.each { |path| paths << path.as_s }
+      end
+      rule_response.dig?("fixPaths").try(&.as_a?).try &.each do |fix|
+        path = fix.dig?("path").try(&.as_s?) || next
+        paths << path
+        fixes[path] = fix.dig?("value").try(&.as_s?) || ""
+      end
       k8s_objects.as_a.map do |k8s_obj|
         test_resource = parse_rule_response_k8s_object(k8s_obj, rule_name: rule_name, response_alert: alert_message)
+        test_resource.paths = paths.uniq
+        test_resource.fixes = fixes
         @test_resources.push(test_resource)
       end
     end
@@ -190,8 +205,53 @@ module Kubescape
     property name
     property namespace
     property alert_message
+    # Fields the rule failed on (kubescape failedPaths/reviewPaths/fixPaths),
+    # and the value fixPaths suggests for each, when it does.
+    property paths : Array(String) = [] of String
+    property fixes : Hash(String, String) = {} of String => String
 
     def initialize(@rule_name : String, @kind : String, @name : String, @namespace : String | Nil, @alert_message : String | Nil)
+    end
+
+    # One line per failed field: "<path>" plus the suggested value when
+    # kubescape gives a real one ("YOUR_VALUE" is its placeholder for "set it").
+    def reason_for(path : String) : String
+      value = fixes[path]?
+      if value && !value.empty? && value != "YOUR_VALUE"
+        "#{path} should be #{value}"
+      elsif fixes.has_key?(path)
+        "#{path} is not set"
+      else
+        path
+      end
+    end
+
+    # The container a path like spec.template.spec.containers[1].x refers to,
+    # by name, looked up in the live object; nil when the path is not
+    # container-scoped or the object cannot be read.
+    def container_for(path : String) : String?
+      match = path.match(/^spec\.(?:template\.spec\.)?(containers|initContainers|ephemeralContainers)\[(\d+)\]/)
+      return nil unless match
+      spec = KubectlClient::Get.resource(kind, name, namespace)
+      pod_spec = spec.dig?("spec", "template", "spec") || spec.dig?("spec")
+      pod_spec.try(&.dig?(match[1])).try(&.as_a?).try(&.[match[2].to_i]?).try(&.dig?("name")).try(&.as_s?)
+    rescue
+      nil
+    end
+  end
+
+  # Records every failed resource of a report into `result`: one entry per
+  # failed field when kubescape names the fields (with the container, when
+  # the field is a container's), otherwise one entry with the alert message.
+  def self.report_failed_resources(test_report : TestReport, result)
+    test_report.failed_resources.each do |r|
+      if r.paths.empty?
+        result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message)
+      else
+        r.paths.each do |path|
+          result.add_impacted_resource(r.kind, r.name, r.namespace, container: r.container_for(path), reason: r.reason_for(path))
+        end
+      end
     end
   end
 

@@ -191,7 +191,7 @@ scored_task "privilege_escalation",
     if test_report.failed_resources.size == 0
       result.passed("No containers that allow privilege escalation were found")
     else
-      test_report.failed_resources.each { |r| result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message) }
+      Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found containers that allow privilege escalation")
     end
@@ -212,7 +212,7 @@ scored_task "symlink_file_system",
     if test_report.failed_resources.size == 0
       result.passed("No containers allow a symlink attack")
     else
-      test_report.failed_resources.each { |r| result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message) }
+      Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found containers that allow a symlink attack")
     end
@@ -233,7 +233,7 @@ scored_task "application_credentials",
     if test_report.failed_resources.size == 0
       result.passed("No applications credentials in configuration files")
     else
-      test_report.failed_resources.each { |r| result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message) }
+      Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found applications credentials in configuration files")
     end
@@ -254,7 +254,7 @@ scored_task "host_network",
     if test_report.failed_resources.size == 0
       result.passed("No host network attached to pod")
     else
-      test_report.failed_resources.each { |r| result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message) }
+      Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found host network attached to pod")
     end
@@ -278,7 +278,7 @@ scored_task "service_account_mapping",
     if test_report.failed_resources.size == 0
       result.passed("No service accounts automatically mapped")
     else
-      test_report.failed_resources.each { |r| result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message) }
+      Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Service accounts automatically mapped")
     end
@@ -300,7 +300,7 @@ scored_task "linux_hardening",
     if test_report.failed_resources.size == 0
       result.passed("Security services are being used to harden applications")
     else
-      test_report.failed_resources.each { |r| result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message) }
+      Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found resources that do not use security services")
     end
@@ -321,7 +321,7 @@ scored_task "insecure_capabilities",
     if test_report.failed_resources.size == 0
       result.passed("Containers with insecure capabilities were not found")
     else
-      test_report.failed_resources.each { |r| result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message) }
+      Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found containers with insecure capabilities")
     end
@@ -343,7 +343,7 @@ scored_task "cpu_limits",
     if test_report.failed_resources.size == 0
       result.passed("Containers have CPU limits set")
     else
-      test_report.failed_resources.each { |r| result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message) }
+      Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found containers without CPU limits set")
     end
@@ -365,7 +365,7 @@ scored_task "memory_limits",
     if test_report.failed_resources.size == 0
       result.passed("Containers have memory limits set")
     else
-      test_report.failed_resources.each { |r| result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message) }
+      Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found containers without memory limits set")
     end
@@ -387,7 +387,7 @@ scored_task "ingress_egress_blocked",
     if test_report.failed_resources.size == 0
       result.passed("Ingress and Egress traffic blocked on pods")
     else
-      test_report.failed_resources.each { |r| result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message) }
+      Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Ingress and Egress traffic not blocked on pods")
     end
@@ -408,7 +408,7 @@ scored_task "host_pid_ipc_privileges",
     if test_report.failed_resources.size == 0
       result.passed("No containers with hostPID and hostIPC privileges")
     else
-      test_report.failed_resources.each { |r| result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message) }
+      Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found containers with hostPID and hostIPC privileges")
     end
@@ -430,7 +430,7 @@ scored_task "non_root_containers",
     if test_report.failed_resources.size == 0
       result.passed("Containers are running with non-root user with non-root group membership")
     else
-      test_report.failed_resources.each { |r| result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message) }
+      Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found containers running with root user or user with root group membership")
     end
@@ -452,7 +452,7 @@ scored_task "immutable_file_systems",
     if test_report.failed_resources.size == 0
       result.passed("Containers have immutable file systems")
     else
-      test_report.failed_resources.each { |r| result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message) }
+      Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found containers with mutable file systems")
     end
@@ -477,7 +477,7 @@ scored_task "hostpath_mounts",
     if test_report.failed_resources.size == 0
       result.passed("Containers do not have hostPath mounts")
     else
-      test_report.failed_resources.each { |r| result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message) }
+      Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found containers with hostPath mounts")
     end

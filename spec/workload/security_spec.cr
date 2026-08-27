@@ -153,8 +153,14 @@ describe "Security" do
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-operator/cnf-testsuite.yml")
       result = ShellCmd.run_testsuite("cpu_limits")
       result[:status].exit_code.should eq(1)
-      (result[:output].scan(/Failed resource: Deployment demo-labeled in cnf-default namespace/).size > 0).should be_true
-      (result[:output].scan(/Failed resource: Deployment demo-owned in cnf-default namespace/).size > 0).should be_true
+      # Kubescape findings name the field and the container (#2508). The
+      # operator creates these Deployments, so on a miss show what was reported.
+      ["demo-labeled", "demo-owned"].each do |name|
+        expected = /impacted: Deployment\/#{name} in cnf-default \(container .+\): spec\.template\.spec\.containers\[\d+\]\.resources\.limits\.cpu is not set/
+        unless expected =~ result[:output]
+          fail "no per-field finding for Deployment/#{name}; impacted lines were:\n#{result[:output].lines.select(&.includes?("impacted:")).join}"
+        end
+      end
       (/remediation: Set the CPU limits or use exception mechanism to avoid unnecessary notifications\./ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
