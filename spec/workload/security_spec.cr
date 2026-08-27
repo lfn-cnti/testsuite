@@ -287,6 +287,55 @@ describe "Security" do
     end
   end
 
+  it "'container_sock_mounts' should ignore socket mounts that belong to other workloads in the cluster", tags: ["container_sock_mounts"] do
+    bystander = "sock-bystander.yml"
+    begin
+      # A pod outside the CNF (and outside EXCLUDE_NAMESPACES) that mounts a
+      # container runtime socket must not fail the CNF's test (#2483). Its
+      # namespace opts out of the restricted Pod Security profile CI enforces,
+      # so the hostPath mount is admitted.
+      File.write(bystander, <<-YAML)
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: sock-bystander
+          labels:
+            pod-security.kubernetes.io/enforce: privileged
+        ---
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: sock-bystander
+          namespace: sock-bystander
+        spec:
+          containers:
+          - name: bystander
+            image: busybox:1.33.1
+            command: ["/bin/sleep", "2147483647"]
+            volumeMounts:
+            - name: sock
+              mountPath: /var/run/docker.sock
+          volumes:
+          - name: sock
+            hostPath:
+              path: /var/run/docker.sock
+              type: FileOrCreate
+        YAML
+      KubectlClient::Apply.file(bystander)
+
+      ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_coredns/cnf-testsuite.yml")
+      result = ShellCmd.run_testsuite("container_sock_mounts")
+      result[:status].success?.should be_true
+      (/(PASSED).*(Container engine daemon sockets are not mounted as volumes)/ =~ result[:output]).should_not be_nil
+      verify_task_result("container_sock_mounts", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+      KubectlClient::Delete.file(bystander) rescue nil
+      File.delete?(bystander)
+    end
+  end
+
   it "'external_ips' should pass if a cnf has no services with external IPs", tags: ["external_ips"] do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_coredns/cnf-testsuite.yml")
