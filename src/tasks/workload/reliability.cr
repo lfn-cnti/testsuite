@@ -36,11 +36,15 @@ def run_probe_task(t, args, probe_type : String)
         end
       end
 
-      containers_without_probe_joined = containers_without_probe.empty? ? "none" : containers_without_probe.join(", ")
-      Log.for(t.name).info { "Containers in #{resource_ref} missing #{probe_key}: #{containers_without_probe_joined}" }
+      containers_with_probe = containers.as_a.map { |c| c["name"].as_s } - containers_without_probe
+      Log.for(t.name).info { "Containers in #{resource_ref} missing #{probe_key}: #{containers_without_probe.empty? ? "none" : containers_without_probe.join(", ")}" }
 
-      unless resource_has_probe
-        result.append_description("No #{probe_type} probe found for any container in #{resource_ref} in #{resource[:namespace]} namespace")
+      if resource_has_probe
+        # A pass says what satisfied it, so the verdict can be reviewed.
+        result.append_description("#{resource_ref} in #{resource[:namespace]}: #{probe_type} probe on #{containers_with_probe.join(", ")}")
+      else
+        result.add_impacted_resource(resource[:kind], resource[:name], resource[:namespace],
+          reason: "no #{probe_type} probe on any container (#{containers_without_probe.join(", ")})")
       end
 
       Log.for(t.name).info { "Resource #{resource_ref} has at least one #{probe_key}?: #{resource_has_probe}" }
