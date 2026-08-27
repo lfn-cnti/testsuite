@@ -93,6 +93,13 @@ module CNFManager
         end
       ensure
         result.set_end_time()
+        # A failure that brought no remediation of its own gets the one the
+        # test documentation gives, so every failed item says what to do.
+        if result.status.failed? && result.result_remediation.empty?
+          if remedy = DocRemediation.for(result.testcase)
+            result.append_remediation(remedy)
+          end
+        end
         # Recording the result is what drives the run's exit code: the summary
         # (recomputed on every upsert) derives it from the item outcomes.
         upsert_decorated_task(result)

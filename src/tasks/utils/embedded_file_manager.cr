@@ -28,6 +28,9 @@ module EmbeddedFileManager
   macro disable_cni
     DISABLE_CNI = Base64.decode_string("{{ `cat ./embedded_files/kind-disable-cni.yaml  | base64`}}")
   end
+  macro test_documentation
+    TEST_DOCUMENTATION_MD = Base64.decode_string("{{ `cat ./docs/TEST_DOCUMENTATION.md | base64`}}")
+  end
   macro fluentd_values
     FLUENTD_VALUES = Base64.decode_string("{{ `cat ./embedded_files/fluentd-values.yml  | base64`}}")
   end
