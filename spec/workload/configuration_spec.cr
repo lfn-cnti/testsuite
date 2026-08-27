@@ -20,6 +20,7 @@ describe CnfTestSuite do
       result = ShellCmd.run_testsuite("liveness", cmd_prefix:"CNF_TESTSUITE_LOG_LEVEL=debug")
       result[:status].success?.should be_true
       (/(PASSED).*(All workload resources have at least one container with a liveness probe)/ =~ result[:output]).should_not be_nil
+      (/> Deployment\/.* in .*: liveness probe on .+/ =~ result[:output]).should_not be_nil
       verify_task_result("liveness", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -32,6 +33,7 @@ describe CnfTestSuite do
       result = ShellCmd.run_testsuite("liveness")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(One or more workload resources have no containers with a liveness probe)/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/.* in .*: no liveness probe on any container \(.+\)/ =~ result[:output]).should_not be_nil
       verify_task_result("liveness", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -56,6 +58,7 @@ describe CnfTestSuite do
       result = ShellCmd.run_testsuite("readiness")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(One or more workload resources have no containers with a readiness probe)/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/.* in .*: no readiness probe on any container \(.+\)/ =~ result[:output]).should_not be_nil
       verify_task_result("readiness", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
