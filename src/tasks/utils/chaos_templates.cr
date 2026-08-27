@@ -112,8 +112,7 @@ class ChaosTemplates
       @test_name : String,
       @chaos_experiment_name : String,
       @app_namespace : String,
-      @deployment_label : String,
-      @deployment_label_value : String,
+      @app_label : String,
       @app_nodename : String,
       @total_chaos_duration : String = "#{NODE_DRAIN_TOTAL_CHAOS_DURATION}"
     )

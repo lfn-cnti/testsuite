@@ -32,8 +32,9 @@ module LitmusManager
 
   # Node the workload identified by `deployment_label=deployment_value` sits on,
   # or nil when it has no pod scheduled anywhere.
-  def self.get_workload_node_name(deployment_label, deployment_value, namespace) : String?
-    scheduled_pod_node_name(namespace, "#{deployment_label}=#{deployment_value}")
+  # Node of the workload matching `selector` (a `k=v[,k=v...]` label selector).
+  def self.get_workload_node_name(selector : String, namespace) : String?
+    scheduled_pod_node_name(namespace, selector)
   end
 
   # Node the Litmus operator sits on, or nil when it is not scheduled anywhere.

@@ -228,8 +228,9 @@ scored_task "node_drain",
         test_passed = false
       else
         schedulable_nodes = KubectlClient::Get.schedulable_nodes_list
-        deployment_label = "#{spec_labels.as_h.first_key}"
-        deployment_label_value = "#{spec_labels.as_h.first_value}"
+        # The whole selector: one label of a multi-label selector (every Helm
+        # chart's) also matches other releases of the same chart.
+        app_label = spec_labels.as_h.map { |key, value| "#{key}=#{value}" }.join(",")
 
         # Declare this outside the block so that the name of the node can be used to uncordon later.
         cordon_target_node_name = nil
@@ -241,14 +242,14 @@ scored_task "node_drain",
           # test are still listed by kubectl, so the first answer could name a node the
           # workload had already left, and the run would cordon one node while draining
           # another.
-          app_node_name = LitmusManager.get_workload_node_name(deployment_label, deployment_label_value, namespace: app_namespace)
+          app_node_name = LitmusManager.get_workload_node_name(app_label, namespace: app_namespace)
 
           if schedulable_nodes.size <= 1
             skip_reason = "node_drain chaos test requires the cluster to have atleast two schedulable nodes"
           elsif app_node_name.nil?
-            skip_reason = "node_drain chaos test found no scheduled pod for #{deployment_label}=#{deployment_label_value} in the #{app_namespace} namespace"
+            skip_reason = "node_drain chaos test found no scheduled pod for #{app_label} in the #{app_namespace} namespace"
           else
-            Log.info { "Found node to cordon #{app_node_name} using label #{deployment_label}='#{deployment_label_value}' in #{app_namespace} namespace." }
+            Log.info { "Found node to cordon #{app_node_name} using selector #{app_label} in #{app_namespace} namespace." }
 
             # Record the cordon target before cordoning, so the ensure block below
             # releases the node even if the cordon only partly took effect.
@@ -306,11 +307,10 @@ scored_task "node_drain",
               test_name,
               "#{chaos_experiment_name}",
               app_namespace,
-              "#{deployment_label}",
-              "#{deployment_label_value}",
+              app_label,
               app_node_name
             ).to_s
-            Log.for("node_drain").info { "Chaos test name: #{test_name}; Experiment name: #{chaos_experiment_name}; Label #{deployment_label}=#{deployment_label_value}; namespace: #{app_namespace}" }
+            Log.for("node_drain").info { "Chaos test name: #{test_name}; Experiment name: #{chaos_experiment_name}; Selector #{app_label}; namespace: #{app_namespace}" }
             chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
             File.write(chaos_template_path, template)
             KubectlClient::Apply.file(chaos_template_path)
