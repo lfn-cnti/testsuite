@@ -32,7 +32,12 @@ task "install_opa", ["setup:install_local_helm", "setup:create_namespace"] do |_
   File.write(enforce_manifest, ENFORCE_IMAGE_TAG)
   File.write(template_manifest, CONSTRAINT_TEMPLATE)
   KubectlClient::Wait.wait_for_install_by_apply(template_manifest)
-  KubectlClient::Wait.wait_for_condition("crd", "requiretags.constraints.gatekeeper.sh", "condition=established", 300)
+  # Gatekeeper generates the constraint CRD from the template asynchronously.
+  # `kubectl wait` fails at once when the resource does not exist yet, so poll
+  # until the CRD appears and is Established before creating a constraint.
+  unless KubectlClient::Wait.wait_for_resource_availability("customresourcedefinition", "requiretags.constraints.gatekeeper.sh", nil, 300)
+    raise "Gatekeeper did not create the requiretags constraint CRD within 300 seconds"
+  end
   KubectlClient::Apply.file(enforce_manifest)
 end
 
