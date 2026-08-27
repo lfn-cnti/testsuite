@@ -403,7 +403,7 @@ Make sure that your CNFs containers are not sharing the same [database](https://
 
 #### Overview
 
-This tests if containers in pods have dumb-init, tini or s6-overlay as init processes.
+This tests if containers in pods use a specialized init system as their PID 1 process: tini (including tini-static and docker-init), dumb-init, or s6-overlay (whose PID 1 is s6-svscan). The check is on the executable's name, not on any part of its path.
 Expectation: Container images should use specialized init systems for containers.
 
 #### Rationale

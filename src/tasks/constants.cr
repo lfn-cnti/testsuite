@@ -21,7 +21,10 @@ SONOBUOY_K8S_VERSION = "0.57.5"
 IGNORED_SECRET_TYPES = ["kubernetes.io/service-account-token", "kubernetes.io/dockercfg", "kubernetes.io/dockerconfigjson", "helm.sh/release.v1"]
 EMPTY_JSON = JSON.parse(%({}))
 EMPTY_JSON_ARRAY = JSON.parse(%([]))
-SPECIALIZED_INIT_SYSTEMS = ["tini", "dumb-init", "s6-svscan"]
+# Matched against the basename of a container's PID 1 executable: tini (also
+# as tini-static, and as docker-init, the copy Docker ships), dumb-init, and
+# s6-svscan (PID 1 once s6-overlay's /init has handed over).
+SPECIALIZED_INIT_SYSTEMS = ["tini", "tini-static", "docker-init", "dumb-init", "s6-svscan"]
 ROLLING_VERSION_CHANGE_TEST_NAMES = ["rolling_update", "rolling_downgrade", "rolling_version_change"]
 WORKLOAD_RESOURCE_KIND_NAMES = ["replicaset", "deployment", "statefulset", "pod", "daemonset"]
 

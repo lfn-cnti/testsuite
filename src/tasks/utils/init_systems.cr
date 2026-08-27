@@ -17,12 +17,9 @@ module InitSystems
     end
   end
   
+  # By the executable's basename: a path that merely contains "tini" is not tini.
   def self.is_specialized_init_system?(cmd : String) : Bool
-    SPECIALIZED_INIT_SYSTEMS.each do |init_system|
-      return true if cmd.includes?(init_system)
-    end
-    # No specialized init system found
-    return false
+    SPECIALIZED_INIT_SYSTEMS.includes?(File.basename(cmd))
   end
 
   def self.scan(pod : JSON::Any) : Array(InitSystemInfo) | Nil
