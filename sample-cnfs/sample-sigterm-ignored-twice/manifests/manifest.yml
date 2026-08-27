@@ -1,0 +1,35 @@
+# Two containers in one pod, both with a PID 1 (`sleep`) that ignores
+# SIGTERM. Used to verify that sig_term_handled judges and reports every
+# container rather than stopping at the first one that fails (#2492).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sigterm-ignored-twice
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sigterm-ignored-twice
+  namespace: sigterm-ignored-twice
+  labels:
+    app: sigterm-ignored-twice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sigterm-ignored-twice
+  template:
+    metadata:
+      labels:
+        app: sigterm-ignored-twice
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: first
+        image: busybox:1.33.1
+        command: ["/bin/sleep", "2147483647"]
+      - name: second
+        image: busybox:1.33.1
+        command: ["/bin/sleep", "2147483647"]
