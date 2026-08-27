@@ -84,19 +84,14 @@ describe "Utils" do
         white_list_container_names = config.common.white_list_container_names
         Log.info { "white_list_container_names #{white_list_container_names.inspect}" }
         violation_list = [] of String
-        resource_response = CNFManager.workload_resource_test(args, config) do |resource, container, initialized|
-          privileged_list = KubectlClient::Get.privileged_containers(all_namespaces: true).map { |container| container.dig("name") }.uniq
-          resource_containers = KubectlClient::Get.resource_containers(resource["kind"],resource["name"],resource["namespace"])
-          resource_containers_list = (JSON.parse(resource_containers.to_json).as_a).map { |element| element["name"] }
-          # Only check the containers that are in the deployed helm chart or manifest
-          (privileged_list & (resource_containers_list - white_list_container_names)).each do |x|
-            violation_list << x.as_s
+        resource_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
+          # The resource's own containers, judged by their own securityContext.
+          KubectlClient::Get.resource_all_containers(resource["kind"], resource["name"], resource["namespace"]).each do |container|
+            container_name = container.dig?("name").try(&.as_s) || ""
+            next if white_list_container_names.includes?(container_name)
+            violation_list << container_name if container.dig?("securityContext", "privileged") == true
           end
-          if violation_list.size > 0
-            false
-          else
-            true
-          end
+          violation_list.empty?
         end
         Log.debug { "violator list: #{violation_list.flatten}" }
         emoji_security=""

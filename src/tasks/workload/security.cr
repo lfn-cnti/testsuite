@@ -150,19 +150,19 @@ scored_task "privileged_containers",
     white_list_container_names = config.common.white_list_container_names
     Log.debug { "white_list_container_names #{white_list_container_names.inspect}" }
     violation_list = [] of NamedTuple(kind: String, name: String, container: String, namespace: String)
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
-      privileged_list = KubectlClient::Get.privileged_containers(all_namespaces: true).map { |container| container.dig("name") }.uniq
-      resource_containers = KubectlClient::Get.resource_containers(resource["kind"],resource["name"],resource["namespace"])
-      resource_containers_list = resource_containers.as_a.map { |element| element["name"] }
-      # Only check the containers that are in the deployed helm chart or manifest
-      (privileged_list & (resource_containers_list - white_list_container_names)).each do |container_name|
-        violation_list << {kind: resource["kind"], name: resource["name"], container: container_name.to_s, namespace: resource["namespace"]}
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
+      # The resource's own containers - init and ephemeral ones included - judged
+      # by their own securityContext, never by a name shared with some privileged
+      # container elsewhere in the cluster.
+      resource_passed = true
+      KubectlClient::Get.resource_all_containers(resource["kind"], resource["name"], resource["namespace"]).each do |container|
+        container_name = container.dig?("name").try(&.as_s) || ""
+        next if white_list_container_names.includes?(container_name)
+        next unless container.dig?("securityContext", "privileged") == true
+        violation_list << {kind: resource["kind"], name: resource["name"], container: container_name, namespace: resource["namespace"]}
+        resource_passed = false
       end
-      if violation_list.size > 0
-        false
-      else
-        true
-      end
+      resource_passed
     end
     Log.debug { "violator list: #{violation_list.flatten}" }
     if task_response

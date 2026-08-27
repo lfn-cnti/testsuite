@@ -174,31 +174,19 @@ scored_task "hostport_not_used",
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
       Log.for(t.name).info { "hostport_not_used resource: #{resource}" }
-      test_passed=true
-      Log.for(t.name).info { "resource kind: #{resource}" }
-      k8s_resource = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
-      Log.for(t.name).debug { "resource: #{k8s_resource}" }
+      test_passed = true
 
-      # per examaple https://github.com/lfn-cnti/testsuite/issues/164#issuecomment-904890977
-      containers = k8s_resource.dig?("spec", "template", "spec", "containers")
-      Log.for(t.name).debug { "containers: #{containers}" }
-
-      containers && containers.as_a.each do |single_container|
-        ports = single_container.dig?("ports")
-
-        ports && ports.as_a.each do |single_port|
-          Log.for(t.name).debug { "single_port: #{single_port}" }
-          
+      # per example https://github.com/lfn-cnti/testsuite/issues/164#issuecomment-904890977
+      KubectlClient::Get.resource_all_containers(resource[:kind], resource[:name], resource[:namespace]).each do |single_container|
+        container_name = single_container.dig?("name").try(&.as_s) || ""
+        single_container.dig?("ports").try(&.as_a?).try &.each do |single_port|
           hostport = single_port.dig?("hostPort")
-
-          Log.for(t.name).debug { "DAS hostPort: #{hostport}" }
-
+          Log.for(t.name).debug { "container #{container_name} port #{single_port}: hostPort #{hostport}" }
           if hostport
-            result.add_impacted_resource(resource[:kind], resource[:name], resource[:namespace], reason: "using a HostPort")
-            test_passed=false
+            result.add_impacted_resource(resource[:kind], resource[:name], resource[:namespace], container: container_name, reason: "using a HostPort")
+            test_passed = false
           end
-
-        end 
+        end
       end
       test_passed
     end

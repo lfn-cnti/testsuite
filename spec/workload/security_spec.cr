@@ -27,6 +27,21 @@ describe "Security" do
     end
   end
 
+  it "'privileged_containers' should fail on a privileged init container", tags: ["privileges"] do
+    begin
+      # Only the initContainer is privileged; the check must see it (#2486).
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-privileged-initcontainer/cnf-testsuite.yml")
+      result = ShellCmd.run_testsuite("privileged_containers")
+      result[:status].exit_code.should eq(1)
+      (/Found 1 privileged containers/ =~ result[:output]).should_not be_nil
+      (/impacted: .*\(container privileged-setup\): privileged container/ =~ result[:output]).should_not be_nil
+      verify_task_result("privileged_containers", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
   it "'privileged_containers' should pass on a whitelisted, privileged cnf", tags: ["privileges"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_whitelisted_privileged_cnf/cnf-testsuite.yml --skip-wait-for-install")

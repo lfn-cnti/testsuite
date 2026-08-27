@@ -184,6 +184,21 @@ describe CnfTestSuite do
     end
   end
 
+  it "'hostport_not_used' should fail when a bare Pod uses a host port", tags: ["hostport_not_used"] do
+    begin
+      # A Pod has no spec.template; the check must still see its containers (#2486).
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-hostport-pod")
+      result = ShellCmd.run_testsuite("hostport_not_used")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(HostPort is being used)/ =~ result[:output]).should_not be_nil
+      (/impacted: Pod\/hostport-pod.*\(container hostport-pod\): using a HostPort/ =~ result[:output]).should_not be_nil
+      verify_task_result("hostport_not_used", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
   it "'hostport_not_used' should pass when a node port is not being used", tags: ["hostport_not_used"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnf-testsuite.yml --skip-wait-for-install")
