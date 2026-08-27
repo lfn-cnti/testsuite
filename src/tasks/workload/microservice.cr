@@ -834,7 +834,8 @@ scored_task "specialized_init_system",
 
       resources_checked = true
 
-      pods.all? do |pod|
+      # Every pod is inspected and reported; the verdict comes afterwards.
+      pods.map do |pod|
         pod_name = pod.dig("metadata", "name").as_s
         Log.for(t.name).info { "Inspecting pod #{pod_name}" }
 
@@ -859,7 +860,7 @@ scored_task "specialized_init_system",
 
         # mark this resource as failing
         next false
-      end
+      end.all?(true)
     end
 
     if error_occurred
