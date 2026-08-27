@@ -125,6 +125,10 @@ scored_task "container_sock_mounts",
     policy_path = Kyverno.best_practice_policy("disallow-cri-sock-mount/disallow-cri-sock-mount.yaml")
     failures = Kyverno::PolicyAudit.run(policy_path, EXCLUDE_NAMESPACES)
 
+    # The audit covers the cluster; only the CNF's own resources are judged.
+    resource_keys = CNFManager.workload_resource_keys(args, config)
+    failures = Kyverno.filter_failures_for_cnf_resources(resource_keys, failures)
+
     if failures.size == 0
       result.passed("Container engine daemon sockets are not mounted as volumes")
     else
