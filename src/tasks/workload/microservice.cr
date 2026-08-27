@@ -647,8 +647,9 @@ scored_task "sig_term_handled",
         next false
       end
 
-      # For each pod, do the main SIGTERM check
-      pods.all? do |pod|
+      # Every pod and every container is judged and reported; the verdicts are
+      # combined afterwards, so one run shows the whole picture.
+      pods.map do |pod|
         pod_name      = pod.dig("metadata", "name").as_s
         pod_namespace = pod.dig("metadata", "namespace").as_s
 
@@ -669,7 +670,7 @@ scored_task "sig_term_handled",
         grace_seconds = pod.dig?("spec", "terminationGracePeriodSeconds").try(&.as_i) || 30
         grace_seconds = {grace_seconds, GENERIC_OPERATION_TIMEOUT}.min
 
-        pod_passed = status["containerStatuses"].as_a.all? do |c_stat|
+        pod_passed = status["containerStatuses"].as_a.map do |c_stat|
           c_name = c_stat["name"].as_s
           skip = ->(reason : String) do
             logger.info { "Skipping #{pod_name}/#{c_name}: #{reason}" }
@@ -747,14 +748,14 @@ scored_task "sig_term_handled",
             }
             false
           end
-        end
+        end.all?
 
         #put tested pod ID into checking list
         tested_pods << pod_unique_id
 
         #return bool
         pod_passed
-      end
+      end.all?
     end
 
     skipped_containers.each do |info|
