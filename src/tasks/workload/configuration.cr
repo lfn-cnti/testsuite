@@ -213,8 +213,7 @@ end
 desc "Does the CNF have hardcoded IPs in the K8s resource configuration"
 scored_task "hardcoded_ip_addresses_in_k8s_runtime_configuration",
   type: CNFManager::TestType::Essential do |t, args|
-  task_response = CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    current_dir = FileUtils.pwd
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     allowed_ip_addresses = [
       "127.0.0.1",
       "0.0.0.0"
@@ -249,10 +248,6 @@ scored_task "hardcoded_ip_addresses_in_k8s_runtime_configuration",
       end
       result.failed("Hard-coded IP addresses found in the runtime K8s configuration")
     end
-  rescue
-    result.skipped("unknown exception")
-  ensure
-    KubectlClient::Delete.resource("namespace", "hardcoded-ip-test", extra_opts: "--force --grace-period 0")
   end
 end
 
