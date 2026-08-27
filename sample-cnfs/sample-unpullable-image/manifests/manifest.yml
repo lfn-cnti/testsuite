@@ -1,0 +1,33 @@
+# A Deployment whose image can never be pulled: the pod is scheduled and
+# Running-phase-bound but its container waits forever, so `kubectl logs`
+# errors ("is waiting to start"). Install it with skip-wait-for-install;
+# used to verify that tests reading pod logs report the pod instead of
+# crashing on the error (#2488).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: unpullable-image
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unpullable-image
+  namespace: unpullable-image
+  labels:
+    app: unpullable-image
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: unpullable-image
+  template:
+    metadata:
+      labels:
+        app: unpullable-image
+    spec:
+      containers:
+      - name: app
+        image: busybox:no-such-tag-cnti-testsuite
+        command: ["/bin/sleep", "2147483647"]
