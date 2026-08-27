@@ -1188,7 +1188,7 @@ Remove all insecure capabilities which aren’t necessary for the container.
 
 #### Overview
 
-Checks if the CNF has runAsUser and runAsGroup set to a user id greater than 999. Also checks that the allowPrivilegeEscalation field is set to false for the CNF.
+Checks, through Kubescape control C-0013 (Non-root containers), that no container of the CNF runs as root or can become root: `runAsNonRoot` is true, or `runAsUser`/`runAsGroup` are set to non-root IDs, at the pod or container level. Whether privilege escalation is allowed is checked separately by the `privilege_escalation` test.
 Read more at [ARMO-C0013](https://bit.ly/2Zzlts3)
 Expectation: Containers should run with non-root user and allowPrivilegeEscalation should be set to false.
 
@@ -1198,7 +1198,7 @@ Container engines allow containers to run applications as a non-root user with n
 
 #### Remediation
 
-If your application does not need root privileges, make sure to define the runAsUser and runAsGroup under the PodSecurityContext to use user ID 1000 or higher, do not turn on allowPrivilegeEscalation bit and runAsNonRoot is true.
+If your application does not need root privileges, set `runAsNonRoot: true`, or set `runAsUser` and `runAsGroup` to IDs of 1000 or higher, under the pod or container securityContext.
 
 #### Usage
 
@@ -1319,7 +1319,7 @@ Set the filesystem of the container to read-only when possible. If the container
 
 #### Overview
 
-Checks the CNF's POD spec for any hostPath volumes, if found it checks the volume for the field mount.readOnly == false (or if it doesn’t exist).
+Checks, through Kubescape control C-0048 (HostPath mount), whether any pod of the CNF mounts a hostPath volume. Any hostPath mount is reported, read-only ones included: a host directory mounted into a container is a path to the underlying host either way.
 Read more at [ARMO-C0045](https://bit.ly/3EvltIL)
 Expectation: Containers should not have hostPath mounts
 
