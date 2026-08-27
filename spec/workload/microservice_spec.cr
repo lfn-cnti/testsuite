@@ -306,6 +306,20 @@ describe "Microservice" do
     end
   end
 
+  it "'sig_term_handled' should fail if PID 1 ignores SIGTERM and keeps running", tags: ["sig_term"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-sigterm-ignored/")
+      result = ShellCmd.run_testsuite("sig_term_handled")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(Sig Term not handled)/ =~ result[:output]).should_not be_nil
+      result[:output].should contain("still running")
+      verify_task_result("sig_term_handled", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
   it "'sig_term_handled' should pass if SIGTERM is passed through to child processes by a supervisor (tini)", tags: ["sig_term"]  do
     begin
       #todo 1. Watch for signals for the containers pid one process, and the tree of all child processes ity manages
