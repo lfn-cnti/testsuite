@@ -63,6 +63,7 @@ HPA (horizontal pod autoscale) will autoscale replicas to accommodate when there
 by balancing out the utilisation across all of the pods.
 Decreasing replicas works the same as increase but rather scale down the number of replicas when the traffic decreases to the number of pods that can handle the requests.
 You can read more about horizontal pod autoscaling to create replicas [here](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/) and in the [K8s scaling cheatsheet](https://kubernetes.io/docs/reference/kubectl/cheatsheet/#scaling-resources).
+The test scales each Deployment and StatefulSet from its deployed replica count up by two, then back to the deployed count, and leaves the CNF as it found it.
 Expectation: The number of replicas for a Pod increases and then decreases.
 
 #### Rationale

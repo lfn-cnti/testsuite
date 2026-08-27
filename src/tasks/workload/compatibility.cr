@@ -168,51 +168,56 @@ scored_task "increase_decrease_capacity",
   emoji: "📦📈📉" do |t, args|
 
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    increase_test_base_replicas = "1"
-    increase_test_target_replicas = "3"
+    # Each scalable resource starts from the replica count it was deployed
+    # with, is scaled up by this much, then back to that count - so the test
+    # proves both directions and leaves the CNF as it found it.
+    increase_by = 2
 
-    decrease_test_base_replicas = "3"
-    decrease_test_target_replicas = "1"
+    # Everything scaled, with the count to return it to; restored in `ensure`
+    # whatever happens in between, so a failure here never changes what the
+    # tests after this one see.
+    deployed = {} of Tuple(String, String, String) => Int32
+    failures = [] of String
 
-    # TODO scale replicatsets separately
-    # https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/#scaling-a-replicaset
-    # resource["kind"].as_s.downcase == "replicaset"
-    increase_task_response = CNFManager.cnf_workload_resources(args, config) do | resource|
-      if resource["kind"].as_s.downcase == "deployment" ||
-          resource["kind"].as_s.downcase == "statefulset"
-        final_count = change_capacity(increase_test_base_replicas, increase_test_target_replicas, args, config, resource)
-        increase_test_target_replicas == final_count
-      else
-        true
-      end
-    end
-    increase_task_successful = increase_task_response.none?(false)
+    begin
+      CNFManager.cnf_workload_resources(args, config) do |resource|
+        kind = resource["kind"].as_s.downcase
+        next unless kind == "deployment" || kind == "statefulset"
+        name = resource["metadata"]["name"].as_s
+        namespace = resource.dig("metadata", "namespace").as_s
+        ref = "#{resource["kind"].as_s}/#{name}"
 
-    if increase_task_successful
-      decrease_task_response = CNFManager.cnf_workload_resources(args, config) do | resource|
-        # TODO scale replicatsets separately
-        # https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/#scaling-a-replicaset
-        # resource["kind"].as_s.downcase == "replicaset"
-        if resource["kind"].as_s.downcase == "deployment" ||
-            resource["kind"].as_s.downcase == "statefulset"
-          final_count = change_capacity(decrease_test_base_replicas, decrease_test_target_replicas, args, config, resource)
-          decrease_test_target_replicas == final_count
-        else
-          true
+        replicas = deployed_replicas(resource["kind"].as_s, name, namespace)
+        deployed[{resource["kind"].as_s, name, namespace}] = replicas
+        target = replicas + increase_by
+        Log.for(t.name).info { "#{ref} in #{namespace}: deployed with #{replicas} replicas; scaling to #{target}, then back" }
+
+        ready = scale_and_wait(resource, target, args)
+        if ready != target.to_s
+          failures << "#{ref} in #{namespace}: increase from #{replicas} to #{target} replicas did not complete (#{ready} ready)"
+          result.add_impacted_resource(resource["kind"].as_s, name, namespace, reason: "could not scale up to #{target} replicas")
+          next
+        end
+
+        ready = scale_and_wait(resource, replicas, args)
+        if ready != replicas.to_s
+          failures << "#{ref} in #{namespace}: decrease from #{target} back to #{replicas} replicas did not complete (#{ready} ready)"
+          result.add_impacted_resource(resource["kind"].as_s, name, namespace, reason: "could not scale back down to #{replicas} replicas")
         end
       end
+    ensure
+      deployed.each do |(kind, name, namespace), replicas|
+        KubectlClient::Utils.scale(kind, name, replicas, namespace)
+      end
     end
-    decrease_task_successful = !decrease_task_response.nil? && decrease_task_response.none?(false)
 
-    if increase_task_successful && decrease_task_successful
-      result.passed("Replicas increased to #{increase_test_target_replicas} and decreased to #{decrease_test_target_replicas}")
+    if deployed.empty?
+      result.skipped("No Deployment or StatefulSet to scale")
+    elsif failures.empty?
+      result.passed("Replicas increased to deployed count + #{increase_by} and decreased back for #{deployed.size} resource(s)")
     else
+      failures.each { |failure| result.append_description(failure) }
       result.append_remediation(increase_decrease_remedy_msg())
-      unless increase_task_successful
-        result.append_description("Failed to increase replicas from #{increase_test_base_replicas} to #{increase_test_target_replicas}")
-      else
-        result.append_description("Failed to decrease replicas from #{decrease_test_base_replicas} to #{decrease_test_target_replicas}")
-      end  
       result.failed("Capacity change failed")
     end
   end
@@ -289,28 +294,17 @@ end
 # end
 
 
-def change_capacity(base_replicas, target_replica_count, args, config, resource = {kind: "", 
-                                                                                   metadata: {name: ""}})
+# The replica count a resource was deployed with: its live spec, defaulting
+# to Kubernetes' own default of 1 when the field is unset.
+def deployed_replicas(kind : String, name : String, namespace : String) : Int32
+  KubectlClient::Get.resource(kind, name, namespace).dig?("spec", "replicas").try(&.as_i) || 1
+end
 
-  Log.for("change_capacity:resource").info { "#{resource["kind"]}/#{resource["metadata"]["name"]}; namespace: #{resource["metadata"]["namespace"]}" }
-  Log.for("change_capacity:capacity").info { "Base replicas: #{base_replicas}; Target replicas: #{target_replica_count}" }
-
-  Log.trace { "increase_capacity args.raw: #{args.raw}" }
-  Log.trace { "increase_capacity args.named: #{args.named}" }
-
-  initialization_time = base_replicas.to_i * 10
-  KubectlClient::Utils.scale("#{resource["kind"]}", "#{resource["metadata"]["name"]}", base_replicas.to_i, resource.dig("metadata", "namespace").as_s)
-  initialized_count = wait_for_scaling(resource, base_replicas, args)
-  if initialized_count != base_replicas
-    Log.debug { "#{resource["kind"]} initialized to #{initialized_count} and could not be set to #{base_replicas}" }
-  else
-    Log.debug { "#{resource["kind"]} initialized to #{initialized_count}" }
-  end
-
-  KubectlClient::Utils.scale("#{resource["kind"]}", "#{resource["metadata"]["name"]}", target_replica_count.to_i, resource.dig("metadata", "namespace").as_s)
-  current_replicas = wait_for_scaling(resource, target_replica_count, args)
-
-  current_replicas
+# Scales the resource and returns the ready replica count once it settles.
+def scale_and_wait(resource, target : Int32, args) : String
+  Log.for("scale_and_wait").info { "#{resource["kind"]}/#{resource["metadata"]["name"]} in #{resource["metadata"]["namespace"]}: scaling to #{target}" }
+  KubectlClient::Utils.scale("#{resource["kind"]}", "#{resource["metadata"]["name"]}", target, resource.dig("metadata", "namespace").as_s)
+  wait_for_scaling(resource, target.to_s, args)
 end
 
 def wait_for_scaling(resource, target_replica_count, args)
