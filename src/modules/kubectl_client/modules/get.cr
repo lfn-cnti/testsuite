@@ -81,25 +81,6 @@ module KubectlClient
       "#{cmd} -o json"
     end
 
-    def self.privileged_containers(namespace : String? = nil, all_namespaces : Bool? = true) : Array(JSON::Any)
-      logger = @@logger.for("privileged_containers")
-      logger.debug { "Get privileged containers" }
-
-      pods = resource("pods", namespace: namespace, all_namespaces: all_namespaces).dig("items").as_a
-      privileged_containers = pods.map do |pod|
-        pod.dig("spec", "containers").as_a.map do |container|
-          if container.dig?("securityContext", "privileged") == true
-            container
-          else
-            nil
-          end
-        end.compact
-      end.flatten
-      logger.info { "Found #{privileged_containers.size} privileged containers" }
-
-      privileged_containers
-    end
-
     def self.resource_map(k8s_manifest, &)
       nodes = resource("nodes")
       if nodes["items"]?
@@ -379,6 +360,27 @@ module KubectlClient
       logger.info { "Matched #{matched_pods.size} pods: #{KubectlClient.names_from_json_array_to_s(matched_pods)}" }
 
       matched_pods
+    end
+
+    # Every container a workload resource declares - containers, initContainers
+    # and ephemeralContainers - from its pod spec (a Pod's own spec, or the
+    # template's for the kinds that carry one). Tests that judge containers
+    # read this so that none of them forgets a list.
+    def self.resource_all_containers(kind : String, resource_name : String, namespace : String? = nil) : Array(JSON::Any)
+      logger = @@logger.for("resource_all_containers")
+      logger.debug { "Get every container of #{kind}/#{resource_name}" }
+
+      pod_spec = case kind.downcase
+                 when "pod"
+                   resource(kind, resource_name, namespace).dig?("spec")
+                 when "deployment", "statefulset", "replicaset", "daemonset", "job"
+                   resource(kind, resource_name, namespace).dig?("spec", "template", "spec")
+                 end
+      return [] of JSON::Any if pod_spec.nil?
+
+      ["containers", "initContainers", "ephemeralContainers"].flat_map do |list|
+        pod_spec.dig?(list).try(&.as_a?) || [] of JSON::Any
+      end
     end
 
     def self.resource_containers(kind : String, resource_name : String, namespace : String? = nil) : JSON::Any
