@@ -1,4 +1,5 @@
 require "totem"
+require "../cli_invocation"
 require "colorize"
 require "../../../modules/helm"
 require "uuid"

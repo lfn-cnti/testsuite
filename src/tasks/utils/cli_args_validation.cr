@@ -1,6 +1,7 @@
 require "sam"
 require "./cli_options"
 require "./cli_parser"
+require "./cli_invocation"
 
 # Exit code for CLI usage errors (sysexits EX_USAGE).
 USAGE_EXIT_CODE = 64
