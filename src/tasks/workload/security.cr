@@ -98,7 +98,9 @@ scored_task "selinux_options",
     check_failures = Kyverno.filter_failures_for_cnf_resources(resource_keys, check_failures)
 
     if check_failures.size == 0
-      result.na("Pods are not using SELinux")
+      # No seLinuxOptions at all: nothing escalatory is configured, which is
+      # exactly what certification asks for.
+      result.passed("Pods do not set seLinuxOptions")
     else
       failures = Kyverno.filter_failures_for_cnf_resources(resource_keys, disallow_failures)
 

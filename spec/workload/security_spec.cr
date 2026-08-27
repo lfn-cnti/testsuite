@@ -369,12 +369,12 @@ describe "Security" do
     end
   end
 
-  it "'selinux_options' should be skipped if containers do not use custom selinux options", tags: ["selinux_options"] do
+  it "'selinux_options' should pass if containers do not set selinux options at all", tags: ["selinux_options"] do
     begin
       ShellCmd.cnf_install("cnf-config=./sample-cnfs/sample_nonroot")
       result = ShellCmd.run_testsuite("selinux_options")
       result[:status].success?.should be_true
-      (/(N\/A).*(Pods are not using SELinux)/ =~ result[:output]).should_not be_nil
+      (/(PASSED).*(Pods do not set seLinuxOptions)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end
