@@ -43,23 +43,25 @@ module ShellCmd
     run(cmd, log_prefix: "ShellCmd.run_testsuite", force_output: true, joined_output: true)
   end
 
+  # A failed install or uninstall fails the example with the suite's own
+  # output, so CI logs show why rather than just `Expected: true, got: false`.
+  private def self.expect_outcome(result, command : String, expect_failure : Bool)
+    if !expect_failure && !result[:status].success?
+      fail "#{command} failed (exit #{result[:status].exit_code}):\n#{result[:output]}"
+    elsif expect_failure && result[:status].success?
+      fail "#{command} succeeded but was expected to fail:\n#{result[:output]}"
+    end
+  end
+
   def self.cnf_install(install_params, timeout=300, cmd_prefix="", expect_failure=false)
     result = run_testsuite("cnf_install #{install_params} --timeout #{timeout}", cmd_prefix)
-    if !expect_failure
-      result[:status].success?.should be_true
-    else
-      result[:status].success?.should be_false
-    end
+    expect_outcome(result, "cnf_install #{install_params}", expect_failure)
     result
   end
 
   def self.cnf_uninstall(timeout=300, cmd_prefix="", expect_failure=false)
     result = run_testsuite("cnf_uninstall --timeout #{timeout}", cmd_prefix)
-    if !expect_failure
-      result[:status].success?.should be_true
-    else
-      result[:status].success?.should be_false
-    end
+    expect_outcome(result, "cnf_uninstall", expect_failure)
     result
   end
 end

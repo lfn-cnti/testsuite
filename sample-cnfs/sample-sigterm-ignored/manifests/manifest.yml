@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sigterm-ignored
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: sigterm-ignored
+  labels:
+    app: sigterm-ignored
+  name: sigterm-ignored
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sigterm-ignored
+  template:
+    metadata:
+      labels:
+        app: sigterm-ignored
+    spec:
+      # Short so the failing case is judged quickly; a process that handles
+      # SIGTERM exits long before this.
+      terminationGracePeriodSeconds: 10
+      containers:
+      # A tag the self-hosted CI runners already pull for other fixtures.
+      - image: busybox:1.33.1
+        # `sleep` installs no SIGTERM handler; as PID 1 the kernel therefore
+        # discards SIGTERM and the process keeps running (issue #2482).
+        command: ["/bin/sleep", "2147483647"]
+        name: sigterm-ignored
+        resources: {}

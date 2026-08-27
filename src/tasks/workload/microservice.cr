@@ -555,6 +555,24 @@ def attach_strace(pid : String, node : JSON::Any)
   StraceAttachResult::Attached
 end
 
+# Waits up to `seconds` for every pid in `pids` to terminate on `node`, polling
+# once a second, and returns the pids still alive when the window closes. A
+# zombie has terminated: it only awaits its parent's wait(), which is the
+# zombie_handled test's concern, not this one's.
+def wait_for_processes_to_exit(pids : Array(String), node : JSON::Any, seconds : Int32) : Array(String)
+  survivors = pids
+  started = Time.utc
+  loop do
+    # No quotes inside: the probe travels through a local shell and kubectl exec.
+    probe = survivors.map { |p| "s=$(grep -m1 ^State: /proc/#{p}/status 2>/dev/null | cut -f2 | cut -c1); [ -n \"$s\" ] && [ \"$s\" != Z ] && echo #{p}" }.join("; ")
+    output = ClusterTools.exec_by_node("sh -c '#{probe}; true'", node)[:output]
+    survivors = output.split("\n").map(&.strip).reject(&.empty?)
+    break if survivors.empty? || Time.utc - started >= seconds.seconds
+    sleep 1.second
+  end
+  survivors
+end
+
 # Check if SIGTERM appears in all strace log files
 def check_sigterm_in_strace_logs(pid : String, node : JSON::Any) : Bool
   # List all thread log files for this PID on the remote node
@@ -598,9 +616,14 @@ scored_task "sig_term_handled",
       test_reason: String | Nil
     )
 
+    # Containers that could not be judged, with the reason; they never count
+    # against the CNF.
+    skipped_containers = [] of NamedTuple(pod: String, container: String, reason: String)
+    judged_any = false
+
     #Track already tested pods
     tested_pods = Set(String).new
- 
+
     # Iterate over all resources
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, container, _|
       kind = resource["kind"].downcase
@@ -635,113 +658,92 @@ scored_task "sig_term_handled",
           logger.info { "Skipping already tested pod: #{pod_unique_id}" }
           next true
         end
-        
+
         KubectlClient::Wait.wait_for_resource_availability("pod", pod_name, pod_namespace, GENERIC_OPERATION_TIMEOUT)
 
         status = pod["status"]
         next true unless status["containerStatuses"]?
 
-        container_statuses = status["containerStatuses"].as_a
+        # The window a process gets to act on SIGTERM is the one the kubelet
+        # would give it: the pod's grace period.
+        grace_seconds = pod.dig?("spec", "terminationGracePeriodSeconds").try(&.as_i) || 30
+        grace_seconds = {grace_seconds, GENERIC_OPERATION_TIMEOUT}.min
+
         pod_passed = status["containerStatuses"].as_a.all? do |c_stat|
           c_name = c_stat["name"].as_s
-          ready  = c_stat["ready"].as_bool
-          unless ready
-            failed_containers << {
-              namespace: pod_namespace,
-              pod: pod_name,
-              container: c_name,
-              test_status: "skipped",
-              test_reason: "Not ready"
-            }
-            next false
+          skip = ->(reason : String) do
+            logger.info { "Skipping #{pod_name}/#{c_name}: #{reason}" }
+            skipped_containers << {pod: pod_name, container: c_name, reason: reason}
+            true
           end
+
+          next skip.call("container not ready") unless c_stat["ready"].as_bool
 
           # Find the container's host PID
           c_id = c_stat["containerID"].as_s
           node = KubectlClient::Get.nodes_by_pod(pod).first
           pid  = ClusterTools.node_pid_by_container_id(c_id, node)
+          next skip.call("no node PID found for the container") if pid.nil? || pid.empty?
 
-          if pid.nil? || pid.empty?
-            failed_containers << {
-              namespace: pod_namespace,
-              pod: pod_name,
-              container: c_name,
-              test_status: "skipped",
-              test_reason: "No Node PID found"
-            }
-            next false
-          end
-
-          # Child process check
+          # The container's processes, threads excluded (Tgid != Pid means a thread).
           pids           = KernelIntrospection::K8s::Node.pids(node)
           proc_statuses  = KernelIntrospection::K8s::Node.all_statuses_by_pids(pids, node)
           process_tree   = KernelIntrospection::K8s::Node.proctree_by_pid(pid, node, proc_statuses)
-
-          # Filter out threads (Tgid != Pid means it's a thread).
           non_threads = process_tree.select do |info|
             tgid = info["Tgid"].to_s.strip
             cpid = info["Pid"].to_s.strip
             tgid.empty? || (tgid == cpid)
           end
 
-          # Attach strace to each non-thread process (besides the top if it has children)
-          attached_pids = [] of String
-          non_threads.each do |info|
-            cpid = info["Pid"].to_s.strip
+          # What is judged: a lone PID 1 is judged itself; a PID 1 with children
+          # is a supervisor, and its children are judged instead - SIGTERM sent to
+          # the supervisor must reach them and they must act on it.
+          judged = non_threads.map { |info| info["Pid"].to_s.strip }
+          supervised = judged.size > 1
+          judged = judged.reject { |cpid| cpid == pid } if supervised
+          next skip.call("no process to judge") if judged.empty?
 
-            # If the container has multiple processes, we want to verify that the SIGTERM signal sent to PID 1
-            # is properly propagated to its child processes.
-            if cpid == pid && non_threads.size > 1
-              logger.info {"Skipping top PID #{cpid} (it has children)."}
-              next
-            end
-
-            attach_result = attach_strace(cpid, node)
-            case attach_result
+          # strace is evidence, not the verdict: for a supervised child it shows
+          # whether the signal was forwarded at all. A tracer that cannot attach
+          # (ptrace restrictions) leaves the outcome check to decide alone.
+          traced = [] of String
+          judged.dup.each do |cpid|
+            case attach_strace(cpid, node)
             when StraceAttachResult::Attached
-              attached_pids << cpid
+              traced << cpid
             when StraceAttachResult::NotPermitted
-              logger.info {"Skipping process #{cpid}; strace not permitted."}
+              logger.info { "strace not permitted for PID #{cpid}; judging by outcome only." }
             when StraceAttachResult::NoSuchProcess
-              logger.info {"Skipping ephemeral/gone process #{cpid}."}
+              logger.info { "Process #{cpid} is gone already; not judged." }
+              judged.delete(cpid)
             end
           end
+          next skip.call("no process to judge") if judged.empty?
+          sleep(Time::Span.new(seconds: STRACE_WAIT_BUFFER)) unless traced.empty?
 
-          logger.info {"Attached strace to PIDs: #{attached_pids.join(", ")}"}
-          sleep(Time::Span.new(seconds: STRACE_WAIT_BUFFER))
+          judged_any = true
+          ClusterTools.exec_by_node("kill -TERM #{pid} || true", node)
+          survivors = wait_for_processes_to_exit(judged, node, grace_seconds)
+          # Whatever is still alive did not act on SIGTERM; end it the way the
+          # kubelet would, so the pod can restart and the next test starts clean.
+          ClusterTools.exec_by_node("kill -9 #{pid} || true", node) unless survivors.empty? && !supervised
+          sleep(Time::Span.new(seconds: STRACE_WAIT_BUFFER)) unless traced.empty?
 
-          # Send SIGTERM => wait => SIGKILL
-          ClusterTools.exec_by_node("bash -c 'kill -TERM #{pid} || true; sleep 5; kill -9 #{pid} || true'", node)
-          sleep(Time::Span.new(seconds: STRACE_WAIT_BUFFER))
+          not_delivered = traced.reject { |cpid| check_sigterm_in_strace_logs(cpid, node) }
+          logger.info { "#{pod_name}/#{c_name}: judged #{judged}, survivors after #{grace_seconds}s: #{survivors}, never received SIGTERM: #{not_delivered}" }
 
-          # If no processes were attached, treat that as "skip"
-          if attached_pids.empty?
-            failed_containers << {
-              namespace: pod_namespace,
-              pod: pod_name,
-              container: c_name,
-              test_status: "skipped",
-              test_reason: "No valid processes to trace."
-            }
-            next false
-          end
-
-          # Check each attached process's log for SIGTERM
-          results = attached_pids.map do |p|
-            found = check_sigterm_in_strace_logs(p, node)
-            logger.info {"PID #{p} => SIGTERM captured? #{found}"}
-            found
-          end
-
-          if results.all?(true)
+          if survivors.empty? && not_delivered.empty?
             true
           else
+            reason = [] of String
+            reason << "still running #{grace_seconds}s after SIGTERM: #{survivors.join(", ")}" unless survivors.empty?
+            reason << "never received SIGTERM (not forwarded by PID 1): #{not_delivered.join(", ")}" unless not_delivered.empty?
             failed_containers << {
               namespace: pod_namespace,
               pod: pod_name,
               container: c_name,
               test_status: "failed",
-              test_reason: "At least one process did not observe SIGTERM"
+              test_reason: reason.join("; ")
             }
             false
           end
@@ -755,14 +757,17 @@ scored_task "sig_term_handled",
       end
     end
 
-    if task_response
+    skipped_containers.each do |info|
+      result.append_description("Pod: #{info[:pod]}, Container: #{info[:container]}, Result: skipped, Reason: #{info[:reason]}")
+    end
+
+    if task_response && !judged_any
+      result.skipped("Sig Term handling not checked: no container could be traced")
+    elsif task_response
       result.passed("Sig Term handled")
     else
-      # Otherwise, print out each container that failed or was skipped
       failed_containers.each do |info|
-        msg = "Pod: #{info["pod"]}, Container: #{info["container"]}, Result: #{info["test_status"]}"
-        msg += ", Reason: #{info["test_reason"]}" if info["test_status"] == "skipped"
-        result.append_description(msg)
+        result.add_impacted_resource("Pod", info[:pod], info[:namespace], container: info[:container], reason: info[:test_reason].to_s)
       end
       result.failed("Sig Term not handled")
     end
