@@ -16,18 +16,55 @@ scored_task "log_output",
   type: CNFManager::TestType::Essential,
   emoji: "📶☠️" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # Pods whose logs could not be read (not scheduled, container still
+    # creating, ...) are reported, never judged.
+    unreadable = [] of String
+    judged_any = false
+
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
-      test_passed = false
+      resource_yaml = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+      pods = KubectlClient::Get.pods_by_resource_labels(resource_yaml, resource[:namespace])
 
-      log_result = KubectlClient::Utils.logs("#{resource["kind"]}/#{resource["name"]}", namespace: resource[:namespace], options: "--all-containers --tail=5 --prefix=true")
-      Log.for("Log lines").info { log_result[:output] }
-      if log_result[:output].size > 0
-        test_passed = true
-       end
+      # Every pod of the resource is read - `kubectl logs <kind>/<name>` would
+      # sample just one - and the resource logs if any of them does.
+      logging = [] of String
+      quiet = [] of String
+      pods.each do |pod|
+        pod_name = pod.dig("metadata", "name").as_s
+        # A pod that is not running has nothing to say yet; kubectl prints no
+        # logs and no error for one that was never scheduled.
+        phase = pod.dig?("status", "phase").try(&.as_s) || "Unknown"
+        unless phase == "Running"
+          unreadable << "#{resource[:kind]}/#{resource[:name]} pod #{pod_name}: pod is #{phase}"
+          next
+        end
+        begin
+          log_result = KubectlClient::Utils.logs("pod/#{pod_name}", namespace: resource[:namespace], options: "--all-containers --tail=5 --prefix=true")
+          Log.for(t.name).info { "#{pod_name} log lines: #{log_result[:output]}" }
+          (log_result[:output].strip.empty? ? quiet : logging) << pod_name
+        rescue ex : KubectlClient::ShellCMD::NetworkError
+          raise ex
+        rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+          unreadable << "#{resource[:kind]}/#{resource[:name]} pod #{pod_name}: #{ex.message.to_s.lines.first?.to_s.strip}"
+        end
+      end
 
-      test_passed
+      # Nothing readable: this resource is not judged.
+      next true if logging.empty? && quiet.empty?
+      judged_any = true
+
+      if logging.empty?
+        quiet.each { |pod_name| result.add_impacted_resource("Pod", pod_name, resource[:namespace], reason: "no log output on stdout/stderr") }
+        false
+      else
+        true
+      end
     end
-    if task_response 
+
+    unreadable.each { |line| result.append_description("Logs could not be read: #{line}") }
+    if !judged_any
+      result.skipped("Log output not checked: no pod's logs could be read")
+    elsif task_response
       result.passed("Resources output logs to stdout and stderr")
     else
       result.failed("Resources do not output logs to stdout and stderr")

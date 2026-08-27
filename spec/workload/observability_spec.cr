@@ -33,6 +33,39 @@ describe "Observability" do
     end
   end
 
+  it "'log_output' should be skipped when no pod is running yet", tags: ["observability_log_output"] do
+    begin
+      # A pod that never schedules has nothing to log; kubectl returns no
+      # output and no error for it, which used to count as "quiet" (#2488).
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-unschedulable --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("log_output")
+      result[:status].success?.should be_true
+      (/(SKIPPED).*(Log output not checked)/ =~ result[:output]).should_not be_nil
+      result[:output].should contain("Logs could not be read: Deployment/unschedulable")
+      result[:output].should contain("pod is Pending")
+      verify_task_result("log_output", "skipped")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'log_output' should be skipped, not crash, when a pod's logs cannot be read", tags: ["observability_log_output"] do
+    begin
+      # The image can never be pulled, so `kubectl logs` errors; that used to
+      # be an unhandled exception (exit 2) rather than a verdict (#2488).
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-unpullable-image --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("log_output")
+      result[:status].success?.should be_true
+      (/(SKIPPED).*(Log output not checked)/ =~ result[:output]).should_not be_nil
+      result[:output].should contain("Logs could not be read: Deployment/unpullable-image")
+      verify_task_result("log_output", "skipped")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
   it "'prometheus_traffic' should pass if there is prometheus traffic", tags: ["observability_prometheus_traffic"] do
     ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-prom-pod-discovery/cnf-testsuite.yml")
     helm = Helm::Binary.get

@@ -813,7 +813,7 @@ All observability: `./cnf-testsuite observability`
 
 #### Overview
 
-This checks and verifies that STDOUT/STDERR logging is configured for the CNF.
+This checks and verifies that STDOUT/STDERR logging is configured for the CNF. The last log lines of every pod of each workload resource are read; a resource passes when any of its pods has written to stdout/stderr. Pods whose logs cannot be read yet (not scheduled, container still starting) are reported and left out of the verdict; the test is skipped when no pod could be read.
 Expectation: Resource output logs should be sent to STDOUT/STDERR
 
 #### Rationale
