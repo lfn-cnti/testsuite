@@ -198,6 +198,36 @@ scored_task "hostport_not_used",
   end
 end
 
+# The YAML documents of a multi-document manifest with the line range each
+# occupies (1-based, inclusive) and its kind/name/namespace when parseable.
+def manifest_documents(lines : Array(String)) : Array(NamedTuple(first_line: Int32, last_line: Int32, kind: String?, name: String?, namespace: String?))
+  documents = [] of NamedTuple(first_line: Int32, last_line: Int32, kind: String?, name: String?, namespace: String?)
+  start = 0
+  flush = ->(last : Int32) do
+    chunk = lines[start..last]
+    unless chunk.all?(&.strip.empty?)
+      kind = name = namespace = nil
+      begin
+        parsed = YAML.parse(chunk.join("\n"))
+        kind = parsed.dig?("kind").try(&.as_s?)
+        name = parsed.dig?("metadata", "name").try(&.as_s?)
+        namespace = parsed.dig?("metadata", "namespace").try(&.as_s?)
+      rescue
+        # a document that does not parse still gets its line range
+      end
+      documents << {first_line: start + 1, last_line: last + 1, kind: kind, name: name, namespace: namespace}
+    end
+  end
+  lines.each_with_index do |line, index|
+    if line.strip == "---"
+      flush.call(index - 1) if index > start
+      start = index + 1
+    end
+  end
+  flush.call(lines.size - 1) if start < lines.size
+  documents
+end
+
 desc "Does the CNF have hardcoded IPs in the K8s resource configuration"
 scored_task "hardcoded_ip_addresses_in_k8s_runtime_configuration",
   type: CNFManager::TestType::Essential do |t, args|
@@ -208,22 +238,20 @@ scored_task "hardcoded_ip_addresses_in_k8s_runtime_configuration",
     ]
     hardcoded_ip_exceptions = config.common.hardcoded_ip_exceptions
 
-    found_violations = [] of NamedTuple(line_number: Int32, line: String)
-    line_number = 1
-    File.open(COMMON_MANIFEST_FILE_PATH) do |file|
-      file.each_line do |line|
-        ip_adress_regex = /((?:\d{1,3}\.){3}\d{1,3})(?:\/(\d{1,2}))?/
-        if line.matches?(/NOTES:/)
-          break
-        elsif matches = line.scan(ip_adress_regex)
-          matches.each do |match|
-            ip = match[1]
-            cidr_suffix = match[2]?
-            next if allowed_ip_addresses.includes?(ip) || hardcoded_ip_exceptions.any? { |e| e.ip == ip } || cidr_suffix
-            found_violations << {line_number: line_number, line: line.strip}
-          end
-        end
-        line_number += 1
+    # The composite manifest is scanned line by line; each hit is attributed to
+    # the YAML document it sits in, so the result names the resource - the
+    # manifest's line numbers alone mean nothing to the CNF's author.
+    lines = File.read_lines(COMMON_MANIFEST_FILE_PATH)
+    documents = manifest_documents(lines)
+    ip_adress_regex = /((?:\d{1,3}\.){3}\d{1,3})(?:\/(\d{1,2}))?/
+    found_violations = [] of NamedTuple(line_number: Int32, line: String, ip: String)
+    lines.each_with_index do |line, index|
+      break if line.matches?(/NOTES:/)
+      line.scan(ip_adress_regex).each do |match|
+        ip = match[1]
+        cidr_suffix = match[2]?
+        next if allowed_ip_addresses.includes?(ip) || hardcoded_ip_exceptions.any? { |e| e.ip == ip } || cidr_suffix
+        found_violations << {line_number: index + 1, line: line.strip, ip: ip}
       end
     end
 
@@ -232,8 +260,15 @@ scored_task "hardcoded_ip_addresses_in_k8s_runtime_configuration",
     else
       result.append_description("Hard-coded IP addresses found in #{COMMON_MANIFEST_FILE_PATH}")
       found_violations.each do |violation|
-        result.append_description("  * Line #{violation[:line_number]}: #{violation[:line]}")
+        doc = documents.find { |d| d[:first_line] <= violation[:line_number] && violation[:line_number] <= d[:last_line] }
+        reason = "hard-coded IP #{violation[:ip]} at line #{violation[:line_number]}: #{violation[:line]}"
+        if doc && doc[:kind] && doc[:name]
+          result.add_impacted_resource(doc[:kind].to_s, doc[:name].to_s, doc[:namespace], reason: reason)
+        else
+          result.add_impacted_resource("Manifest", File.basename(COMMON_MANIFEST_FILE_PATH), reason: reason)
+        end
       end
+      result.append_remediation("Replace hard-coded IP addresses with Service names, DNS names or configuration that is resolved at deploy time. An address that must stay literal can be declared under `common.hardcoded_ip_exceptions` in cnf-testsuite.yml so this test accepts it.")
       result.failed("Hard-coded IP addresses found in the runtime K8s configuration")
     end
   end
