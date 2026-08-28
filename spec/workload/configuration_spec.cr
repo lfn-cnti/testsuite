@@ -194,7 +194,7 @@ describe CnfTestSuite do
       result = ShellCmd.run_testsuite("hostport_not_used")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(HostPort is being used)/ =~ result[:output]).should_not be_nil
-      (/impacted: Pod\/hostport-pod.*\(container hostport-pod\): using a HostPort/ =~ result[:output]).should_not be_nil
+      (/impacted: Pod\/hostport-pod.*\(container hostport-pod\): using hostPort 18080 for containerPort 8080/ =~ result[:output]).should_not be_nil
       verify_task_result("hostport_not_used", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()

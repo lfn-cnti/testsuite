@@ -151,17 +151,20 @@ scored_task "privileged_containers",
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     white_list_container_names = config.common.white_list_container_names
     Log.debug { "white_list_container_names #{white_list_container_names.inspect}" }
-    violation_list = [] of NamedTuple(kind: String, name: String, container: String, namespace: String)
+    violation_list = [] of NamedTuple(kind: String, name: String, container: String, namespace: String, init: Bool)
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
       # The resource's own containers - init and ephemeral ones included - judged
       # by their own securityContext, never by a name shared with some privileged
       # container elsewhere in the cluster.
       resource_passed = true
+      live = KubectlClient::Get.resource(resource["kind"], resource["name"], resource["namespace"])
+      pod_spec = live.dig?("spec", "template", "spec") || live.dig?("spec")
+      init_names = (pod_spec.try(&.dig?("initContainers")).try(&.as_a?) || [] of JSON::Any).compact_map { |c| c.dig?("name").try(&.as_s?) }
       KubectlClient::Get.resource_all_containers(resource["kind"], resource["name"], resource["namespace"]).each do |container|
         container_name = container.dig?("name").try(&.as_s) || ""
         next if white_list_container_names.includes?(container_name)
         next unless container.dig?("securityContext", "privileged") == true
-        violation_list << {kind: resource["kind"], name: resource["name"], container: container_name, namespace: resource["namespace"]}
+        violation_list << {kind: resource["kind"], name: resource["name"], container: container_name, namespace: resource["namespace"], init: init_names.includes?(container_name)}
         resource_passed = false
       end
       resource_passed
@@ -172,7 +175,7 @@ scored_task "privileged_containers",
     else
       violation_list.each do |violation|
         result.add_impacted_resource(violation[:kind], violation[:name], violation[:namespace],
-          container: violation[:container], reason: "privileged container")
+          container: violation[:container], reason: violation[:init] ? "privileged init container" : "privileged container")
       end
       result.failed("Found #{violation_list.size} privileged containers")
     end

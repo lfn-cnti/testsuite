@@ -124,6 +124,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("single_process_type")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(More than one process type used)/ =~ result[:output]).should_not be_nil
+      (/impacted: [A-Za-z]+\/.* in .* \(container .+\): \d+ process types: /=~ result[:output]).should_not be_nil
       verify_task_result("single_process_type", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -137,6 +138,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("single_process_type")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(More than one process type used)/ =~ result[:output]).should_not be_nil
+      (/impacted: [A-Za-z]+\/.* in .* \(container .+\): \d+ process types: /=~ result[:output]).should_not be_nil
       verify_task_result("single_process_type", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -235,8 +237,8 @@ describe "Microservice" do
       item.not_nil!["status"].as_s.should eq("failed")
 
       impacted = item.not_nil!["impacted_resources"].as_a
-      (impacted.any? { |r| r["kind"].as_s == "pod" && (/demo-labeled-[a-z0-9-]+/ =~ r["name"].as_s) && r["container"].as_s == "app" && (/as init process/ =~ r["reason"].as_s) }).should be_true
-      (impacted.any? { |r| r["kind"].as_s == "pod" && (/demo-owned-[a-z0-9-]+/ =~ r["name"].as_s) && r["container"].as_s == "app" && (/as init process/ =~ r["reason"].as_s) }).should be_true
+      (impacted.any? { |r| r["kind"].as_s == "Pod" && (/demo-labeled-[a-z0-9-]+/ =~ r["name"].as_s) && r["container"].as_s == "app" && (/as init process/ =~ r["reason"].as_s) }).should be_true
+      (impacted.any? { |r| r["kind"].as_s == "Pod" && (/demo-owned-[a-z0-9-]+/ =~ r["name"].as_s) && r["container"].as_s == "app" && (/as init process/ =~ r["reason"].as_s) }).should be_true
 
       (/(FAILED).*(Containers do not use specialized init systems)/ =~ result[:output]).should_not be_nil
     ensure
@@ -378,6 +380,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("zombie_handled")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Zombie not handled)/ =~ result[:output]).should_not be_nil
+      (/impacted: Pod\/.* in .* \(container .+\): process .* \(pid \d+, parent \d+\) is a zombie/ =~ result[:output]).should_not be_nil
       verify_task_result("zombie_handled", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()

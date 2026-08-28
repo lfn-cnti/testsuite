@@ -47,7 +47,7 @@ module InitSystems
         container_name = container["name"]
         container_init_cmd = init_cmd.not_nil!
         init_info = InitSystems::InitSystemInfo.new(
-          "pod",
+          "Pod",
           resource_namespace,
           pod_name.as_s,
           container_name.as_s,
