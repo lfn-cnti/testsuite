@@ -32,6 +32,23 @@ describe "Compatibility" do
     end
   end
 
+  it "'increase_decrease_capacity' should say why a scale-up did not happen", tags: ["increase_decrease_capacity"] do
+    begin
+      # A ResourceQuota of one pod makes the cluster refuse the extra replicas;
+      # the ReplicaSet's FailedCreate event is the cause and must be reported.
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-capacity-quota/")
+      result = ShellCmd.run_testsuite("increase_decrease_capacity")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(Capacity change failed)/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/capacity-quota in capacity-quota: could not scale up to 3 replicas \(1 ready\): / =~ result[:output]).should_not be_nil
+      (/event ReplicaSet\/capacity-quota-[a-z0-9]+: FailedCreate: .*exceeded quota/ =~ result[:output]).should_not be_nil
+      verify_task_result("increase_decrease_capacity", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
   it "'increase_decrease_capacity' should pass ", tags: ["increase_decrease_capacity"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnf-testsuite.yml --skip-wait-for-install")

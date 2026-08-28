@@ -1,0 +1,41 @@
+# A Deployment in a namespace whose ResourceQuota allows a single pod, so any
+# scale-up is refused by the cluster (FailedCreate: exceeded quota) and the
+# ReplicaSet, not a pod, carries the explanation. Used to verify that
+# increase_decrease_capacity reports why a scale-up did not happen.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: capacity-quota
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: one-pod
+  namespace: capacity-quota
+spec:
+  hard:
+    pods: "1"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: capacity-quota
+  namespace: capacity-quota
+  labels:
+    app: capacity-quota
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: capacity-quota
+  template:
+    metadata:
+      labels:
+        app: capacity-quota
+    spec:
+      containers:
+      - name: app
+        image: busybox:1.33.1
+        command: ["/bin/sleep", "2147483647"]
