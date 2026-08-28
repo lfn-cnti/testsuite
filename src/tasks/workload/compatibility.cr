@@ -195,14 +195,18 @@ scored_task "increase_decrease_capacity",
         ready = scale_and_wait(resource, target, args)
         if ready != target.to_s
           failures << "#{ref} in #{namespace}: increase from #{replicas} to #{target} replicas did not complete (#{ready} ready)"
-          result.add_impacted_resource(resource["kind"].as_s, name, namespace, reason: "could not scale up to #{target} replicas")
+          why = WorkloadDiagnostics.report(result, resource["kind"].as_s, name, namespace, "#{ref} while scaling to #{target}")
+          result.add_impacted_resource(resource["kind"].as_s, name, namespace,
+            reason: "could not scale up to #{target} replicas (#{ready} ready)#{why.first?.try { |w| ": #{w}" }}")
           next
         end
 
         ready = scale_and_wait(resource, replicas, args)
         if ready != replicas.to_s
           failures << "#{ref} in #{namespace}: decrease from #{target} back to #{replicas} replicas did not complete (#{ready} ready)"
-          result.add_impacted_resource(resource["kind"].as_s, name, namespace, reason: "could not scale back down to #{replicas} replicas")
+          why = WorkloadDiagnostics.report(result, resource["kind"].as_s, name, namespace, "#{ref} while scaling back to #{replicas}")
+          result.add_impacted_resource(resource["kind"].as_s, name, namespace,
+            reason: "could not scale back down to #{replicas} replicas (#{ready} ready)#{why.first?.try { |w| ": #{w}" }}")
         end
       end
     ensure

@@ -316,6 +316,12 @@ scored_task "node_drain",
             KubectlClient::Apply.file(chaos_template_path)
             LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
             test_passed = LitmusManager.check_chaos_verdict(chaos_result_name, chaos_experiment_name, args, namespace: app_namespace, result: result)
+            unless test_passed
+              # The verdict says the workload did not come back; say where it stands.
+              why = WorkloadDiagnostics.report(result, resource["kind"], resource["name"], app_namespace, "#{resource["kind"]}/#{resource["name"]} after draining #{app_node_name} for #{NODE_DRAIN_TOTAL_CHAOS_DURATION}s")
+              result.add_impacted_resource(resource["kind"], resource["name"], app_namespace,
+                reason: "did not recover from draining node #{app_node_name}#{why.first?.try { |w| ": #{w}" }}")
+            end
           end
         ensure
           # Uncordon the node whatever happened above. Without this, a test that raises
