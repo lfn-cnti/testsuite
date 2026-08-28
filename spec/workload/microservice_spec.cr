@@ -97,6 +97,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("single_process_type")
       result[:status].success?.should be_true
       (/(PASSED).*(Only one process type used)/ =~ result[:output]).should_not be_nil
+      (/> [A-Za-z]+\/.* container .*: (process type |no application process)/ =~ result[:output]).should_not be_nil
       verify_task_result("single_process_type", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -219,6 +220,7 @@ describe "Microservice" do
     result = ShellCmd.run_testsuite("specialized_init_system")
     result[:status].success?.should be_true
     (/Containers use specialized init systems/ =~ result[:output]).should_not be_nil
+    (/> Pod\/.* container .*: init '/ =~ result[:output]).should_not be_nil
   ensure
     result = ShellCmd.cnf_uninstall()
   end
@@ -283,6 +285,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("sig_term_handled")
       result[:status].success?.should be_true
       (/(PASSED).*(Sig Term handled)/ =~ result[:output]).should_not be_nil
+      (/> Checked .*: PID 1 \d+.*judged pid\(s\) \d+/ =~ result[:output]).should_not be_nil
       verify_task_result("sig_term_handled", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -366,6 +369,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("zombie_handled")
       result[:status].success?.should be_true
       (/(PASSED).*(Zombie handled)/ =~ result[:output]).should_not be_nil
+      (/> Zombie probe injected into \d+ container\(s\)/ =~ result[:output]).should_not be_nil
       verify_task_result("zombie_handled", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
