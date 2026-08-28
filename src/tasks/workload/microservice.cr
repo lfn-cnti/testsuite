@@ -418,6 +418,8 @@ scored_task "single_process_type",
             "NAME=#{proc_name}, PID=#{proc_pid}, PPID=#{proc_ppid}, CMD=#{proc_cmd}"
           end.join("\n")
 
+          result.add_impacted_resource(kind, name, namespace, container: container_name.to_s,
+            reason: "#{app_process_types.size} process types: #{app_process_types.join(", ")}")
           fail_msg = "Container `#{container_name}` in `#{kind}`: `#{name}` (namespace: `#{namespace}`) has multiple process types.\n"
           fail_msg += "Running processes detected:\n"
           fail_msg += "#{proc_list}"
@@ -493,7 +495,9 @@ scored_task "zombie_handled",
           Log.for(t.name).info { "state: #{state}" }
           Log.for(t.name).info { "(state =~ /zombie/): #{(state =~ /zombie/)}" }
           if (state =~ /zombie/) != nil
-            result.add_impacted_resource("Pod", pod_name.as_s, container: container_id.to_s, reason: "process #{status_name} has a state of #{state}")
+            parent_pid = status["PPid"]?.try(&.strip)
+            result.add_impacted_resource("Pod", pod_name.as_s, resource[:namespace], container: container_status["name"].as_s,
+              reason: "process #{status_name} (pid #{current_pid}, parent #{parent_pid}) is a zombie: state #{state}")
             containers_to_restart << {container_id, node}
             pods_to_restart << {pod_name.as_s, resource[:namespace]}
             true
@@ -861,7 +865,7 @@ scored_task "specialized_init_system",
 
         # Report failures
         results.each do |info|
-          result.add_impacted_resource(info.kind.to_s, info.name.to_s, container: info.container.to_s, reason: "'#{info.init_cmd}' as init process")
+          result.add_impacted_resource(info.kind.to_s, info.name.to_s, info.namespace.to_s, container: info.container.to_s, reason: "'#{info.init_cmd}' as init process")
         end
 
         # mark this resource as failing

@@ -190,7 +190,9 @@ scored_task "hostport_not_used",
           hostport = single_port.dig?("hostPort")
           Log.for(t.name).debug { "container #{container_name} port #{single_port}: hostPort #{hostport}" }
           if hostport
-            result.add_impacted_resource(resource[:kind], resource[:name], resource[:namespace], container: container_name, reason: "using a HostPort")
+            container_port = single_port.dig?("containerPort")
+            result.add_impacted_resource(resource[:kind], resource[:name], resource[:namespace], container: container_name,
+              reason: "using hostPort #{hostport} for containerPort #{container_port}")
             test_passed = false
           end
         end

@@ -34,7 +34,7 @@ describe "Security" do
       result = ShellCmd.run_testsuite("privileged_containers")
       result[:status].exit_code.should eq(1)
       (/Found 1 privileged containers/ =~ result[:output]).should_not be_nil
-      (/impacted: .*\(container privileged-setup\): privileged container/ =~ result[:output]).should_not be_nil
+      (/impacted: .*\(container privileged-setup\): privileged init container/ =~ result[:output]).should_not be_nil
       verify_task_result("privileged_containers", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
