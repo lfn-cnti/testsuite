@@ -6,13 +6,15 @@ module InitSystems
     property name
     property container
     property init_cmd
-  
+    property specialized : Bool
+
     def initialize(
       @kind : String,
       @namespace : String,
       @name : String,
       @container : String,
-      @init_cmd : String
+      @init_cmd : String,
+      @specialized : Bool = false
     )
     end
   end
@@ -22,8 +24,10 @@ module InitSystems
     SPECIALIZED_INIT_SYSTEMS.includes?(File.basename(cmd))
   end
 
+  # Every container's PID 1 with whether it is a specialized init system;
+  # nil when a container could not be inspected.
   def self.scan(pod : JSON::Any) : Array(InitSystemInfo) | Nil
-    failed_resources = [] of InitSystemInfo
+    inspected = [] of InitSystemInfo
     error_occurred = false
 
     nodes = KubectlClient::Get.nodes_by_pod(pod)
@@ -35,7 +39,7 @@ module InitSystems
 
     if nodes.size == 0
       Log.for("InitSystems.scan").info { "No nodes found for pod '#{pod_name}' in #{resource_namespace} namespace" }
-      return failed_resources
+      return inspected
     end
 
     pod_node = nodes[0]
@@ -51,19 +55,17 @@ module InitSystems
           resource_namespace,
           pod_name.as_s,
           container_name.as_s,
-          container_init_cmd
+          container_init_cmd,
+          InitSystems.is_specialized_init_system?(container_init_cmd)
         )
         Log.for("InitSystems.scan").info { "#{init_info.kind}/#{init_info.name} has container '#{init_info.container}' with #{init_info.init_cmd} as init process" }
-  
-        if !InitSystems.is_specialized_init_system?(container_init_cmd)
-          failed_resources << init_info
-        end
+        inspected << init_info
       else
         error_occurred = true
       end
     end
 
-    return error_occurred ? nil : failed_resources
+    return error_occurred ? nil : inspected
   end
 
   def self.get_container_init_cmd(node, container_id) : String?

@@ -346,6 +346,7 @@ scored_task "single_process_type",
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     fail_msgs = Set(String).new
     ignored_init_msgs = Set(String).new
+    checked_process_types = [] of String
     resources_checked = false
     test_passed = true
 
@@ -385,6 +386,9 @@ scored_task "single_process_type",
         end.map { |status| status["Name"].strip }.uniq
 
         Log.for(t.name).info { "container '#{container_name}' application process types: #{app_process_types}" }
+        if app_process_types.size <= 1
+          checked_process_types << "#{kind}/#{name} container #{container_name}: #{app_process_types.empty? ? "no application process besides PID 1" : "process type #{app_process_types.first}"}"
+        end
 
         # When the container's init process (PID 1) is a real init/supervisor that is
         # NOT one of the recommended specialized init systems, record that we saw it and
@@ -436,6 +440,7 @@ scored_task "single_process_type",
 
     if resources_checked
       if test_passed
+        checked_process_types.each { |line| result.append_description(line) }
         result.passed("Only one process type used")
       else
         fail_msgs.each { |msg| result.append_description(msg) }
@@ -454,6 +459,7 @@ scored_task "zombie_handled",
   emoji: "⚖👀" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     injection_failures = [] of String
+    probed_containers = [] of String
     CNFManager.resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |resource|
       ClusterTools.all_containers_by_resource?(resource, resource[:namespace], include_proctree: false) do |container_id, container_pid_on_node, node|
         probe_commands = [
@@ -461,13 +467,16 @@ scored_task "zombie_handled",
           "nerdctl --namespace=k8s.io cp /sleep #{container_id}:/sleep",
           "nerdctl --namespace=k8s.io exec #{container_id} /zombie",
         ]
+        injected = true
         probe_commands.each do |probe_command|
           cmd_result = ClusterTools.exec_by_node(probe_command, node)
           next if cmd_result[:status].success?
           Log.for(t.name).error { "zombie probe injection failed for container #{container_id} (#{resource[:kind]}/#{resource[:name]}): #{probe_command}: #{cmd_result[:error]}" }
           injection_failures << "#{resource[:kind]}/#{resource[:name]} container #{container_id}: `#{probe_command}` failed"
+          injected = false
           break
         end
+        probed_containers << "#{resource[:kind]}/#{resource[:name]} container #{container_id.to_s[0, 12]}" if injected
       end
     end
 
@@ -525,6 +534,7 @@ scored_task "zombie_handled",
     end
 
     if task_response
+      result.append_description("Zombie probe injected into #{probed_containers.size} container(s): #{probed_containers.join("; ")}")
       result.passed("Zombie handled")
     else
       result.failed("Zombie not handled")
@@ -623,6 +633,7 @@ scored_task "sig_term_handled",
     # Containers that could not be judged, with the reason; they never count
     # against the CNF.
     skipped_containers = [] of NamedTuple(pod: String, container: String, reason: String)
+    checked_containers = [] of String
     judged_any = false
 
     #Track already tested pods
@@ -727,6 +738,7 @@ scored_task "sig_term_handled",
           sleep(Time::Span.new(seconds: STRACE_WAIT_BUFFER)) unless traced.empty?
 
           judged_any = true
+          checked_containers << "#{pod_name}/#{c_name}: PID 1 #{pid}#{supervised ? " (supervisor)" : ""}, judged pid(s) #{judged.join(", ")}, grace #{grace_seconds}s"
           ClusterTools.exec_by_node("kill -TERM #{pid} || true", node)
           survivors = wait_for_processes_to_exit(judged, node, grace_seconds)
           # Whatever is still alive did not act on SIGTERM; end it the way the
@@ -769,6 +781,7 @@ scored_task "sig_term_handled",
     if task_response && !judged_any
       result.skipped("Sig Term handling not checked: no container could be traced")
     elsif task_response
+      checked_containers.each { |line| result.append_description("Checked #{line}") }
       result.passed("Sig Term handled")
     else
       failed_containers.each do |info|
@@ -828,6 +841,7 @@ scored_task "specialized_init_system",
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     error_occurred    = false
     resources_checked = false
+    checked_inits     = [] of String
 
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
       Log.for(t.name).info { "Checking #{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}" }
@@ -858,13 +872,18 @@ scored_task "specialized_init_system",
           next false
         end
 
+        results.select(&.specialized).each do |info|
+          checked_inits << "#{info.kind}/#{info.name} container #{info.container}: init '#{info.init_cmd}'"
+        end
+        failed = results.reject(&.specialized)
+
         # No failures => this pod passes
-        if results.empty?
+        if failed.empty?
           next true
         end
 
         # Report failures
-        results.each do |info|
+        failed.each do |info|
           result.add_impacted_resource(info.kind.to_s, info.name.to_s, info.namespace.to_s, container: info.container.to_s, reason: "'#{info.init_cmd}' as init process")
         end
 
@@ -880,6 +899,7 @@ scored_task "specialized_init_system",
     elsif !task_response
       result.failed("Containers do not use specialized init systems (ভ_ভ) ރ")
     else
+      checked_inits.each { |line| result.append_description(line) }
       result.passed("Containers use specialized init systems 🖥️")
     end
   end
