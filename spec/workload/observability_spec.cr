@@ -17,6 +17,7 @@ describe "Observability" do
       result = ShellCmd.run_testsuite("log_output")
       result[:status].success?.should be_true
       (/(PASSED).*(Resources output logs to stdout and stderr)/ =~ result[:output]).should_not be_nil
+      (/> [A-Za-z]+\/.* in .*: logs from / =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end

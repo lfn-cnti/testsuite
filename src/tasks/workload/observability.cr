@@ -19,6 +19,7 @@ scored_task "log_output",
     # Pods whose logs could not be read (not scheduled, container still
     # creating, ...) are reported, never judged.
     unreadable = [] of String
+    logged_resources = [] of String
     judged_any = false
 
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
@@ -57,6 +58,7 @@ scored_task "log_output",
         quiet.each { |pod_name| result.add_impacted_resource("Pod", pod_name, resource[:namespace], reason: "no log output on stdout/stderr") }
         false
       else
+        logged_resources << "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}: logs from #{logging.join(", ")}"
         true
       end
     end
@@ -65,6 +67,7 @@ scored_task "log_output",
     if !judged_any
       result.skipped("Log output not checked: no pod's logs could be read")
     elsif task_response
+      logged_resources.each { |line| result.append_description(line) }
       result.passed("Resources output logs to stdout and stderr")
     else
       result.failed("Resources do not output logs to stdout and stderr")
