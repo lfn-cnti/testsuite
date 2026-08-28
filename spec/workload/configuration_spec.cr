@@ -220,6 +220,9 @@ describe CnfTestSuite do
       result = ShellCmd.run_testsuite("hardcoded_ip_addresses_in_k8s_runtime_configuration", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=info")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Hard-coded IP addresses found in the runtime K8s configuration)/ =~ result[:output]).should_not be_nil
+      # each hit is attributed to the resource it sits in, with the address (#2490 follow-up)
+      (/impacted: [A-Za-z]+\/[^ ]+ in [^ ]+: hard-coded IP \d+\.\d+\.\d+\.\d+ at line \d+:/ =~ result[:output]).should_not be_nil
+      (/> remediation: .*hardcoded_ip_exceptions/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end
