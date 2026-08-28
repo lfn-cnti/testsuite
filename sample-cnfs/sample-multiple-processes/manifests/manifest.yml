@@ -7,6 +7,8 @@ metadata:
     pod-security.kubernetes.io/enforce: privileged
 
 ---
+# One container, two application process types under a shell PID 1: busybox
+# httpd serving /tmp, and sleep. The single_process_type test must fail it.
 apiVersion: v1
 kind: Pod
 metadata:
@@ -15,16 +17,17 @@ metadata:
 spec:
   containers:
   - name: multiple-processes
-    image: conformance/sample:processes
+    # renovate: datasource=docker depName=busybox
+    image: busybox:1.33.1@sha256:f7ca5a32c10d51aeda3b4d01c61c6061f497893d7f6628b92f822f7117182a57
+    # The loop keeps the shell as PID 1 (busybox sh would exec a trailing command).
+    command: ["sh", "-c", "httpd -f -p 8080 -h /tmp & while true; do sleep 3600; done"]
     livenessProbe:
       tcpSocket:
-        port: 53
+        port: 8080
       initialDelaySeconds: 3
       periodSeconds: 3
     readinessProbe:
       tcpSocket:
-        port: 53
+        port: 8080
       initialDelaySeconds: 3
       periodSeconds: 3
-    securityContext:
-      privileged: true
