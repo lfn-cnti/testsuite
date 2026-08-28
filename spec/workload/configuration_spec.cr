@@ -370,6 +370,7 @@ describe CnfTestSuite do
       result = ShellCmd.run_testsuite("latest_tag")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Container images are using the latest tag)/ =~ result[:output]).should_not be_nil
+      (/impacted: Pod\/nginx in .* \(container nginx\): image bitnamilegacy\/nginx:latest uses the latest tag/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end

@@ -109,7 +109,16 @@ scored_task "selinux_options",
       else
         failures.each do |failure|
           failure.resources.each do |resource|
-            result.add_impacted_resource(resource.kind, resource.name, resource.namespace, reason: failure.message)
+            options = Kyverno::Findings.selinux_options(resource.kind, resource.name, resource.namespace)
+            if options.empty?
+              result.add_impacted_resource(resource.kind, resource.name, resource.namespace, reason: failure.message)
+            else
+              options.each do |o|
+                reason = "seLinuxOptions #{o[:options]}"
+                container = o[:scope] == "pod" ? nil : o[:scope]
+                result.add_impacted_resource(resource.kind, resource.name, resource.namespace, container: container, reason: reason)
+              end
+            end
           end
         end
         result.failed("Pods are using custom SELinux options that can be used for privilege escalations")
@@ -136,7 +145,19 @@ scored_task "container_sock_mounts",
     else
       failures.each do |failure|
         failure.resources.each do |resource|
-          result.add_impacted_resource(resource.kind, resource.name, resource.namespace, reason: failure.message)
+          mounts = Kyverno::Findings.socket_mounts(resource.kind, resource.name, resource.namespace)
+          if mounts.empty?
+            result.add_impacted_resource(resource.kind, resource.name, resource.namespace, reason: failure.message)
+          else
+            mounts.each do |m|
+              reason = "volume #{m[:volume]} mounts host path #{m[:path]}"
+              if m[:containers].empty?
+                result.add_impacted_resource(resource.kind, resource.name, resource.namespace, reason: reason)
+              else
+                m[:containers].each { |c| result.add_impacted_resource(resource.kind, resource.name, resource.namespace, container: c, reason: reason) }
+              end
+            end
+          end
         end
       end
       result.failed("Container engine daemon sockets are mounted as volumes")

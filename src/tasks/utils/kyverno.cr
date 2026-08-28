@@ -150,6 +150,67 @@ module Kyverno
     end
   end
 
+  # What a policy matched, read back from the live resource: Kyverno's report
+  # names the resource and the rule, not the image, volume or securityContext
+  # that tripped it. Each helper returns nothing (never raises) when the
+  # resource cannot be read, so callers fall back to the policy message.
+  module Findings
+    def self.pod_spec(kind : String, name : String, namespace : String) : JSON::Any?
+      resource = KubectlClient::Get.resource(kind, name, namespace)
+      resource.dig?("spec", "template", "spec") || resource.dig?("spec")
+    rescue
+      nil
+    end
+
+    def self.containers(pod_spec : JSON::Any) : Array(JSON::Any)
+      ["containers", "initContainers", "ephemeralContainers"].flat_map do |list|
+        pod_spec.dig?(list).try(&.as_a?) || [] of JSON::Any
+      end
+    end
+
+    # Containers whose image has no tag or the `latest` tag (a digest counts as pinned).
+    def self.latest_tag_images(kind, name, namespace) : Array(NamedTuple(container: String, image: String))
+      spec = pod_spec(kind, name, namespace) || return [] of NamedTuple(container: String, image: String)
+      containers(spec).compact_map do |c|
+        image = c.dig?("image").try(&.as_s?) || next
+        next if image.includes?("@")
+        tag = image.rpartition("/")[2].partition(":")[2]
+        next unless tag.empty? || tag == "latest"
+        {container: c.dig?("name").try(&.as_s?) || "", image: image}
+      end
+    end
+
+    # hostPath volumes that mount a socket, with the containers mounting them.
+    def self.socket_mounts(kind, name, namespace) : Array(NamedTuple(volume: String, path: String, containers: Array(String)))
+      spec = pod_spec(kind, name, namespace) || return [] of NamedTuple(volume: String, path: String, containers: Array(String))
+      (spec.dig?("volumes").try(&.as_a?) || [] of JSON::Any).compact_map do |v|
+        path = v.dig?("hostPath", "path").try(&.as_s?) || next
+        next unless path.ends_with?(".sock")
+        volume = v.dig?("name").try(&.as_s?) || ""
+        mounting = containers(spec).select do |c|
+          (c.dig?("volumeMounts").try(&.as_a?) || [] of JSON::Any).any? { |m| m.dig?("name").try(&.as_s?) == volume }
+        end.map { |c| c.dig?("name").try(&.as_s?) || "" }
+        {volume: volume, path: path, containers: mounting}
+      end
+    end
+
+    # seLinuxOptions set at pod level ("pod") or on a container, rendered as k=v.
+    def self.selinux_options(kind, name, namespace) : Array(NamedTuple(scope: String, options: String))
+      spec = pod_spec(kind, name, namespace) || return [] of NamedTuple(scope: String, options: String)
+      found = [] of NamedTuple(scope: String, options: String)
+      render = ->(o : JSON::Any) { o.as_h.map { |k, v| "#{k}=#{v}" }.join(", ") }
+      if o = spec.dig?("securityContext", "seLinuxOptions")
+        found << {scope: "pod", options: render.call(o)}
+      end
+      containers(spec).each do |c|
+        if o = c.dig?("securityContext", "seLinuxOptions")
+          found << {scope: c.dig?("name").try(&.as_s?) || "", options: render.call(o)}
+        end
+      end
+      found
+    end
+  end
+
   def self.filter_failures_for_cnf_resources(resource_keys, failures)
     filtered = failures.map do |failure|
       failed_resources = failure.resources.select do |resource|
