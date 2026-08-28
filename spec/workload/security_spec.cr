@@ -302,7 +302,8 @@ describe "Security" do
       result = ShellCmd.run_testsuite("container_sock_mounts")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Container engine daemon sockets are mounted as volumes)/ =~ result[:output]).should_not be_nil
-      (/Unix socket is not allowed/ =~ result[:output]).should_not be_nil
+      (/impacted: .*: volume docker-engine-socket mounts host path \/var\/run\/docker\.sock/ =~ result[:output]).should_not be_nil
+      (/impacted: .*: volume containerd-engine-socket mounts host path \/var\/run\/containerd\.sock/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -385,6 +386,7 @@ describe "Security" do
       result = ShellCmd.run_testsuite("selinux_options")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Pods are using custom SELinux options that can be used for privilege escalations)/ =~ result[:output]).should_not be_nil
+      (/impacted: Pod\/nginx in .*: seLinuxOptions type=spc_t/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end

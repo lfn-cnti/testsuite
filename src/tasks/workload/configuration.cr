@@ -90,7 +90,14 @@ scored_task "latest_tag",
     else
       failures.each do |failure|
         failure.resources.each do |resource|
-          result.add_impacted_resource(resource.kind, resource.name, reason: "using the latest tag. #{failure.message}")
+          images = Kyverno::Findings.latest_tag_images(resource.kind, resource.name, resource.namespace)
+          if images.empty?
+            result.add_impacted_resource(resource.kind, resource.name, resource.namespace, reason: "using the latest tag. #{failure.message}")
+          else
+            images.each do |i|
+              result.add_impacted_resource(resource.kind, resource.name, resource.namespace, container: i[:container], reason: "image #{i[:image]} uses the latest tag")
+            end
+          end
         end
       end
       result.failed("Container images are using the latest tag")
