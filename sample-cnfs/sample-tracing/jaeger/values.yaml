@@ -683,8 +683,10 @@ hotrod:
   securityContext: {}
   replicaCount: 1
   image:
-    repository: conformance/jaeger-example
-    pullPolicy: Always
+    repository: jaegertracing/example-hotrod
+    tag: 1.28.0
+    digest: sha256:fbcdec6e28d20c578a4cf6f67365c6fa1392a1c9af44d4eab634696d0467dbdb
+    pullPolicy: IfNotPresent
     pullSecrets: []
   service:
     annotations: {}

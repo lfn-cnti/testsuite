@@ -1,0 +1,37 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: good-zombie
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+
+---
+# The nginx master process is PID 1 and reaps every child it inherits, so
+# the zombie the zombie_handled test injects disappears.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+  namespace: good-zombie
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        # renovate: datasource=docker depName=nginx
+        image: nginx:1.30.4@sha256:09cc2702709e6388d979d8030e3ab4eb1ceb699b2dced26d7543e872a822e823
+        ports:
+        - containerPort: 80
+        readinessProbe:
+          tcpSocket:
+            port: 80
+          initialDelaySeconds: 2
+          periodSeconds: 3
