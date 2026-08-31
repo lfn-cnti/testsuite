@@ -586,63 +586,33 @@ desc "Check if CNF uses Kubernetes alpha APIs"
 scored_task "alpha_k8s_apis",
   emoji: "⭕🔍" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    unless check_poc(args)
-      result.skipped("alpha_k8s_apis not in poc mode")
-      next
+    offenders = 0
+    CNFManager.cnf_resources(args, config) do |resource|
+      api_version = resource.dig?("apiVersion").try(&.as_s?)
+      kind = resource.dig?("kind").try(&.as_s?)
+      name = resource.dig?("metadata", "name").try(&.as_s?)
+      namespace = resource.dig?("metadata", "namespace").try(&.as_s?)
+      next unless api_version && kind && name
+
+      if api_version.split("/").last.includes?("alpha")
+        offenders += 1
+        result.add_impacted_resource(kind, name, namespace, reason: "declared with the alpha API #{api_version}")
+      elsif kind == "CustomResourceDefinition"
+        served = resource.dig?("spec", "versions").try(&.as_a?).try(&.compact_map do |version|
+          next if version.dig?("served").try(&.as_bool?) == false
+          version.dig?("name").try(&.as_s?)
+        end) || [] of String
+        if !served.empty? && served.all?(&.includes?("alpha"))
+          offenders += 1
+          result.add_impacted_resource(kind, name, namespace, reason: "serves only alpha version(s): #{served.join(", ")}")
+        end
+      end
     end
 
-    cluster_name = "apisnooptest"
-    kubeconfig_orig = ENV["KUBECONFIG"]
-
-    # TODO (kosstennbl) adapt cnf_to_new_cluster metod to new installation process. Until then - test is disabled. More info: #2153
-    result.skipped("alpha_k8s_apis test was temporarily disabled, check #2153")
-    next
-
-    ensure_kubeconfig!
-
-    # Get kubernetes version of the current server.
-    # This is used to setup kind with same k8s image version.
-    k8s_server_version = KubectlClient.server_version
-
-    # Ensure any old cluster is deleted
-    KindManager.new.delete_cluster(cluster_name)
-    apisnoop = ApiSnoop.new()
-    # FileUtils.cp("apisnoop-kind.yaml", "tools/apisnoop/kind/kind+apisnoop.yaml")
-    cluster = apisnoop.setup_kind_cluster(cluster_name, k8s_server_version)
-    Log.info { "apisnoop cluster kubeconfig: #{cluster.kubeconfig}" }
-    ENV["KUBECONFIG"] = "#{cluster.kubeconfig}"
-
-    cnf_install_complete = CNFManager.cnf_to_new_cluster(config, cluster.kubeconfig)
-
-    # CNF installation failed on kind cluster. Inform in test output.
-    unless cnf_install_complete
-      result.append_description("CNF failed to install on apisnoop cluster")
-      result.failed("Could not check CNF for usage of Kubernetes alpha APIs")
-      next
-    end
-
-    # CNF installation was fine on kind cluster. Check for usage of alpha Kubernetes APIs.
-    Log.info { "CNF installation complete on apisnoop cluster" }
-
-    Log.info { "Query the apisnoop database" }
-    k8s_major_minor_version = k8s_server_version.split(".")[0..1].join(".")
-    pod_name = "pod/apisnoop-#{cluster_name}-control-plane"
-    db_query = "select count(*) from testing.audit_event where endpoint in (select endpoint from open_api where level='alpha' and release ilike '#{k8s_major_minor_version}%')"
-    exec_cmd = "psql -d apisnoop -c \"#{db_query}\""
-
-    exec_result = with_kubeconfig(cluster.kubeconfig) { KubectlClient::Utils.exec(pod_name, exec_cmd, snoopdb) }
-    api_count = exec_result[:output].split("\n")[2].to_i
-
-    if api_count == 0
+    if offenders.zero?
       result.passed("CNF does not use Kubernetes alpha APIs")
     else
-      result.append_description("#{api_count} alpha API call(s) detected in audit log")
       result.failed("CNF uses Kubernetes alpha APIs")
-    end
-  ensure
-    if cluster_name != nil
-      KindManager.new.delete_cluster(cluster_name)
-      ENV["KUBECONFIG"]="#{kubeconfig_orig}"
     end
   end
 end

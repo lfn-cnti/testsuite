@@ -398,4 +398,30 @@ describe CnfTestSuite do
   after_all do
     result = ShellCmd.run_testsuite("uninstall_all")
   end
+  it "'alpha_k8s_apis' should fail when a manifest declares or serves only alpha APIs", tags: ["alpha_k8s_apis"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-alpha-apis/cnf-testsuite.yml")
+      result = ShellCmd.run_testsuite("alpha_k8s_apis")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(CNF uses Kubernetes alpha APIs)/ =~ result[:output]).should_not be_nil
+      (/impacted: CustomResourceDefinition\/widgets.example.com: serves only alpha version\(s\): v1alpha1/ =~ result[:output]).should_not be_nil
+      verify_task_result("alpha_k8s_apis", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'alpha_k8s_apis' should pass when no alpha APIs are used", tags: ["alpha_k8s_apis"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
+      result = ShellCmd.run_testsuite("alpha_k8s_apis")
+      result[:status].success?.should be_true
+      (/(PASSED).*(CNF does not use Kubernetes alpha APIs)/ =~ result[:output]).should_not be_nil
+      verify_task_result("alpha_k8s_apis", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
 end
