@@ -30,8 +30,13 @@ module ToolInstall
     File.delete?(marker(artifact))
     FileUtils.mkdir_p(File.dirname(artifact))
     logger.info { "Installing #{name} #{version}: #{artifact}" }
-    return false unless yield
-    File.write(marker(artifact), version)
+    StatusLine.push "Installing #{name} #{version} (one-time setup)..."
+    begin
+      return false unless yield
+      File.write(marker(artifact), version)
+    ensure
+      StatusLine.pop
+    end
     true
   end
 

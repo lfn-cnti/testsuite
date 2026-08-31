@@ -16,16 +16,18 @@ task "cnf_install", ["setup:install_local_helm", "setup:create_namespace"] do |_
     exit 1
   end
 
+  StatusLine.push "CNF installation in progress..."
+  StatusLine.push "Installing cluster-tools on every node (first run pulls the image)..."
   if ClusterTools.install
-    stdout_success "ClusterTools installed"
+    StatusLine.pop
   else
     stdout_failure "The ClusterTools installation timed out. Please check the status of the cluster-tools pods."
     exit 1
   end
 
-  stdout_success "CNF installation start."
   CNFInstall.install_cnf(args)
   logger.info { "CNF installed successfuly" }
+  StatusLine.pop
   stdout_success "CNF installation complete."
 end
 
@@ -34,7 +36,9 @@ task "cnf_uninstall" do |_, args|
   logger = SLOG.for("cnf_uninstall")
   logger.info { "Uninstalling CNF from cluster" }
 
+  StatusLine.push "CNF uninstallation in progress..."
   result = CNFInstall.uninstall_cnf(args)
+  StatusLine.pop
 
   if result
     stdout_success "CNF uninstallation succeeded."

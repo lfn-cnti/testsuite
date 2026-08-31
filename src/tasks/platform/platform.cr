@@ -28,6 +28,7 @@ namespace "platform" do
       # Run the tests
       testrun_stdout = IO::Memory.new
       Log.debug { "CNF_TESTSUITE_ENV: #{ENV["CNF_TESTSUITE_ENV"]?}" }
+      StatusLine.push "Running the Sonobuoy conformance scan (this takes several minutes)..."
       if ENV["CNF_TESTSUITE_ENV"]? == "TEST"
         Log.info { "Running Sonobuoy using Quick Mode" }
         cmd = "#{sonobuoy} run --wait --mode quick"
@@ -48,6 +49,7 @@ namespace "platform" do
         )
       end
       Log.debug { testrun_stdout.to_s }
+      StatusLine.pop
 
       cmd = "results=$(#{sonobuoy} retrieve #{Setup::SONOBUOY_DIR}); #{sonobuoy} results $results"
       results_stdout = IO::Memory.new
