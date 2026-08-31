@@ -60,6 +60,17 @@ module CNFInstall
       manifest
     end
 
+    # Combine YAMLs with source comments for CRDs discovered through the
+    # API groups of the CNF's custom resources
+    def self.combine_ymls_with_crd_source(ymls : Array(YAML::Any)) : String
+      ymls.map do |yaml_object|
+        name = yaml_object.dig?("metadata", "name").try(&.as_s) || "unknown"
+        group = yaml_object.dig?("spec", "group").try(&.as_s) || "unknown"
+        yaml_str = yaml_object.to_yaml
+        yaml_str.sub(/^---\n/, "---\n# Source: crd_group_filter (#{group}) (CustomResourceDefinition/#{name})\n")
+      end.join
+    end
+
     # Combine YAMLs with source comments for owned resources
     def self.combine_ymls_with_owner_source(ymls : Array(YAML::Any), owner_map : Hash(String, String)) : String
       manifest = ymls.map do |yaml_object|
