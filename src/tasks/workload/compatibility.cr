@@ -512,75 +512,69 @@ scored_task "helm_chart_valid",
 end
 
 
-def setup_calico_cluster(cluster_name : String) : KindManager::Cluster
-  Log.info { "Running cni_compatible(Cluster Creation)" }
-  Helm.helm_repo_add("projectcalico","https://docs.projectcalico.org/charts")
-  calico_cluster = KindManager.create_cluster_with_chart_and_wait(
-    cluster_name,
-    KindManager.disable_cni_config,
-    "projectcalico/tigera-operator --version v3.32.1"
-  )
-
-  return calico_cluster
-end
-
-def setup_cilium_cluster(cluster_name : String) : KindManager::Cluster
-  chart_opts = [
-    "--set operator.replicas=1",
-    "--set image.repository=cilium/cilium",
-    "--set image.useDigest=false",
-    "--set operator.image.useDigest=false",
-    "--set operator.image.repository=cilium/operator"
-  ]
-
-  kind_manager = KindManager.new
-  cluster = kind_manager.create_cluster(cluster_name, KindManager.disable_cni_config)
-  Helm.helm_repo_add("cilium","https://helm.cilium.io/")
-  chart = "cilium/cilium"
-  chart_opts.push("--version 1.20.1")
-  with_kubeconfig(cluster.kubeconfig) { Helm.install("#{cluster_name}-plugin", "#{chart}", namespace: "kube-system", values: "#{chart_opts.join(" ")}") }
-
-  cluster.wait_until_pods_ready()
-  Log.info { "cilium kubeconfig: #{cluster.kubeconfig}" }
-  return cluster
-end
+# Annotation Multus and other meta-CNIs use to request extra networks.
+CNI_NETWORKS_ANNOTATION = "k8s.v1.cni.cncf.io/networks"
+# Vendor-specific API groups / annotation prefixes that tie a CNF to one CNI plugin.
+CNI_VENDOR_MARKERS = ["projectcalico.org", "cilium.io", "k8s.cni.cncf.io"]
 
 desc "CNFs should work with any Certified Kubernetes product and any CNI-compatible network that meet their functionality requirements."
 scored_task "cni_compatible",
   emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-     # TODO (kosstennbl) adapt cnf_to_new_cluster metod to new installation process. Until then - test is disabled. More info: #2153
-    result.skipped("cni_compatible test was temporarily disabled, check #2153")
-    next
-    docker_version = DockerClient.version_info()
-    if docker_version.installed?
-      ensure_kubeconfig!
-      kubeconfig_orig = ENV["KUBECONFIG"]
-      begin
-        calico_cluster = setup_calico_cluster("calico-test")
-        Log.info { "calico kubeconfig: #{calico_cluster.kubeconfig}" }
-        calico_cnf_passed = CNFManager.cnf_to_new_cluster(config, calico_cluster.kubeconfig)
-        Log.info { "calico_cnf_passed: #{calico_cnf_passed}" }
-        result.append_description("CNF failed to install on Calico CNI cluster") unless calico_cnf_passed
+    coupled = 0
+    CNFManager.cnf_resources(args, config) do |resource|
+      api_version = resource.dig?("apiVersion").try(&.as_s?) || ""
+      kind = resource.dig?("kind").try(&.as_s?)
+      name = resource.dig?("metadata", "name").try(&.as_s?)
+      namespace = resource.dig?("metadata", "namespace").try(&.as_s?)
+      next unless kind && name
 
-        cilium_cluster = setup_cilium_cluster("cilium-test")
-        cilium_cnf_passed = CNFManager.cnf_to_new_cluster(config, cilium_cluster.kubeconfig)
-        Log.info { "cilium_cnf_passed: #{cilium_cnf_passed}" }
-        result.append_description("CNF failed to install on Cilium CNI cluster") unless cilium_cnf_passed
-
-        if calico_cnf_passed && cilium_cnf_passed
-          result.passed("CNF compatible with both Calico and Cilium")
-        else
-          result.failed("CNF not compatible with either Calico or Cilium")
-        end
-      ensure
-        kind_manager = KindManager.new
-        kind_manager.delete_cluster("calico-test")
-        kind_manager.delete_cluster("cilium-test")
-        ENV["KUBECONFIG"]="#{kubeconfig_orig}"
+      flag = ->(reason : String) do
+        coupled += 1
+        result.add_impacted_resource(kind, name, namespace, reason: reason)
+        Log.for(t.name).info { "#{kind}/#{name}: #{reason}" }
       end
+
+      if kind == "NetworkAttachmentDefinition"
+        flag.call("requires a Multus NetworkAttachmentDefinition (#{api_version})")
+      elsif (vendor = CNI_VENDOR_MARKERS.find { |m| api_version.includes?(m) })
+        flag.call("uses the CNI-specific API #{api_version}")
+      end
+
+      # Pod-level annotations: on the pod itself or in a workload's pod template.
+      [resource.dig?("metadata", "annotations"),
+       resource.dig?("spec", "template", "metadata", "annotations")].each do |annotations|
+        annotations.try(&.as_h?).try(&.each do |key, value|
+          key = key.as_s? || next
+          if key == CNI_NETWORKS_ANNOTATION
+            flag.call("requests additional CNI networks: #{CNI_NETWORKS_ANNOTATION}=#{value}")
+          elsif (vendor = CNI_VENDOR_MARKERS.find { |m| key.includes?(m) })
+            flag.call("carries the CNI-specific annotation #{key}")
+          end
+        end)
+      end
+
+      # SR-IOV device resources requested by any container.
+      [resource.dig?("spec", "containers"),
+       resource.dig?("spec", "template", "spec", "containers")].each do |containers|
+        containers.try(&.as_a?).try(&.each do |container|
+          container_name = container.dig?("name").try(&.as_s?)
+          ["requests", "limits"].each do |section|
+            container.dig?("resources", section).try(&.as_h?).try(&.each_key do |key|
+              key = key.as_s? || next
+              if key.downcase.includes?("sriov")
+                flag.call("container #{container_name} requests the SR-IOV device resource #{key}")
+              end
+            end)
+          end
+        end)
+      end
+    end
+
+    if coupled.zero?
+      result.passed("No coupling to a specific CNI plugin detected")
     else
-      result.skipped("Docker not installed")
+      result.failed("CNF is coupled to specific CNI plugins or features")
     end
   end
 end

@@ -12,20 +12,27 @@ describe "Compatibility" do
   end
 
 
-  it "'cni_compatible' should pass if the cnf works with calico and flannel", tags: ["compatibility"] do
+  it "'cni_compatible' should pass when nothing couples the cnf to one CNI plugin", tags: ["compatibility"] do
     begin
       ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
-      retry_limit = 5
-      retries = 1
       result = ShellCmd.run_testsuite("cni_compatible")
-      until (/PASSED/ =~ result[:output]) || retries > retry_limit
-        Log.info { "cni_compatible spec retry: #{retries}" }
-        sleep 1.0
-        result = ShellCmd.run_testsuite("cni_compatible")
-        retries = retries + 1
-      end
-      Log.info { "Status:  #{result[:output]}" }
-      (/(SKIPPED).*(cni_compatible test was temporarily disabled)/ =~ result[:output]).should_not be_nil
+      result[:status].success?.should be_true
+      (/(PASSED).*(No coupling to a specific CNI plugin detected)/ =~ result[:output]).should_not be_nil
+      verify_task_result("cni_compatible", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'cni_compatible' should fail when the cnf requests CNI-specific features", tags: ["compatibility"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-cni-coupled/cnf-testsuite.yml")
+      result = ShellCmd.run_testsuite("cni_compatible")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(CNF is coupled to specific CNI plugins or features)/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/cni-coupled in cni-coupled: requests additional CNI networks: k8s.v1.cni.cncf.io\/networks/ =~ result[:output]).should_not be_nil
+      verify_task_result("cni_compatible", "failed")
     ensure
       result = ShellCmd.cnf_uninstall
       result[:status].success?.should be_true

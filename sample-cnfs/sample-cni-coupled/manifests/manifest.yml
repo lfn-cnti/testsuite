@@ -1,0 +1,33 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cni-coupled
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+
+---
+# The Multus networks annotation couples this workload to a meta-CNI; without
+# Multus it is ignored, so the fixture installs on any cluster.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cni-coupled
+  namespace: cni-coupled
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cni-coupled
+  template:
+    metadata:
+      labels:
+        app: cni-coupled
+      annotations:
+        k8s.v1.cni.cncf.io/networks: macvlan-conf
+    spec:
+      containers:
+      - name: main
+        # renovate: datasource=docker depName=busybox
+        image: busybox:1.33.1@sha256:f7ca5a32c10d51aeda3b4d01c61c6061f497893d7f6628b92f822f7117182a57
+        command: ["sh", "-c", "sleep 2147483647"]
