@@ -120,7 +120,7 @@ module CNFInstall
     deployment_managers.each do |deployment_manager|
       deployment_name = deployment_manager.deployment_name
 
-      stdout_success "Installing deployment \"#{deployment_name}\"."
+      StatusLine.update "Installing deployment \"#{deployment_name}\"."
       result = deployment_manager.install
       if !result
         stdout_failure "Deployment of \"#{deployment_name}\" failed during CNF installation."
@@ -210,7 +210,7 @@ module CNFInstall
       msg = parsed_args[:skip_wait_for_uninstall] ?
         "All CNF deployments were uninstalled; resources will continue deleting in background." :
         "All CNF deployments were uninstalled."
-      stdout_success msg
+      StatusLine.update msg
     else
       stdout_failure "CNF uninstallation wasn't successful; check logs for details."
     end
@@ -294,9 +294,8 @@ module CNFInstall
     total_resource_count = workload_resources_info.size
     current_resource_number = 1
     workload_resources_info.each do |resource_info|
-      stdout_success "Waiting for resource for \"#{deployment_name}\" deployment (#{current_resource_number}/" +
-                     "#{total_resource_count}): [#{resource_info[:kind]}] #{resource_info[:name]}",
-        same_line: true
+      StatusLine.update "Waiting for resource for \"#{deployment_name}\" deployment (#{current_resource_number}/" +
+                        "#{total_resource_count}): [#{resource_info[:kind]}] #{resource_info[:name]}"
 
       ready = KubectlClient::Wait.resource_wait_for_install(resource_info[:kind],
         resource_info[:name], wait_count: timeout, namespace: resource_info[:namespace])
@@ -334,7 +333,7 @@ module CNFInstall
     end
     
     if workload_resources_info.size > 0
-      stdout_success "All \"#{deployment_name}\" deployment resources are up.", same_line: true
+      StatusLine.update "All \"#{deployment_name}\" deployment resources are up."
     end
     
     # Wait for custom resources (e.g., CRDs) with Ready condition
@@ -342,9 +341,8 @@ module CNFInstall
       total_custom_count = custom_resources_info.size
       current_custom_number = 1
       custom_resources_info.each do |resource_info|
-        stdout_success "Waiting for custom resource for \"#{deployment_name}\" deployment (#{current_custom_number}/" +
-                       "#{total_custom_count}): [#{resource_info[:kind]}] #{resource_info[:name]}",
-          same_line: true
+        StatusLine.update "Waiting for custom resource for \"#{deployment_name}\" deployment (#{current_custom_number}/" +
+                          "#{total_custom_count}): [#{resource_info[:kind]}] #{resource_info[:name]}"
 
         ready = KubectlClient::Wait.resource_wait_for_install(resource_info[:kind],
           resource_info[:name], wait_count: timeout, namespace: resource_info[:namespace])
@@ -357,7 +355,7 @@ module CNFInstall
         end
         current_custom_number += 1
       end
-      stdout_success "All \"#{deployment_name}\" deployment custom resources are ready.", same_line: true
+      StatusLine.update "All \"#{deployment_name}\" deployment custom resources are ready."
     end
   end
 
@@ -368,7 +366,7 @@ module CNFInstall
 
     # Make the sleep before label resource identification configurable
     label_resource_sleep = ENV.has_key?("CNF_TESTSUITE_LABEL_RESOURCE_SLEEP") ? ENV["CNF_TESTSUITE_LABEL_RESOURCE_SLEEP"].to_i : 5
-    stdout_success "Identifying and adding label-selected resources to composite manifest."
+    StatusLine.update "Identifying and adding label-selected resources to composite manifest."
     sleep label_resource_sleep.seconds
     start = Time.utc
 
@@ -445,7 +443,7 @@ module CNFInstall
       label_manifest = Manifest.combine_ymls_with_label_source(label_resource_ymls, label_selector)
       Manifest.add_manifest_to_file("label-identified-resources", label_manifest, COMMON_MANIFEST_FILE_PATH)
       logger.info { "Added #{label_resource_ymls.size} label-identified resources to composite manifest" }
-      stdout_success "Added #{label_resource_ymls.size} label-identified resources to composite manifest."
+      StatusLine.update "Added #{label_resource_ymls.size} label-identified resources to composite manifest."
     end
     
     # Fetch resources owned by CUSTOM resources only (not standard k8s resources)
@@ -478,7 +476,7 @@ module CNFInstall
       owned_manifest = Manifest.combine_ymls_with_owner_source(new_owned_resources, owner_map)
       Manifest.add_manifest_to_file("owner-reference-resources", owned_manifest, COMMON_MANIFEST_FILE_PATH)
       logger.info { "Added #{new_owned_resources.size} owner-reference resources to composite manifest" }
-      stdout_success "Added #{new_owned_resources.size} resources via ownerReferences to composite manifest."
+      StatusLine.update "Added #{new_owned_resources.size} resources via ownerReferences to composite manifest."
     end
 
   end
@@ -527,7 +525,7 @@ module CNFInstall
     crd_manifest = Manifest.combine_ymls_with_crd_source(discovered_crds)
     Manifest.add_manifest_to_file("custom-resource-definitions", crd_manifest, COMMON_MANIFEST_FILE_PATH)
     logger.info { "Added #{discovered_crds.size} CRD(s) backing the CNF's custom resources to composite manifest" }
-    stdout_success "Added #{discovered_crds.size} CRD(s) backing the CNF's custom resources to composite manifest."
+    StatusLine.update "Added #{discovered_crds.size} CRD(s) backing the CNF's custom resources to composite manifest."
   end
 
   private def self.fetch_workload_resources_by_labels(config, default_namespace : String = CLUSTER_DEFAULT_NAMESPACE) : Array(YAML::Any)
@@ -755,10 +753,7 @@ module CNFInstall
       name      = res[:name]
       namespace = res[:namespace]
 
-      stdout_success(
-        "Waiting deletion for \"#{deployment_name}\" (#{idx+1}/#{total}): [#{kind}] #{name}",
-        same_line: idx > 0
-      )
+      StatusLine.update "Waiting deletion for \"#{deployment_name}\" (#{idx+1}/#{total}): [#{kind}] #{name}"
 
       ok = KubectlClient::Wait.resource_wait_for_uninstall(
         kind, name, namespace, timeout, descendants
@@ -774,7 +769,7 @@ module CNFInstall
     end
 
     if all_deleted
-      stdout_success("All \"#{deployment_name}\" resources are gone.", same_line: true)
+      StatusLine.update "All \"#{deployment_name}\" resources are gone."
     else
       stdout_failure("Some resources of \"#{deployment_name}\" did not finish deleting within the timeout.")
     end

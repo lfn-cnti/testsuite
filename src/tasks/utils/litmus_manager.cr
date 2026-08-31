@@ -73,8 +73,19 @@ module LitmusManager
     {status_code, status_response}
   end
 
-  private def self.get_status_info_until(chaos_resource, test_name, output_format, timeout, namespace, &block)
+  private def self.get_status_info_until(chaos_resource, test_name, output_format, timeout, namespace, status : String? = nil, &block)
+    started = Time.utc
+    last_tick = started
     repeat_with_timeout(timeout: timeout, errormsg: "Litmus response timed-out") do
+      if status
+        elapsed = (Time.utc - started).to_i
+        # Every poll on a TTY (the line rewrites itself); every 30 s when piped,
+        # so CI logs get a heartbeat without a line per poll.
+        if STDOUT.tty? || (Time.utc - last_tick) >= 30.seconds
+          StatusLine.update "#{status} (#{elapsed}s of #{timeout}s)..."
+          last_tick = Time.utc
+        end
+      end
       status_code, status_response = get_status_info(chaos_resource, test_name, output_format, namespace)
       status_code == 0 && yield status_response
     end
@@ -84,14 +95,17 @@ module LitmusManager
   def self.wait_for_test(test_name, chaos_experiment_name, args, namespace : String = "default")
     chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
     Log.info { "wait_for_test: #{chaos_result_name}" }
+    status = "Waiting for the #{chaos_experiment_name} chaos experiment to finish"
+    StatusLine.push "#{status}..."
 
-    get_status_info_until("chaosengine", test_name, "jsonpath={.status.engineStatus}", LITMUS_CHAOS_TEST_TIMEOUT, namespace) do |engineStatus|
+    get_status_info_until("chaosengine", test_name, "jsonpath={.status.engineStatus}", LITMUS_CHAOS_TEST_TIMEOUT, namespace, status) do |engineStatus|
       ["completed", "stopped"].includes?(engineStatus)
     end
 
-    get_status_info_until("chaosresults", chaos_result_name, "jsonpath={.status.experimentStatus.verdict}", GENERIC_OPERATION_TIMEOUT, namespace) do |verdict|
+    get_status_info_until("chaosresults", chaos_result_name, "jsonpath={.status.experimentStatus.verdict}", GENERIC_OPERATION_TIMEOUT, namespace, "Waiting for the #{chaos_experiment_name} verdict") do |verdict|
       verdict != "Awaited"
     end
+    StatusLine.pop
   end
 
   ## check_chaos_verdict will check the verdict of chaosexperiment

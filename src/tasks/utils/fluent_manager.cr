@@ -27,6 +27,7 @@ module FluentManager
 
     def install
       Log.info { "Installing #{flavor_name} daemonset using #{values_file}" }
+      StatusLine.push "Installing #{flavor_name} DaemonSet into the cluster..."
       Helm.helm_repo_add(flavor_name, repo_url)
       FileUtils.mkdir_p(Setup::RENDERED_MANIFESTS_DIR)
       values_path = File.join(Setup::RENDERED_MANIFESTS_DIR, values_file)
@@ -34,8 +35,10 @@ module FluentManager
       begin
         Helm.install(flavor_name, chart, namespace: TESTSUITE_NAMESPACE, values: "--values #{values_path}")
         KubectlClient::Wait.resource_wait_for_install("Daemonset", flavor_name, namespace: TESTSUITE_NAMESPACE)
+        StatusLine.pop
       rescue Helm::ShellCMD::CannotReuseReleaseNameError
         Log.info { "Release #{flavor_name} already installed" }
+        StatusLine.pop
       end
     end
 

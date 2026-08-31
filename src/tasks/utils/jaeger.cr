@@ -19,6 +19,7 @@ module JaegerManager
 
   def self.install
     Log.info { "Installing Jaeger daemonset" }
+    StatusLine.push "Installing Jaeger into the cluster (cassandra warm-up; this can take a few minutes)..."
     Helm.helm_repo_add("jaegertracing", "https://jaegertracing.github.io/helm-charts")
     CNFManager.ensure_namespace_exists!(JAEGER_NAMESPACE)
     Helm.install("jaeger", "jaegertracing/jaeger", namespace: JAEGER_NAMESPACE,
@@ -33,6 +34,7 @@ module JaegerManager
       ready = KubectlClient::Wait.resource_wait_for_install(kind, name, wait_count, namespace: JAEGER_NAMESPACE)
       raise "Jaeger install failed: #{kind} #{name} did not become ready" unless ready
     end
+    StatusLine.pop
   end
 
   # GET against the jaeger-query HTTP API through the API-server proxy: works

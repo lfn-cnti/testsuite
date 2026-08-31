@@ -24,6 +24,7 @@ namespace "setup" do
       next
     end
 
+    StatusLine.push "Installing the LitmusChaos operator into the cluster..."
     begin
       KubectlClient::Utils.label("namespace", LitmusManager::LITMUS_NAMESPACE,
         ["pod-security.kubernetes.io/enforce=privileged"])
@@ -35,6 +36,7 @@ namespace "setup" do
     end
 
     logger.info { "Litmus tool has been installed" }
+    StatusLine.pop
   end
 
   desc "Uninstall LitmusChaos"

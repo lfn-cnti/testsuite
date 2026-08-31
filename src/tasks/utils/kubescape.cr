@@ -8,6 +8,7 @@ module Kubescape
 
   #kubescape scan framework nsa --exclude-namespaces kube-system,kube-public
   def self.scan(cli : String? = nil, control_id : String? = nil, namespace : String? = nil)
+    StatusLine.push "Running the Kubescape cluster scan..."
     default_options = "--format json --format-version=v1"
     output_file = RESULTS_FILE
     exclude_namespaces = EXCLUDE_NAMESPACES.join(",")
@@ -30,6 +31,7 @@ module Kubescape
     )
     Log.info { "output: #{output.to_s}" }
     Log.info { "stderr: #{stderr.to_s}" }
+    StatusLine.pop
     {status: status, output: output.to_s, error: stderr.to_s}
   end
 

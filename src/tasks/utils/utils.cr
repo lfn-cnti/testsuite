@@ -298,11 +298,64 @@ def tools_path
   value
 end
 
+# One line of work-in-progress information, ever. Operations push a message
+# when they start, update it while they run, and pop when they finish; a
+# nested operation rewrites the same line and popping restores the outer
+# message, so the screen never holds more than one status line and holds
+# none once everything is done. On a TTY the line rewrites itself in place;
+# in piped/CI output each message is a plain line and nothing is erased, so
+# logs keep the full trail.
+module StatusLine
+  @@messages = [] of String
+  @@on_screen = false
+
+  def self.push(msg : String)
+    @@messages << msg
+    render(msg)
+  end
+
+  def self.update(msg : String)
+    return push(msg) if @@messages.empty?
+    @@messages[-1] = msg
+    render(msg)
+  end
+
+  def self.pop
+    @@messages.pop?
+    if (outer = @@messages.last?)
+      render(outer)
+    else
+      erase
+    end
+  end
+
+  # Called by the persistent stdout helpers: whatever was on the status line
+  # is no longer the last line on screen.
+  def self.interrupted
+    @@on_screen = false
+  end
+
+  private def self.render(msg : String)
+    print "\e[1A\e[K" if STDOUT.tty? && @@on_screen
+    puts msg
+    @@on_screen = STDOUT.tty?
+  end
+
+  private def self.erase
+    if STDOUT.tty? && @@on_screen
+      print "\e[1A\e[K"
+      STDOUT.flush
+    end
+    @@on_screen = false
+  end
+end
+
 def stdout_info(msg, same_line = false)
   if same_line && STDOUT.tty?
     msg = "#{"\e[1A\e[K"}#{msg}"
   end
   puts msg
+  StatusLine.interrupted
 end
 
 # \e[1A\e[K is a sequence that allows to clear current line and place cursor at
@@ -313,6 +366,7 @@ def stdout_colored(msg, color, same_line = false)
     msg = "#{"\e[1A\e[K"}#{msg}"
   end
   puts msg.colorize(color)
+  StatusLine.interrupted
 end
 
 def stdout_success(msg, same_line = false)
@@ -471,26 +525,92 @@ end
 
 def download_file(url : String, output_path : String,
                   redirect_limit : Int = 5, headers : HTTP::Headers? = nil)
+  # The display label comes from the caller's URL: redirect targets (GitHub
+  # serves release assets under opaque UUID names) and temp output files both
+  # make meaningless labels.
+  label = File.basename(URI.parse(url).path)
+  label = File.basename(output_path) if label.empty?
   NetRetry.with_retries("download #{url}") do
-    follow_and_download(url, output_path, redirect_limit, headers)
+    follow_and_download(url, output_path, redirect_limit, headers, label)
   end
 end
 
+# Streams the response straight to `<output_path>.part` (so a long download
+# leaves visible, growing evidence on disk) and renames on completion; a
+# size-announcing line on stdout tells the user what a first run is fetching.
+# Connect/read timeouts turn a stalled connection into a retryable failure
+# instead of an indefinite silent hang.
 private def follow_and_download(url : String, output_path : String,
-                                redirect_limit : Int, headers : HTTP::Headers?)
+                                redirect_limit : Int, headers : HTTP::Headers?, label : String)
   raise "Too many redirects" if redirect_limit == 0
 
-  response = HTTP::Client.get(url, headers: headers)
-  if response.status_code >= 300 && response.status_code < 400
-    new_location = response.headers["Location"]
-    raise "Status code 3xx, but redirect location missing" unless new_location
-    return follow_and_download(new_location, output_path, redirect_limit - 1, headers)
+  uri = URI.parse(url)
+  client = HTTP::Client.new(uri)
+  client.connect_timeout = 10.seconds
+  client.read_timeout = 60.seconds
+
+  redirect_location = nil
+  partial_path = nil
+  announced = false
+  begin
+    client.get(uri.request_target, headers: headers) do |response|
+      if response.status_code >= 300 && response.status_code < 400
+        redirect_location = response.headers["Location"]?
+        raise "Status code 3xx, but redirect location missing" unless redirect_location
+      else
+        unless response.success?
+          message = "Unsuccessful request, status code: [#{response.status_code}], msg: #{response.status_message}"
+          raise NetRetry::TransientError.new(message) if response.status_code >= 500
+          raise message
+        end
+
+        content_length = response.headers["Content-Length"]?.try(&.to_i64?)
+        size_note = content_length ? " (#{(content_length / 1048576.0).round(1)} MB)" : ""
+        file_label = label
+        # Only downloads worth watching get a status line; a tiny file would
+        # just flash a message that vanishes a moment later.
+        announced = content_length.nil? || content_length >= 1_048_576
+        StatusLine.push "Downloading #{file_label}#{size_note} from #{uri.host}..." if announced
+
+        # Suffixed with the pid so concurrent runs sharing the tools dir never
+        # fight over one partial file.
+        partial_path = "#{output_path}.part.#{Process.pid}"
+        File.open(partial_path, "w") do |file|
+          buffer = Bytes.new(65536)
+          received = 0_i64
+          last_update = Time.utc
+          loop do
+            read_bytes = response.body_io.read(buffer)
+            break if read_bytes == 0
+            file.write(buffer[0, read_bytes])
+            received += read_bytes
+            # Rewrites itself on a TTY; throttled so piped/CI logs stay sane.
+            if announced && (Time.utc - last_update) >= 5.seconds
+              total_note = content_length ? "/#{(content_length / 1048576.0).round(1)}" : ""
+              StatusLine.update "Downloading #{file_label}: #{(received / 1048576.0).round(1)}#{total_note} MB..."
+              last_update = Time.utc
+            end
+          end
+        end
+        if content_length && File.size(partial_path) != content_length
+          raise NetRetry::TransientError.new("Truncated download: got #{File.size(partial_path)} of #{content_length} bytes")
+        end
+        FileUtils.mv(partial_path, output_path)
+        StatusLine.pop if announced
+        announced = false
+      end
+    end
+  ensure
+    # A failed or interrupted attempt must not leave its partial file behind.
+    if (partial = partial_path) && File.exists?(partial)
+      File.delete?(partial)
+      StatusLine.pop if announced # the download failed mid-way: drop its status line
+    end
+    client.close
   end
 
-  unless response.success?
-    message = "Unsuccessful request, status code: [#{response.status_code}], msg: #{response.status_message}"
-    raise NetRetry::TransientError.new(message) if response.status_code >= 500
-    raise message
+  if location = redirect_location
+    # Location may be relative; resolve it against the URI that redirected.
+    return follow_and_download(uri.resolve(location).to_s, output_path, redirect_limit - 1, headers, label)
   end
-  File.write(output_path, response.body.to_s)
 end

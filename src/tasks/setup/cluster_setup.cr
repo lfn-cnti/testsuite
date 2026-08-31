@@ -7,6 +7,7 @@ namespace "setup" do
   task "install_cluster_tools" do |_, args|
     logger = SLOG.for("install_cluster_tools")
     logger.info { "Installing cluster_tools on the cluster" }
+    StatusLine.push "Installing cluster-tools on every node (first run pulls the image)..."
 
     begin
       ClusterTools.install
@@ -21,6 +22,7 @@ namespace "setup" do
       exit(1)
     end
     logger.info { "cluster_tools has been installed on the cluster" }
+    StatusLine.pop
   end
 
   desc "Uninstall CNF Test Suite Cluster Tools"

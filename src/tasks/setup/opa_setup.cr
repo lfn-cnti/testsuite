@@ -19,6 +19,7 @@ task "install_opa", ["setup:install_local_helm", "setup:create_namespace"] do |_
 
   helm_install_args = helm_install_args_list.join(" ")
 
+  StatusLine.push "Installing OPA Gatekeeper into the cluster..."
   Helm.helm_repo_add("gatekeeper", "https://open-policy-agent.github.io/gatekeeper/charts")
   begin
     Helm.install("opa-gatekeeper", "gatekeeper/gatekeeper", values: "--version #{Setup::GATEKEEPER_VERSION} #{helm_install_args}")
@@ -39,6 +40,7 @@ task "install_opa", ["setup:install_local_helm", "setup:create_namespace"] do |_
     raise "Gatekeeper did not create the requiretags constraint CRD within 300 seconds"
   end
   KubectlClient::Apply.file(enforce_manifest)
+  StatusLine.pop
 end
 
 desc "Uninstall OPA"

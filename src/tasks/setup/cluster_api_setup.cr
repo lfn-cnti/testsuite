@@ -25,10 +25,12 @@ namespace "setup" do
 
     File.write("#{clusterctl}/clusterctl.yaml", "CLUSTER_TOPOLOGY: \"true\"")
 
+    StatusLine.push "Initializing Cluster API management components (several minutes on first run)..."
     cluster_init_cmd = "#{Setup::CLUSTERCTL_BINARY} init --infrastructure docker --wait-providers"
     stdout = IO::Memory.new
     Process.run(cluster_init_cmd, shell: true, output: stdout, error: stdout)
     Log.for("clusterctl init").info { stdout }
+    StatusLine.pop
 
     create_cluster_file = File.join(Setup::CLUSTER_API_DIR, "capi.yaml")
 
