@@ -193,11 +193,45 @@ describe "Observability" do
   end
 
   it "'tracing' should fail if tracing is not used", tags: ["observability_jaeger_fail"] do
-    # (kosstennbl) TODO: Test and specs for 'tracing' should be redesigned. Check #2153 for more info. Spec was using sample-coredns-cnf CNF.
+    begin
+      result = ShellCmd.run_testsuite("setup:install_jaeger")
+      result[:status].success?.should be_true
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
+      result = ShellCmd.run_testsuite("tracing")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(Tracing not used)/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/coredns-coredns in cnf-default: no traces in Jaeger/ =~ result[:output]).should_not be_nil
+      verify_task_result("tracing", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+      ShellCmd.run_testsuite("setup:uninstall_jaeger")
+    end
   end
 
   it "'tracing' should pass if tracing is used", tags: ["observability_jaeger_pass"] do
-    # (kosstennbl) TODO: Test and specs for 'tracing' should be redesigned. Check #2153 for more info. Spec was using sample-tracing CNF.
+    begin
+      result = ShellCmd.run_testsuite("setup:install_jaeger")
+      result[:status].success?.should be_true
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-tracing/cnf-testsuite.yml")
+      # HotROD only emits spans when it serves a request.
+      attempts = 0
+      result = loop do
+        ShellCmd.run("kubectl get --raw '/api/v1/namespaces/tracing/services/hotrod:http/proxy/dispatch?customer=123'", "hotrod_request")
+        sleep 10.seconds
+        run = ShellCmd.run_testsuite("tracing")
+        attempts += 1
+        break run if run[:status].success? || attempts >= 3
+      end
+      result[:status].success?.should be_true
+      (/(PASSED).*(Tracing used)/ =~ result[:output]).should_not be_nil
+      (/Deployment\/hotrod: traces in Jaeger from hotrod-.* \(service / =~ result[:output]).should_not be_nil
+      verify_task_result("tracing", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+      ShellCmd.run_testsuite("setup:uninstall_jaeger")
+    end
   end
 
   after_all do

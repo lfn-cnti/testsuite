@@ -1,112 +1,80 @@
-require "../../modules/cluster_tools"
-
 module JaegerManager
-  # JAEGER_PORT = "14271" # agent port
-  JAEGER_PORT = "14269" # collector port
-  JAEGER_CHART_VERSION = "4.12.0"
-  def self.match()
-    ClusterTools.local_match_by_image_name_with_retries("jaegertracing/jaeger-collector")
+  # renovate: datasource=helm depName=jaeger registryUrl=https://jaegertracing.github.io/helm-charts
+  JAEGER_CHART_VERSION = "1.0.0"
+  JAEGER_NAMESPACE = "jaeger"
+
+  # Jaeger is configured when its query API answers: probing the thing the
+  # test reads is more reliable than matching collector images on nodes
+  # (which needs cluster-tools plus a registry digest lookup).
+  def self.available? : Bool
+    !query_api("/api/services").nil?
   end
+
   def self.uninstall
     Log.debug { "uninstall_jaeger" }
-    Helm.uninstall("jaeger", "jaeger")
+    Helm.uninstall("jaeger", JAEGER_NAMESPACE)
   rescue Helm::ShellCMD::ReleaseNotFound
     Log.info { "Jaeger release not found, nothing to uninstall" }
   end
 
   def self.install
-    Log.info {"Installing Jaeger daemonset "}
-    Helm.helm_repo_add("jaegertracing","https://jaegertracing.github.io/helm-charts")
-    CNFManager.ensure_namespace_exists!("jaeger")
-    Helm.install("jaeger", "jaegertracing/jaeger", namespace: "jaeger", values: "--version #{JAEGER_CHART_VERSION} --set cassandra.config.cluster_size=1 --set cassandra.config.seed_size=1")
-    KubectlClient::Wait.resource_wait_for_install("Deployment", "jaeger-collector", 300, namespace: "jaeger")
-    KubectlClient::Wait.resource_wait_for_install("Deployment", "jaeger-query", 300, namespace: "jaeger")
-    KubectlClient::Wait.resource_wait_for_install("Daemonset", "jaeger-agent", 300, namespace: "jaeger")
-  end
-
-  def self.node_for_cnf(resource_name)
-    KubectlClient.nodes_by_resource(resource)
-  end
-
-
-  def self.jaeger_pods()
-    match = ClusterTools.local_match_by_image_name_with_retries("jaegertracing/jaeger-collector")
-    KubectlClient::Get.pods_by_digest_and_nodes(match[:digest], KubectlClient::Get.resource("nodes")["items"].as_a)
-  end
-
-  def self.jaeger_metrics_by_pods(jaeger_pods)
-    #todo cluster tools curl call
-    Log.info { "jaeger_metrics_by_pods"}
-    metrics = jaeger_pods.map do |pod|
-      Log.debug { "jaeger_metrics_by_pods pod: #{pod}"}
-      pod_ips = pod.dig?("status", "podIPs")
-      Log.debug { "pod_ips: #{pod_ips}"}
-      if pod_ips
-        ip_metrics = pod_ips.as_a.map do |ip|
-          Log.debug{ "checking: against #{ip.dig("ip").as_s}"}
-          msg = metrics_by_pod(ip.dig("ip").as_s)
-          Log.debug{ "msg #{msg}"}
-          msg
-        end
-      else
-        ip_metrics = ""
-      end
-      Log.debug { "jaeger_metrics_by_pods ip_metrics: #{ip_metrics}"}
-      ip_metrics
+    Log.info { "Installing Jaeger daemonset" }
+    Helm.helm_repo_add("jaegertracing", "https://jaegertracing.github.io/helm-charts")
+    CNFManager.ensure_namespace_exists!(JAEGER_NAMESPACE)
+    Helm.install("jaeger", "jaegertracing/jaeger", namespace: JAEGER_NAMESPACE,
+      values: "--version #{JAEGER_CHART_VERSION} --set cassandra.config.seed_size=1")
+    # Cassandra readies first (the collector and query crash-loop until it
+    # resolves), and an unready Jaeger must fail the install loudly (#2060):
+    # every consumer of this install would otherwise silently skip.
+    [ {"Statefulset", "jaeger-cassandra", 600},
+      {"Deployment", "jaeger-collector", 300},
+      {"Deployment", "jaeger-query", 300},
+      {"Daemonset", "jaeger-agent", 300} ].each do |kind, name, wait_count|
+      ready = KubectlClient::Wait.resource_wait_for_install(kind, name, wait_count, namespace: JAEGER_NAMESPACE)
+      raise "Jaeger install failed: #{kind} #{name} did not become ready" unless ready
     end
-    Log.debug { "jaeger_metrics_by_pods metrics: #{metrics}"}
-    metrics.flatten
   end
 
-  #todo move to prometheus module
-  def self.metrics_by_pod(url)
-    Log.info { "ClusterTools jaeger metrics" }
-    #todo debug this (wrong) ip
-    cli = %(curl http://#{url}:#{JAEGER_PORT}/metrics)
-    resp = ClusterTools.exec(cli)
-    Log.info { "jaeger metrics resp: #{resp[:output]}"}
-    resp[:output]
+  # GET against the jaeger-query HTTP API through the API-server proxy: works
+  # from outside the cluster, no in-cluster curl needed. Returns nil when the
+  # call or the parse fails.
+  def self.query_api(path : String) : JSON::Any?
+    logger = Log.for("JaegerManager.query_api")
+    cmd = "kubectl get --raw '/api/v1/namespaces/#{JAEGER_NAMESPACE}/services/jaeger-query:query/proxy#{path}'"
+    result = KubectlClient::ShellCMD.raise_exc_on_error { KubectlClient::ShellCMD.run(cmd, logger) }
+    JSON.parse(result[:output])
+  rescue ex : KubectlClient::ShellCMD::K8sClientCMDException | JSON::ParseException
+    logger = Log.for("JaegerManager.query_api")
+    logger.warn { "Jaeger query API call #{path} failed: #{ex.message}" }
+    nil
   end
 
-  def self.connected_clients_total
-    pods = jaeger_pods()
-    metrics = jaeger_metrics_by_pods(pods)
-    total_clients = metrics.reduce(0) do |acc, metric|
-      connected_clients = metric.match(/jaeger_agent_client_stats_connected_clients \K[0-9]{1,20}/)
-      clients = connected_clients[0] if connected_clients
-      if clients
-        acc + clients.to_i
-      else
-        acc
-      end
-
-    end
-    Log.info { "total clients for all pods: #{total_clients}" }
-    total_clients
+  # Service names Jaeger knows traces for, without Jaeger's own components.
+  def self.services : Array(String)
+    json = query_api("/api/services")
+    return [] of String unless json
+    (json.dig?("data").try(&.as_a?) || [] of JSON::Any)
+      .compact_map(&.as_s?)
+      .reject { |name| name.starts_with?("jaeger") }
   end
 
-  def self.unique_services_total
-    nodes = KubectlClient::Get.resource("nodes")
-    pods = jaeger_pods(nodes["items"].as_a)
-    metrics = jaeger_metrics_by_pods(pods)
-    total_count = metrics.reduce(0) do |acc, metric|
-      unique_services = metric.match(/jaeger_agent_client_stats_connected_clients \K[0-9]{1,20}/)
-      unique_services = metric.split("/n").reduce(0) do |acc, f|
-        c = (f =~ /jaeger_collector_spans_saved_by_svc_total{debug=".*",result=".*",svc="(?!other-services).*}/)
-        if c
-          acc + 1
-        else
-          acc
+  # The hostnames (pod names, for in-cluster clients) found in the process tags
+  # of the service's recent traces.
+  def self.trace_hostnames(service : String) : Set(String)
+    hostnames = Set(String).new
+    json = query_api("/api/traces?service=#{URI.encode_www_form(service)}&limit=20")
+    return hostnames unless json
+    (json.dig?("data").try(&.as_a?) || [] of JSON::Any).each do |trace|
+      processes = trace.dig?("processes").try(&.as_h?) || next
+      processes.each_value do |process|
+        tags = process.dig?("tags").try(&.as_a?) || next
+        tags.each do |tag|
+          next unless tag.dig?("key").try(&.as_s?) == "hostname"
+          hostname = tag.dig?("value").try(&.as_s?)
+          hostnames << hostname if hostname
         end
       end
-      if unique_services 
-        acc + unique_services 
-      else
-        acc
-      end
     end
-    Log.info { "total unique services for all pods: #{total_count}" }
-    total_count
+    hostnames
   end
 end
-

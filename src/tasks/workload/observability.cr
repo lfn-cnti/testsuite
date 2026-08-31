@@ -258,22 +258,55 @@ desc "Does the CNF install use tracing?"
 scored_task "tracing",
   type: CNFManager::TestType::Bonus,
   emoji: "⎈🚀" do |t, args|
-  Log.for(t.name).info { "Running test" }
-  Log.for(t.name).info { "tracing args: #{args.inspect}" }
-
-  cnf_config_ok = check_cnf_config(args) || CNFManager.cnf_installed?
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    if cnf_config_ok
-      match = JaegerManager.match()
-      Log.info { "jaeger match: #{match}" }
-      if match[:found]
-        # (kosstennbl) TODO: Redesign tracing test, preferably without usage of installation configmaps. More info in issue #2153
-        result.skipped("tracing test is disabled, check #2153")
-      else
-        result.skipped("Jaeger not configured")
+    unless JaegerManager.available?
+      result.skipped("Jaeger not configured")
+      next
+    end
+
+    # Pod names Jaeger has seen traces from, per emitting service: in-cluster
+    # jaeger clients report the pod name as the "hostname" process tag.
+    services_by_hostname = Hash(String, Set(String)).new
+    JaegerManager.services.each do |service|
+      JaegerManager.trace_hostnames(service).each do |hostname|
+        (services_by_hostname[hostname] ||= Set(String).new) << service
       end
+    end
+    Log.for(t.name).info { "hostnames with traces: #{services_by_hostname.keys}" }
+
+    untraced = [] of NamedTuple(kind: String, name: String, namespace: String)
+    traced_any = false
+    CNFManager.cnf_workload_resources(args, config) do |resource|
+      kind = resource.dig?("kind").try(&.as_s?)
+      name = resource.dig?("metadata", "name").try(&.as_s?)
+      next unless kind && name
+      next unless KubectlClient::WORKLOAD_RESOURCES.values.includes?(kind)
+      namespace = resource.dig?("metadata", "namespace").try(&.as_s?) || CLUSTER_DEFAULT_NAMESPACE
+      resource_yaml = KubectlClient::Get.resource(kind, name, namespace)
+      pods = KubectlClient::Get.pods_by_resource_labels(resource_yaml, namespace)
+      pod_names = pods.compact_map { |pod| pod.dig?("metadata", "name").try(&.as_s?) }
+      traced_pods = pod_names.select { |pod_name| services_by_hostname.has_key?(pod_name) }
+
+      if traced_pods.empty?
+        untraced << {kind: kind, name: name, namespace: namespace}
+      else
+        traced_any = true
+        traced_pods.each do |pod_name|
+          result.append_description("#{kind}/#{name}: traces in Jaeger from #{pod_name} (service #{services_by_hostname[pod_name].join(", ")})")
+        end
+      end
+    rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+      Log.for(t.name).warn { "Could not inspect #{kind}/#{name}: #{ex.message}" }
+      untraced << {kind: kind.to_s, name: name.to_s, namespace: CLUSTER_DEFAULT_NAMESPACE}
+    end
+
+    if traced_any
+      result.passed("Tracing used")
     else
-      result.failed("No cnf_testsuite.yml found! Did you run the \"cnf_install\" task?")
+      untraced.each do |info|
+        result.add_impacted_resource(info[:kind], info[:name], info[:namespace], reason: "no traces in Jaeger from any of its pods")
+      end
+      result.failed("Tracing not used")
     end
   end
 end

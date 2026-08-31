@@ -897,7 +897,7 @@ Ensure that your CNF is publishing OpenMetrics compatible metrics.
 
 #### Overview
 
-Checks if Jaeger is installed and the CNF is configured to send traces to the Jaeger Server.
+Checks whether the CNF's pods actually emit traces: the test queries the Jaeger API for recent traces and matches their process tags against the CNF's pods. Skipped when no Jaeger is installed on the cluster.
 Expectation: The CNF is sending traces to Jaeger.
 
 #### Rationale
@@ -906,7 +906,7 @@ A CNF should provide tracing that conforms to the [open telemetry tracing specif
 
 #### Remediation
 
-Ensure that your CNF is both using & publishing traces to Jaeger.
+Instrument your CNF with OpenTelemetry or Jaeger client libraries and point it at the cluster's tracing agent or collector, so its spans arrive in Jaeger.
 
 #### Usage
 
