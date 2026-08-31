@@ -9,26 +9,7 @@ require "retriable"
 desc "Install Kind"
 task "install_kind" do |_, args|
   Log.info {"install_kind"}
-  current_dir = FileUtils.pwd 
-  ToolInstall.ensure("kind", Setup::KIND_VERSION, Setup::KIND_BINARY) do
-    write_file = Setup::KIND_BINARY
-    Log.info { "write_file: #{write_file}" }
-    Log.info { "install kind" }
-    url = Setup::KIND_DOWNLOAD_URL
-    Log.info { "url: #{url}" }
-    do_this_on_each_retry = ->(ex : Exception, attempt : Int32, elapsed_time : Time::Span, next_interval : Time::Span) do
-        Log.info { "#{ex.class}: '#{ex.message}' - #{attempt} attempt in #{elapsed_time} seconds and #{next_interval} seconds until the next try."}
-    end
-    Retriable.retry(on_retry: do_this_on_each_retry, times: 3, base_interval: 1.second) do
-      download_file("#{url}","#{write_file}")
-      begin
-        File.chmod(write_file, 0o755)
-      rescue
-        raise "Unable to make #{write_file} executable"
-      end
-    end
-    true
-  end
+  KindManager.ensure_installed
 end
 
 desc "Uninstall Kind"
@@ -49,6 +30,27 @@ class KindManager
   # Path to kind
   property kind : String
 
+  # Kind is not part of `setup`: whoever needs a throwaway cluster installs
+  # the binary on first use.
+  def self.ensure_installed
+    ToolInstall.ensure("kind", Setup::KIND_VERSION, Setup::KIND_BINARY) do
+      write_file = Setup::KIND_BINARY
+      Log.info { "install kind: #{write_file}" }
+      do_this_on_each_retry = ->(ex : Exception, attempt : Int32, elapsed_time : Time::Span, next_interval : Time::Span) do
+        Log.info { "#{ex.class}: '#{ex.message}' - #{attempt} attempt in #{elapsed_time} seconds and #{next_interval} seconds until the next try." }
+      end
+      Retriable.retry(on_retry: do_this_on_each_retry, times: 3, base_interval: 1.second) do
+        download_file(Setup::KIND_DOWNLOAD_URL, write_file)
+        begin
+          File.chmod(write_file, 0o755)
+        rescue
+          raise "Unable to make #{write_file} executable"
+        end
+      end
+      true
+    end
+  end
+
   def initialize
     @kind = Setup::KIND_BINARY
   end
@@ -56,6 +58,7 @@ class KindManager
   #totod make a create cluster with flannel
 
   def create_cluster(name : String, kind_config : String?, k8s_version = "1.35.5") : KindManager::Cluster?
+    KindManager.ensure_installed
     Log.info { "Creating Kind Cluster" }
     kubeconfig = "#{Setup::KIND_DIR}/#{name}_admin.conf"
     Log.for("kind_kubeconfig").info { kubeconfig }

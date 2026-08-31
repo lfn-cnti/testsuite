@@ -8,7 +8,8 @@ alias_task "clusterapi_enabled", "platform:clusterapi_enabled"
 
 namespace "platform" do
   desc "Does the platform pass the K8s conformance tests?"
-  scored_task "k8s_conformance" do |t, args|
+  scored_task "k8s_conformance",
+    deps: ["setup:install_sonobuoy"] do |t, args|
     CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
       current_dir = FileUtils.pwd
       Log.for(t.name).debug { "current dir: #{current_dir}" }
