@@ -1,5 +1,0 @@
-# Requires k8s version 1.21
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-runtimeConfig:
-  "scheduling.k8s.io/v1alpha1": "true"

@@ -136,9 +136,6 @@ module CNFManager
   end
 
   # (kosstennbl) TODO: Redesign this method using new installation.
-  def self.cnf_to_new_cluster(config, kubeconfig)
-  end
-
   def self.ensure_namespace_exists!(namespace : String) : Bool
     logger = Log.for("ensure_namespace_exists!")
     logger.info { "Ensure that namespace: #{namespace} exists on the cluster for the CNF install" }

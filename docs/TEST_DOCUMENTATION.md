@@ -28,7 +28,7 @@
 
 * [**Category: Configuration Tests**](#category-configuration-tests)
 
-   [[Default namespaces]](#default-namespaces) | [[Latest tag]](#latest-tag) | [[Require labels]](#require-labels) | [[Versioned tag]](#versioned-tag) | [[NodePort not used]](#nodeport-not-used) | [[HostPort not used]](#hostport-not-used) | [[Hardcoded IP addresses in K8s runtime configuration]](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | [[Secrets used]](#secrets-used) | [[Immutable configmap]](#immutable-configmap) | [[Kubernetes Alpha APIs **PoC**]](#kubernetes-alpha-apis-poc) | [[Operator installed]](#operator-installed)
+   [[Default namespaces]](#default-namespaces) | [[Latest tag]](#latest-tag) | [[Require labels]](#require-labels) | [[Versioned tag]](#versioned-tag) | [[NodePort not used]](#nodeport-not-used) | [[HostPort not used]](#hostport-not-used) | [[Hardcoded IP addresses in K8s runtime configuration]](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | [[Secrets used]](#secrets-used) | [[Immutable configmap]](#immutable-configmap) | [[Kubernetes Alpha APIs]](#kubernetes-alpha-apis) | [[Operator installed]](#operator-installed)
 * [**Category: 5G Tests**](#category-5g-tests)
 
    [[SMF UPF core validator]](#smf-upf-core-validator) | [[SUCI enabled]](#suci-enabled)
@@ -1549,11 +1549,11 @@ Use immutable configmaps for any non-mutable configuration data.
 
 ----------
 
-### Kubernetes Alpha APIs **PoC**
+### Kubernetes Alpha APIs
 
 #### Overview
 
-This checks if a CNF uses alpha or unstable versions of Kubernetes APIs
+This checks the CNF's rendered manifests for resources declared with alpha API versions and for CustomResourceDefinitions that serve only alpha versions.
 Expectation: CNF should not use Kubernetes alpha APIs
 
 #### Rationale
