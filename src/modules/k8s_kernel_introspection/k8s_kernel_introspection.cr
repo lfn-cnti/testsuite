@@ -47,14 +47,31 @@ module KernelIntrospection
         result[:output].strip.split("\n").reject(&.empty?)
       end
 
+      # Marker printed after every /proc/<pid>/status so one exec can carry
+      # all of them; it cannot occur inside a status file.
+      STATUS_SEPARATOR = "__CNTI_STATUS_END__"
+      # Pids per exec: keeps the command line far below ARG_MAX on any node.
+      STATUS_BATCH_SIZE = 400
+
+      # Reads /proc/<pid>/status for every pid with one exec per batch instead
+      # of one exec per pid: a node with a few hundred processes used to cost a
+      # few hundred kubectl round trips before a single process tree was known.
+      # Pids whose process has gone by the time the batch runs are skipped.
       def self.all_statuses_by_pids(pids : Array(String), node) : Array(String)
-        Log.info { "all_statuses_by_pids" }
-        proc_statuses = pids.map do |pid|
-          Log.info { "all_statuses_by_pids pid: #{pid}" }
-          proc_status = ClusterTools.exec_by_node("cat /proc/#{pid}/status", node)
-          # if /proc/#{pid}/status cannot be read it means that the process is no longer available
-          proc_status[:output] if proc_status[:status].success?
-        end.compact
+        Log.info { "all_statuses_by_pids: #{pids.size} pid(s)" }
+        proc_statuses = [] of String
+        pids.each_slice(STATUS_BATCH_SIZE) do |batch|
+          command = "/bin/sh -c 'for p in #{batch.join(" ")}; do cat /proc/$p/status 2>/dev/null && echo #{STATUS_SEPARATOR}; done; true'"
+          result = ClusterTools.exec_by_node(command, node)
+          unless result[:status].success?
+            Log.warn { "all_statuses_by_pids: batch of #{batch.size} pid(s) failed on #{node.dig?("metadata", "name")}: #{result[:error]}" }
+            next
+          end
+          result[:output].split(STATUS_SEPARATOR).each do |status|
+            status = status.strip
+            proc_statuses << status unless status.empty?
+          end
+        end
 
         Log.debug { "proc process_statuses_by_node count: #{proc_statuses.size}" }
         proc_statuses
