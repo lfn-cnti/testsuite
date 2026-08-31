@@ -158,6 +158,7 @@ module CNFInstall
     # After all deployments are installed, fetch and add label-identified resources to the composite manifest
     if !parsed_args[:skip_wait_for_install]
       add_label_resources_to_manifest(config, parsed_args[:timeout])
+      add_crds_for_custom_resources_to_manifest
     end
   end
 
@@ -479,6 +480,54 @@ module CNFInstall
       logger.info { "Added #{new_owned_resources.size} owner-reference resources to composite manifest" }
       stdout_success "Added #{new_owned_resources.size} resources via ownerReferences to composite manifest."
     end
+
+  end
+
+  # CRDs behind the CNF's custom resources are part of the CNF's API surface
+  # but are often installed at runtime (by an operator or OLM) rather than
+  # declared in the CNF's own manifests, so they never reached the composite
+  # manifest. Fetch every cluster CRD whose spec.group backs one of the CNF's
+  # custom resources, skipping CRDs the CNF already declares itself.
+  private def self.add_crds_for_custom_resources_to_manifest
+    logger = Log.for("add_crds_for_custom_resources_to_manifest")
+    manifest_resources = Manifest.manifest_path_to_ymls(COMMON_MANIFEST_FILE_PATH)
+
+    cr_groups = manifest_resources.select { |resource| is_custom_resource?(resource) }.compact_map do |resource|
+      api_version = resource.dig?("apiVersion").try(&.as_s)
+      next unless api_version && api_version.includes?("/")
+      resource.dig?("kind").try(&.as_s) == "CustomResourceDefinition" ? nil : api_version.split("/").first
+    end.to_set
+    return if cr_groups.empty?
+
+    declared_crd_names = manifest_resources.compact_map do |resource|
+      next unless resource.dig?("kind").try(&.as_s) == "CustomResourceDefinition"
+      resource.dig?("metadata", "name").try(&.as_s)
+    end.to_set
+
+    discovered_crds = [] of YAML::Any
+    begin
+      json = KubectlClient::Get.resource("customresourcedefinitions")
+      items = (json.dig?("items").try &.as_a?) || [] of JSON::Any
+      items.each do |item|
+        group = item.dig?("spec", "group").try(&.as_s)
+        name = item.dig?("metadata", "name").try(&.as_s)
+        next unless group && name
+        next unless cr_groups.includes?(group)
+        next if declared_crd_names.includes?(name)
+        item.as_h.delete("status") if item.as_h?
+        discovered_crds << YAML.parse(item.to_json)
+        logger.debug { "Discovered CRD #{name} for custom resource group #{group}" }
+      end
+    rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+      logger.warn { "Could not list CRDs for custom resource groups #{cr_groups.join(", ")}: #{ex.message}" }
+      return
+    end
+    return if discovered_crds.empty?
+
+    crd_manifest = Manifest.combine_ymls_with_crd_source(discovered_crds)
+    Manifest.add_manifest_to_file("custom-resource-definitions", crd_manifest, COMMON_MANIFEST_FILE_PATH)
+    logger.info { "Added #{discovered_crds.size} CRD(s) backing the CNF's custom resources to composite manifest" }
+    stdout_success "Added #{discovered_crds.size} CRD(s) backing the CNF's custom resources to composite manifest."
   end
 
   private def self.fetch_workload_resources_by_labels(config, default_namespace : String = CLUSTER_DEFAULT_NAMESPACE) : Array(YAML::Any)

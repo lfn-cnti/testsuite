@@ -178,6 +178,23 @@ describe "Installation" do
     end
   end
 
+  it "'cnf_install' should add cluster CRDs backing the cnf's custom resources to the composite manifest", tags: ["cnf_installation1"] do
+    begin
+      # The CRD exists only on the cluster (as if an operator had installed it);
+      # the fixture declares a Widget custom resource but not the CRD.
+      result = ShellCmd.run("kubectl apply -f spec/fixtures/widgets-crd.yml", "apply_widgets_crd")
+      result[:status].success?.should be_true
+      result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-cr-no-crd/cnf-testsuite.yml")
+      (/Added 1 CRD\(s\) backing the CNF's custom resources/ =~ result[:output]).should_not be_nil
+      composite = File.read("cnti/installed-cnf/common_manifest.yml")
+      (/# Source: crd_group_filter \(example.com\) \(CustomResourceDefinition\/widgets.example.com\)/ =~ composite).should_not be_nil
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+      ShellCmd.run("kubectl delete -f spec/fixtures/widgets-crd.yml --ignore-not-found", "delete_widgets_crd")
+    end
+  end
+
   it "'cnf_install/cnf_uninstall' should install/uninstall a cnf with multiple deployments", tags: ["cnf_installation1"] do
     begin
       result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_multiple_deployments/cnf-testsuite.yml")
