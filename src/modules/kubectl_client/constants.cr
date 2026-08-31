@@ -10,4 +10,5 @@ module KubectlClient
   ALREADY_EXISTS_ERR_MATCH = "AlreadyExists"
   NOT_FOUND_ERR_MATCH      = "NotFound|does not exist"
   NETWORK_ERR_MATCH        = "Unable to connect to the server|connection refused|request timed out"
+  CONFLICT_ERR_MATCH       = "Conflict|the object has been modified"
 end

@@ -51,7 +51,13 @@ describe "Operator" do
         json.as_h.delete("spec")
         File.write("operator.json", "#{json.to_json}")
         Log.info { "Uninstall Namespace Finalizer" }
-        KubectlClient::Utils.replace_raw("'/api/v1/namespaces/operators/finalize'", "./operator.json")[:status].success?
+        begin
+          KubectlClient::Utils.replace_raw("'/api/v1/namespaces/operators/finalize'", "./operator.json")[:status].success?
+        rescue KubectlClient::ShellCMD::ConflictError
+          # The terminating namespace's resourceVersion moved between the read
+          # above and this write; refetch and try again.
+          false
+        end
       end
 
       repeat_with_timeout(timeout: GENERIC_OPERATION_TIMEOUT, errormsg: "Namespace uninstallation has timed-out") do
@@ -62,7 +68,13 @@ describe "Operator" do
         json.as_h.delete("spec")
         File.write("manager.json", "#{json.to_json}")
         Log.info { "Uninstall Namespace Finalizer" }
-        KubectlClient::Utils.replace_raw("'/api/v1/namespaces/operator-lifecycle-manager/finalize'", "./manager.json")[:status].success?
+        begin
+          KubectlClient::Utils.replace_raw("'/api/v1/namespaces/operator-lifecycle-manager/finalize'", "./manager.json")[:status].success?
+        rescue KubectlClient::ShellCMD::ConflictError
+          # The terminating namespace's resourceVersion moved between the read
+          # above and this write; refetch and try again.
+          false
+        end
       end
     end
   end

@@ -74,6 +74,8 @@ module KubectlClient
           raise NotFoundError.new(result[:error], result[:status].exit_code)
         when /#{NETWORK_ERR_MATCH}/i.match(result[:error])
           raise NetworkError.new(result[:error], result[:status].exit_code)
+        when /#{CONFLICT_ERR_MATCH}/.match(result[:error])
+          raise ConflictError.new(result[:error], result[:status].exit_code)
         else
           raise UnspecifiedError.new(result[:error], result[:status].exit_code)
         end
@@ -96,6 +98,11 @@ module KubectlClient
     end
 
     class NetworkError < K8sClientCMDException
+    end
+
+    # HTTP 409: the object changed between a read and a write (resourceVersion
+    # moved); the operation is retryable after a fresh read.
+    class ConflictError < K8sClientCMDException
     end
 
     class UnspecifiedError < K8sClientCMDException
