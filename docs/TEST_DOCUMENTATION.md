@@ -236,16 +236,16 @@ Ensure that you can successfully change the software version of your CNF back to
 
 #### Overview
 
-This installs temporary kind clusters and will test the CNF against both Calico and Cilium CNIs.
-Expectation: CNF should be compatible with multiple and different CNIs
+This statically inspects the CNF's rendered manifests for features that couple it to one specific CNI plugin: Multus `NetworkAttachmentDefinition` objects, `k8s.v1.cni.cncf.io/networks` annotations requesting extra networks, Calico- or Cilium-specific APIs and annotations, and SR-IOV device resource requests.
+Expectation: the CNF requests nothing that only one specific CNI plugin can provide
 
 #### Rationale
 
-A CNF should be runnable by any CNI that adheres to the [CNI specification](https://github.com/containernetworking/cni/blob/master/SPEC.md)
+A CNF should be runnable by any CNI that adheres to the [CNI specification](https://github.com/containernetworking/cni/blob/master/SPEC.md); manifests that hardwire vendor-specific network features only run on matching clusters.
 
 #### Remediation
 
-Ensure that your CNF is compatible with Calico, Cilium and other available CNIs.
+Avoid vendor-specific network APIs, annotations and device resources in the CNF's manifests, or isolate them behind optional, documented configuration.
 
 #### Usage
 
