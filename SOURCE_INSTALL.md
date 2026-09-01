@@ -210,11 +210,6 @@ The following will run only workload tests:
 ./cnf-testsuite workload
 ```
 
-The following would run only the platform tests:
-
-```
-./cnf-testsuite platform
-```
 
 You can also run via `crystal` by replacing the `./cnf-testsuite` with `crystal spec src/cnf-testsuite.cr` and then the argument.
 

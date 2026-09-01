@@ -31,10 +31,9 @@ end
 Log.setup(Log::Severity::Error, log_backend)
 Log.setup(loglevel, log_backend)
 
-# Define top level loggers for workload, platform and setup tasks.
+# Define top level loggers for workload and setup tasks.
 # Modules and Classes should have their own loggers.
 WLOG = Log.for("Workload")
-PLOG = Log.for("Platform")
 SLOG = Log.for("Setup")
 
 private def log_backend

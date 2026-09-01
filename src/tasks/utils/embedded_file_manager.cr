@@ -7,9 +7,6 @@ module EmbeddedFileManager
   macro node_failure_values
     NODE_FAILED_VALUES = Base64.decode_string("{{ `cat ./embedded_files/node_failure_values.yml  | base64`}}")
   end
-  macro reboot_daemon
-    REBOOT_DAEMON = Base64.decode_string("{{ `cat ./tools/reboot_daemon/manifest.yml | base64` }}")
-  end
   macro chaos_network_loss
     CHAOS_NETWORK_LOSS = Base64.decode_string("{{ `cat ./embedded_files/chaos_network_loss.yml  | base64`}}")
   end
@@ -24,9 +21,6 @@ module EmbeddedFileManager
   end
   macro constraint_template
     CONSTRAINT_TEMPLATE = Base64.decode_string("{{ `cat ./embedded_files/constraint_template.yml  | base64`}}")
-  end
-  macro disable_cni
-    DISABLE_CNI = Base64.decode_string("{{ `cat ./embedded_files/kind-disable-cni.yaml  | base64`}}")
   end
   macro test_documentation
     TEST_DOCUMENTATION_MD = Base64.decode_string("{{ `cat ./docs/TEST_DOCUMENTATION.md | base64`}}")

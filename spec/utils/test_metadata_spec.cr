@@ -8,7 +8,7 @@ require "../../src/tasks/**"
 # span a test's declaration and something outside it.
 describe "test metadata" do
   it "declares a criterion for every group it reports on", tags: ["points"] do
-    %w[all workload platform cert compatibility state security configuration
+    %w[all workload cert compatibility state security configuration
        observability microservice resilience].each do |group|
       CNFManager::Points.group_criteria(group).should_not be_nil
     end
@@ -82,7 +82,7 @@ describe "test metadata" do
     # clusterapi_enabled is deliberately outside every suite: poc-gated and only
     # meaningful when invoked by name. Listing it documents that as a decision
     # rather than letting any orphan through unnoticed.
-    deliberate_orphans = ["clusterapi_enabled"]
+    deliberate_orphans = [] of String
 
     counts = Hash(String, Int32).new(0)
     CNFManager::GroupRegistry.category_paths.each do |path|
@@ -93,8 +93,7 @@ describe "test metadata" do
       deps.each { |dep| counts[dep.rpartition(":")[2]] += 1 }
     end
 
-    # A test need not be in a category - platform:k8s_conformance is a direct member of
-    # the platform suite - but something must run it.
+    # Every declared test must be run by something.
     reachable = Set(String).new
     Sam.root_namespace.all_tasks.each do |task|
       task.dependency_names.each { |dep| reachable << dep.rpartition(":")[2] }
@@ -109,27 +108,6 @@ describe "test metadata" do
     ambiguous.should eq([] of String), "tests claimed by more than one category: #{ambiguous}"
   end
 
-  it "keeps the pre-namespace names working, exclusions included", tags: ["points"] do
-    paths = Sam.root_namespace.all_tasks.map(&.path)
-    {"k8s_conformance" => "platform:k8s_conformance",
-     "clusterapi_enabled" => "platform:clusterapi_enabled"}.each do |old_name, new_name|
-      paths.should contain(old_name)
-      paths.should contain(new_name)
-
-      # SAM matches an exclusion against a task's own path, so without rewriting
-      # `--skip k8s_conformance` would match the alias and silently exclude nothing.
-      TaskAliases[old_name]?.should eq(new_name)
-      CLIParser.parse!(["platform", "--skip", old_name]).args.raw.should eq(["~#{new_name}"])
-    end
-
-    # An alias is not a test. The registry keys on a task's name, so if the
-    # top-level alias had registered it would have overwritten the real entry -
-    # and, being outside the namespace, would have recorded it as a workload
-    # test. Platform scope proves the real registration survived.
-    CNFManager::TestRegistry["k8s_conformance"]?.not_nil!.scope.platform?.should be_true
-    CNFManager::TestRegistry["clusterapi_enabled"]?.not_nil!.scope.platform?.should be_true
-  end
-
   it "treats an undeclared type as normal", tags: ["points"] do
     # Only the tests carrying a policy decision - essential or bonus - say
     # anything about their type. Defaulting an ordinary test to normal also
@@ -142,16 +120,12 @@ describe "test metadata" do
   end
 
   it "derives a test's scope from the namespace it registers in", tags: ["points"] do
-    # Declaring the scope as well as choosing where to define the task meant the
-    # two could disagree, and did: verify_secrets_encryption sat outside its
-    # namespace block while claiming to be a platform test.
-    CNFManager::TestRegistry["cluster_admin"]?.not_nil!.scope.platform?.should be_true
     CNFManager::TestRegistry["liveness"]?.not_nil!.scope.workload?.should be_true
   end
 
   it "derives a test's category from the aggregate that runs it", tags: ["points"] do
     CNFManager::TestRegistry.category_of["liveness"]?.should eq("resilience")
-    CNFManager::TestRegistry.category_of["cluster_admin"]?.should eq("platform:security")
+    CNFManager::TestRegistry.category_of["hostport_not_used"]?.should eq("configuration")
   end
 
   it "scores a test from its declared type", tags: ["points"] do
@@ -167,10 +141,6 @@ describe "test metadata" do
     tags.should contain("essential")
     tags.should contain("cert")
 
-    platform_tags = CNFManager::Points.tags_by_task("cluster_admin")
-    platform_tags.should contain("platform")
-    platform_tags.should contain("platform:security")
-    platform_tags.should_not contain("workload")
   end
 
   it "keeps every essential test in the certification set", tags: ["points"] do

@@ -50,7 +50,7 @@
     {
       "description": "Low risk, proven by the CI matrix: automerge once green",
       "matchDepNames": [
-        "kubernetes-sigs/kind", "helm/helm", "vmware-tanzu/sonobuoy", "kubernetes-sigs/cluster-api",
+        "helm/helm",
         "lfncnti/cluster-tools", "fluent/fluent-bit", "cr.fluentbit.io/fluent/fluent-bit", "fluent/fluentd-kubernetes-daemonset"
       ],
       "matchUpdateTypes": ["minor", "patch", "digest"],

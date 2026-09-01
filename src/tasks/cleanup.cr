@@ -15,7 +15,6 @@ end
 desc "Cleans up the CNF Test Suite helper tools and containers"
 task "tools_uninstall", [
   "_tools_uninstall_start",
-  "setup:uninstall_sonobuoy",
   "setup:uninstall_litmus",
   "setup:uninstall_kubescape",
   "setup:uninstall_cluster_tools",
@@ -24,9 +23,7 @@ task "tools_uninstall", [
   "setup:uninstall_jaeger",
   "setup:uninstall_fluentd",
   "setup:uninstall_fluentbit",
-  "setup:cluster_api_uninstall",
   "uninstall_ueransim",
-  "uninstall_kind",
   # Helm needs to be uninstalled last to allow other uninstalls to use helm if necessary.
   # Check this issue for details - https://github.com/cncf/cnf-testsuite/issues/1586
   "setup:uninstall_local_helm",

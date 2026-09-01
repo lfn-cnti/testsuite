@@ -12,8 +12,8 @@ describe "DocRemediation" do
     missing.should eq([] of String)
 
     DocRemediation.for("liveness").not_nil!.should contain("Liveness Probe")
-    # Usage lines are namespaced for platform tests; the lookup is by task name.
-    DocRemediation.for("platform:node_drain").should eq(DocRemediation.for("node_drain"))
+    # Namespaced usage lines are looked up by task name.
+    DocRemediation.for("any:node_drain").should eq(DocRemediation.for("node_drain"))
     DocRemediation.for("no_such_test").should be_nil
   end
 end

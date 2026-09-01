@@ -60,7 +60,6 @@ module CLIHelp
 
   # Resolves a dependency the way SAM does: a task inside a namespace names its
   # siblings without the namespace prefix, so "cluster_admin" written inside
-  # `platform:security` means `platform:cluster_admin`.
   def self.find_task_near(context : Sam::Task, name : String) : Sam::Task?
     prefix = context.path.rpartition(":")[0]
     return find_task(name) if prefix.empty?
@@ -73,7 +72,6 @@ module CLIHelp
     paths = visible_tasks.map(&.path)
     # A namespaced task is far from its own bare name by edit distance - the
     # prefix alone is nine characters - so match the last segment first. That is
-    # what someone typing `k8s_conformance` for `platform:k8s_conformance` needs.
     exact_segment = paths.find { |path| path.rpartition(":")[2] == name && path != name }
     exact_segment || Levenshtein.find(name, paths, 3)
   end
@@ -101,21 +99,13 @@ module CLIHelp
       "setup", "cnf_install", "cnf_uninstall", "validate_config",
       "cnf_setup", "cnf_cleanup", "uninstall_all", "tools_uninstall",
     ])
-    add.call("Test suites", ["all", "workload", "platform", "cert", "static"])
+    add.call("Test suites", ["all", "workload", "cert", "static"])
 
     WORKLOAD_CATEGORIES.each do |category|
       task = find_task(category)
       next if task.nil?
       add.call("Workload tests: #{category}", [category] + task.dependency_names)
     end
-
-    platform_paths = [] of String
-    if platform = find_task("platform")
-      # `platform` also depends on a setup task; that belongs under setup.
-      platform_paths.concat(platform.dependency_names.reject(&.starts_with?("setup:")))
-    end
-    platform_paths.concat(visible_tasks.map(&.path).select(&.starts_with?("platform:")).sort)
-    add.call("Platform tests", platform_paths)
 
     # 5G and RAN suites are aggregates in their own right rather than members of
     # a workload category.
@@ -178,9 +168,8 @@ module CLIHelp
       #{BIN_NAME} cnf_uninstall
 
     TEST SUITES
-      all         workload and platform tests
+      all         every test
       workload    tests against the installed CNF
-      platform    tests against the Kubernetes platform itself
       cert        certification run; exits 0 when the CNF is certified
 
     OPTIONS (anywhere on the line; --name VALUE or --name=VALUE)
