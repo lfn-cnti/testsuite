@@ -75,9 +75,8 @@ describe "test metadata" do
 
   it "runs every declared test from exactly one category", tags: ["points"] do
     # A test that no category runs only executes if invoked by name. That is how
-    # zombie_handled came to be run by cert but not by workload, and how
-    # smf_upf_heartbeat declared itself a 5G test the 5g suite skipped. More
-    # than one category would make the derived category tag ambiguous.
+    # zombie_handled came to be run by cert but not by workload. More than one
+    # category would make the derived category tag ambiguous.
     #
     # clusterapi_enabled is deliberately outside every suite: poc-gated and only
     # meaningful when invoked by name. Listing it documents that as a decision

@@ -18,7 +18,6 @@ module CNFInstall
              workload_resource_labels = [] of WorkloadResourceLabel,
              docker_insecure_registries = [] of String,
              image_registry_fqdns = {} of String => String,
-             five_g_parameters = FiveGParameters.new(),
              hardcoded_ip_exceptions = [] of HardcodedIPsAllowed,
              tls_profiles = {} of String => TLSConfig,
              auth_defaults = AuthDefaults.new
@@ -122,33 +121,6 @@ module CNFInstall
 
     class ManifestDirectoryConfig < DeploymentConfig
       getter manifest_directory : String
-    end
-
-    class FiveGParameters < CNFInstall::Config::ConfigBase
-      getter amf_label = "",
-             smf_label = "",
-             upf_label = "",
-             amf_service_name = "",
-             mmc = "",
-             mnc = "",
-             sst = "",
-             sd = "",
-             tac = "",
-             protectionScheme = "",
-             publicKey = "",
-             publicKeyId = "",
-             routingIndicator = "",
-             enabled = "",
-             count = "",
-             initialMSISDN = "",
-             key = "",
-             op = "",
-             opType = "",
-             type = "",
-             apn = "",
-             emergency = ""
-
-      def initialize; end
     end
 
     class WorkloadResourceLabel < CNFInstall::Config::ConfigBase

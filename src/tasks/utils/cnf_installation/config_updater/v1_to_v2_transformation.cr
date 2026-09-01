@@ -26,8 +26,7 @@ module CNFInstall
           "white_list_container_names" => @input_config.white_list_container_names,
           "docker_insecure_registries" => @input_config.docker_insecure_registries,
           "image_registry_fqdns" => @input_config.image_registry_fqdns,
-          "container_names" => transform_container_names,
-          "five_g_parameters" => transform_five_g_parameters
+          "container_names" => transform_container_names
         }.compact
       
         common
@@ -86,33 +85,6 @@ module CNFInstall
         deployments
       end
       
-      private def transform_five_g_parameters : Hash(String, String | Nil)
-        {
-          "core" => @input_config.core,
-          "amf_label" => @input_config.amf_label,
-          "smf_label" => @input_config.smf_label,
-          "upf_label" => @input_config.upf_label,
-          "amf_service_name" => @input_config.amf_service_name,
-          "mmc" => @input_config.mmc,
-          "mnc" => @input_config.mnc,
-          "sst" => @input_config.sst,
-          "sd" => @input_config.sd,
-          "tac" => @input_config.tac,
-          "protectionScheme" => @input_config.protectionScheme,
-          "publicKey" => @input_config.publicKey,
-          "publicKeyId" => @input_config.publicKeyId,
-          "routingIndicator" => @input_config.routingIndicator,
-          "enabled" => @input_config.enabled,
-          "count" => @input_config.count,
-          "initialMSISDN" => @input_config.initialMSISDN,
-          "key" => @input_config.key,
-          "op" => @input_config.op,
-          "opType" => @input_config.opType,
-          "type" => @input_config.type,
-          "apn" => @input_config.apn,
-          "emergency" => @input_config.emergency
-        }
-      end
     end
   end
 end

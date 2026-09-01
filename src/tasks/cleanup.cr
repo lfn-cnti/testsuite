@@ -25,7 +25,6 @@ task "tools_uninstall", [
   "setup:uninstall_fluentd",
   "setup:uninstall_fluentbit",
   "setup:cluster_api_uninstall",
-  "uninstall_ueransim",
   "uninstall_kind",
   # Helm needs to be uninstalled last to allow other uninstalls to use helm if necessary.
   # Check this issue for details - https://github.com/cncf/cnf-testsuite/issues/1586

@@ -29,10 +29,6 @@
 * [**Category: Configuration Tests**](#category-configuration-tests)
 
    [[Default namespaces]](#default-namespaces) | [[Latest tag]](#latest-tag) | [[Require labels]](#require-labels) | [[Versioned tag]](#versioned-tag) | [[NodePort not used]](#nodeport-not-used) | [[HostPort not used]](#hostport-not-used) | [[Hardcoded IP addresses in K8s runtime configuration]](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | [[Secrets used]](#secrets-used) | [[Immutable configmap]](#immutable-configmap) | [[Kubernetes Alpha APIs]](#kubernetes-alpha-apis) | [[Operator installed]](#operator-installed)
-* [**Category: 5G Tests**](#category-5g-tests)
-
-   [[SMF UPF core validator]](#smf-upf-core-validator) | [[SUCI enabled]](#suci-enabled)
-
 * [**Category: Platform Tests**](#category-platform-tests)
 
    [[K8s Conformance]](#k8s-conformance) | [[ClusterAPI enabled]](#clusterapi-enabled) | [[OCI Compliant]](#oci-compliant) | [[(POC) Worker reboot recovery]](#poc-worker-reboot-recovery) | [[Cluster admin]](#cluster-admin) | [[Control plane hardening]](#control-plane-hardening) | [[Tiller images]](#tiller-images) | [[ConfigMaps encrypted]](#configmaps-encrypted) | [[Secrets encrypted]](#secrets-encrypted)
@@ -1584,55 +1580,6 @@ If your CNF uses an Operator, package it for the Operator Lifecycle Manager and 
 #### Usage
 
 `./cnf-testsuite operator_installed`
-
-----------
-
-## Category: 5G Tests
-
-A 5g core is an important part of the service provider's telecommunications offering. A cloud native 5g architecture uses immutable infrastructure, declarative configuration, and microservices when creating and hosting 5g cloud native network functions.
-
-### Usage
-
-All 5G: `./cnf-testsuite 5g`
-
-----------
-
-### SMF UPF core validator
-
-#### Overview
-
-Checks the pfcp heartbeat between the smf and upf to make sure it remains close to baseline.
-Expectation: 5g core should continue to function during various CNF tests.
-
-#### Rationale
-
-A 5g core's [SMF and UPF CNFs have a heartbeat](https://www.etsi.org/deliver/etsi_ts/123500_123599/123527/15.01.00_60/ts_123527v150100p.pdf), implemented use the PFCP protocol standard, which measures if the connection between the two CNFs is active.
-After measuring a baseline of the heartbeat a comparison between the baseline and the performance of the heartbeat while running test functions will expose the [cloud native resilience](https://www.cncf.io/blog/2021/09/23/cloud-native-chaos-and-telcos-enforcing-reliability-and-availability-for-telcos/) of the cloud native 5g core.
-
-#### Remediation
-
-#### Usage
-
-`./cnf-testsuite smf_upf_core_validator`
-
-----------
-
-### SUCI enabled
-
-#### Overview
-
-Checks to see if the 5g core supports suci concealment.
-Expectation: 5g core should use suci concealment.
-
-#### Rationale
-
-In order to [protect identifying information](https://nickvsnetworking.com/5g-subscriber-identifiers-suci-supi/) from being sent over the network as clear text, 5g cloud native cores should implement [SUPI and SUCI concealment](https://www.etsi.org/deliver/etsi_ts/133500_133599/133514/16.04.00_60/ts_133514v160400p.pdf)
-
-#### Remediation
-
-#### Usage
-
-`./cnf-testsuite suci_enabled`
 
 ----------
 

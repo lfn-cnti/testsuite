@@ -117,18 +117,6 @@ module CLIHelp
     platform_paths.concat(visible_tasks.map(&.path).select(&.starts_with?("platform:")).sort)
     add.call("Platform tests", platform_paths)
 
-    # The 5G suite is an aggregate in its own right rather than a member of a
-    # workload category.
-    telco_paths = [] of String
-    if task = find_task("5g")
-      telco_paths << "5g"
-      telco_paths.concat(task.dependency_names)
-    end
-    telco_paths.concat(visible_tasks.map(&.path).select { |path|
-      path.starts_with?("smf_upf") || path.starts_with?("suci")
-    }.sort)
-    add.call("5G tests", telco_paths)
-
     add.call("Certification", visible_tasks.map(&.path).select(&.starts_with?("cert")).sort)
 
     # Tools the suite can install into the cluster on demand, outside the
