@@ -41,7 +41,6 @@ EmbeddedFileManager.enforce_image_tag
 EmbeddedFileManager.constraint_template
 EmbeddedFileManager.fluentd_values
 EmbeddedFileManager.fluentbit_values
-EmbeddedFileManager.ueransim_helmconfig
 
 EXCLUDE_NAMESPACES = [
   "kube-system",

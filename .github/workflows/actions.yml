@@ -62,8 +62,8 @@ jobs:
         #  - CHAOS_TAGS run in the dedicated `chaos` job, whose matrix is derived
         #    from this same list (so the two can never drift or double-run).
         #  - EXTRA_SKIP: flaky, or handled elsewhere (free5gc -> nightly workflow).
-        CHAOS_TAGS=(pod_delete pod_io_stress pod_memory_hog pod_network_latency disk_fill pod_network_corruption pod_network_duplication zombie oran)
-        EXTRA_SKIP=(5g core shared_database_flaky free5gc)
+        CHAOS_TAGS=(pod_delete pod_io_stress pod_memory_hog pod_network_latency disk_fill pod_network_corruption pod_network_duplication zombie)
+        EXTRA_SKIP=(shared_database_flaky free5gc)
         EXCLUDED=("${CHAOS_TAGS[@]}" "${EXTRA_SKIP[@]}")
 
         contains() { local n=$1; shift; local x; for x in "$@"; do [ "$x" = "$n" ] && return 0; done; return 1; }
@@ -330,7 +330,7 @@ jobs:
         rm -rf ~/.config/helm
       continue-on-error: true
   chaos:
-    name: Chaos & Oran Tests
+    name: Chaos Tests
     needs: [tests]
     runs-on: ubuntu-24.04
     env:

@@ -9,7 +9,6 @@ describe "Runtime artifact locations" do
       LitmusManager.modified_operator_file,
       Setup::CLUSTER_TOOLS_MANIFEST,
       Setup::RENDERED_MANIFESTS_DIR,
-      Setup::FIVE_G_TOOLS_DIR,
       Kubescape::RESULTS_FILE,
       Kubescape.control_results_file("C-0001"),
     ].each do |path|

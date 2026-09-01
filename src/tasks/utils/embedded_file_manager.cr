@@ -31,9 +31,6 @@ module EmbeddedFileManager
   macro fluentbit_values
     FLUENTBIT_VALUES = Base64.decode_string("{{ `cat ./embedded_files/fluentbit-values.yml | base64`}}")
   end
-  macro ueransim_helmconfig
-    UERANSIM_HELMCONFIG = Base64.decode_string("{{ `cat ./embedded_files/ue.yaml | base64`}}")
-  end
   # Minimal per-fault RBAC for the LitmusChaos faults the suite runs, as
   # published in the Litmus docs (chaos-charts stopped shipping rbac.yaml in 3.x).
   # Each manifest targets the "default" namespace; LitmusManager.install_fault
