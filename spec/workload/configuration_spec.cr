@@ -2,7 +2,7 @@ require "../spec_helper"
 require "colorize"
 require "../../src/tasks/utils/utils.cr"
 
-describe CnfTestSuite do
+describe CntiTestSuite do
   before_all do
     result = ShellCmd.run("pwd")
     Log.debug { result[:output] }
@@ -16,8 +16,8 @@ describe CnfTestSuite do
 
   it "'liveness' should pass when livenessProbe is set", tags: ["liveness"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/k8s-multiple-deployments/cnf-testsuite.yml")
-      result = ShellCmd.run_testsuite("liveness", cmd_prefix:"CNF_TESTSUITE_LOG_LEVEL=debug")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/k8s-multiple-deployments/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("liveness", cmd_prefix:"CNTI_TESTSUITE_LOG_LEVEL=debug")
       result[:status].success?.should be_true
       (/(PASSED).*(All workload resources have at least one container with a liveness probe)/ =~ result[:output]).should_not be_nil
       (/> Deployment\/.* in .*: liveness probe on .+/ =~ result[:output]).should_not be_nil
@@ -29,7 +29,7 @@ describe CnfTestSuite do
 
   it "'liveness' should fail when livenessProbe is not set", tags: ["liveness"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns_bad_liveness/cnf-testsuite.yml --skip-wait-for-install")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns_bad_liveness/cnti-testsuite.yaml --skip-wait-for-install")
       result = ShellCmd.run_testsuite("liveness")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(One or more workload resources have no containers with a liveness probe)/ =~ result[:output]).should_not be_nil
@@ -42,8 +42,8 @@ describe CnfTestSuite do
 
   it "'readiness' should pass when readinessProbe is set", tags: ["readiness"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/k8s-multiple-deployments/cnf-testsuite.yml")
-      result = ShellCmd.run_testsuite("readiness", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=debug")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/k8s-multiple-deployments/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("readiness", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
       result[:status].success?.should be_true
       (/(PASSED).*(All workload resources have at least one container with a readiness probe)/ =~ result[:output]).should_not be_nil
       verify_task_result("readiness", "passed")
@@ -54,7 +54,7 @@ describe CnfTestSuite do
 
   it "'readiness' should fail when readinessProbe is not set", tags: ["readiness"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns_bad_liveness/cnf-testsuite.yml --skip-wait-for-install")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns_bad_liveness/cnti-testsuite.yaml --skip-wait-for-install")
       result = ShellCmd.run_testsuite("readiness")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(One or more workload resources have no containers with a readiness probe)/ =~ result[:output]).should_not be_nil
@@ -67,7 +67,7 @@ describe CnfTestSuite do
 
   it "'rolling_update' should pass when valid version is given", tags: ["rolling_update"]  do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("rolling_update")
       result[:status].success?.should be_true
       (/Passed/ =~ result[:output]).should_not be_nil
@@ -78,7 +78,7 @@ describe CnfTestSuite do
 
   it "'rolling_update' should fail when invalid version is given", tags: ["rolling_update"]  do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling_invalid_version/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling_invalid_version/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("rolling_update")
       result[:status].exit_code.should eq(1)
       (/Failed/ =~ result[:output]).should_not be_nil
@@ -89,7 +89,7 @@ describe CnfTestSuite do
 
   it "'rolling_downgrade' should pass when valid version is given", tags: ["rolling_downgrade"]  do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling/cnf-testsuite.yml --skip-wait-for-install")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling/cnti-testsuite.yaml --skip-wait-for-install")
       retry_limit = 5 
       retries = 1
       result = ShellCmd.run_testsuite("rolling_downgrade")
@@ -109,7 +109,7 @@ describe CnfTestSuite do
 
   it "'rolling_downgrade' should fail when invalid version is given", tags: ["rolling_downgrade"]  do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling_invalid_version/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling_invalid_version/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("rolling_downgrade")
       result[:status].exit_code.should eq(1)
       (/Failed/ =~ result[:output]).should_not be_nil
@@ -120,7 +120,7 @@ describe CnfTestSuite do
 
   it "'rolling_version_change' should pass when valid version is given", tags: ["rolling_version_change"]  do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling/cnf-testsuite.yml --skip-wait-for-install")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling/cnti-testsuite.yaml --skip-wait-for-install")
       result = ShellCmd.run_testsuite("rolling_version_change")
       result[:status].success?.should be_true
       (/Passed/ =~ result[:output]).should_not be_nil
@@ -131,7 +131,7 @@ describe CnfTestSuite do
 
   it "'rolling_version_change' should fail when invalid version is given", tags: ["rolling_version_change"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling_invalid_version/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling_invalid_version/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("rolling_version_change")
       result[:status].exit_code.should eq(1)
       (/Failed/ =~ result[:output]).should_not be_nil
@@ -142,7 +142,7 @@ describe CnfTestSuite do
 
   it "'rollback' should pass ", tags: ["rollback"]  do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling/cnf-testsuite.yml --skip-wait-for-install")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling/cnti-testsuite.yaml --skip-wait-for-install")
       result = ShellCmd.run_testsuite("rollback")
       result[:status].success?.should be_true
       (/Passed/ =~ result[:output]).should_not be_nil
@@ -166,7 +166,7 @@ describe CnfTestSuite do
 
   it "'nodeport_not_used' should pass when a node port is not being used", tags: ["nodeport_not_used"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnf-testsuite.yml --skip-wait-for-install")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnti-testsuite.yaml --skip-wait-for-install")
       result = ShellCmd.run_testsuite("nodeport_not_used")
       result[:status].success?.should be_true
       (/(PASSED).*(NodePort is not used)/ =~ result[:output]).should_not be_nil
@@ -204,7 +204,7 @@ describe CnfTestSuite do
 
   it "'hostport_not_used' should pass when a node port is not being used", tags: ["hostport_not_used"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnf-testsuite.yml --skip-wait-for-install")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnti-testsuite.yaml --skip-wait-for-install")
       result = ShellCmd.run_testsuite("hostport_not_used")
       result[:status].success?.should be_true
       (/(PASSED).*(HostPort is not used)/ =~ result[:output]).should_not be_nil
@@ -217,7 +217,7 @@ describe CnfTestSuite do
   it "'hardcoded_ip_addresses_in_k8s_runtime_configuration' should fail when a hardcoded ip is found in the K8s configuration", tags: ["ip_addresses"] do
     begin
       ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_coredns_hardcoded_ips")
-      result = ShellCmd.run_testsuite("hardcoded_ip_addresses_in_k8s_runtime_configuration", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=info")
+      result = ShellCmd.run_testsuite("hardcoded_ip_addresses_in_k8s_runtime_configuration", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=info")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Hard-coded IP addresses found in the runtime K8s configuration)/ =~ result[:output]).should_not be_nil
       # each hit is attributed to the resource it sits in, with the address (#2490 follow-up)
@@ -230,7 +230,7 @@ describe CnfTestSuite do
 
   it "'hardcoded_ip_addresses_in_k8s_runtime_configuration' should pass when no ip addresses are found in the K8s configuration", tags: ["ip_addresses"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnf-testsuite.yml --skip-wait-for-install")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnti-testsuite.yaml --skip-wait-for-install")
       result = ShellCmd.run_testsuite("hardcoded_ip_addresses_in_k8s_runtime_configuration")
       result[:status].success?.should be_true
       (/(PASSED).*(No hard-coded IP addresses found in the runtime K8s configuration)/ =~ result[:output]).should_not be_nil
@@ -241,7 +241,7 @@ describe CnfTestSuite do
 
   it "'secrets_used' should pass when secrets are provided as volumes and used by a container", tags: ["secrets"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_secret_volume/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_secret_volume/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("secrets_used")
       result[:status].success?.should be_true
       (/(PASSED).*(Secrets defined and used)/ =~ result[:output]).should_not be_nil
@@ -253,7 +253,7 @@ describe CnfTestSuite do
 
   it "'secrets_used' should be skipped when secrets are provided as volumes and not mounted by a container", tags: ["secrets"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_unmounted_secret_volume/cnf-testsuite.yml --skip-wait-for-install")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_unmounted_secret_volume/cnti-testsuite.yaml --skip-wait-for-install")
       result = ShellCmd.run_testsuite("secrets_used")
       result[:status].success?.should be_true
       (/(SKIPPED).*(Secrets not used)/ =~ result[:output]).should_not be_nil
@@ -264,7 +264,7 @@ describe CnfTestSuite do
 
   it "'secrets_used' should pass when secrets are provided as environment variables and used by a container", tags: ["secrets"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_secret_env/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_secret_env/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("secrets_used")
       result[:status].success?.should be_true
       (/(PASSED).*(Secrets defined and used)/ =~ result[:output]).should_not be_nil
@@ -275,7 +275,7 @@ describe CnfTestSuite do
 
   it "'secrets_used' should skip when secrets are not referenced as environment variables by a container", tags: ["secrets"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_secret_env_no_ref/cnf-testsuite.yml --skip-wait-for-install")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_secret_env_no_ref/cnti-testsuite.yaml --skip-wait-for-install")
       result = ShellCmd.run_testsuite("secrets_used")
       result[:status].success?.should be_true
       (/(SKIPPED).*(Secrets not used)/ =~ result[:output]).should_not be_nil
@@ -286,7 +286,7 @@ describe CnfTestSuite do
 
   it "'secrets_used' should be skipped when no secret volumes are mounted or no container secrets are provided (secrets ignored)`", tags: ["secrets"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnf-testsuite.yml --skip-wait-for-install")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnti-testsuite.yaml --skip-wait-for-install")
       result = ShellCmd.run_testsuite("secrets_used")
       result[:status].success?.should be_true
       (/(SKIPPED).*(Secrets not used)/ =~ result[:output]).should_not be_nil
@@ -319,7 +319,7 @@ describe CnfTestSuite do
 
   it "'require_labels' should fail if a cnf does not have the app.kubernetes.io/name label", tags: ["require_labels"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_nonroot/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_nonroot/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("require_labels")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Pods should have the app.kubernetes.io\/name label)/ =~ result[:output]).should_not be_nil
@@ -330,7 +330,7 @@ describe CnfTestSuite do
 
   it "'require_labels' should pass if a cnf has the app.kubernetes.io/name label", tags: ["require_labels"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("require_labels")
       result[:status].success?.should be_true
       (/(PASSED).*(Pods have the app.kubernetes.io\/name label)/ =~ result[:output]).should_not be_nil
@@ -400,7 +400,7 @@ describe CnfTestSuite do
   end
   it "'alpha_k8s_apis' should fail when a manifest declares or serves only alpha APIs", tags: ["alpha_k8s_apis"] do
     begin
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-alpha-apis/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-alpha-apis/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("alpha_k8s_apis")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(CNF uses Kubernetes alpha APIs)/ =~ result[:output]).should_not be_nil
@@ -414,7 +414,7 @@ describe CnfTestSuite do
 
   it "'alpha_k8s_apis' should pass when no alpha APIs are used", tags: ["alpha_k8s_apis"] do
     begin
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("alpha_k8s_apis")
       result[:status].success?.should be_true
       (/(PASSED).*(CNF does not use Kubernetes alpha APIs)/ =~ result[:output]).should_not be_nil

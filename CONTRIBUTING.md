@@ -35,13 +35,13 @@ To report a bug, please create a new issue using the [**Bug Report**](https://gi
 
 ```
 # cmd line
-./cnf-testsuite -l debug test
+./cnti-testsuite -l debug test
 
 # make sure to use -- if running from source
-crystal src/cnf-testsuite.cr -- -l debug test
+crystal src/cnti-testsuite.cr -- -l debug test
 
 # env var
-LOGLEVEL=DEBUG ./cnf-testsuite test
+LOGLEVEL=DEBUG ./cnti-testsuite test
 ```
 
 Check [usage documentation](USAGE.md) for more info about invoking commands and loggin
@@ -81,7 +81,7 @@ Outline of what a contributor's workflow looks like:
 
 ## Submitting a PR:
 
-Once you have implemented the feature or bug fix in your branch, you will open a PR to the upstream cnf-testsuite repo. Before opening the PR ensure you rebased on the latest upstream, have added spec tests, if needed, all spec tests are passing.
+Once you have implemented the feature or bug fix in your branch, you will open a PR to the upstream cnti-testsuite repo. Before opening the PR ensure you rebased on the latest upstream, have added spec tests, if needed, all spec tests are passing.
 
 In order to open a pull request (PR) it is required to be up to date with the latest changes upstream. If other commits are pushed upstream before your PR is merged, you will also need to rebase again before it will be merged.
 
@@ -93,19 +93,19 @@ For general advice on how to submit a pull request, please see [Creating a pull 
 
 **Problem:** Pull requests from forks do not have the permissions to run through the github actions CI, so they will fail
 
-**Solution:** Pull down the source from the fork and branch, then push up the source to the original cnf-testsuite repo.
+**Solution:** Pull down the source from the fork and branch, then push up the source to the original cnti-testsuite repo.
 
 1. Make a directory based on the forked user's name in the the pull request.
    `mkdir <contributor-username>`
    `cd <contributer-username>`
 2. Clone the fork.
-   `git clone git@github.com:<contributor-username>/cnf-testsuite.git`
-   `cd cnf-testsuite`
-3. Add the original cnf-testsuite repo.
+   `git clone git@github.com:<contributor-username>/cnti-testsuite.git`
+   `cd cnti-testsuite`
+3. Add the original cnti-testsuite repo.
    `git remote add cncf git@github.com:lfn-cnti/testsuite.git`
 4. Checkout the pull request's branch.
    `git checkout <pull-request's-branch-name>`
-5. Push the branch to the original cnf-testsuite repo.
+5. Push the branch to the original cnti-testsuite repo.
    `git push <pull-request's-branch-name>`
 6. Observe results of the github actions.
 7. (optional) Accept the original pull request if the review and tests pass.

@@ -77,8 +77,8 @@ jobs:
             install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
             curl -fsSL --retry 3 --retry-delay 2 -o get-helm-4.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 && bash get-helm-4.sh && \
             git config --global --add safe.directory /testsuite && \
-            (cd testsuite && shards install && crystal build src/cnf-testsuite.cr && \
-            ./cnf-testsuite setup && ./cnf-testsuite cnf_install --cnf-config example-cnfs/coredns && ./cnf-testsuite cert && ./cnf-testsuite uninstall_all)"
+            (cd testsuite && shards install && crystal build src/cnti-testsuite.cr && \
+            ./cnti-testsuite setup && ./cnti-testsuite cnf_install --cnf-config example-cnfs/coredns && ./cnti-testsuite cert && ./cnti-testsuite uninstall_all)"
       - run: |
           kind delete cluster --name debian-${{ matrix.release }}
           docker stop debian-${{ matrix.release }}

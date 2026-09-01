@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/lfn-cnti/testsuite/main/docs/cnf-testsuite-results.schema.json",
+  "$id": "https://raw.githubusercontent.com/lfn-cnti/testsuite/main/docs/cnti-testsuite-results.schema.json",
   "title": "CNTi Test Suite results file",
-  "description": "Schema for the cnti/results/cnf-testsuite-results-<timestamp>.yml file produced by a completed CNTi Test Suite run. Matches schema_version 1. The file is YAML; this schema validates it as JSON (YAML is a JSON superset).",
+  "description": "Schema for the cnti/results/cnti-testsuite-results-<timestamp>.yml file produced by a completed CNTi Test Suite run. Matches schema_version 1. The file is YAML; this schema validates it as JSON (YAML is a JSON superset).",
   "type": "object",
   "required": [
     "name",
@@ -16,9 +16,9 @@
   "additionalProperties": false,
   "properties": {
     "name": {
-      "description": "Always 'cnf testsuite'.",
+      "description": "Always 'cnti testsuite'.",
       "type": "string",
-      "const": "cnf testsuite"
+      "const": "cnti testsuite"
     },
     "testsuite_version": {
       "description": "Version of the test suite that produced the file.",

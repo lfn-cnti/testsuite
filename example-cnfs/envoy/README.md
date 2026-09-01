@@ -12,26 +12,26 @@ Set the KUBECONFIG environment to point to the remote K8s cluster
 
 ### Automated Envoy installation
 
-Run cnf-testsuite setup
+Run cnti-testsuite setup
 
 ```
-./cnf-testsuite setup
+./cnti-testsuite setup
 ```
 
 Install Envoy
 
 ```
-./cnf-testsuite cnf_install --cnf-config example-cnfs/envoy/cnf-testsuite.yml
+./cnti-testsuite cnf_install --cnf-config example-cnfs/envoy/cnti-testsuite.yaml
 ```
 
 Run the test suite:
 
 ```
-./cnf-testsuite all
+./cnti-testsuite all
 ```
 
 Envoy uninstallation
 
 ```
-./cnf-testsuite cnf_uninstall
+./cnti-testsuite cnf_uninstall
 ```

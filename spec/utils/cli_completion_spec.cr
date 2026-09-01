@@ -15,7 +15,7 @@ private def bash_completions(line : String) : Array(String)
     COMP_WORDBREAKS=$' \\t\\n"\\'><=;|&(:'
     COMP_LINE=#{Process.quote(line)}
     COMP_POINT=${#COMP_LINE}
-    _cnf_testsuite_completions
+    _cnti_testsuite_completions
     printf '%s\\n' "${COMPREPLY[@]}"
     BASH
   begin
@@ -31,7 +31,7 @@ describe "Shell completion" do
   it "registers the function for the invoked binary and offers no internal task", tags: ["points"] do
     result = ShellCmd.run_testsuite("completion")
     result[:status].exit_code.should eq(0)
-    result[:output].should contain("complete -F _cnf_testsuite_completions cnf-testsuite")
+    result[:output].should contain("complete -F _cnti_testsuite_completions cnti-testsuite")
     result[:output].should contain("setup:install_kubescape")
     result[:output].should_not contain("_divide_by_zero")
     result[:output].should_not contain("generate:")
@@ -41,8 +41,8 @@ describe "Shell completion" do
   end
 
   it "completes namespaced task paths, and only the part after the colon bash splits on", tags: ["points"] do
-    bash_completions("cnf-testsuite setup:install_kubes").should eq(["install_kubescape"])
-    first = bash_completions("cnf-testsuite ")
+    bash_completions("cnti-testsuite setup:install_kubes").should eq(["install_kubescape"])
+    first = bash_completions("cnti-testsuite ")
     first.should contain("setup:install_kubescape")
     first.should contain("liveness")
     first.should_not contain("_divide_by_zero")
@@ -50,26 +50,26 @@ describe "Shell completion" do
   end
 
   it "completes options, their values, and further task names", tags: ["points"] do
-    after_task = bash_completions("cnf-testsuite all --")
+    after_task = bash_completions("cnti-testsuite all --")
     after_task.should contain("--strict")
     after_task.should contain("--cnf-config")
     after_task.should contain("--skip")
     after_task.should_not contain("strict")
 
     # A task name is a valid next word: several tasks run in order.
-    bash_completions("cnf-testsuite liveness readi").should eq(["readiness"])
-    bash_completions("cnf-testsuite all --skip readi").should eq(["readiness"])
-    bash_completions("cnf-testsuite all --skip=readi").should eq(["readiness"])
-    bash_completions("cnf-testsuite -l deb").should eq(["debug"])
-    bash_completions("cnf-testsuite -l debug live").should eq(["liveness"])
-    bash_completions("cnf-testsuite help tas").should eq(["tasks"])
-    bash_completions("cnf-testsuite completion ").should eq(["bash", "zsh"])
+    bash_completions("cnti-testsuite liveness readi").should eq(["readiness"])
+    bash_completions("cnti-testsuite all --skip readi").should eq(["readiness"])
+    bash_completions("cnti-testsuite all --skip=readi").should eq(["readiness"])
+    bash_completions("cnti-testsuite -l deb").should eq(["debug"])
+    bash_completions("cnti-testsuite -l debug live").should eq(["liveness"])
+    bash_completions("cnti-testsuite help tas").should eq(["tasks"])
+    bash_completions("cnti-testsuite completion ").should eq(["bash", "zsh"])
   end
 
   it "completes file names after path-valued options", tags: ["points"] do
-    bash_completions("cnf-testsuite cnf_install --cnf-config spec/fixtu").should eq(["spec/fixtures/"])
+    bash_completions("cnti-testsuite cnf_install --cnf-config spec/fixtu").should eq(["spec/fixtures/"])
     # bash replaces only the text after the "=" it splits on.
-    bash_completions("cnf-testsuite cnf_install --cnf-config=spec/fixtu").should eq(["spec/fixtures/"])
-    bash_completions("cnf-testsuite cnf_install --timeout ").should be_empty
+    bash_completions("cnti-testsuite cnf_install --cnf-config=spec/fixtu").should eq(["spec/fixtures/"])
+    bash_completions("cnti-testsuite cnf_install --timeout ").should be_empty
   end
 end

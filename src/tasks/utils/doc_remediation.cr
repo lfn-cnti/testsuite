@@ -22,13 +22,13 @@ module DocRemediation
   end
 
   # Each "### Test" section carries "#### Remediation" (one paragraph) and
-  # "#### Usage" with the `./cnf-testsuite <task>` line(s) that name the test.
+  # "#### Usage" with the `./cnti-testsuite <task>` line(s) that name the test.
   def self.parse(markdown : String) : Hash(String, String)
     mapping = {} of String => String
     markdown.split(/\n(?=### )/).each do |section|
       remedy = section.match(/#### Remediation\n\n(.+?)\n\n#### /m).try(&.[1].strip)
       next unless remedy
-      section.scan(/`\.\/cnf-testsuite ([a-z0-9_:]+)`/) do |usage|
+      section.scan(/`\.\/cnti-testsuite ([a-z0-9_:]+)`/) do |usage|
         mapping[usage[1].rpartition(":")[2]] = remedy
       end
     end

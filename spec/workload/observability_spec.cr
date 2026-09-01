@@ -13,7 +13,7 @@ describe "Observability" do
 
   it "'log_output' should pass with a cnf that outputs logs to stdout", tags: ["observability_log_output"]  do
     begin
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("log_output")
       result[:status].success?.should be_true
       (/(PASSED).*(Resources output logs to stdout and stderr)/ =~ result[:output]).should_not be_nil
@@ -25,7 +25,7 @@ describe "Observability" do
 
   it "'log_output' should fail with a cnf that does not output logs to stdout", tags: ["observability_log_output"]  do
     begin
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_no_logs/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_no_logs/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("log_output")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Resources do not output logs to stdout and stderr)/ =~ result[:output]).should_not be_nil
@@ -68,7 +68,7 @@ describe "Observability" do
   end
 
   it "'prometheus_traffic' should pass if there is prometheus traffic", tags: ["observability_prometheus_traffic"] do
-    ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-prom-pod-discovery/cnf-testsuite.yml")
+    ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-prom-pod-discovery/cnti-testsuite.yaml")
     helm = Helm::Binary.get
 
     Log.info { "Add prometheus helm repo" }
@@ -91,7 +91,7 @@ describe "Observability" do
 
   it "'prometheus_traffic' should skip if there is no prometheus installed", tags: ["observability_prometheus_traffic"] do
 
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
       helm = Helm::Binary.get
       result = ShellCmd.run("#{helm} delete prometheus -n #{TESTSUITE_NAMESPACE}", force_output: true)
 
@@ -103,7 +103,7 @@ describe "Observability" do
 
   it "'prometheus_traffic' should fail if the cnf is not registered with prometheus", tags: ["observability_prometheus_traffic"] do
 
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
       Log.info { "Installing prometheus server" }
       helm = Helm::Binary.get
       result = ShellCmd.run("helm repo add prometheus-community https://prometheus-community.github.io/helm-charts", force_output: true)
@@ -121,7 +121,7 @@ describe "Observability" do
   end
 
   it "'open_metrics' should fail if there is not a valid open metrics response from the cnf", tags: ["observability_open_metrics"] do
-    ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-prom-pod-discovery/cnf-testsuite.yml")
+    ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-prom-pod-discovery/cnti-testsuite.yaml")
     result = ShellCmd.run("helm repo add prometheus-community https://prometheus-community.github.io/helm-charts", force_output: true)
     Log.info { "Installing prometheus server" }
     helm = Helm::Binary.get
@@ -139,7 +139,7 @@ describe "Observability" do
   end
 
   it "'open_metrics' should pass if there is a valid open metrics response from the cnf", tags: ["observability_open_metrics"] do
-    ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-openmetrics/cnf-testsuite.yml")
+    ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-openmetrics/cnti-testsuite.yaml")
     result = ShellCmd.run("helm repo add prometheus-community https://prometheus-community.github.io/helm-charts", force_output: true)
     Log.info { "Installing prometheus server" }
     helm = Helm::Binary.get
@@ -157,7 +157,7 @@ describe "Observability" do
   end
 
   it "'routed_logs' should pass if cnfs logs are captured by fluentd", tags: ["observability_routed_logs"] do
-    ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
+    ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
     result = ShellCmd.run_testsuite("setup:install_fluentd")
     result = ShellCmd.run_testsuite("routed_logs")
     (/(PASSED).*(Your CNF's logs are being captured)/ =~ result[:output]).should_not be_nil
@@ -179,7 +179,7 @@ describe "Observability" do
   end
 
   it "'routed_logs' should fail if cnfs logs are not captured", tags: ["observability_routed_logs"] do
-    ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
+    ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
     Helm.helm_repo_add("fluentd", "https://fluent.github.io/helm-charts")
     Helm.install("fluentd", "fluentd/fluentd", namespace: TESTSUITE_NAMESPACE, values: "--values ./spec/fixtures/fluentd-values-bad.yml")
     Log.info { "Installing FluentD daemonset" }
@@ -196,11 +196,11 @@ describe "Observability" do
     begin
       result = ShellCmd.run_testsuite("setup:install_jaeger")
       result[:status].success?.should be_true
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("tracing")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Tracing not used)/ =~ result[:output]).should_not be_nil
-      (/impacted: Deployment\/coredns-coredns in cnf-default: no traces in Jaeger/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/coredns-coredns in cnti-default: no traces in Jaeger/ =~ result[:output]).should_not be_nil
       verify_task_result("tracing", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -213,7 +213,7 @@ describe "Observability" do
     begin
       result = ShellCmd.run_testsuite("setup:install_jaeger")
       result[:status].success?.should be_true
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-tracing/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-tracing/cnti-testsuite.yaml")
       # HotROD only emits spans when it serves a request.
       attempts = 0
       result = loop do

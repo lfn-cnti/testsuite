@@ -2,12 +2,12 @@ require "../spec_helper.cr"
 
 # TODO: fix spec tests for release manager
 # Issues:
-# - after moving release-manager to the testsuite, using cnf-testsuite/release manager repo does not work correctly anymore
+# - after moving release-manager to the testsuite, using cnti-testsuite/release manager repo does not work correctly anymore
 # - it cannot be safely changed to the main testsuite repo as it would create testing mess there
 # - body of "ReleseManager" spec test is executed along with any other spec test execution
 #
 #describe "ReleaseManager" do
-#  ghrm = ReleaseManager::GithubReleaseManager.new("cnf-testsuite/release_manager")
+#  ghrm = ReleaseManager::GithubReleaseManager.new("cnti-testsuite/release_manager")
 #  
 #  # upsert a test release
 #  unless ENV["GITHUB_TOKEN"]?.nil?

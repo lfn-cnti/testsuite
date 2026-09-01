@@ -7,7 +7,7 @@ require "ecr"
 
 module ClusterTools
   # Default installation namespace
-  @@namespace = "cnf-testsuite"
+  @@namespace = "cnti-testsuite"
 
   class ManifestTemplate
     def initialize

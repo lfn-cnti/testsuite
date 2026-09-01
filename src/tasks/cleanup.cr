@@ -12,7 +12,7 @@ task "_tools_uninstall_start" do
   stdout_success "Uninstalling testsuite helper tools."
 end
 
-desc "Cleans up the CNF Test Suite helper tools and containers"
+desc "Cleans up the CNTi Test Suite helper tools and containers"
 task "tools_uninstall", [
   "_tools_uninstall_start",
   "setup:uninstall_litmus",
@@ -34,13 +34,13 @@ task "tools_uninstall", [
   stdout_success "Testsuite helper tools uninstalled."
 end
 
-desc "Cleans up the CNF Test Suite sample projects, helper tools, and containers"
+desc "Cleans up the CNTi Test Suite sample projects, helper tools, and containers"
 task "uninstall_all", ["cnf_uninstall", "tools_uninstall"] do |_, args|
 end
 
 desc "Deletes all results files from the results directory"
 task "delete_results" do |_, args|
-  files = Dir.glob(File.join(CNFManager::Points::Results.dir, "cnf-testsuite-results-*.yml"))
+  files = Dir.glob(File.join(CNFManager::Points::Results.dir, "cnti-testsuite-results-*.yml"))
   files.each { |f| File.delete(f) }
   File.delete?(CNFManager::Points::Results.latest)
   Log.info { "Deleted #{files.size} results file(s)" }

@@ -67,6 +67,6 @@ _Note: this covers both workload (ie. application) and platform tests_
 based on [SOURCE_INSTALL.md#optional-build-binary](SOURCE_INSTALL.md#installation) and [Minimal instructions to run the tests from source (as of 2020-06-23)](https://hackmd.io/hcHoJEKaRWuyf_fZ7ITxLw)
 
 - Download source: `git clone https://github.com/lfn-cnti/testsuite.git`
-- `cd cnf-testsuite`
+- `cd cnti-testsuite`
 - Install dependencies: `shards install`
-- Create a static binary: `crystal build src/cnf-testsuite.cr --release --static --link-flags "-lxml2 -llzma"`
+- Create a static binary: `crystal build src/cnti-testsuite.cr --release --static --link-flags "-lxml2 -llzma"`

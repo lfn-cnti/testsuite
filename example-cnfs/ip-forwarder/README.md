@@ -18,22 +18,22 @@ To run this example CNF, note the following requirements:
 ### Install helm version 3
 
 ### Automated installation
-Run cnf-testsuite setup 
+Run cnti-testsuite setup 
 ```
-export KUBECONFIG=$(pwd)/<YourKubeConf> ; ./cnf-testsuite setup
+export KUBECONFIG=$(pwd)/<YourKubeConf> ; ./cnti-testsuite setup
 ```
 
 Setup and deploy  service chain
 ```
-export KUBECONFIG=$(pwd)/admin.conf ; ./cnf-testsuite cnf_install cnf-path=example-cnfs/ip-forwarder/cnf-testsuite.yml deploy_with_chart=false
+export KUBECONFIG=$(pwd)/admin.conf ; ./cnti-testsuite cnf_install cnf-path=example-cnfs/ip-forwarder/cnti-testsuite.yaml deploy_with_chart=false
 ```
 
 ### Testing
-Run the test suite: `export KUBECONFIG=$(pwd)/admin.conf ; ./cnf-testsuite all`
+Run the test suite: `export KUBECONFIG=$(pwd)/admin.conf ; ./cnti-testsuite all`
 
 ### Automated uninstallation
 ```
-export KUBECONFIG=$(pwd)/admin.conf ; ./cnf-testsuite cnf_uninstall
+export KUBECONFIG=$(pwd)/admin.conf ; ./cnti-testsuite cnf_uninstall
 ```
 
 

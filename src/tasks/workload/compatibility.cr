@@ -21,7 +21,7 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
       Log.for(t.name).debug { "container_names: #{container_names}" }
       update_applied = true
       unless container_names
-        result.append_remediation("Please add a container names set of entries into your cnf-testsuite.yml")
+        result.append_remediation("Please add a container names set of entries into your cnti-testsuite.yaml")
         update_applied = false
       end
 
@@ -33,20 +33,20 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
       task_response = update_applied && CNFManager.workload_resource_test(args, config) do |resource, container, _|
         namespace = resource["namespace"]
         test_passed = true
-        valid_cnf_testsuite_yml = true
+        valid_cnti_testsuite_yml = true
         Log.for(t.name).debug { "container: #{container}" }
         Log.for(t.name).debug { "container_names: #{container_names}" }
         #todo use skopeo to get the next and previous versions of the cnf image dynamically
         config_container = container_names.find{|x| x.name==container.as_h["name"]} if container_names
         Log.debug { "config_container: #{config_container}" }
         unless config_container && !config_container.get_container_tag(tn).empty?
-          result.append_remediation("Please add the container name #{container.as_h["name"]} and a corresponding #{tn}_test_tag into your cnf-testsuite.yml under container names")
-          valid_cnf_testsuite_yml = false
+          result.append_remediation("Please add the container name #{container.as_h["name"]} and a corresponding #{tn}_test_tag into your cnti-testsuite.yaml under container names")
+          valid_cnti_testsuite_yml = false
         end
 
-        Log.trace { "#{tn}: #{container} valid_cnf_testsuite_yml=#{valid_cnf_testsuite_yml}" }
+        Log.trace { "#{tn}: #{container} valid_cnti_testsuite_yml=#{valid_cnti_testsuite_yml}" }
         Log.trace { "#{tn}: #{container} config_container=#{config_container}" }
-        if valid_cnf_testsuite_yml && config_container
+        if valid_cnti_testsuite_yml && config_container
           resp = KubectlClient::Utils.set_image(
             resource["kind"],
             resource["name"],
@@ -98,7 +98,7 @@ scored_task "rollback" do |t, args|
     version_change_applied = true
 
     unless container_names
-      result.append_remediation("Please add a container names set of entries into your cnf-testsuite.yml")
+      result.append_remediation("Please add a container names set of entries into your cnti-testsuite.yaml")
       result.failed("CNF Rollback Failed")
       next
     end
@@ -118,10 +118,10 @@ scored_task "rollback" do |t, args|
       #do_update = `kubectl set image deployment/coredns-coredns coredns=coredns/coredns:latest --record`
 
       version_change_applied = true
-      # compare cnf_testsuite.yml container list with the current container name
+      # compare cnti-testsuite.yaml container list with the current container name
       config_container = container_names.find{|x| x.name == container_name } if container_names
       unless config_container && !config_container.get_container_tag("rollback_from").empty?
-        result.append_remediation("Please add the container name #{container_name} and a corresponding rollback_from_tag into your cnf-testsuite.yml under container names")
+        result.append_remediation("Please add the container name #{container_name} and a corresponding rollback_from_tag into your cnti-testsuite.yaml under container names")
         next false
       end
 
@@ -379,7 +379,7 @@ scored_task "helm_deploy",
         result.failed("CNF has deployments that are not installed with helm")
       end
     else
-      result.failed("No cnf_testsuite.yml found! Did you run the \"cnf_install\" task?")
+      result.failed("No cnti-testsuite.yaml found! Did you run the \"cnf_install\" task?")
     end
   end
 end

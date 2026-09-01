@@ -11,7 +11,7 @@ require "./test_metadata"
 # `=`-truncation behaviors cannot reach a task.
 #
 # Grammar (GNU-style; options may appear anywhere on the line):
-#   cnf-testsuite [--option VALUE|--option=VALUE|--flag]... <task> [<task>...]
+#   cnti-testsuite [--option VALUE|--option=VALUE|--flag]... <task> [<task>...]
 #
 # The retired spellings - `key=value`, bare flag words, `~task` and the `@`
 # separator - are recognized only to name their replacement in the error.

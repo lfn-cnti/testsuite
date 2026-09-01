@@ -3,5 +3,5 @@ require "../spec_helper"
 require "../../src/tasks/utils/utils.cr"
 require "colorize"
 
-describe CnfTestSuite do
+describe CntiTestSuite do
 end

@@ -2,7 +2,7 @@ require "../spec_helper.cr"
 
 describe "KernelIntrospection" do
   before_all do
-    KubectlClient::Apply.namespace("cnf-testsuite")
+    KubectlClient::Apply.namespace("cnti-testsuite")
     ClusterTools.install
   end
 

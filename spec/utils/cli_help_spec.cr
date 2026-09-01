@@ -44,7 +44,7 @@ describe "CLI help" do
   it "'--version' prints the version and exits 0", tags: ["points"] do
     result = ShellCmd.run_testsuite("--version")
     result[:status].exit_code.should eq(0)
-    result[:output].should contain("CNF TestSuite version:")
+    result[:output].should contain("CNTi TestSuite version:")
   end
 
   it "'help tasks' groups tasks and describes every one it lists", tags: ["points"] do
@@ -71,7 +71,7 @@ describe "CLI help" do
   it "'help <task>' describes a single task", tags: ["points"] do
     result = ShellCmd.run_testsuite("help liveness")
     result[:status].exit_code.should eq(0)
-    result[:output].should contain("cnf-testsuite liveness")
+    result[:output].should contain("cnti-testsuite liveness")
     result[:output].should contain("liveness probe")
   end
 

@@ -3,7 +3,7 @@ apiVersion: demo.example.com/v1
 kind: PodSet
 metadata:
   name: demo-labeled
-  namespace: cnf-default
+  namespace: cnti-default
   labels:
     cnf: simple-operator
 spec:
@@ -15,7 +15,7 @@ apiVersion: demo.example.com/v1
 kind: PodSet
 metadata:
   name: demo-owned
-  namespace: cnf-default
+  namespace: cnti-default
   labels:
     cnf: simple-operator
 spec:

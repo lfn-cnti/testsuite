@@ -7,12 +7,12 @@ namespace "setup" do
     logger = SLOG.for("install_local_helm")
     logger.info { "Installing Helm tool" }
 
-    if !ENV.has_key?("CNF_TESTSUITE_FORCE_INSTALL") && Helm.binary_found?
+    if !ENV.has_key?("CNTI_TESTSUITE_FORCE_INSTALL") && Helm.binary_found?
       logger.notice { "Helm installation has been found on the system, skipping" }
       next
     end
 
-    unless Helm.install_local_helm(force: ENV.has_key?("CNF_TESTSUITE_FORCE_INSTALL"))
+    unless Helm.install_local_helm(force: ENV.has_key?("CNTI_TESTSUITE_FORCE_INSTALL"))
       stdout_failure("Task 'install_local_helm' failed")
       exit(1)
     end

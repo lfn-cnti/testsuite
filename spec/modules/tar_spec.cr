@@ -15,20 +15,20 @@ describe "TarClient" do
 
   it "'.tar' should tar a source file or directory", tags:["tar"] do
     `rm #{TAR_SPEC_DIR}/test.tar`
-    TarClient.tar("#{TAR_SPEC_DIR}/test.tar", "./spec/fixtures", "cnf-testsuite.yml")
-    (File.exists?("./spec/fixtures/cnf-testsuite.yml")).should be_true
+    TarClient.tar("#{TAR_SPEC_DIR}/test.tar", "./spec/fixtures", "cnti-testsuite.yaml")
+    (File.exists?("./spec/fixtures/cnti-testsuite.yaml")).should be_true
   ensure
     `rm #{TAR_SPEC_DIR}/test.tar`
   end
 
   it "'.untar' should untar a tar file into a directory", tags:["tar"] do
     `rm #{TAR_SPEC_DIR}/test.tar`
-    TarClient.tar("#{TAR_SPEC_DIR}/test.tar", "./spec/fixtures", "cnf-testsuite.yml")
+    TarClient.tar("#{TAR_SPEC_DIR}/test.tar", "./spec/fixtures", "cnti-testsuite.yaml")
     TarClient.untar("#{TAR_SPEC_DIR}/test.tar", "#{TAR_SPEC_DIR}")
-    (File.exists?("#{TAR_SPEC_DIR}/cnf-testsuite.yml")).should be_true
+    (File.exists?("#{TAR_SPEC_DIR}/cnti-testsuite.yaml")).should be_true
   ensure
     `rm #{TAR_SPEC_DIR}/test.tar`
-    `rm #{TAR_SPEC_DIR}/cnf-testsuite.yml`
+    `rm #{TAR_SPEC_DIR}/cnti-testsuite.yaml`
   end
 
   it "'.modify_tar!' should untar file, yield to block, retar", tags:["tar"] do

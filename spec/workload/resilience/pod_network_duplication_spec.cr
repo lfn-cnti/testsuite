@@ -13,7 +13,7 @@ describe "Resilience Pod Network duplication Chaos" do
 
   it "'pod_network_duplication' A 'Good' CNF should not crash when network duplication occurs", tags: ["pod_network_duplication"]  do
     begin
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("pod_network_duplication")
       result[:status].success?.should be_true
       (/(PASSED).*(pod_network_duplication chaos test passed)/ =~ result[:output]).should_not be_nil

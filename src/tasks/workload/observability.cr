@@ -148,7 +148,7 @@ scored_task "prometheus_traffic",
                 end
                 if msg[:status].success?
                   metrics_config_map = Prometheus::OpenMetricConfigMapTemplate.new(
-                    "cnf-testsuite-open-metrics",
+                    "cnti-testsuite-open-metrics",
                     true,
                     "",
                     immutable_configmap
@@ -156,7 +156,7 @@ scored_task "prometheus_traffic",
                 else
                   Log.info { "Openmetrics failure reason: #{msg[:output]}"}
                   metrics_config_map = Prometheus::OpenMetricConfigMapTemplate.new(
-                    "cnf-testsuite-open-metrics",
+                    "cnti-testsuite-open-metrics",
                     false,
                     msg[:output],
                     immutable_configmap
@@ -199,7 +199,7 @@ scored_task "open_metrics",
   emoji: "📶☠️" do |t, args|
   task_response = CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     begin
-      configmap = KubectlClient::Get.resource("configmap", "cnf-testsuite-open-metrics")
+      configmap = KubectlClient::Get.resource("configmap", "cnti-testsuite-open-metrics")
     rescue KubectlClient::ShellCMD::NotFoundError
     end
 

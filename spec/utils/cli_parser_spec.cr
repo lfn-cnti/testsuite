@@ -46,7 +46,7 @@ describe "CLI parser" do
       "'timeout=' is no longer accepted: use `--timeout SECONDS`.",
       "'skip_wait_for_install' is no longer accepted: use `--skip-wait-for-install`.",
       "'~liveness' is no longer accepted: use `--skip liveness`.",
-      "'@' is no longer needed: list the tasks to run, e.g. `cnf-testsuite liveness readiness`.",
+      "'@' is no longer needed: list the tasks to run, e.g. `cnti-testsuite liveness readiness`.",
       "'exclude=' is no longer accepted: use `--skip TASK`, once per task.",
     ])
   end

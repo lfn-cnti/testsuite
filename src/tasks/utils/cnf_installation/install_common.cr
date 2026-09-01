@@ -65,7 +65,7 @@ module CNFInstall
 
   def self.ensure_cnf_config_path_file(path)
     if path.empty?
-      usage_error! "--cnf-config PATH is required: a cnf-testsuite.yml or the directory holding one."
+      usage_error! "--cnf-config PATH is required: a cnti-testsuite.yaml or the directory holding one."
     elsif CNFManager.path_has_yml?(path)
       yml = path
     elsif File.directory?(path)
@@ -365,7 +365,7 @@ module CNFInstall
     return if label_selectors.empty?
 
     # Make the sleep before label resource identification configurable
-    label_resource_sleep = ENV.has_key?("CNF_TESTSUITE_LABEL_RESOURCE_SLEEP") ? ENV["CNF_TESTSUITE_LABEL_RESOURCE_SLEEP"].to_i : 5
+    label_resource_sleep = ENV.has_key?("CNTI_TESTSUITE_LABEL_RESOURCE_SLEEP") ? ENV["CNTI_TESTSUITE_LABEL_RESOURCE_SLEEP"].to_i : 5
     StatusLine.update "Identifying and adding label-selected resources to composite manifest."
     sleep label_resource_sleep.seconds
     start = Time.utc

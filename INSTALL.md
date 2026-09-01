@@ -1,24 +1,24 @@
-Installing the CNF Test Suite
+Installing the CNTi Test Suite
 ---
 ### Overview
-This INSTALL guide will detail the minimum requirements needed for cnf-testsuite while then providing installation with configuration steps to run the cnf-testsuite binary from both a binary installation and source installation method.
+This INSTALL guide will detail the minimum requirements needed for cnti-testsuite while then providing installation with configuration steps to run the cnti-testsuite binary from both a binary installation and source installation method.
 
 ### Table of Contents
 * [**Pre-Requisites**](#Pre-Requisites)
 * [**Installation**](#Installation)
 * [**Preparation**](#Preparation)
 * [**Configuration**](#Configuration)
-* [**Running cnf-testsuite for the first time**](#Running-cnf-testsuite-for-the-first-time)
+* [**Running cnti-testsuite for the first time**](#Running-cnti-testsuite-for-the-first-time)
 
 ### Pre-Requisites
-This will detail the required minimum requirements needed in order to support cnf-testsuite.
+This will detail the required minimum requirements needed in order to support cnti-testsuite.
 
 #### Minimum Requirements
 * **Kubernetes multi-node cluster** *(2 schedulable nodes minimum as a few tests require this. See [supported K8s and installation details](#Details-on-supported-k8s-clusters-and-installation) on installation.)*
 * **containerd runtime** - for K8s cluster running the CNF to be tested
 * **kubectl** *(run commands against K8s clusters, see [installing kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more details.)*
 * **curl**
-* **helm 3.8.2** *or newer* (helm 4 supported; cnf-testsuite installs helm 4 if not found locally)
+* **helm 3.8.2** *or newer* (helm 4 supported; cnti-testsuite installs helm 4 if not found locally)
 * **docker**  *(needed for the cni_compatibility test)*
 
 #### Requirements for source installation
@@ -96,7 +96,7 @@ For more customization options and best practices, see the [EKS Cluster Creation
 
 ### Installation
 
-We support the following methods of installing the cnf-testsuite:
+We support the following methods of installing the cnti-testsuite:
 
 - [Curl installation](#Curl-Binary-Installation) (via latest binary release)
 - [Latest Binary](https://github.com/lfn-cnti/testsuite/releases/latest) (manual download)
@@ -125,8 +125,8 @@ curl -s https://raw.githubusercontent.com/lfn-cnti/testsuite/main/curl_install.s
 ```
 wget https://github.com/lfn-cnti/testsuite/releases/download/latest/latest.tar.gz
 tar xzf latest.tar.gz
-cd cnf-testsuite
-chmod +x cnf-testsuite
+cd cnti-testsuite
+chmod +x cnti-testsuite
 export OLDPATH=$PATH; export PATH=$PATH:$(pwd)
 ```
 </p>
@@ -139,21 +139,21 @@ This is a brief summary for source installations and [does have requirements](#R
 <details><summary> Click here for brief source install details</summary>
 <p>
 
-Follow these steps to checkout the source from github and compile a cnf-testsuite binary:
+Follow these steps to checkout the source from github and compile a cnti-testsuite binary:
 
 ```
 git clone https://github.com/lfn-cnti/testsuite.git
-cd cnf-testsuite/
+cd cnti-testsuite/
 shards install
-crystal build src/cnf-testsuite.cr
+crystal build src/cnti-testsuite.cr
 ```
-This should build a cnf-testsuite binary in the root directory of the git repo clone.
+This should build a cnti-testsuite binary in the root directory of the git repo clone.
 </p>
 </details>
 
 ### Preparation
 
-Now that you have cnf-testsuite installed, we need to prepare the suite.
+Now that you have cnti-testsuite installed, we need to prepare the suite.
 
 First make sure your K8s cluster is accessible (part of the [minimum pre-requisites](#Minimum-Requirements)). You can run the following to verify the cluster: 
 
@@ -167,12 +167,12 @@ And it should print a running kubernetes master in the output. Common kubectl er
 export KUBECONFIG=path/to/mycluster.config
 ```
 
-*Note: We recommend running cnf-testsuite on a non-production cluster.*
+*Note: We recommend running cnti-testsuite on a non-production cluster.*
 
-The next step is to run the `setup` which prepares the cnf-testsuite. This runs pre-reqs to verify you have everything needed in order to run the suite, simply run the following:
+The next step is to run the `setup` which prepares the cnti-testsuite. This runs pre-reqs to verify you have everything needed in order to run the suite, simply run the following:
 
 ```
-cnf-testsuite setup
+cnti-testsuite setup
 ```
 
 The test suite by default will pull docker images from https://docker.io. You can set your own username and password with local environment variables by doing the following:
@@ -182,48 +182,48 @@ export DOCKERHUB_USERNAME=<USERNAME>
 export DOCKERHUB_PASSWORD=<PASSWORD>
 ```
 
-Please refer to the [CNF_TESTSUITE_YML_USAGE.md](CNF_TESTSUITE_YML_USAGE.md#Using-a-Private-Registry) for details on using a private registry.
+Please refer to the [CNTI_TESTSUITE_YAML_USAGE.md](CNTI_TESTSUITE_YAML_USAGE.md#Using-a-Private-Registry) for details on using a private registry.
 
 
-<details><summary>Install Tab Completion for cnf-testsuite (Optional)</summary>
+<details><summary>Install Tab Completion for cnti-testsuite (Optional)</summary>
 
 Tab completion for bash and zsh is generated by the binary itself:
 
 ```
-source <(cnf-testsuite completion bash)   # or: completion zsh
+source <(cnti-testsuite completion bash)   # or: completion zsh
 ```
 
 See [USAGE.md](USAGE.md#shell-completion) for making it permanent.
 </details>
 
 ### Configuration
-Now cnf-testsuite is prepared, we're ready to configure it to point at a CNF to test.
+Now cnti-testsuite is prepared, we're ready to configure it to point at a CNF to test.
 
 #### Using an Example CNF
 
 - If you want to use an example CNF, you can download our CoreDNS example CNF by doing the following:
 
 ```
-wget -O cnf-testsuite.yml https://raw.githubusercontent.com/lfn-cnti/testsuite/main/example-cnfs/coredns/cnf-testsuite.yml
+wget -O cnti-testsuite.yaml https://raw.githubusercontent.com/lfn-cnti/testsuite/main/example-cnfs/coredns/cnti-testsuite.yaml
 ```
-- The wget gets a working config file, now tell cnf-testsuite to use it by doing the following:
+- The wget gets a working config file, now tell cnti-testsuite to use it by doing the following:
 ```
-cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml
+cnti-testsuite cnf_install --cnf-config ./cnti-testsuite.yaml
 ```
 
 - There are other examples in the [examples-cnfs](https://github.com/lfn-cnti/testsuite/tree/master/example-cnfs) directory that can be used for testing as well.
 
 #### Bring Your Own CNF
 
-If you've brought your own CNF to test, review the [CNF_TESTSUITE_YML_USAGE.md](CNF_TESTSUITE_YML_USAGE.md) document on formatting and other requirements.
+If you've brought your own CNF to test, review the [CNTI_TESTSUITE_YAML_USAGE.md](CNTI_TESTSUITE_YAML_USAGE.md) document on formatting and other requirements.
 
-If you've followed the [CNF_TESTSUITE_YML_USAGE.md](CNF_TESTSUITE_YML_USAGE.md) guide and have your cnf-testsuite.yml ready, you can run the same command we ran for the example CNF to set it up:
+If you've followed the [CNTI_TESTSUITE_YAML_USAGE.md](CNTI_TESTSUITE_YAML_USAGE.md) guide and have your cnti-testsuite.yaml ready, you can run the same command we ran for the example CNF to set it up:
 
 ```
-cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml
+cnti-testsuite cnf_install --cnf-config ./cnti-testsuite.yaml
 ```
 
-### Running cnf-testsuite for the first time
+### Running cnti-testsuite for the first time
 
 #### Running Tests
 
@@ -231,17 +231,17 @@ If you want to run all tests, do the following (this is assuming your `cnf_insta
 _For complete usage, see the [USAGE.md](USAGE.md) doc._
 
 ```
-cnf-testsuite all
+cnti-testsuite all
 ```
 
 The following will run only workload tests:
 ```
-cnf-testsuite workload 
+cnti-testsuite workload 
 ```
 
 The following would run only the platform tests:
 ```
-cnf-testsuite platform 
+cnti-testsuite platform 
 ```
 
 #### Checking Results
@@ -249,15 +249,15 @@ cnf-testsuite platform
 In the console where the test suite runs:
 - PASSED or FAILED will be displayed for the tests
 
-A test log file, eg. `cnf-testsuite-results-20201216.txt`, will be created which lists PASS or FAIL for every test based on the date.
+A test log file, eg. `cnti-testsuite-results-20201216.txt`, will be created which lists PASS or FAIL for every test based on the date.
 
 For more details on points, see our [POINTS.md](./POINTS.md) documentation.
 
 #### Uninstallation
 
-Run the following to uninstall the CNF (this is assuming you installed the cnf-testsuite.yml in your present working directory):
+Run the following to uninstall the CNF (this is assuming you installed the cnti-testsuite.yaml in your present working directory):
 ```
-cnf-testsuite cnf_uninstall
+cnti-testsuite cnf_uninstall
 ```
 
 To also uninstall helper tools deployed by testsuite run `uninstall_all`.

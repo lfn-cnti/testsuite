@@ -1,4 +1,4 @@
-name: cnf_testsuite
+name: cnti_testsuite
 version: 0.1.0
 
 authors:
@@ -7,8 +7,8 @@ authors:
   - Denver Williams <denver@debian.nz>
 
 targets:
-  cnf_testsuite:
-    main: src/cnf_testsuite.cr
+  cnti-testsuite:
+    main: src/cnti-testsuite.cr
 
 crystal: '>= 1.19.0'
 

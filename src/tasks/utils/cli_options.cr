@@ -37,12 +37,12 @@ module CLIOptions
   end
 
   ALL = [
-    Option.new("cnf-config", Kind::Value, "a cnf-testsuite.yml, or the directory holding one", value_label: "PATH", file: true, retired: "cnf-config"),
+    Option.new("cnf-config", Kind::Value, "a cnti-testsuite.yaml, or the directory holding one", value_label: "PATH", file: true, retired: "cnf-config"),
     Option.new("timeout", Kind::Value, "how long to wait for install and uninstall operations", value_label: "SECONDS", numeric: true, retired: "timeout"),
-    Option.new("results-dir", Kind::Value, "where results files go (default: ./cnti/results, or $CNF_TESTSUITE_RESULTS_DIR)", value_label: "PATH", retired: "results-dir"),
+    Option.new("results-dir", Kind::Value, "where results files go (default: ./cnti/results, or $CNTI_TESTSUITE_RESULTS_DIR)", value_label: "PATH", retired: "results-dir"),
     Option.new("kubeconfig", Kind::Value, "the kubeconfig to use (default: $KUBECONFIG)", value_label: "PATH", file: true),
     Option.new("skip", Kind::Multi, "skip a task within a suite; repeatable", value_label: "TASK", retired: "exclude"),
-    Option.new("input-config", Kind::Value, "update_config: the cnf-testsuite.yml to convert", value_label: "PATH", file: true, retired: "input-config"),
+    Option.new("input-config", Kind::Value, "update_config: the cnti-testsuite.yaml to convert", value_label: "PATH", file: true, retired: "input-config"),
     Option.new("output-config", Kind::Value, "update_config: where to write the converted file", value_label: "PATH", file: true, retired: "output-config"),
     Option.new("pod-labels", Kind::Value, "label selector of the pods a chaos test targets", value_label: "LABELS", retired: "pod-labels"),
     Option.new("strict", Kind::Flag, "stop at the first failed or errored test", retired: "strict"),

@@ -22,12 +22,12 @@ describe "Operator" do
     Helm.install("operator", "#{install_dir}/deploy/chart/", values: "--set olm.image.ref=quay.io/operator-framework/olm:v0.22.0 --set catalog.image.ref=quay.io/operator-framework/olm:v0.22.0 --set package.image.ref=quay.io/operator-framework/olm:v0.22.0")
 
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_operator", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=info")
-      result = ShellCmd.run_testsuite("operator_installed", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=info")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_operator", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=info")
+      result = ShellCmd.run_testsuite("operator_installed", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=info")
       (/(PASSED).*(Operator is installed)/ =~ result[:output]).should_not be_nil
       verify_task_result("operator_installed", "passed")
     ensure
-      result = ShellCmd.cnf_uninstall(cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=info")
+      result = ShellCmd.cnf_uninstall(cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=info")
       result[:status].success?.should be_true
       pods = KubectlClient::Get.pods_by_resource_labels(KubectlClient::Get.resource("deployment", "catalog-operator", "operator-lifecycle-manager"), "operator-lifecycle-manager") + 
         KubectlClient::Get.pods_by_resource_labels(KubectlClient::Get.resource("deployment", "olm-operator", "operator-lifecycle-manager"), "operator-lifecycle-manager") +
@@ -82,7 +82,7 @@ describe "Operator" do
   it "'operator_test' operator should not be found", tags: ["operator_test"]  do
     begin
       ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_coredns")
-      result = ShellCmd.run_testsuite("operator_installed", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=info")
+      result = ShellCmd.run_testsuite("operator_installed", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=info")
       (/(N\/A).*(No Operators Found)/ =~ result[:output]).should_not be_nil
       verify_task_result("operator_installed", "na")
     ensure

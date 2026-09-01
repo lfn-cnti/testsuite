@@ -15,28 +15,28 @@ More information about cloud-native tools and network functions provided by PANT
 Follow [Pre-req steps](../../INSTALL.md#pre-requisites), including
 
 - Set the KUBECONFIG environment to point to the remote K8s cluster
-- Downloading the binary cnf-testsuite release
+- Downloading the binary cnti-testsuite release
 
 ### Automated CNF installation
 
 Initialize the test suite
 
 ```
-./cnf-testsuite setup
+./cnti-testsuite setup
 ```
 
 Configure and deploy nsm and nsm-nat as the target CNF
 
 ```
-./cnf-testsuite cnf_install --cnf-config ./example-cnfs/nsm/cnf-testsuite.yml
+./cnti-testsuite cnf_install --cnf-config ./example-cnfs/nsm/cnti-testsuite.yaml
 
-./cnf-testsuite cnf_install --cnf-config ./example-cnfs/pantheon-nsm-nat/cnf-testsuite.yml
+./cnti-testsuite cnf_install --cnf-config ./example-cnfs/pantheon-nsm-nat/cnti-testsuite.yaml
 ```
 
 Run the all the tests
 
 ```
-./cnf-testsuite all
+./cnti-testsuite all
 ```
 
 Check the results file
@@ -44,5 +44,5 @@ Check the results file
 Uninstall the CNF (including undeployment of nsm-nat)
 
 ```
-./cnf-testsuite cnf_uninstall
+./cnti-testsuite cnf_uninstall
 ```

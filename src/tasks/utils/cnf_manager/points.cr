@@ -155,11 +155,11 @@ module CNFManager
 
       DEFAULT_DIR     = File.join(CNTI_DIR, "results")
       RESULTS_DIR_ARG = "results-dir"
-      RESULTS_DIR_ENV = "CNF_TESTSUITE_RESULTS_DIR"
+      RESULTS_DIR_ENV = "CNTI_TESTSUITE_RESULTS_DIR"
       LATEST_NAME     = "latest.yml"
 
       # Directory results are written to: `--results-dir PATH` on the command
-      # line, else CNF_TESTSUITE_RESULTS_DIR, else ./cnti/results. Resolved once
+      # line, else CNTI_TESTSUITE_RESULTS_DIR, else ./cnti/results. Resolved once
       # per process and creates nothing -- delete_results reads it too.
       def self.dir : String
         @@dir ||= begin
@@ -325,7 +325,7 @@ module CNFManager
         @@logger.for("create_final_results_yml_name").error { "Could not create #{dir} directory, access denied" }
         exit 1
       end
-      File.join(dir, "cnf-testsuite-results-" + Time.local.to_s("%Y%m%d-%H%M%S-%L") + ".yml")
+      File.join(dir, "cnti-testsuite-results-" + Time.local.to_s("%Y%m%d-%H%M%S-%L") + ".yml")
     end
 
     # Version of the results-file schema. Bump when the file's structure changes
@@ -626,7 +626,7 @@ module CNFManager
       #   * A task group with a pass criterion (cert) is judged by that criterion
       #     alone. Individual test failures are inputs to the verdict, not a
       #     separate failure mode - the threshold already accounts for them - so
-      #     `cnf-testsuite cert` exits 0 exactly when the CNF is certified.
+      #     `cnti-testsuite cert` exits 0 exactly when the CNF is certified.
       #   * Without a criterion (all/workload) the objective is simply
       #     that nothing failed (issue #2411 - failures previously only mapped to
       #     exit 1 via the unused `required:` points.yml field, so failing runs
@@ -723,8 +723,8 @@ module CNFManager
     def self.template_results_yml
       # TODO add tags for category summaries
       YAML.parse <<-END
-name: cnf testsuite
-testsuite_version: <%= CnfTestSuite::VERSION %>
+name: cnti testsuite
+testsuite_version: <%= CntiTestSuite::VERSION %>
 schema_version: #{RESULTS_SCHEMA_VERSION}
 status:
 exit_code: 0

@@ -1,6 +1,6 @@
 require "./tasks/utils/utils.cr"
 require "./modules/release_manager"
 
-module CnfTestSuite
+module CntiTestSuite
   # ReleaseManager::CompileTimeVersionGenerater.tagged_version
 end

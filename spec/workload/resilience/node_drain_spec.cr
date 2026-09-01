@@ -13,7 +13,7 @@ describe "Resilience Node Drain Chaos" do
 
   it "'node_drain' A 'Good' CNF should not crash when node drain occurs", tags: ["node_drain"]  do
     begin
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("node_drain")
       result[:status].success?.should be_true
       if KubectlClient::Get.schedulable_nodes_list.size > 1

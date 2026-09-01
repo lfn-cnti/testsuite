@@ -89,7 +89,7 @@ BASE_CONFIG_NAME = "config.yml"
 # checked without creating it, so read-only invocations stay side-effect free.
 def base_config_path : String?
   return BASE_CONFIG_NAME if File.exists?(BASE_CONFIG_NAME)
-  home_config = File.join(ENV.fetch("CNF_TESTSUITE_DIR", "#{ENV["HOME"]}/.cnf-testsuite"), BASE_CONFIG_NAME)
+  home_config = File.join(ENV.fetch("CNTI_TESTSUITE_DIR", "#{ENV["HOME"]}/.cnti-testsuite"), BASE_CONFIG_NAME)
   File.exists?(home_config) ? home_config : nil
 end
 
@@ -100,7 +100,7 @@ module BaseConfigWarning
     return if @@warned
     @@warned = true
     stdout_warning "No #{BASE_CONFIG_NAME} found in the current directory or the suite home " \
-                   "(#{ENV.fetch("CNF_TESTSUITE_DIR", "~/.cnf-testsuite")}); feature toggles " \
+                   "(#{ENV.fetch("CNTI_TESTSUITE_DIR", "~/.cnti-testsuite")}); feature toggles " \
                    "(wip, alpha, beta, poc, destructive, multi-cnf) default to disabled."
   end
 end
@@ -286,8 +286,8 @@ def upsert_error_task(task, decorated_message, message, start_time)
  end
 
 def testsuite_resources_dir
-  default_dir = "#{ENV["HOME"]}/.cnf-testsuite"
-  testsuite_dir = ENV.fetch("CNF_TESTSUITE_DIR", default_dir)
+  default_dir = "#{ENV["HOME"]}/.cnti-testsuite"
+  testsuite_dir = ENV.fetch("CNTI_TESTSUITE_DIR", default_dir)
   FileUtils.mkdir_p(testsuite_dir) if !Dir.exists?(testsuite_dir)
   return testsuite_dir
 end

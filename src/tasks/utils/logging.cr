@@ -12,8 +12,8 @@ Colorize.enabled = STDOUT.tty? && !ENV.has_key?("NO_COLOR")
 
 begin
   OptionParser.parse do |parser|
-    parser.banner = "Usage: cnf-testsuite [options] <task> [arguments]"
-    parser.on("-l LEVEL", "--loglevel=LEVEL", "Specifies the logging level for cnf-testsuite suite") do |level|
+    parser.banner = "Usage: cnti-testsuite [options] <task> [arguments]"
+    parser.on("-l LEVEL", "--loglevel=LEVEL", "Specifies the logging level for cnti-testsuite suite") do |level|
       CLILogLevel.level = level
     end
     # These only record the request: this parser runs at require time, before
@@ -37,8 +37,8 @@ WLOG = Log.for("Workload")
 SLOG = Log.for("Setup")
 
 private def log_backend
-  if ENV.has_key?("CNF_TESTSUITE_LOG_PATH")
-    log_file = ENV["CNF_TESTSUITE_LOG_PATH"]
+  if ENV.has_key?("CNTI_TESTSUITE_LOG_PATH")
+    log_file = ENV["CNTI_TESTSUITE_LOG_PATH"]
   else
     log_file = ""
   end
@@ -84,8 +84,8 @@ private def loglevel
     end
   end
 
-  if ENV.has_key?("CNF_TESTSUITE_LOG_LEVEL")
-    level_str = ENV["CNF_TESTSUITE_LOG_LEVEL"]
+  if ENV.has_key?("CNTI_TESTSUITE_LOG_LEVEL")
+    level_str = ENV["CNTI_TESTSUITE_LOG_LEVEL"]
   end
 
   # highest priority is last

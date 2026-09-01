@@ -277,7 +277,7 @@ scored_task "hardcoded_ip_addresses_in_k8s_runtime_configuration",
           result.add_impacted_resource("Manifest", File.basename(COMMON_MANIFEST_FILE_PATH), reason: reason)
         end
       end
-      result.append_remediation("Replace hard-coded IP addresses with Service names, DNS names or configuration that is resolved at deploy time. An address that must stay literal can be declared under `common.hardcoded_ip_exceptions` in cnf-testsuite.yml so this test accepts it.")
+      result.append_remediation("Replace hard-coded IP addresses with Service names, DNS names or configuration that is resolved at deploy time. An address that must stay literal can be declared under `common.hardcoded_ip_exceptions` in cnti-testsuite.yaml so this test accepts it.")
       result.failed("Hard-coded IP addresses found in the runtime K8s configuration")
     end
   end
@@ -288,7 +288,7 @@ scored_task "secrets_used",
   type: CNFManager::TestType::Bonus,
   emoji: "🧫" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    # Parse the cnf-testsuite.yml
+    # Parse the cnti-testsuite.yaml
     resp = ""
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, volumes|
       Log.for(t.name).info { "resource: #{resource}" }

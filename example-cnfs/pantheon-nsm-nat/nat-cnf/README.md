@@ -7,26 +7,26 @@
 Follow [Pre-req steps](../../INSTALL.md#pre-requisites), including
 
 - Set the KUBECONFIG environment to point to the remote K8s cluster
-- Downloading the binary cnf-testsuite release
+- Downloading the binary cnti-testsuite release
 
 ### Automated CNF installation
 
 Initialize the test suite
 
 ```
-crystal src/cnf-testsuite.cr setup
+crystal src/cnti-testsuite.cr setup
 ```
 
 Configure and deploy nsm-nat as the target CNF
 
 ```
-crystal src/cnf-testsuite.cr cnf_install --cnf-config ./example-cnfs/pantheon-nsm-nat/cnf-testsuite.yml
+crystal src/cnti-testsuite.cr cnf_install --cnf-config ./example-cnfs/pantheon-nsm-nat/cnti-testsuite.yaml
 ```
 
 Run the all the tests
 
 ```
-crystal src/cnf-testsuite.cr all
+crystal src/cnti-testsuite.cr all
 ```
 
 Check the results file
@@ -34,5 +34,5 @@ Check the results file
 Uninstall the CNF (including undeployment of nsm-nat)
 
 ```
-crystal src/cnf-testsuite.cr cnf_uninstall
+crystal src/cnti-testsuite.cr cnf_uninstall
 ```

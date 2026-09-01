@@ -17,10 +17,10 @@ To get the CNTi Test Suite up and running, see the [Installation Guide](INSTALL.
 Prereqs: Kubernetes cluster, wget, curl, helm 3.8.2 or greater (helm 4 supported) on your system already.
 
 1. Install the latest test suite binary: `source <(curl -s https://raw.githubusercontent.com/lfn-cnti/testsuite/main/curl_install.sh)`
-2. Run `setup` to prepare the cnf-testsuite: `cnf-testsuite setup`
-3. Pull down an example CNF configuration to try: `curl -o cnf-testsuite.yml https://raw.githubusercontent.com/lfn-cnti/testsuite/main/example-cnfs/coredns/cnf-testsuite.yml`
-4. Initialize the test suite for using the CNF: `cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml`
-5. Run all of application/workload tests: `cnf-testsuite workload`
+2. Run `setup` to prepare the cnti-testsuite: `cnti-testsuite setup`
+3. Pull down an example CNF configuration to try: `curl -o cnti-testsuite.yaml https://raw.githubusercontent.com/lfn-cnti/testsuite/main/example-cnfs/coredns/cnti-testsuite.yaml`
+4. Initialize the test suite for using the CNF: `cnti-testsuite cnf_install --cnf-config ./cnti-testsuite.yaml`
+5. Run all of application/workload tests: `cnti-testsuite workload`
 
 #### More Usage docs
 
@@ -44,7 +44,7 @@ See the [Test Documentation](docs/TEST_DOCUMENTATION.md) for a complete overview
 
 [free5GC](https://free5gc.org/), an open source 5G core, is the **reference CNF** for the CNTi Test Suite: a realistic telecom workload used to validate that the suite's tests work against carrier-grade CNFs, demonstrate cloud native best practices, and serve as a worked example for onboarding your own CNF.
 
-- Try it: [example-cnfs/free5gc](example-cnfs/free5gc/README.md) — deployment guide (Helm chart via git submodule, kind cluster configuration, known limitations) and a ready-to-use `cnf-testsuite.yml`.
+- Try it: [example-cnfs/free5gc](example-cnfs/free5gc/README.md) — deployment guide (Helm chart via git submodule, kind cluster configuration, known limitations) and a ready-to-use `cnti-testsuite.yaml`.
 - It is exercised nightly in CI against the certification test set (see the badge above).
 - Read the announcements: [LF Networking](https://lfnetworking.org/introducing-free5gc-as-a-reference-cnf-for-the-cnti-test-suite/) · [free5GC blog](https://free5gc.org/blog/20260415/20260415/)
 

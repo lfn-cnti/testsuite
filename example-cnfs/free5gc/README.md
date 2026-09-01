@@ -106,7 +106,7 @@ git submodule update --init --recursive
 Initialize the test suite:
 
 ```bash
-cnf-testsuite setup
+cnti-testsuite setup
 ```
 
 # Installation
@@ -114,7 +114,7 @@ cnf-testsuite setup
 Deploy free5GC using the CNTi test suite:
 
 ```bash
-cnf-testsuite cnf_install --cnf-config example-cnfs/free5gc/cnf-testsuite.yml
+cnti-testsuite cnf_install --cnf-config example-cnfs/free5gc/cnti-testsuite.yaml
 ```
 
 The CNF is deployed into the `free5gc` namespace.
@@ -123,14 +123,14 @@ The free5GC Helm chart is located at:
 
 `example-cnfs/free5gc/charts/free5gc-helm/charts/free5gc`
 
-The chart is deployed automatically through the provided `cnf-testsuite.yml`.
+The chart is deployed automatically through the provided `cnti-testsuite.yaml`.
 
 # Running CNF Tests
 
 To run CNF certification tests:
 
 ```bash
-cnf-testsuite cert
+cnti-testsuite cert
 ```
 
 ## Verify Deployment
@@ -146,7 +146,7 @@ kubectl get pods -n free5gc
 To uninstall free5GC:
 
 ```bash
-cnf-testsuite cnf_uninstall --cnf-config example-cnfs/free5gc/cnf-testsuite.yml
+cnti-testsuite cnf_uninstall --cnf-config example-cnfs/free5gc/cnti-testsuite.yaml
 ```
 
 In some cases, persistent resources (e.g. PersistentVolumeClaims) may remain and need to be removed manually:
@@ -159,7 +159,7 @@ kubectl delete pvc --all -n free5gc
 
 The free5GC Helm chart is included as an upstream Git submodule and is not modified directly.
 
-To ensure compatibility with a kind-based Kubernetes environment, MongoDB configuration is overridden via the <br /> `cnf-testsuite.yml` file using Helm values.
+To ensure compatibility with a kind-based Kubernetes environment, MongoDB configuration is overridden via the <br /> `cnti-testsuite.yaml` file using Helm values.
 
 The following adjustments are applied at deployment time:
 

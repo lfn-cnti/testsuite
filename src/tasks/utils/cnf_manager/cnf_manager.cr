@@ -115,15 +115,15 @@ module CNFManager
     logger = Log.for("cnf_config_list")
     logger.debug { "Retrieve CNF config file" }
 
-    cnf_testsuite = find_files("#{CNF_DIR}/*", "\"#{CONFIG_FILE}\"")
-    if cnf_testsuite.empty? && raise_exc
+    cnti_testsuite = find_files("#{CNF_DIR}/*", "\"#{CONFIG_FILE}\"")
+    if cnti_testsuite.empty? && raise_exc
       logger.error { "CNF config file not found" }
-      raise "No cnf_testsuite.yml found! Did you run the \"cnf_install\" task?"
+      raise "No cnti-testsuite.yaml found! Did you run the \"cnf_install\" task?"
     else
-      logger.info { "Found CNF config file: #{cnf_testsuite}" }
+      logger.info { "Found CNF config file: #{cnti_testsuite}" }
     end
 
-    cnf_testsuite
+    cnti_testsuite
   end
 
   def self.cnf_installed?
