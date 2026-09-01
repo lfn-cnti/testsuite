@@ -56,9 +56,9 @@ module ReleaseManager
       Log.info { "version: #{version}" }
       upsert_version = (version || ReleaseManager::VERSION)
       Log.info { "upsert_version: #{upsert_version}" }
-      # cnf_bin_path = "cnf-testsuite"
+      # cnf_bin_path = "cnti-testsuite"
       # cnf_bin_asset_name = "#{cnf_bin_path}"
-      cnf_bin_asset_name = "cnf-testsuite"
+      cnf_bin_asset_name = "cnti-testsuite"
 
       if self.remote_main_branch_hash == ReleaseManager.current_hash
         upsert_version = upsert_version.sub("HEAD", "main")
@@ -87,16 +87,16 @@ module ReleaseManager
 
       # NOTE: build MUST be done first so we can sha256sum for release notes
       # Build a static binary so it will be portable on other machines in non test
-      unless ENV["CNF_TESTSUITE_ENV"]? == "TEST"
+      unless ENV["CNTI_TESTSUITE_ENV"]? == "TEST"
         # Rely on the docker ci to create the static binary
-        # rm_resp = `rm ./cnf-testsuite`
+        # rm_resp = `rm ./cnti-testsuite`
         # Log.info {"rm_resp: #{rm_resp}"}
         # Log.info {"building static binary"}
-        # build_resp = `crystal build src/cnf-testsuite.cr --release --static --link-flags "-lxml2 -llzma"`
+        # build_resp = `crystal build src/cnti-testsuite.cr --release --static --link-flags "-lxml2 -llzma"`
         # Log.info {"build_resp: #{build_resp}"}
         # the name of the binary asset must be unique across all releases in github for project
         # TODO if upsert version == test then make unique
-        cnf_tarball_name = "cnf-testsuite-#{upsert_version}.tar.gz"
+        cnf_tarball_name = "cnti-testsuite-#{upsert_version}.tar.gz"
         cnf_tarball = `tar -czvf #{cnf_tarball_name} ./#{cnf_bin_asset_name}`
         Log.info { "cnf_tarball: #{cnf_tarball}" }
         # cnf_bin_asset_name = "#{cnf_bin_path}-static" # change upload name for static builds

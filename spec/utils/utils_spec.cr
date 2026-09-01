@@ -54,7 +54,7 @@ describe "Utils" do
   end
 
   it "'check_cnf_config' should return the value for a cnf-config argument", tags: ["args"]  do
-    args = Sam::Args.new({"cnf-config" => "./sample-cnfs/sample-generic-cnf/cnf-testsuite.yml"} of String => Sam::Args::AllowedTypes)
+    args = Sam::Args.new({"cnf-config" => "./sample-cnfs/sample-generic-cnf/cnti-testsuite.yaml"} of String => Sam::Args::AllowedTypes)
     (check_cnf_config(args)).should eq("./sample-cnfs/sample-generic-cnf")
   end
 
@@ -76,7 +76,7 @@ describe "Utils" do
   it "'single_task_runner' should accept a cnf-config argument and apply a test to that cnf", tags: ["task_runner"] do
     begin
       args = Sam::Args.new()
-      config_path = "./sample-cnfs/sample-generic-cnf/cnf-testsuite.yml"
+      config_path = "./sample-cnfs/sample-generic-cnf/cnti-testsuite.yaml"
       ShellCmd.cnf_install("--cnf-config #{config_path}")
       CNFManager::Task.single_task_runner(args) do |args, config, result|
         result.set_testcase("privileged_containers")
@@ -133,7 +133,7 @@ describe "Utils" do
     `sed -i 's/loglevel: error/loglevel: warn/' config.yml`
     ($?.success?).should be_true
 
-    result = ShellCmd.run_testsuite("test", cmd_prefix: "unset CNF_TESTSUITE_LOG_LEVEL;")
+    result = ShellCmd.run_testsuite("test", cmd_prefix: "unset CNTI_TESTSUITE_LOG_LEVEL;")
     result[:status].success?.should be_true
     (/DEBUG -- CNTI: debug test/ =~ result[:output]).should be_nil
     (/INFO -- CNTI: info test/ =~ result[:output]).should be_nil
@@ -151,34 +151,34 @@ describe "Utils" do
   end
 
   it "'logger' ignores the retired LOGLEVEL alias", tags: ["logger"]  do
-    result = ShellCmd.run_testsuite("test", cmd_prefix: "unset CNF_TESTSUITE_LOG_LEVEL; LOGLEVEL=DEBUG")
+    result = ShellCmd.run_testsuite("test", cmd_prefix: "unset CNTI_TESTSUITE_LOG_LEVEL; LOGLEVEL=DEBUG")
     result[:status].success?.should be_true
     (/DEBUG -- CNTI: debug test/ =~ result[:output]).should be_nil
   end
 
-  it "'logger' CNF_TESTSUITE_LOG_LEVEL environment variable level setting works", tags: ["logger"]  do
+  it "'logger' CNTI_TESTSUITE_LOG_LEVEL environment variable level setting works", tags: ["logger"]  do
     # Note: implicitly tests the override of config.yml if it exist in repo root
-    result = ShellCmd.run_testsuite("test", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=DEBUG")
+    result = ShellCmd.run_testsuite("test", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=DEBUG")
     result[:status].success?.should be_true
     (/DEBUG -- CNTI: debug test/ =~ result[:output]).should_not be_nil
   end
 
   it "'logger' ignores the retired unprefixed LOG_LEVEL", tags: ["logger"]  do
-    result = ShellCmd.run_testsuite("test", cmd_prefix: "unset CNF_TESTSUITE_LOG_LEVEL; LOG_LEVEL=DEBUG")
+    result = ShellCmd.run_testsuite("test", cmd_prefix: "unset CNTI_TESTSUITE_LOG_LEVEL; LOG_LEVEL=DEBUG")
     result[:status].success?.should be_true
     (/DEBUG -- CNTI: debug test/ =~ result[:output]).should be_nil
   end
 
   it "'logger' ignores the retired unprefixed LOG_PATH", tags: ["logger"] do
     path = File.tempname("retired-log-path", ".log")
-    `LOG_PATH=#{path} ./cnf-testsuite test`
+    `LOG_PATH=#{path} ./cnti-testsuite test`
     File.exists?(path).should be_false
   ensure
     File.delete?(path.not_nil!)
   end
 
   it "'logger' command line level setting overrides environment variable", tags: ["logger"]  do
-    result = ShellCmd.run_testsuite("-l error test", cmd_prefix: "CNF_TESTSUITE_LOG_LEVEL=DEBUG")
+    result = ShellCmd.run_testsuite("-l error test", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=DEBUG")
     result[:status].success?.should be_true
     (/DEBUG -- CNTI: debug test/ =~ result[:output]).should be_nil
     (/INFO -- CNTI: info test/ =~ result[:output]).should be_nil
@@ -188,13 +188,13 @@ describe "Utils" do
 
   it "'logger' defaults to error when level set is missplled", tags: ["logger"]  do
     # Note: implicitly tests the override of config.yml if it exist in repo root
-    result = ShellCmd.run_testsuite("test", cmd_prefix: "unset CNF_TESTSUITE_LOG_LEVEL; CNF_TESTSUITE_LOG_LEVEL=DEGUB")
+    result = ShellCmd.run_testsuite("test", cmd_prefix: "unset CNTI_TESTSUITE_LOG_LEVEL; CNTI_TESTSUITE_LOG_LEVEL=DEGUB")
     result[:status].success?.should be_true
     (/ERROR -- CNTI: Invalid logging level set. defaulting to ERROR/ =~ result[:output]).should_not be_nil
   end
 
-  it "'logger' should write logs to the file when CNF_TESTSUITE_LOG_PATH is set", tags: ["logger"] do
-    response_s = `unset LOG_PATH; CNF_TESTSUITE_LOG_PATH=spec-test-testsuite.log ./cnf-testsuite test`
+  it "'logger' should write logs to the file when CNTI_TESTSUITE_LOG_PATH is set", tags: ["logger"] do
+    response_s = `unset LOG_PATH; CNTI_TESTSUITE_LOG_PATH=spec-test-testsuite.log ./cnti-testsuite test`
     $?.success?.should be_true
     (/ERROR -- CNTI: error test/ =~ response_s).should be_nil
     File.exists?("spec-test-testsuite.log").should be_true
@@ -207,13 +207,13 @@ describe "Utils" do
 
   it "'#update_yml' should update the value for a key in a yml file", tags: ["logger"]  do
     begin
-    update_yml("spec/fixtures/cnf-testsuite.yml", "release_name", "coredns --set worker-node='kind-control-plane'")
-    yaml = File.open("spec/fixtures/cnf-testsuite.yml") do |file|
+    update_yml("spec/fixtures/cnti-testsuite.yaml", "release_name", "coredns --set worker-node='kind-control-plane'")
+    yaml = File.open("spec/fixtures/cnti-testsuite.yaml") do |file|
       YAML.parse(file)
     end
     (yaml["release_name"]).should eq("coredns --set worker-node='kind-control-plane'")
     ensure
-      update_yml("spec/fixtures/cnf-testsuite.yml", "release_name", "coredns")
+      update_yml("spec/fixtures/cnti-testsuite.yaml", "release_name", "coredns")
     end
   end
 

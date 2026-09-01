@@ -1,4 +1,4 @@
-# CNF TestSuite test documentation
+# CNTi Test Suite test documentation
 
 ## Table of Contents
 
@@ -40,7 +40,7 @@ Service providers have historically had issues with the installability of vendor
 
 ### Usage
 
-All compatibility: `./cnf-testsuite compatibility`
+All compatibility: `./cnti-testsuite compatibility`
 
 ----------
 
@@ -66,7 +66,7 @@ Also here is some info about [things that could cause failures.](https://kuberne
 
 #### Usage
 
-`./cnf-testsuite increase_decrease_capacity`
+`./cnti-testsuite increase_decrease_capacity`
 
 ----------
 
@@ -89,7 +89,7 @@ Make sure your CNF helm charts are published in a Helm Repository.
 
 #### Usage
 
-`./cnf-testsuite helm_chart_published`
+`./cnti-testsuite helm_chart_published`
 
 ----------
 
@@ -110,7 +110,7 @@ Make sure your helm charts pass lint tests.
 
 #### Usage
 
-`./cnf-testsuite helm_chart_valid`
+`./cnti-testsuite helm_chart_valid`
 
 ----------
 
@@ -131,7 +131,7 @@ Make sure your helm charts are valid and can be deployed to clusters.
 
 #### Usage
 
-`./cnf-testsuite helm_deploy`
+`./cnti-testsuite helm_deploy`
 
 ----------
 
@@ -152,7 +152,7 @@ Ensure that you can upgrade your CNF using the [Kubectl Set Image](https://kuber
 
 #### Usage
 
-`./cnf-testsuite rollback`
+`./cnti-testsuite rollback`
 
 ----------
 
@@ -175,7 +175,7 @@ Ensure that you can successfully rollback the software version of your CNF by us
 
 #### Usage
 
-`./cnf-testsuite rolling_version_change`
+`./cnti-testsuite rolling_version_change`
 
 ----------
 
@@ -196,7 +196,7 @@ Ensure that you can successfully perform a rolling upgrade of your CNF using the
 
 #### Usage
 
-`./cnf-testsuite rolling_update`
+`./cnti-testsuite rolling_update`
 
 ----------
 
@@ -217,7 +217,7 @@ Ensure that you can successfully change the software version of your CNF back to
 
 #### Usage
 
-`./cnf-testsuite rolling_downgrade`
+`./cnti-testsuite rolling_downgrade`
 
 ----------
 
@@ -238,7 +238,7 @@ Avoid vendor-specific network APIs, annotations and device resources in the CNF'
 
 #### Usage
 
-`./cnf-testsuite cni_compatible`
+`./cnti-testsuite cni_compatible`
 
 ----------
 
@@ -260,7 +260,7 @@ Ensure that the CNF is not using deprecated Kubernetes features. If any are dete
 
 #### Usage
 
-`./cnf-testsuite deprecated_k8s_features`
+`./cnti-testsuite deprecated_k8s_features`
 
 ----------
 
@@ -272,7 +272,7 @@ The CNF should be developed and delivered as a microservice. The CNTI Test Suite
 
 ### Usage
 
-All microservice: `./cnf-testsuite microservice`
+All microservice: `./cnti-testsuite microservice`
 
 ----------
 
@@ -298,7 +298,7 @@ Audit your CNF's images:
 
 #### Usage
 
-`./cnf-testsuite reasonable_image_size`
+`./cnti-testsuite reasonable_image_size`
 
 ----------
 
@@ -319,7 +319,7 @@ Ensure that your CNF gets into a running state within 30 seconds.
 
 #### Usage
 
-`./cnf-testsuite reasonable_startup_time`
+`./cnti-testsuite reasonable_startup_time`
 
 ----------
 
@@ -342,7 +342,7 @@ Ensure that there is only one process type within a container. This does not cou
 
 #### Usage
 
-`./cnf-testsuite single_process_type`
+`./cnti-testsuite single_process_type`
 
 ----------
 
@@ -363,7 +363,7 @@ Make sure the CNF exposes any of its containers as a Kubernetes Service. This is
 
 #### Usage
 
-`./cnf-testsuite service_discovery`
+`./cnti-testsuite service_discovery`
 
 ----------
 
@@ -384,7 +384,7 @@ Make sure that your CNFs containers are not sharing the same [database](https://
 
 #### Usage
 
-`./cnf-testsuite shared_database`
+`./cnti-testsuite shared_database`
 
 ----------
 
@@ -405,7 +405,7 @@ Use init systems that are purpose-built for containers like tini, dumb-init, s6-
 
 #### Usage
 
-`./cnf-testsuite specialized_init_system`
+`./cnti-testsuite specialized_init_system`
 
 ----------
 
@@ -426,7 +426,7 @@ Make the PID 1 container process to handle SIGTERM; enable process namespace sha
 
 #### Usage
 
-`./cnf-testsuite sig_term_handled`
+`./cnti-testsuite sig_term_handled`
 
 ----------
 
@@ -448,7 +448,7 @@ Make the PID 1 container process to handle/reap zombie processes; enable process
 
 #### Usage
 
-`./cnf-testsuite zombie_handled`
+`./cnti-testsuite zombie_handled`
 
 ----------
 
@@ -462,7 +462,7 @@ Any [*data* that is persistent](https://vmblog.com/archive/2022/05/16/stateful-c
 
 ### Usage
 
-All state: `./cnf-testsuite state`
+All state: `./cnti-testsuite state`
 
 ----------
 
@@ -484,7 +484,7 @@ Ensure that your CNF can be successfully rescheduled when a node fails or is [dr
 
 #### Usage
 
-`./cnf-testsuite node_drain`
+`./cnti-testsuite node_drain`
 
 ----------
 
@@ -505,7 +505,7 @@ Ensure that your CNF isn't using any persistent volumes that use a ["local"] mou
 
 #### Usage
 
-`./cnf-testsuite no_local_volume_configuration`
+`./cnti-testsuite no_local_volume_configuration`
 
 ----------
 
@@ -526,7 +526,7 @@ Setup and use elastic persistent volumes instead of local storage.
 
 #### Usage
 
-`./cnf-testsuite elastic_volumes`
+`./cnti-testsuite elastic_volumes`
 
 ----------
 
@@ -549,7 +549,7 @@ Select a database configuration that uses statefulsets and elastic storage volum
 
 #### Usage
 
-`./cnf-testsuite database_persistence`
+`./cnti-testsuite database_persistence`
 
 ----------
 
@@ -562,7 +562,7 @@ Cloud native systems promote resilience by putting a high priority on testing in
 
 ### Usage
 
-All resilience: `./cnf-testsuite resilience`
+All resilience: `./cnti-testsuite resilience`
 
 ----------
 
@@ -587,7 +587,7 @@ A mitigation strategy (in this case keep the timeout i.e., access latency low) c
 
 #### Usage
 
-`./cnf-testsuite pod_network_latency`
+`./cnti-testsuite pod_network_latency`
 
 ----------
 
@@ -608,7 +608,7 @@ Ensure that your CNF is resilient and doesn't stall when heavy IO causes a degra
 
 #### Usage
 
-`./cnf-testsuite disk_fill`
+`./cnti-testsuite disk_fill`
 
 ----------
 
@@ -629,7 +629,7 @@ Ensure that your CNF is resilient and doesn't fail on a forced/graceful pod fail
 
 #### Usage
 
-`./cnf-testsuite pod_delete`
+`./cnti-testsuite pod_delete`
 
 ----------
 
@@ -650,7 +650,7 @@ Ensure that your CNF is resilient to heavy memory usage and can maintain some le
 
 #### Usage
 
-`./cnf-testsuite pod_memory_hog`
+`./cnti-testsuite pod_memory_hog`
 
 ----------
 
@@ -673,7 +673,7 @@ Ensure that your CNF is resilient to continuous and heavy disk IO load and can m
 
 #### Usage
 
-`./cnf-testsuite pod_io_stress`
+`./cnti-testsuite pod_io_stress`
 
 ----------
 
@@ -695,7 +695,7 @@ Ensure that your CNF is resilient to a lossy/flaky network and can maintain a le
 
 #### Usage
 
-`./cnf-testsuite pod_network_corruption`
+`./cnti-testsuite pod_network_corruption`
 
 ----------
 
@@ -717,7 +717,7 @@ Ensure that your CNF is resilient to erroneously duplicated packets and can main
 
 #### Usage
 
-`./cnf-testsuite pod_network_duplication`
+`./cnti-testsuite pod_network_duplication`
 
 ----------
 
@@ -738,7 +738,7 @@ Ensure that your CNF is resilient to DNS resolution failures and can maintain a 
 
 #### Usage
 
-`./cnf-testsuite pod_dns_error`
+`./cnti-testsuite pod_dns_error`
 
 ----------
 
@@ -763,7 +763,7 @@ Ensure that your CNF has a [Liveness Probe](https://kubernetes.io/docs/tasks/con
 
 #### Usage
 
-`./cnf-testsuite liveness`
+`./cnti-testsuite liveness`
 
 ----------
 
@@ -784,7 +784,7 @@ Ensure that your CNF has a [Readiness Probe](https://kubernetes.io/docs/tasks/co
 
 #### Usage
 
-`./cnf-testsuite readiness`
+`./cnti-testsuite readiness`
 
 ----------
 
@@ -794,7 +794,7 @@ In order to maintain, debug, and have insight into a production environment that
 
 ### Usage
 
-All observability: `./cnf-testsuite observability`
+All observability: `./cnti-testsuite observability`
 
 ----------
 
@@ -815,7 +815,7 @@ Make sure applications and CNF's are sending log output to STDOUT and or STDERR.
 
 #### Usage
 
-`./cnf-testsuite log_output`
+`./cnti-testsuite log_output`
 
 ----------
 
@@ -836,7 +836,7 @@ Install and configure Prometheus for your CNF.
 
 #### Usage
 
-`./cnf-testsuite prometheus_traffic`
+`./cnti-testsuite prometheus_traffic`
 
 ----------
 
@@ -857,7 +857,7 @@ Install and configure fluentd or fluentbit to collect data and logs. See more at
 
 #### Usage
 
-`./cnf-testsuite routed_logs`
+`./cnti-testsuite routed_logs`
 
 ----------
 
@@ -878,7 +878,7 @@ Ensure that your CNF is publishing OpenMetrics compatible metrics.
 
 #### Usage
 
-`./cnf-testsuite open_metrics`
+`./cnti-testsuite open_metrics`
 
 ----------
 
@@ -899,7 +899,7 @@ Instrument your CNF with OpenTelemetry or Jaeger client libraries and point it a
 
 #### Usage
 
-`./cnf-testsuite tracing`
+`./cnti-testsuite tracing`
 
 ----------
 
@@ -911,7 +911,7 @@ CNF containers should be isolated from one another and the host. The CNTI Test S
 
 ### Usage
 
-All security: `./cnf-testsuite security`
+All security: `./cnti-testsuite security`
 
 ----------
 
@@ -932,7 +932,7 @@ Make sure your CNF doesn't mount `/var/run/docker.sock`, `/var/run/containerd.so
 
 #### Usage
 
-`./cnf-testsuite container_sock_mounts`
+`./cnti-testsuite container_sock_mounts`
 
 ----------
 
@@ -953,7 +953,7 @@ Remove privileged capabilities by setting the securityContext.privileged to fals
 
 #### Usage
 
-`./cnf-testsuite privileged_containers`
+`./cnti-testsuite privileged_containers`
 
 ----------
 
@@ -975,7 +975,7 @@ Make sure to not define external IPs in your kubernetes service configuration
 
 #### Usage
 
-`./cnf-testsuite external_ips`
+`./cnti-testsuite external_ips`
 
 ----------
 
@@ -999,7 +999,7 @@ Ensure the following guidelines are followed for any cluster resource that allow
 
 #### Usage
 
-`./cnf-testsuite selinux_options`
+`./cnti-testsuite selinux_options`
 
 ----------
 
@@ -1020,7 +1020,7 @@ The spec.securityContext.sysctls field must be unset or not use.
 
 #### Usage
 
-`./cnf-testsuite sysctls`
+`./cnti-testsuite sysctls`
 
 ----------
 
@@ -1042,7 +1042,7 @@ If your application does not need it, make sure the allowPrivilegeEscalation fie
 
 #### Usage
 
-`./cnf-testsuite privilege_escalation`
+`./cnti-testsuite privilege_escalation`
 
 ----------
 
@@ -1063,7 +1063,7 @@ To mitigate this vulnerability without upgrading kubelet, you can disable the Vo
 
 #### Usage
 
-`./cnf-testsuite symlink_file_system`
+`./cnti-testsuite symlink_file_system`
 
 ----------
 
@@ -1085,7 +1085,7 @@ Use Kubernetes secrets or Key Management Systems to store credentials.
 
 #### Usage
 
-`./cnf-testsuite application_credentials`
+`./cnti-testsuite application_credentials`
 
 ----------
 
@@ -1106,7 +1106,7 @@ Only connect PODs to the hostNetwork when it is necessary. If not, set the hostN
 
 #### Usage
 
-`./cnf-testsuite host_network`
+`./cnti-testsuite host_network`
 
 ----------
 
@@ -1127,7 +1127,7 @@ Disable automatic mounting of service account tokens to PODs either at the servi
 
 #### Usage
 
-`./cnf-testsuite service_account_mapping`
+`./cnti-testsuite service_account_mapping`
 
 ----------
 
@@ -1149,7 +1149,7 @@ By default, you should disable or restrict Ingress and Egress traffic on all pod
 
 #### Usage
 
-`./cnf-testsuite ingress_egress_blocked`
+`./cnti-testsuite ingress_egress_blocked`
 
 ----------
 
@@ -1170,7 +1170,7 @@ Remove all insecure capabilities which aren’t necessary for the container.
 
 #### Usage
 
-`./cnf-testsuite insecure_capabilities`
+`./cnti-testsuite insecure_capabilities`
 
 ----------
 
@@ -1192,7 +1192,7 @@ If your application does not need root privileges, set `runAsNonRoot: true`, or 
 
 #### Usage
 
-`./cnf-testsuite non_root_containers`
+`./cnti-testsuite non_root_containers`
 
 ----------
 
@@ -1214,7 +1214,7 @@ Apply least privilege principle and remove hostPID and hostIPC from the yaml con
 
 #### Usage
 
-`./cnf-testsuite host_pid_ipc_privileges`
+`./cnti-testsuite host_pid_ipc_privileges`
 
 ----------
 
@@ -1236,7 +1236,7 @@ Use AppArmor, Seccomp, SELinux and Linux Capabilities mechanisms to restrict con
 
 #### Usage
 
-`./cnf-testsuite linux_hardening`
+`./cnti-testsuite linux_hardening`
 
 ----------
 
@@ -1257,7 +1257,7 @@ Define LimitRange and ResourceQuota policies to limit CPU usage for namespaces o
 
 #### Usage
 
-`./cnf-testsuite cpu_limits`
+`./cnti-testsuite cpu_limits`
 
 ----------
 
@@ -1278,7 +1278,7 @@ Define LimitRange and ResourceQuota policies to limit memory usage for namespace
 
 #### Usage
 
-`./cnf-testsuite memory_limits`
+`./cnti-testsuite memory_limits`
 
 ----------
 
@@ -1301,7 +1301,7 @@ Set the filesystem of the container to read-only when possible. If the container
 
 #### Usage
 
-`./cnf-testsuite immutable_file_systems`
+`./cnti-testsuite immutable_file_systems`
 
 ----------
 
@@ -1323,7 +1323,7 @@ Refrain from using a hostPath mount.
 
 #### Usage
 
-`./cnf-testsuite hostpath_mounts`
+`./cnti-testsuite hostpath_mounts`
 
 ----------
 
@@ -1337,7 +1337,7 @@ Declarative APIs for an immutable infrastructure are anything that configures th
 
 ### Usage
 
-All configuration: `./cnf-testsuite configuration`
+All configuration: `./cnti-testsuite configuration`
 
 ----------
 
@@ -1359,7 +1359,7 @@ Ensure that your CNF is configured to use a Namespace and is not using the defau
 
 #### Usage
 
-`./cnf-testsuite default_namespace`
+`./cnti-testsuite default_namespace`
 
 ----------
 
@@ -1380,7 +1380,7 @@ When specifying container images, always specify a tag and ensure to use an immu
 
 #### Usage
 
-`./cnf-testsuite latest_tag`
+`./cnti-testsuite latest_tag`
 
 ----------
 
@@ -1401,7 +1401,7 @@ Make sure to define `app.kubernetes.io/name` label under metadata for your CNF.
 
 #### Usage
 
-`./cnf-testsuite require_labels`
+`./cnti-testsuite require_labels`
 
 ----------
 
@@ -1422,7 +1422,7 @@ When specifying container images, always specify a tag and ensure to use an immu
 
 #### Usage
 
-`./cnf-testsuite versioned_tag`
+`./cnti-testsuite versioned_tag`
 
 ----------
 
@@ -1443,7 +1443,7 @@ Review all Helm Charts & Kubernetes Manifest files for the CNF and remove all oc
 
 #### Usage
 
-`./cnf-testsuite nodeport_not_used`
+`./cnti-testsuite nodeport_not_used`
 
 ----------
 
@@ -1464,7 +1464,7 @@ Review all Helm Charts & Kubernetes Manifest files for the CNF and remove all oc
 
 #### Usage
 
-`./cnf-testsuite hostport_not_used`
+`./cnti-testsuite hostport_not_used`
 
 ----------
 
@@ -1472,7 +1472,7 @@ Review all Helm Charts & Kubernetes Manifest files for the CNF and remove all oc
 
 #### Overview
 
-The hardcoded ip address test will scan all of the CNF's workload resources and check for any static, hardcoded ip addresses being used in the configuration. CIDR notation is allowed and will not cause the test to fail. IP addresses that are justified by application logic are possible to be included in `hardcoded_ip_exceptions` in the [CNF configuration](https://github.com/lfn-cnti/testsuite/blob/main/CNF_TESTSUITE_YML_USAGE.md) and will be excluded from violation reports.
+The hardcoded ip address test will scan all of the CNF's workload resources and check for any static, hardcoded ip addresses being used in the configuration. CIDR notation is allowed and will not cause the test to fail. IP addresses that are justified by application logic are possible to be included in `hardcoded_ip_exceptions` in the [CNF configuration](https://github.com/lfn-cnti/testsuite/blob/main/CNTI_TESTSUITE_YAML_USAGE.md) and will be excluded from violation reports.
 Expectation: That no hardcoded IP addresses are found in the Kubernetes workload resources for the CNF unless they are in CIDR format or explicitly listed in `hardcoded_ip_exceptions`.
 
 #### Rationale
@@ -1485,7 +1485,7 @@ Review all Helm Charts & Kubernetes Manifest files of the CNF and look for any h
 
 #### Usage
 
-`./cnf-testsuite hardcoded_ip_addresses_in_k8s_runtime_configuration`
+`./cnti-testsuite hardcoded_ip_addresses_in_k8s_runtime_configuration`
 
 ----------
 
@@ -1508,7 +1508,7 @@ The whole test passes if _any_ workload resource in the cnf uses a (non-exempt) 
 
 #### Usage
 
-`./cnf-testsuite secrets_used`
+`./cnti-testsuite secrets_used`
 
 ----------
 
@@ -1534,7 +1534,7 @@ Use immutable configmaps for any non-mutable configuration data.
 
 #### Usage
 
-`./cnf-testsuite immutable_configmap`
+`./cnti-testsuite immutable_configmap`
 
 ----------
 
@@ -1555,7 +1555,7 @@ Make sure your CNFs are not utilizing any Kubernetes alpha APIs. You can learn m
 
 #### Usage
 
-`./cnf-testsuite alpha_k8s_apis`
+`./cnti-testsuite alpha_k8s_apis`
 
 ----------
 
@@ -1576,6 +1576,6 @@ If your CNF uses an Operator, package it for the Operator Lifecycle Manager and 
 
 #### Usage
 
-`./cnf-testsuite operator_installed`
+`./cnti-testsuite operator_installed`
 
 ----------

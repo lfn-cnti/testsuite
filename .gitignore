@@ -7,12 +7,12 @@
 /cnfs
 /cnti
 admin.conf
-cnf-testsuite
+cnti-testsuite
 results.yml
-cnf-testsuite-results-*
-cnf-testsuite.env
+cnti-testsuite-results-*
+cnti-testsuite.env
 cnf-conformance.env
-cnf-testsuite*.tar*
+cnti-testsuite*.tar*
 *.tar
 reasonable_startup_orig.yml
 reasonable_startup_test.yml
@@ -30,7 +30,7 @@ chaos_container_kill.yml
 /.idea/
 *.log
 containerd-*-linux-amd64.tar.gz
-/cnf-testsuite.yml
+/cnti-testsuite.yaml
 /*.tgz
 /enforce-image-tag.yml
 /constraint_template.yml

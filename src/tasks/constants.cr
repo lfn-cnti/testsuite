@@ -3,14 +3,14 @@ require "./utils/embedded_file_manager.cr"
 ESSENTIAL_PASSED_THRESHOLD = 15
 # The one directory the suite owns in the user's working directory. Everything
 # a run writes into the CWD lives under it: the installed CNF's files and the
-# results (unless results-dir/CNF_TESTSUITE_RESULTS_DIR redirect those).
+# results (unless results-dir/CNTI_TESTSUITE_RESULTS_DIR redirect those).
 CNTI_DIR = "cnti"
 
 CNF_DIR = File.join(CNTI_DIR, "installed-cnf")
 DEPLOYMENTS_DIR = File.join(CNF_DIR, "deployments")
 CNF_TEMP_FILES_DIR = File.join(CNF_DIR, "temp_files")
 CNF_INSTALL_LOG_FILE = File.join(CNF_TEMP_FILES_DIR, "installation.log")
-CONFIG_FILE = "cnf-testsuite.yml"
+CONFIG_FILE = "cnti-testsuite.yaml"
 COMMON_MANIFEST_FILE_PATH = "#{CNF_DIR}/common_manifest.yml"
 DEPLOYMENT_MANIFEST_FILE_NAME = "deployment_manifest.yml"
 # todo move to helm module
@@ -26,8 +26,8 @@ SPECIALIZED_INIT_SYSTEMS = ["tini", "tini-static", "docker-init", "dumb-init", "
 ROLLING_VERSION_CHANGE_TEST_NAMES = ["rolling_update", "rolling_downgrade", "rolling_version_change"]
 WORKLOAD_RESOURCE_KIND_NAMES = ["replicaset", "deployment", "statefulset", "pod", "daemonset"]
 
-TESTSUITE_NAMESPACE = "cnf-testsuite"
-DEFAULT_CNF_NAMESPACE = "cnf-default"
+TESTSUITE_NAMESPACE = "cnti-testsuite"
+DEFAULT_CNF_NAMESPACE = "cnti-default"
 # (kosstennbl) Needed only for manifest deployments, where we don't have control over installation namespace
 CLUSTER_DEFAULT_NAMESPACE = "default"
 

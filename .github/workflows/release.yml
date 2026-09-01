@@ -29,8 +29,8 @@ jobs:
         docker run --rm -v $PWD:/workspace -w /workspace $CRYSTAL_IMAGE sh -c "\
           git config --global --add safe.directory /workspace && \
           shards install && \
-          crystal build src/cnf-testsuite.cr --release --static --link-flags '-lxml2 -llzma'"
+          crystal build src/cnti-testsuite.cr --release --static --link-flags '-lxml2 -llzma'"
     - name: Publish Release
       if: ${{ env.GITHUB_TOKEN != '' }}
       run: |
-        ./cnf-testsuite upsert_release
+        ./cnti-testsuite upsert_release

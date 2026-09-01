@@ -16,21 +16,21 @@ The CNTI Test Suite can be run in production mode (using an executable) or in de
 
 ```
 # Production mode
-./cnf-testsuite [options] <task> [<task> ...]
+./cnti-testsuite [options] <task> [<task> ...]
 
 # Developer mode
-crystal src/cnf-testsuite.cr -- [options] <task> [<task> ...]
+crystal src/cnti-testsuite.cr -- [options] <task> [<task> ...]
 ```
 
 Options are GNU-style and may appear anywhere on the line, as `--name VALUE`
 or `--name=VALUE`; several task names run in order. `--skip <task>` leaves a
-task out of a suite. `./cnf-testsuite help` lists every option; an unknown
+task out of a suite. `./cnti-testsuite help` lists every option; an unknown
 option or task is a usage error (exit 64) with the closest match suggested.
 
 ```
-./cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml --timeout 120
-./cnf-testsuite all --skip resilience --strict
-./cnf-testsuite liveness readiness
+./cnti-testsuite cnf_install --cnf-config ./cnti-testsuite.yaml --timeout 120
+./cnti-testsuite all --skip resilience --strict
+./cnti-testsuite liveness readiness
 ```
 
 :star: \*Note: All usage commands in this document will use the production (binary executable) syntax unless otherwise stated.
@@ -61,7 +61,7 @@ Each run writes a **timestamped YAML file** into the results directory — `cnti
 current working directory unless redirected (see below):
 
 ```
-cnti/results/cnf-testsuite-results-<YYYYMMDD-HHMMSS-mmm>.yml
+cnti/results/cnti-testsuite-results-<YYYYMMDD-HHMMSS-mmm>.yml
 ```
 
 A new file is created per run, and **`cnti/results/latest.yml` always points at the newest one** — a
@@ -70,24 +70,24 @@ filesystems without symlinks). Scripts should read `latest.yml` rather than sort
 directory. Every run also ends with one stable line naming both paths:
 
 ```
-Results: cnti/results/cnf-testsuite-results-<timestamp>.yml (latest: cnti/results/latest.yml)
+Results: cnti/results/cnti-testsuite-results-<timestamp>.yml (latest: cnti/results/latest.yml)
 ```
 
 To write somewhere else, pass `--results-dir PATH` on the command line or set the
-`CNF_TESTSUITE_RESULTS_DIR` environment variable; the option wins over the variable. The
+`CNTI_TESTSUITE_RESULTS_DIR` environment variable; the option wins over the variable. The
 timestamped file and `latest.yml` both go there, and `delete_results` honours the same setting.
 
-A machine-readable [JSON Schema](docs/cnf-testsuite-results.schema.json) describes the file
+A machine-readable [JSON Schema](docs/cnti-testsuite-results.schema.json) describes the file
 (matching the current `schema_version`); use it to validate output or generate types.
 
 ##### Structure
 
 ```yaml
-name: cnf testsuite
+name: cnti testsuite
 testsuite_version: v1.2.3
 schema_version: 1                 # version of this results-file schema
 status: failed                    # overall run verdict: passed | failed | error
-command: ./cnf-testsuite all
+command: ./cnti-testsuite all
 exit_code: 1                      # 0 = run met its objective, 1 = did not, 2 = >=1 test errored
 summary:                          # aggregate numbers for the whole run
   total: 18                       # tests executed
@@ -115,7 +115,7 @@ items:
     impacted_resources:           # optional; present only when non-empty
       - kind: Deployment
         name: coredns-coredns
-        namespace: cnf-default    # optional (omitted for cluster-scoped resources)
+        namespace: cnti-default    # optional (omitted for cluster-scoped resources)
         container: coredns        # optional
         reason: privileged container
   - name: reasonable_startup_time
@@ -134,7 +134,7 @@ items:
 
 | Field | Description |
 |-------|-------------|
-| `name` | Always `cnf testsuite`. |
+| `name` | Always `cnti testsuite`. |
 | `testsuite_version` | Version of the test suite that produced the file. |
 | `schema_version` | Integer version of this results-file schema; bumped on breaking changes. |
 | `status` | Overall run verdict, derived from `exit_code`: `passed` (0), `failed` (1), `error` (2). |
@@ -262,15 +262,15 @@ Each `impacted_resources` entry has `kind` and `name`, plus optional `namespace`
 
 ### Logging Parameters
 
-- **CNF_TESTSUITE_LOG_LEVEL** environment variable: sets minimal log level to display: error (default); info; debug.
-- **CNF_TESTSUITE_LOG_PATH** environment variable: if set - all logs would be appended to the file defined by that variable.
+- **CNTI_TESTSUITE_LOG_LEVEL** environment variable: sets minimal log level to display: error (default); info; debug.
+- **CNTI_TESTSUITE_LOG_PATH** environment variable: if set - all logs would be appended to the file defined by that variable.
 
 #### Output streams
 
 Result lines, scores and summaries are the suite's output and go to **stdout**; log messages are
-diagnostics and go to **stderr** (or to the `CNF_TESTSUITE_LOG_PATH` file when set). This means
-`./cnf-testsuite <test> > results.txt 2> debug.log` cleanly separates the two even with
-`CNF_TESTSUITE_LOG_LEVEL=debug`. When capturing the streams separately, their relative ordering is not
+diagnostics and go to **stderr** (or to the `CNTI_TESTSUITE_LOG_PATH` file when set). This means
+`./cnti-testsuite <test> > results.txt 2> debug.log` cleanly separates the two even with
+`CNTI_TESTSUITE_LOG_LEVEL=debug`. When capturing the streams separately, their relative ordering is not
 guaranteed — merge them with `2>&1` if strict interleaving matters. Cursor-control progress
 rewrites and colors are only emitted when stdout is a terminal.
 
@@ -298,76 +298,76 @@ A script that only needs pass/fail can test for `0`. A script that wants to tell
 This is the command to build the binary executable if in developer mode or using the source install method ([requires crystal](INSTALL.md#source-install)):
 
 ```
-crystal build src/cnf-testsuite.cr
+crystal build src/cnti-testsuite.cr
 ```
 
-#### Validating a cnf-testsuite.yml file:
+#### Validating a cnti-testsuite.yaml file:
 
 ```
-./cnf-testsuite validate_config --cnf-config [PATH_TO]/cnf-testsuite.yml
+./cnti-testsuite validate_config --cnf-config [PATH_TO]/cnti-testsuite.yaml
 ```
 
 #### Installing a cnf:
 
 ```
-./cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml
+./cnti-testsuite cnf_install --cnf-config ./cnti-testsuite.yaml
 ```
 
 ##### Specify a timeout for resource readiness during installation:
 ```
-./cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml --timeout 1800
+./cnti-testsuite cnf_install --cnf-config ./cnti-testsuite.yaml --timeout 1800
 ```
 
 ##### Skip waiting for resource readiness during installation:
 ```
-./cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml --skip-wait-for-install
+./cnti-testsuite cnf_install --cnf-config ./cnti-testsuite.yaml --skip-wait-for-install
 ```
 
 #### Uninstalling a cnf:
 ```
-./cnf-testsuite cnf_uninstall
+./cnti-testsuite cnf_uninstall
 ```
 
 ##### Specify timeout for resource removal during uninstallation
 ```
-./cnf-testsuite cnf_uninstall --timeout 60
+./cnti-testsuite cnf_uninstall --timeout 60
 ```
 
 ##### Skip waiting for resource removal during uninstallation:
 ```
-./cnf-testsuite cnf_uninstall --skip-wait-for-uninstall
+./cnti-testsuite cnf_uninstall --skip-wait-for-uninstall
 ```
 
 #### Running all of the tests:
 
 ```
-./cnf-testsuite all --cnf-config <path_to_your_config_file>/cnf-testsuite.yml
+./cnti-testsuite all --cnf-config <path_to_your_config_file>/cnti-testsuite.yaml
 ```
 
 #### Running all of the tests (including proofs of concepts)
 
 ```
-./cnf-testsuite all --poc --cnf-config <path_to_your_config_file>/cnf-testsuite.yml
+./cnti-testsuite all --poc --cnf-config <path_to_your_config_file>/cnti-testsuite.yaml
 ```
 
 #### Running all of the workload tests
 
 ```
-crystal src/cnf-testsuite.cr -- workload --cnf-config <path_to_your_config_file>/cnf-testsuite.yml
+crystal src/cnti-testsuite.cr -- workload --cnf-config <path_to_your_config_file>/cnti-testsuite.yaml
 ```
 
 #### Running certification tests
 
 ```
-./cnf-testsuite cert
-./cnf-testsuite cert --essential
-./cnf-testsuite cert --skip increase_decrease_capacity --skip single_process_type
+./cnti-testsuite cert
+./cnti-testsuite cert --essential
+./cnti-testsuite cert --skip increase_decrease_capacity --skip single_process_type
 ```
 
 #### Running the workload tests:
 
 ```
-./cnf-testsuite workload
+./cnti-testsuite workload
 ```
 
 #### Get available options and to see all available tests from command line:
@@ -377,24 +377,24 @@ meaning, and how to skip tasks or run several. `-h` and a bare invocation print
 the same page.
 
 ```
-./cnf-testsuite help
-./cnf-testsuite -h
+./cnti-testsuite help
+./cnti-testsuite -h
 ```
 
 To list every task, grouped by category:
 
 ```
-./cnf-testsuite help tasks
+./cnti-testsuite help tasks
 ```
 
 To see what a single task does, what it runs first, and which suites it belongs
 to:
 
 ```
-./cnf-testsuite help liveness
+./cnti-testsuite help liveness
 ```
 
-An unknown task name is answered with the closest match, e.g. `./cnf-testsuite
+An unknown task name is answered with the closest match, e.g. `./cnti-testsuite
 livenes` suggests `liveness`.
 
 #### Shell completion:
@@ -406,30 +406,30 @@ after `--cnf-config` and the other path options, task names after `--skip`, `-l`
 and further task names.
 
 ```
-source <(./cnf-testsuite completion bash)     # this shell only
-source <(./cnf-testsuite completion zsh)      # zsh (uses bashcompinit)
+source <(./cnti-testsuite completion bash)     # this shell only
+source <(./cnti-testsuite completion zsh)      # zsh (uses bashcompinit)
 ```
 
 To make it permanent, add that line to `~/.bashrc` / `~/.zshrc`, or for bash drop the script
 where bash-completion picks it up:
 
 ```
-./cnf-testsuite completion bash > ~/.local/share/bash-completion/completions/cnf-testsuite
+./cnti-testsuite completion bash > ~/.local/share/bash-completion/completions/cnti-testsuite
 ```
 
-The script completes the binary name it was generated by (`cnf-testsuite` for the release
-binary). To remove it: `complete -r cnf-testsuite`.
+The script completes the binary name it was generated by (`cnti-testsuite` for the release
+binary). To remove it: `complete -r cnti-testsuite`.
 
 #### Print the version:
 
 ```
-./cnf-testsuite --version
+./cnti-testsuite --version
 ```
 
 #### Clean up the CNTI Test Suite, the K8s cluster, and upstream projects:
 
 ```
-./cnf-testsuite uninstall_all
+./cnti-testsuite uninstall_all
 ```
 
 ---
@@ -440,26 +440,26 @@ binary). To remove it: `complete -r cnf-testsuite`.
 
 ```
 # cmd line
-./cnf-testsuite -l debug test
+./cnti-testsuite -l debug test
 ```
 
 #### If in developer mode, make sure to use - - if running from source:
 
 ```
-crystal src/cnf-testsuite.cr -- -l debug test
+crystal src/cnti-testsuite.cr -- -l debug test
 ```
 
 #### You can also use env var for logging:
 
 ```
-CNF_TESTSUITE_LOG_LEVEL=DEBUG ./cnf-testsuite test
+CNTI_TESTSUITE_LOG_LEVEL=DEBUG ./cnti-testsuite test
 ```
 
 :star: Note: When setting log level, the following is the order of precedence:
 
 1. CLI or Command line flag
 2. Environment variable
-3. CNF-Testsuite [Config file](config.yml) — `./config.yml` in the working directory, else `config.yml` in the suite home (`~/.cnf-testsuite`, relocatable via `CNF_TESTSUITE_DIR`)
+3. CNTi Test Suite [Config file](config.yml) — `./config.yml` in the working directory, else `config.yml` in the suite home (`~/.cnti-testsuite`, relocatable via `CNTI_TESTSUITE_DIR`)
 
 > Note: Available log levels are: `trace`, `debug`, `info`, `notice`, `warn`, `error` and `fatal`.
 
@@ -467,13 +467,13 @@ CNF_TESTSUITE_LOG_LEVEL=DEBUG ./cnf-testsuite test
 
 Timeouts are controlled by these environment variables, set them if default values aren't suitable:
 ```
-CNF_TESTSUITE_GENERIC_OPERATION_TIMEOUT=60
-CNF_TESTSUITE_RESOURCE_CREATION_TIMEOUT=120
-CNF_TESTSUITE_NODE_READINESS_TIMEOUT=240
-CNF_TESTSUITE_POD_READINESS_TIMEOUT=180
-CNF_TESTSUITE_LITMUS_CHAOS_TEST_TIMEOUT=1800
-CNF_TESTSUITE_NODE_DRAIN_TOTAL_CHAOS_DURATION=90
-CNF_TESTSUITE_LABEL_RESOURCE_SLEEP=5
+CNTI_TESTSUITE_GENERIC_OPERATION_TIMEOUT=60
+CNTI_TESTSUITE_RESOURCE_CREATION_TIMEOUT=120
+CNTI_TESTSUITE_NODE_READINESS_TIMEOUT=240
+CNTI_TESTSUITE_POD_READINESS_TIMEOUT=180
+CNTI_TESTSUITE_LITMUS_CHAOS_TEST_TIMEOUT=1800
+CNTI_TESTSUITE_NODE_DRAIN_TOTAL_CHAOS_DURATION=90
+CNTI_TESTSUITE_LABEL_RESOURCE_SLEEP=5
 ```
 
 #### Network retries:
@@ -483,18 +483,18 @@ failures — resets, timeouts, DNS blips, 5xx — while a missing chart or auth 
 immediately:
 
 ```
-CNF_TESTSUITE_NETWORK_RETRY_ATTEMPTS=3   # attempts per fetch
-CNF_TESTSUITE_NETWORK_RETRY_BACKOFF=2    # base seconds between attempts (attempt N waits N x backoff)
+CNTI_TESTSUITE_NETWORK_RETRY_ATTEMPTS=3   # attempts per fetch
+CNTI_TESTSUITE_NETWORK_RETRY_BACKOFF=2    # base seconds between attempts (attempt N waits N x backoff)
 ```
 
 #### Other environment variables:
 
-- **CNF_TESTSUITE_DIR**: the suite home (default `~/.cnf-testsuite`): where `config.yml` is looked up and where the tools the suite installs for itself are cached under `tools/`. Each cached tool carries a `<tool>.version` marker with the version it was installed at; a suite that pins a different version reinstalls it on the next run, so the cache never serves a stale tool.
-- **CNF_TESTSUITE_FORCE_INSTALL**: set (to any value) to reinstall the suite-managed local Helm even when an installation is already present.
-- **CNF_TESTSUITE_ENV**: set to `TEST` for test-mode shortcuts (smaller samples, quicker checks). Used by the spec suite; not meant for normal runs.
-- **CNF_TESTSUITE_RESULTS_DIR**: redirect the results directory; see [Results file](#results-file).
+- **CNTI_TESTSUITE_DIR**: the suite home (default `~/.cnti-testsuite`): where `config.yml` is looked up and where the tools the suite installs for itself are cached under `tools/`. Each cached tool carries a `<tool>.version` marker with the version it was installed at; a suite that pins a different version reinstalls it on the next run, so the cache never serves a stale tool.
+- **CNTI_TESTSUITE_FORCE_INSTALL**: set (to any value) to reinstall the suite-managed local Helm even when an installation is already present.
+- **CNTI_TESTSUITE_ENV**: set to `TEST` for test-mode shortcuts (smaller samples, quicker checks). Used by the spec suite; not meant for normal runs.
+- **CNTI_TESTSUITE_RESULTS_DIR**: redirect the results directory; see [Results file](#results-file).
 
-Every variable that configures the suite's own behavior carries the `CNF_TESTSUITE_` prefix.
+Every variable that configures the suite's own behavior carries the `CNTI_TESTSUITE_` prefix.
 Credentials and ecosystem-wide standards deliberately keep their conventional names, so one
 export serves every tool that honors them: `KUBECONFIG`, `GITHUB_TOKEN`,
 `DOCKERHUB_USERNAME`/`DOCKERHUB_PASSWORD` (shared by `docker login`, `helm registry login`,

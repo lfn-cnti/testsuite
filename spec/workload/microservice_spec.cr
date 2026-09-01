@@ -15,7 +15,7 @@ describe "Microservice" do
 
   it "'shared_database' should be skipped no MariaDB containers are found", tags: ["shared_database1"]  do
     begin
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_coredns/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_coredns/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].success?.should be_true
       (/(N\/A).*(No MariaDB containers were found)/ =~ result[:output]).should_not be_nil
@@ -28,7 +28,7 @@ describe "Microservice" do
 
   it "'shared_database' should pass if no database is used by two microservices", tags: ["shared_database2"]  do
     begin
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-statefulset-cnf/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-statefulset-cnf/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].success?.should be_true
       (/(PASSED).*(No shared database found)/ =~ result[:output]).should_not be_nil
@@ -41,7 +41,7 @@ describe "Microservice" do
 
   it "'shared_database' should pass if one service connects to a database but other non-service connections are made to the database", tags: ["shared_database3"]  do
     begin
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-multi-db-connections-exempt/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-multi-db-connections-exempt/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].success?.should be_true
       (/(PASSED).*(No shared database found)/ =~ result[:output]).should_not be_nil
@@ -54,7 +54,7 @@ describe "Microservice" do
 
   it "'shared_database' should fail if two services on the cluster connect to the same database", tags: ["shared_database_flaky"]  do
     begin
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/ndn-multi-db-connections-fail/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/ndn-multi-db-connections-fail/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Found a shared database)/ =~ result[:output]).should_not be_nil
@@ -161,7 +161,7 @@ describe "Microservice" do
   end
 
   it "'reasonable_startup_time' should fail if the cnf doesn't has a reasonable startup time(helm_directory)", tags: ["reasonable_startup_time"] do
-    ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_envoy_slow_startup/cnf-testsuite.yml")
+    ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_envoy_slow_startup/cnti-testsuite.yaml")
     begin
       result = ShellCmd.run_testsuite("reasonable_startup_time")
       result[:status].exit_code.should eq(1)
@@ -227,7 +227,7 @@ describe "Microservice" do
 
   it "'specialized_init_system' should include label-selected resources", tags: ["labels"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-operator/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-operator/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("specialized_init_system")
       result[:status].exit_code.should eq(1)
 

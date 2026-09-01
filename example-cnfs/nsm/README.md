@@ -7,26 +7,26 @@ Network Service Mesh (NSM) is a novel approach solving complicated L2/L3 use cas
 Follow [Pre-req steps](../../INSTALL.md#pre-requisites), including
 
 - Set the KUBECONFIG environment to point to the remote K8s cluster
-- Downloading the binary cnf-testsuite release
+- Downloading the binary cnti-testsuite release
 
 ### Automated CNF installation
 
 Initialize the test suite
 
 ```
-./cnf-testsuite setup
+./cnti-testsuite setup
 ```
 
 Configure and deploy NSM as the target CNF
 
 ```
-./cnf-testsuite cnf_install --cnf-config ./example-cnfs/nsm/cnf-testsuite.yml
+./cnti-testsuite cnf_install --cnf-config ./example-cnfs/nsm/cnti-testsuite.yaml
 ```
 
 Run the all the tests
 
 ```
-./cnf-testsuite all
+./cnti-testsuite all
 ```
 
 Check the results file
@@ -34,5 +34,5 @@ Check the results file
 Uninstall the CNF (including undeployment of NSM)
 
 ```
-./cnf-testsuite cnf_uninstall
+./cnti-testsuite cnf_uninstall
 ```

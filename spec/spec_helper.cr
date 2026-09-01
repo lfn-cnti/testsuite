@@ -1,6 +1,6 @@
 require "spec"
 require "colorize"
-require "../src/cnf_testsuite"
+require "../src/cnti_testsuite"
 require "../src/tasks/utils/utils.cr"
 require "../src/modules/tar"
 require "../src/modules/git"
@@ -13,22 +13,22 @@ require "../src/modules/k8s_netstat"
 require "../src/modules/cluster_tools"
 require "../src/modules/kubectl_client"
 
-ENV["CNF_TESTSUITE_ENV"] = "TEST"
+ENV["CNTI_TESTSUITE_ENV"] = "TEST"
 
 # Specs assume no CNF is installed; a leftover installation can make them fail
 # in ways that are hard to trace back to the environment.
 if Dir.exists?(CNF_DIR)
-  Log.warn { "A CNF appears to be installed ('#{CNF_DIR}' directory present). Spec tests assume a clean environment and may behave unexpectedly. Consider running './cnf-testsuite cnf_uninstall' first.".colorize(:yellow) }
+  Log.warn { "A CNF appears to be installed ('#{CNF_DIR}' directory present). Spec tests assume a clean environment and may behave unexpectedly. Consider running './cnti-testsuite cnf_uninstall' first.".colorize(:yellow) }
 end
 
 # Skip the build when a caller (e.g. CI) has already built the binary and sets
-# CNF_TESTSUITE_SKIP_BUILD, avoiding a redundant full recompile per spec run.
+# CNTI_TESTSUITE_SKIP_BUILD, avoiding a redundant full recompile per spec run.
 # The skip only applies when the binary is actually present.
-if ENV["CNF_TESTSUITE_SKIP_BUILD"]? && File.exists?("./cnf-testsuite")
-  Log.info { "Skipping ./cnf-testsuite build (CNF_TESTSUITE_SKIP_BUILD set)".colorize(:green) }
+if ENV["CNTI_TESTSUITE_SKIP_BUILD"]? && File.exists?("./cnti-testsuite")
+  Log.info { "Skipping ./cnti-testsuite build (CNTI_TESTSUITE_SKIP_BUILD set)".colorize(:green) }
 else
-  Log.info { "Building ./cnf-testsuite".colorize(:green) }
-  result = ShellCmd.run("crystal build --warnings none src/cnf-testsuite.cr")
+  Log.info { "Building ./cnti-testsuite".colorize(:green) }
+  result = ShellCmd.run("crystal build --warnings none src/cnti-testsuite.cr")
   if result[:status].success?
     Log.info { "Build Success!".colorize(:green) }
   else
@@ -39,7 +39,7 @@ end
 
 module ShellCmd
   def self.run_testsuite(testsuite_cmd, cmd_prefix="")
-    cmd = "#{cmd_prefix} ./cnf-testsuite #{testsuite_cmd}"
+    cmd = "#{cmd_prefix} ./cnti-testsuite #{testsuite_cmd}"
     run(cmd, log_prefix: "ShellCmd.run_testsuite", force_output: true, joined_output: true)
   end
 

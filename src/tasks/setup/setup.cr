@@ -7,7 +7,7 @@ task "setup", ["version", "setup:cnf_directory_setup", "setup:install_local_helm
 end
 
 namespace "setup" do
-  desc "Create the cnf-testsuite namespace used by the suite's helper tools"
+  desc "Create the cnti-testsuite namespace used by the suite's helper tools"
   task "create_namespace" do |_, args|
     logger = SLOG.for("create_namespace")
     logger.info { "Creating namespace for CNTI testsuite" }
@@ -28,7 +28,7 @@ namespace "setup" do
     end
   end
 
-  desc "Sets up initial directories for the cnf-testsuite"
+  desc "Sets up initial directories for the cnti-testsuite"
   task "cnf_directory_setup" do |_, args|
     logger = SLOG.for("cnf_directory_setup")
     logger.info { "Creating directories for CNTI testsuite" }
@@ -40,7 +40,7 @@ namespace "setup" do
       stdout_failure "Task 'cnf_directory_setup' failed. Check logs for more info."
       exit 1
     end
-    stdout_success "Successfully created directories for cnf-testsuite"
+    stdout_success "Successfully created directories for cnti-testsuite"
   end
 
   desc "Materialize the suite's runtime configuration files in the working directory"

@@ -3,7 +3,6 @@ require "./modules/release_manager"
 require "./proto/**"
 require "./tasks/**"
 require "./tasks/utils/utils.cr"
-require "./cnf_testsuite.cr"
 
 
 desc "Makes sure a cnf is in the cnf directory"
@@ -11,10 +10,10 @@ task "ensure_cnf_installed" do |_, args|
   CNFManager::Task.ensure_cnf_installed!
 end
 
-desc "Print the CNF Test Suite version"
+desc "Print the CNTi Test Suite version"
 task "version" do |_, args|
   Log.info { "VERSION: #{ReleaseManager::VERSION}" }
-  puts "CNF TestSuite version: #{ReleaseManager::VERSION}".colorize(:green)
+  puts "CNTi TestSuite version: #{ReleaseManager::VERSION}".colorize(:green)
 end
 
 desc "Maintainers: create or update the GitHub release for the current version"
@@ -54,7 +53,7 @@ begin
   # -h/--version are recorded by the OptionParser in logging.cr at require time;
   # act on them here, where every task is registered and help can list them all.
   if CLIInvocation.version_requested?
-    puts "CNF TestSuite version: #{ReleaseManager::VERSION}"
+    puts "CNTi TestSuite version: #{ReleaseManager::VERSION}"
     exit 0
   end
 

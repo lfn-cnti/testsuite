@@ -8,7 +8,7 @@ require "file_utils"
 require "sam"
 
 # Minimal JSON-Schema validator covering only the constructs used by
-# docs/cnf-testsuite-results.schema.json ($ref, type, enum, const, required,
+# docs/cnti-testsuite-results.schema.json ($ref, type, enum, const, required,
 # additionalProperties:false, array items). Driven by the schema file itself so
 # it acts as a drift guard: any divergence between the emitted results file and
 # the published schema (added/removed/renamed field, wrong type) fails the spec.
@@ -207,7 +207,7 @@ describe "SampleUtils" do
   it "'upsert_task' insert task in the results file", tags: ["tasks"]  do
     CNFManager::Points.clean_results_yml
     result = CNFManager::TestCaseResult.new("liveness", CNFManager::ResultStatus::Passed)
-    result.add_impacted_resource("Deployment", "coredns", "cnf-default", container: "coredns", reason: "privileged container")
+    result.add_impacted_resource("Deployment", "coredns", "cnti-default", container: "coredns", reason: "privileged container")
     result.append_remediation("Set securityContext.privileged=false")
     CNFManager::Points.upsert_task(result)
     yaml = File.open("#{CNFManager::Points::Results.file}") do |file|
@@ -221,7 +221,7 @@ describe "SampleUtils" do
     impacted.size.should eq(1)
     (impacted[0]["kind"]).should eq("Deployment")
     (impacted[0]["name"]).should eq("coredns")
-    (impacted[0]["namespace"]).should eq("cnf-default")
+    (impacted[0]["namespace"]).should eq("cnti-default")
     (impacted[0]["container"]).should eq("coredns")
     (impacted[0]["reason"]).should eq("privileged container")
     (item["remediation"].as_a.map(&.as_s)).should contain("Set securityContext.privileged=false")
@@ -275,12 +275,12 @@ describe "SampleUtils" do
     liveness_item["impacted_resources"]?.should be_nil
   end
 
-  it "results file conforms to docs/cnf-testsuite-results.schema.json", tags: ["points"] do
+  it "results file conforms to docs/cnti-testsuite-results.schema.json", tags: ["points"] do
     CNFManager::Points.clean_results_yml
 
     # Exercise every status plus all three optional detail buckets.
     failed = CNFManager::TestCaseResult.new("privileged_containers", CNFManager::ResultStatus::Failed, "Found 1 privileged container")
-    failed.add_impacted_resource("Deployment", "coredns", "cnf-default", container: "coredns", reason: "privileged container")
+    failed.add_impacted_resource("Deployment", "coredns", "cnti-default", container: "coredns", reason: "privileged container")
     failed.append_remediation("Set securityContext.privileged=false")
     CNFManager::Points.upsert_task(failed)
 
@@ -291,7 +291,7 @@ describe "SampleUtils" do
     skipped.append_description("Secrets not used")
     CNFManager::Points.upsert_task(skipped)
 
-    schema = JSON.parse(File.read("docs/cnf-testsuite-results.schema.json"))
+    schema = JSON.parse(File.read("docs/cnti-testsuite-results.schema.json"))
     doc = File.open("#{CNFManager::Points::Results.file}") { |file| YAML.parse(file) }
     validate_against_schema(doc, schema, schema["$defs"])
   end
@@ -328,12 +328,12 @@ describe "SampleUtils" do
     yaml = File.open("#{CNFManager::Points::Results.file}") do |file|
       YAML.parse(file)
     end
-    (yaml["name"]).should eq("cnf testsuite")
+    (yaml["name"]).should eq("cnti testsuite")
     (yaml["exit_code"]).should eq(0) 
   end
 
   it "'validate_config' should pass, when a cnf has a valid config file yml", tags: ["validate_config"]  do
-    result = ShellCmd.run_testsuite("validate_config --cnf-config spec/fixtures/cnf-testsuite-v2-example.yml")
+    result = ShellCmd.run_testsuite("validate_config --cnf-config spec/fixtures/cnti-testsuite-v2-example.yaml")
     result[:status].success?.should be_true
     (/Successfully validated CNF config/ =~ result[:output]).should_not be_nil
   end
@@ -342,7 +342,7 @@ describe "SampleUtils" do
     get_dirs = Dir.entries("sample-cnfs")
     dir_list = get_dirs - [".", ".."]
     dir_list.each do |dir|
-      testsuite_yml = "sample-cnfs/#{dir}/cnf-testsuite.yml"
+      testsuite_yml = "sample-cnfs/#{dir}/cnti-testsuite.yaml"
       result = ShellCmd.run_testsuite("validate_config --cnf-config #{testsuite_yml}")
       unless result[:status].success?
         Log.info {"Could not validate config: #{testsuite_yml}"}
@@ -355,7 +355,7 @@ describe "SampleUtils" do
     get_dirs = Dir.entries("example-cnfs")
     dir_list = get_dirs - [".", ".."]
     dir_list.each do |dir|
-      testsuite_yml = "example-cnfs/#{dir}/cnf-testsuite.yml"
+      testsuite_yml = "example-cnfs/#{dir}/cnti-testsuite.yaml"
       result = ShellCmd.run_testsuite("validate_config --cnf-config #{testsuite_yml}")
       unless result[:status].success?
         Log.info {"Could not validate config: #{testsuite_yml}"}
@@ -365,14 +365,14 @@ describe "SampleUtils" do
   end
 
   it "'CNFInstall::Config.parse_cnf_config_from_file' should return a populated CNFInstall::Config::Config", tags: ["cnf-config"]  do
-    config = CNFInstall::Config.parse_cnf_config_from_file("spec/fixtures/cnf-testsuite.yml")    
+    config = CNFInstall::Config.parse_cnf_config_from_file("spec/fixtures/cnti-testsuite.yaml")    
     (config.deployments.helm_charts[0].name).should eq("coredns")
   end
 
   it "'CNFManager.workload_resource_test' should accept an args and cnf-config argument, populate a deployment, container, and intialized argument, and then apply a test to a cnf", tags: ["cnf-config"]  do
     begin
       args = Sam::Args.new()
-      config_path = "./sample-cnfs/sample-generic-cnf/cnf-testsuite.yml"
+      config_path = "./sample-cnfs/sample-generic-cnf/cnti-testsuite.yaml"
       ShellCmd.cnf_install("--cnf-config #{config_path}")
       config = CNFInstall::Config.parse_cnf_config_from_file(config_path)    
       task_response = CNFManager.workload_resource_test(args, config) do |resource, container, initialized|
@@ -397,7 +397,7 @@ describe "SampleUtils" do
     begin
       # fails because doesn't have a service
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns_values")
-      deployment_containers = KubectlClient::Get.resource_containers("deployment", "coredns-coredns", "cnf-default")
+      deployment_containers = KubectlClient::Get.resource_containers("deployment", "coredns-coredns", "cnti-default")
       image_tags = KubectlClient::Get.container_image_tags(deployment_containers)
       Log.info { "image_tags: #{image_tags}" }
       (/1.6.9/ =~ image_tags[0][:tag]).should_not be_nil

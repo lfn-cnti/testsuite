@@ -2,7 +2,7 @@
 
 ## Example CNFs included in this repository
 
-The [example-cnfs/](example-cnfs/) directory contains curated, ready-to-run CNF configurations, each with its own `cnf-testsuite.yml` (and a README where applicable):
+The [example-cnfs/](example-cnfs/) directory contains curated, ready-to-run CNF configurations, each with its own `cnti-testsuite.yaml` (and a README where applicable):
 
 - **[free5GC](example-cnfs/free5gc/)** — an open source 5G core and the **reference CNF** for the CNTi Test Suite ([LF Networking announcement](https://lfnetworking.org/introducing-free5gc-as-a-reference-cnf-for-the-cnti-test-suite/)). Validated nightly in CI against the certification test set.
 - [CoreDNS](example-cnfs/coredns/) — DNS server; the lightweight example used in the quick install steps.
@@ -15,7 +15,7 @@ The [example-cnfs/](example-cnfs/) directory contains curated, ready-to-run CNF 
 
 ## CNF samples by OSI layer
 
-This is a preliminary list of CNF samples for each layer in the [OSI model](https://www.osi-model.com/presentation-layer/) which we plan to test in the CNF Test Suite. CNFs can be thought of as functionality occupying one or more of the following network layers:
+This is a preliminary list of CNF samples for each layer in the [OSI model](https://www.osi-model.com/presentation-layer/) which we plan to test in the CNTi Test Suite. CNFs can be thought of as functionality occupying one or more of the following network layers:
 
 <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/OSI_Model_v1.svg/440px-OSI_Model_v1.svg.png" width="25%" height="25%"><img src="https://cnf-test-suite.s3-us-west-2.amazonaws.com/inet-protocol.png" width="25%" height="25%">
 

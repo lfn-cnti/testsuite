@@ -1,7 +1,7 @@
 require "../spec_helper"
 require "colorize"
 
-describe CnfTestSuite do
+describe CntiTestSuite do
   before_all do
     result = ShellCmd.run_testsuite("setup")
   end
@@ -19,11 +19,11 @@ describe CnfTestSuite do
   it "'helm_deploy' should fail if command is not supplied cnf-config argument", tags: ["helm_validation"] do
     result = ShellCmd.run_testsuite("helm_deploy")
     result[:status].exit_code.should eq(1)
-    (/No cnf_testsuite.yml found! Did you run the \"cnf_install\" task?/ =~ result[:output]).should_not be_nil
+    (/No cnti-testsuite.yaml found! Did you run the \"cnf_install\" task?/ =~ result[:output]).should_not be_nil
   end
 
   it "'helm_chart_valid' should pass on a good helm chart", tags: ["helm_validation"]  do
-    ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
+    ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
     result = ShellCmd.run_testsuite("helm_chart_valid")
     result[:status].success?.should be_true
     (/Helm chart lint passed on all charts/ =~ result[:output]).should_not be_nil
@@ -32,7 +32,7 @@ describe CnfTestSuite do
   end
 
   it "'helm_chart_valid' should pass on a good helm chart with additional values file", tags: ["helm_validation"]  do
-    ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_conditional_values_file/cnf-testsuite.yml")
+    ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_conditional_values_file/cnti-testsuite.yaml")
     result = ShellCmd.run_testsuite("helm_chart_valid")
     result[:status].success?.should be_true
     (/Helm chart lint passed on all charts/ =~ result[:output]).should_not be_nil
@@ -42,7 +42,7 @@ describe CnfTestSuite do
 
   it "'helm_chart_valid' should fail on a bad helm chart", tags: ["helm_validation"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-bad_helm_coredns-cnf/cnf-testsuite.yml --skip-wait-for-install", expect_failure: true)
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-bad_helm_coredns-cnf/cnti-testsuite.yaml --skip-wait-for-install", expect_failure: true)
       result = ShellCmd.run_testsuite("helm_chart_valid")
       result[:status].exit_code.should eq(1)
       (/Helm chart lint failed on one or more charts/ =~ result[:output]).should_not be_nil

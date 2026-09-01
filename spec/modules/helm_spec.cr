@@ -41,11 +41,11 @@ describe "Helm" do
       FileUtils.mkdir_p(empty_tools)
 
       result = ShellCmd.run_testsuite("setup:install_jaeger",
-        "PATH=#{empty_path} CNF_TESTSUITE_DIR=#{empty_tools}")
+        "PATH=#{empty_path} CNTI_TESTSUITE_DIR=#{empty_tools}")
 
       result[:status].exit_code.should eq(1)
       result[:output].should contain("No Helm binary found")
-      result[:output].should contain("cnf-testsuite setup")
+      result[:output].should contain("cnti-testsuite setup")
       result[:output].should_not contain("__crystal_main")
     ensure
       FileUtils.rm_rf(empty_path.not_nil!)

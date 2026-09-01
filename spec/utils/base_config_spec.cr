@@ -6,7 +6,7 @@ describe "config.yml resolution" do
     cwd = File.tempname("cfg-cwd")
     FileUtils.mkdir_p(home)
     FileUtils.mkdir_p(cwd)
-    ENV["CNF_TESTSUITE_DIR"] = home
+    ENV["CNTI_TESTSUITE_DIR"] = home
     File.write(File.join(home, "config.yml"),
       {"toggles" => [{"name" => "wip", "toggle_on" => true}]}.to_yaml)
 
@@ -24,7 +24,7 @@ describe "config.yml resolution" do
       base_config_path.should be_nil
     end
   ensure
-    ENV.delete("CNF_TESTSUITE_DIR")
+    ENV.delete("CNTI_TESTSUITE_DIR")
     FileUtils.rm_rf(home.not_nil!)
     FileUtils.rm_rf(cwd.not_nil!)
   end

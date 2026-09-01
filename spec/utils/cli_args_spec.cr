@@ -30,12 +30,12 @@ describe "CLI argument validation" do
     # A task name in an argument position is another task to run, in order.
     result = ShellCmd.run_testsuite("version test")
     result[:status].success?.should be_true
-    result[:output].should contain("CNF TestSuite version:")
+    result[:output].should contain("CNTi TestSuite version:")
     result[:output].should contain("ping")
   end
 
   it "accepts GNU-style options and rejects unknown ones with a suggestion", tags: ["points"] do
-    result = ShellCmd.run_testsuite("cnf_install --cnf-config /nonexistent/cnf-testsuite.yml")
+    result = ShellCmd.run_testsuite("cnf_install --cnf-config /nonexistent/cnti-testsuite.yaml")
     result[:status].exit_code.should eq(USAGE_EXIT_CODE)
     result[:output].should contain("CNF configuration file not found")
 
@@ -61,11 +61,11 @@ describe "CLI argument validation" do
     result[:status].exit_code.should eq(USAGE_EXIT_CODE)
     result[:output].should contain("Usage: validate_config")
 
-    result = ShellCmd.run_testsuite("validate_config --cnf-config /nonexistent/cnf-testsuite.yml")
+    result = ShellCmd.run_testsuite("validate_config --cnf-config /nonexistent/cnti-testsuite.yaml")
     result[:status].exit_code.should eq(USAGE_EXIT_CODE)
     result[:output].should contain("CNF configuration file not found")
 
-    result = ShellCmd.run_testsuite("cnf_install --cnf-config /nonexistent/cnf-testsuite.yml")
+    result = ShellCmd.run_testsuite("cnf_install --cnf-config /nonexistent/cnti-testsuite.yaml")
     result[:status].exit_code.should eq(USAGE_EXIT_CODE)
     result[:output].should contain("CNF configuration file not found")
   end
@@ -73,7 +73,7 @@ describe "CLI argument validation" do
   it "exits 1, never 0, when a command refuses to do what was asked", tags: ["points"] do
     output_config = File.tempname("already-latest", ".yml")
     begin
-      result = ShellCmd.run_testsuite("update_config --input-config spec/fixtures/cnf-testsuite-v2-example.yml --output-config #{output_config}")
+      result = ShellCmd.run_testsuite("update_config --input-config spec/fixtures/cnti-testsuite-v2-example.yaml --output-config #{output_config}")
       result[:status].exit_code.should eq(1)
       result[:output].should contain("already the latest version")
       File.exists?(output_config).should be_false

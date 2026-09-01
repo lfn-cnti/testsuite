@@ -8,7 +8,7 @@ common:
 deployments:
   helm_charts:
     - name: nginx-private
-      namespace: cnf-default
+      namespace: cnti-default
       helm_repo_name: cm
       # port is docker-assigned and exported by spec/setup_spec.cr
       helm_repo_url: "http://localhost:{{ ENV.SPEC_CHART_MUSEUM_PORT }}"

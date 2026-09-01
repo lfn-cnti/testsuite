@@ -78,13 +78,13 @@ jobs:
               hostPath: $HOME/.docker/config.json
           EOF
           kind create cluster --name "$KIND_CLUSTER_NAME" --config kind_setup.yaml --wait 5m
-      - name: Build CNF Testsuite
+      - name: Build CNTi Test Suite
         run: |
           shards install
-          crystal build src/cnf-testsuite.cr
+          crystal build src/cnti-testsuite.cr
       - name: Run Free5GC Spec Test
         run: |
-          CNF_TESTSUITE_LOG_LEVEL=INFO crystal spec spec/free5gc_cert_spec.cr -v
+          CNTI_TESTSUITE_LOG_LEVEL=INFO crystal spec spec/free5gc_cert_spec.cr -v
       - name: Delete Kind Cluster
         if: always()
         continue-on-error: true

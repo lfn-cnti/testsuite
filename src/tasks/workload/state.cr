@@ -67,7 +67,7 @@ module Volume
   #   end
   #   Log.info {"Provisoners: #{provisoners}"}
   #   provisoners.each do |provisoner|
-  #     if ENV["CNF_TESTSUITE_ENV"]? == "TEST"
+  #     if ENV["CNTI_TESTSUITE_ENV"]? == "TEST"
   #       if (provisoner =~ ELASTIC_PROVISIONING_DRIVERS_REGEX_SPEC) 
   #         Log.info {"provisioner test mode"}
   #         Log.info {"Provisoners: #{provisoners}"}
@@ -126,7 +126,7 @@ module StorageClass
 
     Log.info {"Provisioners: #{provisioners}"}
     provisioners.each do |provisioner|
-      if ENV["CNF_TESTSUITE_ENV"]? == "TEST"
+      if ENV["CNTI_TESTSUITE_ENV"]? == "TEST"
         if (provisioner =~ ELASTIC_PROVISIONING_DRIVERS_REGEX_SPEC)
           Log.info {"provisioner test mode"}
           Log.info {"Elastic provisioner: #{provisioner}"}

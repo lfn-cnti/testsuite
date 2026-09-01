@@ -6,7 +6,7 @@ describe "Security" do
 
   it "'privileged_containers' should pass with a non-privileged cnf", tags: ["privileges"]  do
     begin
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-statefulset-cnf/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-statefulset-cnf/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("privileged_containers")
       result[:status].success?.should be_true
       (/No privileged containers/ =~ result[:output]).should_not be_nil
@@ -17,7 +17,7 @@ describe "Security" do
   end
   it "'privileged_containers' should fail on a non-whitelisted, privileged cnf", tags: ["privileges"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_privileged_cnf/cnf-testsuite.yml --skip-wait-for-install")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_privileged_cnf/cnti-testsuite.yaml --skip-wait-for-install")
       result = ShellCmd.run_testsuite("privileged_containers")
       result[:status].exit_code.should eq(1)
       (/Found.*privileged containers.*/ =~ result[:output]).should_not be_nil
@@ -30,7 +30,7 @@ describe "Security" do
   it "'privileged_containers' should fail on a privileged init container", tags: ["privileges"] do
     begin
       # Only the initContainer is privileged; the check must see it (#2486).
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-privileged-initcontainer/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-privileged-initcontainer/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("privileged_containers")
       result[:status].exit_code.should eq(1)
       (/Found 1 privileged containers/ =~ result[:output]).should_not be_nil
@@ -44,7 +44,7 @@ describe "Security" do
 
   it "'privileged_containers' should pass on a whitelisted, privileged cnf", tags: ["privileges"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_whitelisted_privileged_cnf/cnf-testsuite.yml --skip-wait-for-install")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_whitelisted_privileged_cnf/cnti-testsuite.yaml --skip-wait-for-install")
       result = ShellCmd.run_testsuite("privileged_containers")
       result[:status].success?.should be_true
       (/No privileged containers/ =~ result[:output]).should_not be_nil
@@ -55,7 +55,7 @@ describe "Security" do
 
   it "'privilege_escalation' should fail on a cnf that has escalated privileges", tags: ["privileges"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-privilege-escalation/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-privilege-escalation/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("privilege_escalation")
       result[:status].exit_code.should eq(1)
       (/(PASSED).*(No containers that allow privilege escalation were found)/ =~ result[:output]).should be_nil
@@ -66,7 +66,7 @@ describe "Security" do
 
   it "'privilege_escalation' should pass on a cnf that does not have escalated privileges", tags: ["privileges"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-nonroot-containers/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-nonroot-containers/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("privilege_escalation")
       result[:status].success?.should be_true
       (/(PASSED).*(No containers that allow privilege escalation were found)/ =~ result[:output]).should_not be_nil
@@ -77,7 +77,7 @@ describe "Security" do
 
   it "'symlink_file_system' should pass on a cnf that does not allow a symlink attack", tags: ["capabilities"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-privilege-escalation/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-privilege-escalation/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("symlink_file_system")
       result[:status].success?.should be_true
       (/(PASSED).*(No containers allow a symlink attack)/ =~ result[:output]).should_not be_nil
@@ -88,7 +88,7 @@ describe "Security" do
 
   it "'insecure_capabilities' should pass on a cnf that does not have containers with insecure capabilities", tags: ["capabilities"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("insecure_capabilities")
       result[:status].success?.should be_true
       (/(PASSED).*(Containers with insecure capabilities were not found)/ =~ result[:output]).should_not be_nil
@@ -99,7 +99,7 @@ describe "Security" do
 
   it "'insecure_capabilities' should fail on a cnf that has containers with insecure capabilities", tags: ["security"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-insecure-capabilities/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-insecure-capabilities/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("insecure_capabilities")
       result[:status].exit_code.should eq(1)
       (/(PASSED).*(Containers with insecure capabilities were not found)/ =~ result[:output]).should be_nil
@@ -121,7 +121,7 @@ describe "Security" do
 
   it "'application_credentials' should fail on a cnf that allows applications credentials in configuration files", tags: ["security"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-appliciation-credentials/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-appliciation-credentials/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("application_credentials")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Found applications credentials in configuration files)/ =~ result[:output]).should_not be_nil
@@ -132,7 +132,7 @@ describe "Security" do
 
   it "'host_network' should pass on a cnf that does not have a host network attached to pod", tags: ["security"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-privilege-escalation/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-privilege-escalation/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("host_network")
       result[:status].success?.should be_true
       (/(PASSED).*(No host network attached to pod)/ =~ result[:output]).should_not be_nil
@@ -143,7 +143,7 @@ describe "Security" do
 
   it "'service_account_mapping' should fail on a cnf that automatically maps the service account", tags: ["security"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-service-accounts/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-service-accounts/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("service_account_mapping")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Service accounts automatically mapped)/ =~ result[:output]).should_not be_nil
@@ -165,13 +165,13 @@ describe "Security" do
 
   it "'cpu_limits' should include label-selected resources", tags: ["labels"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-operator/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-operator/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("cpu_limits")
       result[:status].exit_code.should eq(1)
       # Kubescape findings name the field and the container (#2508). The
       # operator creates these Deployments, so on a miss show what was reported.
       ["demo-labeled", "demo-owned"].each do |name|
-        expected = /impacted: Deployment\/#{name} in cnf-default \(container .+\): spec\.template\.spec\.containers\[\d+\]\.resources\.limits\.cpu is not set/
+        expected = /impacted: Deployment\/#{name} in cnti-default \(container .+\): spec\.template\.spec\.containers\[\d+\]\.resources\.limits\.cpu is not set/
         unless expected =~ result[:output]
           fail "no per-field finding for Deployment/#{name}; impacted lines were:\n#{result[:output].lines.select(&.includes?("impacted:")).join}"
         end
@@ -287,7 +287,7 @@ describe "Security" do
 
   it "'container_sock_mounts' should pass if a cnf has no pods that mount container engine socket", tags: ["container_sock_mounts"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("container_sock_mounts")
       result[:status].success?.should be_true
       (/(PASSED).*(Container engine daemon sockets are not mounted as volumes)/ =~ result[:output]).should_not be_nil
@@ -298,7 +298,7 @@ describe "Security" do
 
   it "'container_sock_mounts' should fail if the CNF has pods with container engine sockets mounted", tags: ["container_sock_mounts"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_container_sock_mount/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_container_sock_mount/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("container_sock_mounts")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Container engine daemon sockets are mounted as volumes)/ =~ result[:output]).should_not be_nil
@@ -345,7 +345,7 @@ describe "Security" do
         YAML
       KubectlClient::Apply.file(bystander)
 
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("container_sock_mounts")
       result[:status].success?.should be_true
       (/(PASSED).*(Container engine daemon sockets are not mounted as volumes)/ =~ result[:output]).should_not be_nil
@@ -360,7 +360,7 @@ describe "Security" do
 
   it "'external_ips' should pass if a cnf has no services with external IPs", tags: ["external_ips"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("external_ips")
       result[:status].success?.should be_true
       (/(PASSED).*(Services are not using external IPs)/ =~ result[:output]).should_not be_nil
@@ -371,7 +371,7 @@ describe "Security" do
 
   it "'external_ips' should fail if a cnf has services with external IPs", tags: ["external_ips"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_external_ips/cnf-testsuite.yml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_external_ips/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("external_ips")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Services are using external IPs)/ =~ result[:output]).should_not be_nil

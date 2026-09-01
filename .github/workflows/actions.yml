@@ -314,10 +314,10 @@ jobs:
         #   echo "Failed to install packages, retrying"
         #   sleep 1
         #done
-        crystal build src/cnf-testsuite.cr 
-        ./cnf-testsuite setup 
-        # cnf-testsuite was already built above; skip spec_helper's redundant rebuild.
-        CNF_TESTSUITE_SKIP_BUILD=1 CNF_TESTSUITE_LOG_LEVEL=debug crystal spec --tag ${{ matrix.spec }} -v
+        crystal build src/cnti-testsuite.cr 
+        ./cnti-testsuite setup 
+        # cnti-testsuite was already built above; skip spec_helper's redundant rebuild.
+        CNTI_TESTSUITE_SKIP_BUILD=1 CNTI_TESTSUITE_LOG_LEVEL=debug crystal spec --tag ${{ matrix.spec }} -v
     - name: Delete Cluster
       if: ${{ always() }}
       run: |
@@ -404,7 +404,7 @@ jobs:
             echo "Waiting for kindnet"
             sleep 1
         done
-        CNF_TESTSUITE_LOG_LEVEL=debug crystal spec --tag ${{ matrix.tag }} -v
+        CNTI_TESTSUITE_LOG_LEVEL=debug crystal spec --tag ${{ matrix.tag }} -v
     - name: Delete Cluster
       if: ${{ always() }}
       run: |
@@ -445,10 +445,10 @@ jobs:
         fetch-depth: 0
     - name: Install kind
       uses: ./.github/actions/install-kind
-    - name: Build cnf-testsuite & Create Kind Cluster 
+    - name: Build cnti-testsuite & Create Kind Cluster 
       run: |
         shards install
-        crystal build src/cnf-testsuite.cr
+        crystal build src/cnti-testsuite.cr
         cat << EOF > /tmp/cluster.yml
         kind: Cluster
         apiVersion: kind.x-k8s.io/v1alpha4
@@ -491,15 +491,15 @@ jobs:
         export DIR=$(uuidgen)
         echo "Shared DIR: /shared/$DIR"
         mkdir /shared/$DIR
-        mv cnf-testsuite /shared/$DIR 
+        mv cnti-testsuite /shared/$DIR 
         cd /shared/$DIR
-        ./cnf-testsuite setup
-        wget -O cnf-testsuite.yml https://raw.githubusercontent.com/lfn-cnti/testsuite/${GITHUB_SHA}/example-cnfs/coredns/cnf-testsuite.yml
-        ./cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml
+        ./cnti-testsuite setup
+        wget -O cnti-testsuite.yaml https://raw.githubusercontent.com/lfn-cnti/testsuite/${GITHUB_SHA}/example-cnfs/coredns/cnti-testsuite.yaml
+        ./cnti-testsuite cnf_install --cnf-config ./cnti-testsuite.yaml
         # The example CNF is expected to fail some tests (exit 1); only an errored test (exit 2+) fails the job
-        CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite all --skip compatibility --skip resilience --skip reasonable_startup_time --skip reasonable_image_size --skip helm_chart_valid --skip helm_chart_published || [ $? -eq 1 ]
-        CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite cnf_uninstall
-        CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite uninstall_all
+        CNTI_TESTSUITE_LOG_LEVEL=debug ./cnti-testsuite all --skip compatibility --skip resilience --skip reasonable_startup_time --skip reasonable_image_size --skip helm_chart_valid --skip helm_chart_published || [ $? -eq 1 ]
+        CNTI_TESTSUITE_LOG_LEVEL=debug ./cnti-testsuite cnf_uninstall
+        CNTI_TESTSUITE_LOG_LEVEL=debug ./cnti-testsuite uninstall_all
     - name: Delete Cluster
       if: ${{ always() }}
       run: |
@@ -540,10 +540,10 @@ jobs:
         fetch-depth: 0
     - name: Install kind
       uses: ./.github/actions/install-kind
-    - name: Build cnf-testsuite & Create Kind Cluster 
+    - name: Build cnti-testsuite & Create Kind Cluster 
       run: |
         shards install
-        crystal build src/cnf-testsuite.cr
+        crystal build src/cnti-testsuite.cr
         cat << EOF > /tmp/cluster.yml
         kind: Cluster
         apiVersion: kind.x-k8s.io/v1alpha4
@@ -585,15 +585,15 @@ jobs:
         export DIR=$(uuidgen)
         echo "Shared DIR: /shared/$DIR"
         mkdir /shared/$DIR
-        mv cnf-testsuite /shared/$DIR
+        mv cnti-testsuite /shared/$DIR
         cd /shared/$DIR
-        ./cnf-testsuite setup
-        wget -O cnf-testsuite.yml https://raw.githubusercontent.com/lfn-cnti/testsuite/${GITHUB_SHA}/example-cnfs/coredns/cnf-testsuite.yml
-        ./cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml
+        ./cnti-testsuite setup
+        wget -O cnti-testsuite.yaml https://raw.githubusercontent.com/lfn-cnti/testsuite/${GITHUB_SHA}/example-cnfs/coredns/cnti-testsuite.yaml
+        ./cnti-testsuite cnf_install --cnf-config ./cnti-testsuite.yaml
         # The example CNF is expected to fail some tests (exit 1); only an errored test (exit 2+) fails the job
-        CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite all --skip resilience --skip compatibility --skip pod_network_latency --skip liveness --skip readiness --skip rolling_update --skip rolling_downgrade --skip rolling_version_change --skip nodeport_not_used --skip hostport_not_used --skip hardcoded_ip_addresses_in_k8s_runtime_configuration --skip helm_chart_valid --skip helm_chart_published --skip rollback --skip secrets_used --skip immutable_configmap || [ $? -eq 1 ]
-        CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite cnf_uninstall
-        CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite uninstall_all
+        CNTI_TESTSUITE_LOG_LEVEL=debug ./cnti-testsuite all --skip resilience --skip compatibility --skip pod_network_latency --skip liveness --skip readiness --skip rolling_update --skip rolling_downgrade --skip rolling_version_change --skip nodeport_not_used --skip hostport_not_used --skip hardcoded_ip_addresses_in_k8s_runtime_configuration --skip helm_chart_valid --skip helm_chart_published --skip rollback --skip secrets_used --skip immutable_configmap || [ $? -eq 1 ]
+        CNTI_TESTSUITE_LOG_LEVEL=debug ./cnti-testsuite cnf_uninstall
+        CNTI_TESTSUITE_LOG_LEVEL=debug ./cnti-testsuite uninstall_all
     - name: Delete Cluster
       if: ${{ always() }}
       run: |
@@ -634,10 +634,10 @@ jobs:
         fetch-depth: 0
     - name: Install kind
       uses: ./.github/actions/install-kind
-    - name: Build cnf-testsuite & Create Kind Cluster 
+    - name: Build cnti-testsuite & Create Kind Cluster 
       run: |
         shards install
-        crystal build src/cnf-testsuite.cr
+        crystal build src/cnti-testsuite.cr
         cat << EOF > /tmp/cluster.yml
         kind: Cluster
         apiVersion: kind.x-k8s.io/v1alpha4
@@ -679,15 +679,15 @@ jobs:
         export DIR=$(uuidgen)
         echo "Shared DIR: /shared/$DIR"
         mkdir /shared/$DIR
-        mv cnf-testsuite /shared/$DIR
+        mv cnti-testsuite /shared/$DIR
         cd /shared/$DIR
-        ./cnf-testsuite setup
-        wget -O cnf-testsuite.yml https://raw.githubusercontent.com/lfn-cnti/testsuite/${GITHUB_SHA}/example-cnfs/coredns/cnf-testsuite.yml
-        ./cnf-testsuite cnf_install --cnf-config ./cnf-testsuite.yml
+        ./cnti-testsuite setup
+        wget -O cnti-testsuite.yaml https://raw.githubusercontent.com/lfn-cnti/testsuite/${GITHUB_SHA}/example-cnfs/coredns/cnti-testsuite.yaml
+        ./cnti-testsuite cnf_install --cnf-config ./cnti-testsuite.yaml
         # The example CNF is expected to fail some tests (exit 1); only an errored test (exit 2+) fails the job
-        CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite all --skip resilience --skip liveness --skip readiness --skip rolling_update --skip rolling_downgrade --skip rolling_version_change --skip nodeport_not_used --skip hostport_not_used --skip hardcoded_ip_addresses_in_k8s_runtime_configuration --skip rollback --skip secrets_used --skip immutable_configmap --skip reasonable_startup_time --skip reasonable_image_size || [ $? -eq 1 ]
-        CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite cnf_uninstall
-        CNF_TESTSUITE_LOG_LEVEL=debug ./cnf-testsuite uninstall_all
+        CNTI_TESTSUITE_LOG_LEVEL=debug ./cnti-testsuite all --skip resilience --skip liveness --skip readiness --skip rolling_update --skip rolling_downgrade --skip rolling_version_change --skip nodeport_not_used --skip hostport_not_used --skip hardcoded_ip_addresses_in_k8s_runtime_configuration --skip rollback --skip secrets_used --skip immutable_configmap --skip reasonable_startup_time --skip reasonable_image_size || [ $? -eq 1 ]
+        CNTI_TESTSUITE_LOG_LEVEL=debug ./cnti-testsuite cnf_uninstall
+        CNTI_TESTSUITE_LOG_LEVEL=debug ./cnti-testsuite uninstall_all
     - name: Delete Cluster
       if: ${{ always() }}
       run: |

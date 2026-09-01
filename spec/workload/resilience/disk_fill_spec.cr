@@ -13,7 +13,7 @@ describe "Resilience Disk Fill Chaos" do
 
   it "'disk_fill' A 'Good' CNF should not crash when disk fill occurs", tags: ["disk_fill"]  do
     begin
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnf-testsuite.yml --skip-wait-for-install")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml --skip-wait-for-install")
       result = ShellCmd.run_testsuite("disk_fill")
       result[:status].success?.should be_true
       (/(PASSED).*(disk_fill chaos test passed)/ =~ result[:output]).should_not be_nil

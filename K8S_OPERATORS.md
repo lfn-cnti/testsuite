@@ -7,7 +7,7 @@ Operators are Kubernetes controllers that manage custom resources and automate a
 ## Resource Identification Strategies
 
 1. **Label-based Identification**
-   - The test suite fetches resources matching label selectors defined in `cnf-testsuite.yml` under `workload_resource_labels`.
+   - The test suite fetches resources matching label selectors defined in `cnti-testsuite.yaml` under `workload_resource_labels`.
    - After all deployments are installed, resources with these labels are identified and appended to the composite manifest (`cnti/installed-cnf/common_manifest.yml`).
    - This enables tests to reference resources reliably, regardless of when or how they are created by the operator.
 
@@ -37,9 +37,9 @@ Suppose an operator creates Deployments for a custom resource (for example, `Pod
 ## Configuration
 
 - **Label Selectors:**
-  - Define label selectors in `cnf-testsuite.yml` under `workload_resource_labels`.
+  - Define label selectors in `cnti-testsuite.yaml` under `workload_resource_labels`.
 - **Timeouts:**
-  - Use the `timeout` CLI argument or `CNF_TESTSUITE_LABEL_RESOURCE_SLEEP` environment variable to control waiting behavior for resource identification.
+  - Use the `timeout` CLI argument or `CNTI_TESTSUITE_LABEL_RESOURCE_SLEEP` environment variable to control waiting behavior for resource identification.
 
 ## Best Practices
 

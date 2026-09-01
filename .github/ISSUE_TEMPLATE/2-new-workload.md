@@ -15,7 +15,7 @@ assignees: ""
 - tbd
 
 **Test Category Name**
-- ADD CATEGORY_NAME (e.g. State, Security, etc from [README](../../README.md#cnf-testsuite))
+- ADD CATEGORY_NAME (e.g. State, Security, etc from [README](../../README.md#cnti-testsuite))
 
 **Type of test (static or runtime)**
 - tbd

@@ -11,26 +11,26 @@ CoreDNS can listen for DNS requests coming in over UDP/TCP, TLS (RFC 7858), also
 Follow [Pre-req steps](../../INSTALL.md#pre-requisites), including
 
 - Set the KUBECONFIG environment to point to the remote K8s cluster
-- Downloading the binary cnf-testsuite release
+- Downloading the binary cnti-testsuite release
 
 ### Automated CNF installation
 
 Initialize the test suite
 
 ```
-./cnf-testsuite setup
+./cnti-testsuite setup
 ```
 
 Configure and deploy CoreDNS as the target CNF
 
 ```
-./cnf-testsuite cnf_install cnf-path=example-cnfs/coredns/cnf-testsuite.yml
+./cnti-testsuite cnf_install cnf-path=example-cnfs/coredns/cnti-testsuite.yaml
 ```
 
 Run the all the tests
 
 ```
-./cnf-testsuite all
+./cnti-testsuite all
 ```
 
 Check the results file
@@ -38,5 +38,5 @@ Check the results file
 Uninstall the CNF (including undeployment of CoreDNS)
 
 ```
-./cnf-testsuite cnf_uninstall
+./cnti-testsuite cnf_uninstall
 ```

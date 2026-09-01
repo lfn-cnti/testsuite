@@ -16,7 +16,7 @@ assignees: ""
 
 **Test Category**
 
-- ADD CATEGORY_NAME (e.g. State, Security, etc from [README](https://github.com/cncf/cnf-testsuite/blob/main/README.md#cnf-testsuite))
+- ADD CATEGORY_NAME (e.g. State, Security, etc from [README](https://github.com/lfn-cnti/testsuite/blob/main/README.md#cnti-testsuite))
 
 **Proof of Concept** (if available)
 
@@ -48,7 +48,7 @@ assignees: ""
 
 **Documentation tasks:**
 
-- [ ] Update [Pseudo Code md](https://github.com/cncf/cnf-testsuite/blob/main/PSEUDO-CODE.md) if needed
+- [ ] Update [Pseudo Code md](https://github.com/lfn-cnti/testsuite/blob/main/PSEUDO-CODE.md) if needed
 - [ ] Update [TEST_DOCUMENTATION md](../../docs/TEST_DOCUMENTATION.md) if needed
 - [ ] Update [installation instructions](../../install.md) if needed
 

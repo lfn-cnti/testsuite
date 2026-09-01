@@ -46,13 +46,13 @@ Add any other context about the problem here.
 
 ```
 # cmd line
-./cnf-testsuite -l debug test
+./cnti-testsuite -l debug test
 
 # make sure to use -- if running from source
-crystal src/cnf-testsuite.cr -- -l debug test
+crystal src/cnti-testsuite.cr -- -l debug test
 
 # ENV variable
-CNF_TESTSUITE_LOG_LEVEL=DEBUG ./cnf-testsuite test
+CNTI_TESTSUITE_LOG_LEVEL=DEBUG ./cnti-testsuite test
 ```
 
-Check [usage documentation](https://github.com/cncf/cnf-testsuite/blob/main/USAGE.md) for more info about invoking commands and logging
+Check [usage documentation](https://github.com/lfn-cnti/testsuite/blob/main/USAGE.md) for more info about invoking commands and logging

@@ -1,4 +1,4 @@
-# CNF Test Suite Code Structure and Usage 
+# CNTi Test Suite Code Structure and Usage 
 1. :heavy_check_mark: Separate dynamic tests from static tests
 1. :heavy_check_mark: Separate tests into test categories (category files)
 1. :heavy_check_mark: Make static task dependent on all static tests

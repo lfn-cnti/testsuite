@@ -3,7 +3,7 @@ require "../../modules/cluster_tools"
 require "../utils/utils.cr"
 
 namespace "setup" do
-  desc "Install CNF Test Suite Cluster Tools"
+  desc "Install CNTi Test Suite Cluster Tools"
   task "install_cluster_tools" do |_, args|
     logger = SLOG.for("install_cluster_tools")
     logger.info { "Installing cluster_tools on the cluster" }
@@ -13,8 +13,8 @@ namespace "setup" do
       ClusterTools.install
     rescue ex : ClusterTools::NamespaceDoesNotExistException
       logger.error { "Error while installing: #{ex.message}" }
-      stdout_failure "Error: Namespace cnf-testsuite does not exist.\n" +
-                     "Please run 'cnf-testsuite setup' to create the necessary namespace."
+      stdout_failure "Error: Namespace cnti-testsuite does not exist.\n" +
+                     "Please run 'cnti-testsuite setup' to create the necessary namespace."
       exit(1)
     rescue ex : Exception
       logger.error { "Error while installing: #{ex.message}" }
@@ -25,7 +25,7 @@ namespace "setup" do
     StatusLine.pop
   end
 
-  desc "Uninstall CNF Test Suite Cluster Tools"
+  desc "Uninstall CNTi Test Suite Cluster Tools"
   task "uninstall_cluster_tools" do |_, args|
     logger = SLOG.for("uninstall_cluster_tools")
     logger.info { "Uninstalling cluster_tools from the cluster" }
@@ -34,8 +34,8 @@ namespace "setup" do
       ClusterTools.uninstall
     rescue ex : ClusterTools::NamespaceDoesNotExistException
       logger.error { "Error while uninstalling: #{ex.message}" }
-      stdout_failure "Error: Namespace cnf-testsuite does not exist.\n" +
-                     "Please run 'cnf-testsuite setup' to create the necessary namespace."
+      stdout_failure "Error: Namespace cnti-testsuite does not exist.\n" +
+                     "Please run 'cnti-testsuite setup' to create the necessary namespace."
       exit(1)
     rescue ex : Exception
       logger.error { "Error while installing: #{ex.message}" }

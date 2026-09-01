@@ -8,7 +8,7 @@ describe "Free5gc certification" do
   it "should successfully install and pass certification tests for Free5gc", tags: ["free5gc"] do
     begin
       # Install Free5gc
-      ShellCmd.cnf_install("--cnf-config ./example-cnfs/free5gc/cnf-testsuite.yml --timeout 1800")
+      ShellCmd.cnf_install("--cnf-config ./example-cnfs/free5gc/cnti-testsuite.yaml --timeout 1800")
       
       result = ShellCmd.run_testsuite("cert")
 

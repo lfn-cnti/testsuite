@@ -21,7 +21,7 @@ end
 
 describe "netstat" do
   before_all do
-    KubectlClient::Apply.namespace("cnf-testsuite")
+    KubectlClient::Apply.namespace("cnti-testsuite")
     ClusterTools.install
   end
 

@@ -15,7 +15,7 @@ common:
 deployments:
   helm_charts:
     - name: nginx-oci-mtls
-      namespace: cnf-default
+      namespace: cnti-default
       registry_url: "oci://127.0.0.1.nip.io:{{ ENV.SPEC_MTLS_REGISTRY_PORT }}/helm/nginx"
       chart_version: "15.10.0"
       tls_profile: "mtls"

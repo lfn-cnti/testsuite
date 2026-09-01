@@ -7,8 +7,8 @@ require "sam"
 
 describe "CurlInstall" do
   after_all do
-    Log.info { "Curl install tests finished.  Building ./cnf-testsuite again".colorize(:green) }
-    result = ShellCmd.run("crystal build src/cnf-testsuite.cr")
+    Log.info { "Curl install tests finished.  Building ./cnti-testsuite again".colorize(:green) }
+    result = ShellCmd.run("crystal build src/cnti-testsuite.cr")
     if result[:status].success?
       Log.info { "Build Success!".colorize(:green) }
     else
@@ -16,14 +16,14 @@ describe "CurlInstall" do
       raise "crystal build failed! curl_install_spec.cr"
     end
   end
-  it "'source curl_install.sh' should download a cnf-testsuite binary", tags: ["curl"]  do
+  it "'source curl_install.sh' should download a cnti-testsuite binary", tags: ["curl"]  do
     result = ShellCmd.run("/bin/bash -c 'source ./curl_install.sh'", force_output: true)
     result[:status].success?.should be_true
-    (/cnf-testsuite/ =~ result[:output]).should_not be_nil
+    (/cnti-testsuite/ =~ result[:output]).should_not be_nil
   end
-  it "'curl_install.sh' should download a cnf-testsuite binary", tags: ["curl"]  do
+  it "'curl_install.sh' should download a cnti-testsuite binary", tags: ["curl"]  do
     result = ShellCmd.run("./curl_install.sh", force_output: true)
     result[:status].success?.should be_true
-    (/To use the cnf-testsuite please restart you terminal session to load the new PATH/ =~ result[:output]).should_not be_nil
+    (/To use the cnti-testsuite please restart you terminal session to load the new PATH/ =~ result[:output]).should_not be_nil
   end
 end

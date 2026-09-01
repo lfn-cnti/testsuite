@@ -1,4 +1,4 @@
-# [WIP] CNF Test Suite Tooling Research Notes
+# [WIP] CNTi Test Suite Tooling Research Notes
 
 # Tooling options for Privileged Pods test.
 

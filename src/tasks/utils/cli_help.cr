@@ -25,7 +25,7 @@ end
 # is unset (containers, CI). This replaces it with a curated page plus a grouped
 # listing, and uses a fixed width so there is nothing to shell out to.
 module CLIHelp
-  BIN_NAME = "cnf-testsuite"
+  BIN_NAME = "cnti-testsuite"
 
   WIDTH       = 96
   NAME_COLUMN = 34
@@ -149,7 +149,7 @@ module CLIHelp
 
     TYPICAL WORKFLOW
       #{BIN_NAME} setup                                    install prerequisites (once)
-      #{BIN_NAME} cnf_install --cnf-config ./cnf-testsuite.yml
+      #{BIN_NAME} cnf_install --cnf-config ./cnti-testsuite.yaml
       #{BIN_NAME} cert                                     run the certification tests
       #{BIN_NAME} cnf_uninstall
 

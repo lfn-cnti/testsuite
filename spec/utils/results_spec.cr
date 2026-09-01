@@ -6,27 +6,27 @@ describe "Results location" do
     ShellCmd.run_testsuite("_divide_by_zero")
     latest = CNFManager::Points::Results.latest
     File.exists?(latest).should be_true
-    newest = Dir.glob("cnti/results/cnf-testsuite-results-*.yml").max_by { |path| File.info(path).modification_time }.not_nil!
+    newest = Dir.glob("cnti/results/cnti-testsuite-results-*.yml").max_by { |path| File.info(path).modification_time }.not_nil!
     File.symlink?(latest).should be_true
     File.readlink(latest).should eq(File.basename(newest))
     YAML.parse(File.read(latest))["items"].as_a.should_not be_empty
   end
 
-  it "writes to results-dir=PATH, which wins over CNF_TESTSUITE_RESULTS_DIR", tags: ["points"] do
+  it "writes to results-dir=PATH, which wins over CNTI_TESTSUITE_RESULTS_DIR", tags: ["points"] do
     cli_dir = File.tempname("results-cli")
     env_dir = File.tempname("results-env")
     begin
-      default_count = Dir.glob("cnti/results/cnf-testsuite-results-*.yml").size
+      default_count = Dir.glob("cnti/results/cnti-testsuite-results-*.yml").size
 
-      result = ShellCmd.run_testsuite("_divide_by_zero --results-dir #{cli_dir}", "CNF_TESTSUITE_RESULTS_DIR=#{env_dir}")
+      result = ShellCmd.run_testsuite("_divide_by_zero --results-dir #{cli_dir}", "CNTI_TESTSUITE_RESULTS_DIR=#{env_dir}")
       result[:output].should contain("Results: #{cli_dir}/")
-      Dir.glob(File.join(cli_dir, "cnf-testsuite-results-*.yml")).size.should eq(1)
+      Dir.glob(File.join(cli_dir, "cnti-testsuite-results-*.yml")).size.should eq(1)
       File.exists?(File.join(cli_dir, "latest.yml")).should be_true
       Dir.exists?(env_dir).should be_false
-      Dir.glob("cnti/results/cnf-testsuite-results-*.yml").size.should eq(default_count)
+      Dir.glob("cnti/results/cnti-testsuite-results-*.yml").size.should eq(default_count)
 
-      ShellCmd.run_testsuite("_divide_by_zero", "CNF_TESTSUITE_RESULTS_DIR=#{env_dir}")
-      env_files = Dir.glob(File.join(env_dir, "cnf-testsuite-results-*.yml"))
+      ShellCmd.run_testsuite("_divide_by_zero", "CNTI_TESTSUITE_RESULTS_DIR=#{env_dir}")
+      env_files = Dir.glob(File.join(env_dir, "cnti-testsuite-results-*.yml"))
       env_files.size.should eq(1)
       File.readlink(File.join(env_dir, "latest.yml")).should eq(File.basename(env_files.first))
 
