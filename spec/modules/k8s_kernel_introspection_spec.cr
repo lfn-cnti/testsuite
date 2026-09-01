@@ -25,18 +25,6 @@ describe "KernelIntrospection" do
     KubectlClient::Delete.resource("pod", "nginx")
   end
 
-  it "'#find_first_process' should return first matching process", tags:["k8s_kernel_introspection"] do
-    result = KubectlClient::ShellCMD.run("kubectl run nginx --image=nginx --labels='name=nginx'")
-    KubectlClient::Wait.resource_wait_for_install("pod", "nginx")
-    begin
-      pod_info = KernelIntrospection::K8s.find_first_process("nginx: master process")
-      Log.info { "pod_info: #{pod_info}"}
-      (pod_info).should_not be_nil
-    ensure
-      KubectlClient::Delete.resource("pod", "nginx")
-    end
-  end
-
   it "'#find_matching_processes' should return all matching processes", tags:["k8s_kernel_introspection"] do
     result = KubectlClient::ShellCMD.run("kubectl run nginx --image=nginx --labels='name=nginx'")
     KubectlClient::Wait.resource_wait_for_install("pod", "nginx")

@@ -4,8 +4,8 @@ require "./utils/utils.cr"
 
 # `all` has no tag of its own - no test carries one - so its criterion and its
 # score cover every test that ran rather than a tag's worth.
-desc "Run every workload and platform test"
-suite_task "all", ["workload", "platform"],
+desc "Run every test"
+suite_task "all", ["workload"],
   title: "",
   scope: CNFManager::EVERY_TEST
 

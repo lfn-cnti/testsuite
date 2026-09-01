@@ -16,8 +16,6 @@ DEPLOYMENT_MANIFEST_FILE_NAME = "deployment_manifest.yml"
 # todo move to helm module
 # CHART_YAML = "Chart.yaml"
 DEFAULT_POINTSFILENAME = "points_v1.yml"
-# renovate: datasource=github-releases depName=vmware-tanzu/sonobuoy
-SONOBUOY_K8S_VERSION = "0.57.5"
 IGNORED_SECRET_TYPES = ["kubernetes.io/service-account-token", "kubernetes.io/dockercfg", "kubernetes.io/dockerconfigjson", "helm.sh/release.v1"]
 EMPTY_JSON = JSON.parse(%({}))
 EMPTY_JSON_ARRAY = JSON.parse(%([]))
@@ -35,14 +33,12 @@ CLUSTER_DEFAULT_NAMESPACE = "default"
 
 #Embedded global text variables
 EmbeddedFileManager.node_failure_values
-EmbeddedFileManager.reboot_daemon
 EmbeddedFileManager.chaos_network_loss
 EmbeddedFileManager.chaos_cpu_hog
 EmbeddedFileManager.chaos_container_kill
 EmbeddedFileManager.litmus_rbac
 EmbeddedFileManager.enforce_image_tag
 EmbeddedFileManager.constraint_template
-EmbeddedFileManager.disable_cni
 EmbeddedFileManager.fluentd_values
 EmbeddedFileManager.fluentbit_values
 EmbeddedFileManager.ueransim_helmconfig

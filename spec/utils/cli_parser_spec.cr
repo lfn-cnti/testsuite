@@ -37,9 +37,6 @@ describe "CLI parser" do
 
   it "turns --skip into the exclusion SAM honors, resolving aliases", tags: ["points"] do
     parse("all", "--skip", "resilience", "--skip=liveness").args.raw.should eq(["~resilience", "~liveness"])
-    # SAM matches an exclusion against a task's own path, so a top-level alias
-    # has to name the task it points at or it would silently exclude nothing.
-    parse("platform", "--skip", "k8s_conformance").args.raw.should eq(["~platform:k8s_conformance"])
   end
 
   it "names the replacement for every retired spelling", tags: ["points"] do

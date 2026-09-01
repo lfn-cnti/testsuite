@@ -120,7 +120,7 @@ module GroupTaskDSL
     register_group(name, true, deps, title, true, scope, min_passed, min_ratio, max_failed, &block)
   end
 
-  # A group of other groups: all, workload, platform, cert. `summary` is false
+  # A group of other groups: all, workload, cert. `summary` is false
   # for a group that reports its score itself, which only cert does.
   def suite_task(
     name : String,
@@ -191,8 +191,8 @@ end
 class Sam::Namespace
   include GroupTaskDSL
 
-  # Defined after the include so it wins: a group inside `namespace "platform"`
-  # is platform:<name>, which is the path its criterion and members are keyed by.
+  # Defined after the include so it wins: a group inside a namespace is keyed by
+  # its full path, which is what its criterion and members use.
   def group_path_prefix : String
     path
   end

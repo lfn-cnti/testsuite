@@ -5,10 +5,9 @@ module CNFManager
   # test registers in, so the two cannot disagree.
   enum TestScope
     Workload
-    Platform
 
     def to_tag : String
-      self == Workload ? "workload" : "platform"
+      "workload"
     end
   end
 
@@ -175,10 +174,8 @@ end
 class Sam::Namespace
   include ScoredTaskDSL
 
-  # Defined after the include so it wins: a task registering in the platform
-  # namespace is a platform test, and does not have to say so as well.
   def scored_task_default_scope : CNFManager::TestScope
-    path.starts_with?("platform") ? CNFManager::TestScope::Platform : CNFManager::TestScope::Workload
+    CNFManager::TestScope::Workload
   end
 end
 

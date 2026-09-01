@@ -191,46 +191,6 @@ module KernelIntrospection
       pid: String,
       cmdline: String)
 
-    # #todo overload with regex
-    def self.find_first_process(process_name) : (MatchingProcessInfo | Nil)
-      Log.info { "find_first_process" }
-      ret = nil
-      nodes = KubectlClient::Get.schedulable_nodes_list
-      nodes.map do |node|
-        pods = KubectlClient::Get.pods_by_nodes([node])
-        pods.map do |pod|
-          status = pod["status"]
-          if status["containerStatuses"]?
-            container_statuses = status["containerStatuses"].as_a
-            Log.debug { "container_statuses: #{container_statuses}" }
-            container_statuses.map do |container_status|
-              ready = container_status.dig("ready").as_bool
-              next unless ready
-              container_id = container_status.dig("containerID").as_s
-              pid = ClusterTools.node_pid_by_container_id(container_id, node)
-              # there are some nodes that wont have a proc with this pid in it
-              # e.g. a stand alone pod gets installed on only one node
-              process = ClusterTools.exec_by_node("cat /proc/#{pid}/cmdline", node)
-              status = ClusterTools.exec_by_node("cat /proc/#{pid}/status", node)
-              Log.for("find_first_process").debug(&.emit(
-                "process cmdline",
-                pid: pid,
-                cmdline: process[:output],
-              ))
-              if process[:output] =~ /#{process_name}/
-                ret = {node: node, pod: pod, container_status: container_status, status: status[:output], pid: pid.to_s, cmdline: process[:output]}
-                Log.for("find_first_process").info { "status found: #{ret}" }
-                break
-              end
-            end
-          end
-          break if ret
-        end
-        break if ret
-      end
-      ret
-    end
-
     def self.find_matching_processes(process_name) : Array(MatchingProcessInfo)
       Log.info { "find_matching_processes" }
       results = [] of MatchingProcessInfo

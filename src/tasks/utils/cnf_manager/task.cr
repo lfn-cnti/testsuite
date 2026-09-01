@@ -41,7 +41,7 @@ module CNFManager
     )
       cnf_configs = CNFManager.cnf_config_list(false)
 
-      # Platforms tests dont have any CNFs
+      # Tests that run without a CNF get a dummy config
       if cnf_configs.empty?
         single_task_runner(args, task, &block)
       else
@@ -61,7 +61,7 @@ module CNFManager
       logger = @@logger.for("task_runner")
       logger.debug { "Run task with args #{args.inspect}" }
 
-      # platform tests don't have a cnf-config
+      # tests that run without a CNF have no cnf-config
       if args.named["cnf-config"]?
         config = CNFInstall::Config.parse_cnf_config_from_file(args.named["cnf-config"].as(String))
       else
@@ -69,7 +69,7 @@ module CNFManager
           config_version: v2
           deployments:
             helm_dirs:
-              - name: "platform-test-dummy-deployment"
+              - name: "no-cnf-dummy-deployment"
                 helm_directory: ""
           YAML
         config = CNFInstall::Config.parse_cnf_config_from_yaml(yaml_string)

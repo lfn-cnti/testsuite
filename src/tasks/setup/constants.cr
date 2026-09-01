@@ -16,10 +16,6 @@ module Setup
   end
 
   # Versions of the tools
-  # renovate: datasource=github-releases depName=kubernetes-sigs/cluster-api
-  CLUSTER_API_VERSION         = "1.14.0"
-  # renovate: datasource=github-releases depName=kubernetes-sigs/kind
-  KIND_VERSION                = "0.32.0"
   # renovate: datasource=github-releases depName=kubescape/kubescape
   KUBESCAPE_VERSION           = "4.0.12"
   # renovate: datasource=github-releases depName=kubescape/regolibrary
@@ -30,11 +26,7 @@ module Setup
   GATEKEEPER_VERSION          = "3.23.0"
 
   # Useful consts grouped by tools
-  CLUSTER_API_URL    = "https://github.com/kubernetes-sigs/cluster-api/releases/download/" +
-                       "v#{CLUSTER_API_VERSION}/clusterctl-#{TARGET_OS}-#{TARGET_ARCH}"
 
-  CLUSTER_API_DIR    = "#{tools_path}/cluster-api"
-  CLUSTERCTL_BINARY  = "#{CLUSTER_API_DIR}/clusterctl"
 
   # Manifests and helm values the suite renders at runtime. Kept with the
   # tools rather than scattered into the user's working directory: a run must
@@ -43,9 +35,6 @@ module Setup
   CLUSTER_TOOLS_MANIFEST = "#{RENDERED_MANIFESTS_DIR}/cluster_tools.yml"
   FIVE_G_TOOLS_DIR       = "#{tools_path}/5g"
 
-  KIND_DOWNLOAD_URL  = "https://github.com/kubernetes-sigs/kind/releases/download/v#{KIND_VERSION}/kind-#{TARGET_OS}-#{TARGET_ARCH}"
-  KIND_DIR           = "#{tools_path}/kind"
-  KIND_BINARY        = "#{KIND_DIR}/kind"
 
   KUBESCAPE_DIR      = "#{tools_path}/kubescape"
   KUBESCAPE_URL      = "https://github.com/kubescape/kubescape/releases/download/" +
@@ -56,10 +45,6 @@ module Setup
 
   GATEKEEPER_REPO    = "https://open-policy-agent.github.io/gatekeeper/charts"
 
-  SONOBUOY_DIR       = "#{tools_path}/sonobuoy"
-  SONOBUOY_URL       = "https://github.com/vmware-tanzu/sonobuoy/releases/download/" +
-                       "v#{SONOBUOY_K8S_VERSION}/sonobuoy_#{SONOBUOY_K8S_VERSION}_#{TARGET_OS}_#{TARGET_ARCH}.tar.gz"
-  SONOBUOY_BINARY    = "#{SONOBUOY_DIR}/sonobuoy"
 
   HELM_DIR           = "#{tools_path}/helm"
   HELM_URL           = "https://get.helm.sh/helm-v#{HELM_VERSION}-#{TARGET_OS}-#{TARGET_ARCH}.tar.gz"

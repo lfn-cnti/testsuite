@@ -175,7 +175,7 @@ describe "SampleUtils" do
   end
 
   it "'group_criteria' should be declared for every reported group", tags: ["points"] do
-    %w[all workload platform cert compatibility state security configuration
+    %w[all workload cert compatibility state security configuration
        observability microservice resilience].each do |group|
       CNFManager::Points.group_criteria(group).should_not be_nil
     end

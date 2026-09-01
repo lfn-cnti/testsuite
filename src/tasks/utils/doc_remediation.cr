@@ -11,7 +11,7 @@ module DocRemediation
   @@by_test : Hash(String, String)? = nil
 
   # The documented remediation for `task_name` (a bare task name; namespaced
-  # usage lines like `platform:cluster_admin` are keyed by their last segment),
+  # namespaced usage lines are keyed by their last segment),
   # or nil when the documentation has none.
   def self.for(task_name : String) : String?
     by_test[task_name.rpartition(":")[2]]?

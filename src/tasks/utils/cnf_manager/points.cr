@@ -627,7 +627,7 @@ module CNFManager
       #     alone. Individual test failures are inputs to the verdict, not a
       #     separate failure mode - the threshold already accounts for them - so
       #     `cnf-testsuite cert` exits 0 exactly when the CNF is certified.
-      #   * Without a criterion (all/workload/platform) the objective is simply
+      #   * Without a criterion (all/workload) the objective is simply
       #     that nothing failed (issue #2411 - failures previously only mapped to
       #     exit 1 via the unused `required:` points.yml field, so failing runs
       #     exited 0).
@@ -687,9 +687,7 @@ module CNFManager
     end
 
     def self.all_task_test_names
-      # Platform tests are excluded, as they always were: this feeds the
-      # denominators for a workload run.
-      CNFManager::TestRegistry.all.reject { |_, metadata| metadata.scope.platform? }.keys
+      CNFManager::TestRegistry.all.keys
     end
 
     def self.tasks_by_tag(tag)

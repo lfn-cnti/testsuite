@@ -187,8 +187,8 @@ compiled with, and edits to the file were silently reverted on the next run.
 
 ##### Group success criteria
 
-Every task group — the suites (`all`, `workload`, `platform`, `cert`) and the
-categories (`security`, `configuration`, ..., and the `platform:` ones) —
+Every task group — the suites (`all`, `workload`, `cert`) and the
+categories (`security`, `configuration`, ...) —
 declares a success criterion in `Points::GROUP_CRITERIA`. These are group-level
 policy — what the suite certifies, and what it demands of each category — so
 they live together in one table:
@@ -338,7 +338,7 @@ crystal build src/cnf-testsuite.cr
 ./cnf-testsuite cnf_uninstall --skip-wait-for-uninstall
 ```
 
-#### Running all of the platform and workload tests:
+#### Running all of the tests:
 
 ```
 ./cnf-testsuite all --cnf-config <path_to_your_config_file>/cnf-testsuite.yml
@@ -364,18 +364,10 @@ crystal src/cnf-testsuite.cr -- workload --cnf-config <path_to_your_config_file>
 ./cnf-testsuite cert --skip increase_decrease_capacity --skip single_process_type
 ```
 
-#### Running all of the platform or workload tests independently:
-
-##### Run workload only tests:
+#### Running the workload tests:
 
 ```
 ./cnf-testsuite workload
-```
-
-##### Run platform only tests (long running):
-
-```
-./cnf-testsuite platform
 ```
 
 #### Get available options and to see all available tests from command line:
@@ -499,7 +491,7 @@ CNF_TESTSUITE_NETWORK_RETRY_BACKOFF=2    # base seconds between attempts (attemp
 
 - **CNF_TESTSUITE_DIR**: the suite home (default `~/.cnf-testsuite`): where `config.yml` is looked up and where the tools the suite installs for itself are cached under `tools/`. Each cached tool carries a `<tool>.version` marker with the version it was installed at; a suite that pins a different version reinstalls it on the next run, so the cache never serves a stale tool.
 - **CNF_TESTSUITE_FORCE_INSTALL**: set (to any value) to reinstall the suite-managed local Helm even when an installation is already present.
-- **CNF_TESTSUITE_ENV**: set to `TEST` for test-mode shortcuts (smaller samples, quicker platform checks). Used by the spec suite; not meant for normal runs.
+- **CNF_TESTSUITE_ENV**: set to `TEST` for test-mode shortcuts (smaller samples, quicker checks). Used by the spec suite; not meant for normal runs.
 - **CNF_TESTSUITE_RESULTS_DIR**: redirect the results directory; see [Results file](#results-file).
 
 Every variable that configures the suite's own behavior carries the `CNF_TESTSUITE_` prefix.

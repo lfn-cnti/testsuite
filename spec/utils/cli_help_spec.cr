@@ -53,7 +53,6 @@ describe "CLI help" do
 
     result[:output].should contain("GETTING STARTED")
     result[:output].should contain("TEST SUITES")
-    result[:output].should contain("PLATFORM TESTS")
 
     rows = parse_task_rows(result[:output])
     rows.should_not be_empty
