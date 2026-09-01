@@ -117,19 +117,17 @@ module CLIHelp
     platform_paths.concat(visible_tasks.map(&.path).select(&.starts_with?("platform:")).sort)
     add.call("Platform tests", platform_paths)
 
-    # 5G and RAN suites are aggregates in their own right rather than members of
-    # a workload category.
+    # The 5G suite is an aggregate in its own right rather than a member of a
+    # workload category.
     telco_paths = [] of String
-    ["5g", "ran"].each do |suite|
-      task = find_task(suite)
-      next if task.nil?
-      telco_paths << suite
+    if task = find_task("5g")
+      telco_paths << "5g"
       telco_paths.concat(task.dependency_names)
     end
     telco_paths.concat(visible_tasks.map(&.path).select { |path|
-      path.starts_with?("smf_upf") || path.starts_with?("suci") || path.starts_with?("oran")
+      path.starts_with?("smf_upf") || path.starts_with?("suci")
     }.sort)
-    add.call("5G and RAN tests", telco_paths)
+    add.call("5G tests", telco_paths)
 
     add.call("Certification", visible_tasks.map(&.path).select(&.starts_with?("cert")).sort)
 

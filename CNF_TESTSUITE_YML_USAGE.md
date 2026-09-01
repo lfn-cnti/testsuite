@@ -345,17 +345,7 @@ deployments:
 
 ### 5G Parameters
 
-These parameters are used for RAN, Open5gs and UERANSIM tests
-
-#### `ric_label`
-
-The RAN tests expect a RIC to be configured under the ric_label. The entry must be the K8s label which is most likely a full key/value identification.
-
-For a ric named `flexrric`, under the label key `app.kubernetes.io/name` the following would be the expected configuration.
-
-```yaml
-ric_label:  app.kubernetes.io/name=flexric
-```
+These parameters are used for the Open5gs and UERANSIM tests
 
 #### mmc
 

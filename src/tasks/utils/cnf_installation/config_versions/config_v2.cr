@@ -128,7 +128,6 @@ module CNFInstall
       getter amf_label = "",
              smf_label = "",
              upf_label = "",
-             ric_label = "",
              amf_service_name = "",
              mmc = "",
              mnc = "",

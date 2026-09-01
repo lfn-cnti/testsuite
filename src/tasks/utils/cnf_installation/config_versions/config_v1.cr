@@ -30,7 +30,6 @@ module CNFInstall
       getter amf_label : String?
       getter smf_label : String?
       getter upf_label : String?
-      getter ric_label : String?
       getter core : String?
       getter amf_service_name : String?
       getter mmc : String?

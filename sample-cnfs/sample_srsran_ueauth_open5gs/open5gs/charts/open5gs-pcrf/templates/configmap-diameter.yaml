@@ -1,8 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ include "common.names.fullname" . }}-diameter
-  labels: {{- include "common.labels.standard" . | nindent 4 }}
-data:
-  pcrf.conf: |
-{{ tpl (.Files.Get "resources/config/diameter-pcrf.conf") . | indent 4 }}

@@ -92,7 +92,6 @@ module CNFInstall
           "amf_label" => @input_config.amf_label,
           "smf_label" => @input_config.smf_label,
           "upf_label" => @input_config.upf_label,
-          "ric_label" => @input_config.ric_label,
           "amf_service_name" => @input_config.amf_service_name,
           "mmc" => @input_config.mmc,
           "mnc" => @input_config.mnc,

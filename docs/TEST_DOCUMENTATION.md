@@ -33,10 +33,6 @@
 
    [[SMF UPF core validator]](#smf-upf-core-validator) | [[SUCI enabled]](#suci-enabled)
 
-* [**Category: RAN Tests**](#category-ran-tests)
-
-   [[ORAN e2 connection]](#oran-e2-connection)
-
 * [**Category: Platform Tests**](#category-platform-tests)
 
    [[K8s Conformance]](#k8s-conformance) | [[ClusterAPI enabled]](#clusterapi-enabled) | [[OCI Compliant]](#oci-compliant) | [[(POC) Worker reboot recovery]](#poc-worker-reboot-recovery) | [[Cluster admin]](#cluster-admin) | [[Control plane hardening]](#control-plane-hardening) | [[Tiller images]](#tiller-images) | [[ConfigMaps encrypted]](#configmaps-encrypted) | [[Secrets encrypted]](#secrets-encrypted)
@@ -1637,37 +1633,6 @@ In order to [protect identifying information](https://nickvsnetworking.com/5g-su
 #### Usage
 
 `./cnf-testsuite suci_enabled`
-
-----------
-
-## Category: RAN Tests
-
-### Usage
-
-All RAN: `./cnf-testsuite ran`
-
-A cloud native radio access network's (RAN) cloud native functions should use immutable infrastructure, declarative configuration, and microservices.
-ORAN cloud native functions should adhere to cloud native principles while also complying with the [ORAN alliance's standards](https://www.o-ran.org/blog/o-ran-alliance-introduces-48-new-specifications-released-since-july-2021).
-
-----------
-
-### ORAN e2 connection
-
-#### Overview
-
-Checks if a RIC uses a oran compatible e2 connection.
-Expectation: An ORAN RIC should use an e2 connection.
-
-#### Rationale
-
-*A near real-time RAN intelligent controller (RIC) uses the [E2 standard](https://wiki.o-ran-sc.org/display/RICP/E2T+Architecture) as an open, interoperable, interface to connect to [RAN-optimized applications, onboarded as xApps](https://www.5gtechnologyworld.com/how-does-5gs-o-ran-e2-interface-work/).
-The xApps use platform services available in the near-RT RIC to communicate with the downstream network functions through the E2 interface.
-
-#### Remediation
-
-#### Usage
-
-`./cnf-testsuite oran_e2_connection`
 
 ----------
 
