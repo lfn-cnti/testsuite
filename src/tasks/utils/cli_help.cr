@@ -107,20 +107,6 @@ module CLIHelp
       add.call("Workload tests: #{category}", [category] + task.dependency_names)
     end
 
-    # 5G and RAN suites are aggregates in their own right rather than members of
-    # a workload category.
-    telco_paths = [] of String
-    ["5g", "ran"].each do |suite|
-      task = find_task(suite)
-      next if task.nil?
-      telco_paths << suite
-      telco_paths.concat(task.dependency_names)
-    end
-    telco_paths.concat(visible_tasks.map(&.path).select { |path|
-      path.starts_with?("smf_upf") || path.starts_with?("suci") || path.starts_with?("oran")
-    }.sort)
-    add.call("5G and RAN tests", telco_paths)
-
     add.call("Certification", visible_tasks.map(&.path).select(&.starts_with?("cert")).sort)
 
     # Tools the suite can install into the cluster on demand, outside the

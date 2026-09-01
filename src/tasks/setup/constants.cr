@@ -33,7 +33,6 @@ module Setup
   # only ever touch the cnti/ workspace in the CWD.
   RENDERED_MANIFESTS_DIR = "#{tools_path}/rendered-manifests"
   CLUSTER_TOOLS_MANIFEST = "#{RENDERED_MANIFESTS_DIR}/cluster_tools.yml"
-  FIVE_G_TOOLS_DIR       = "#{tools_path}/5g"
 
 
   KUBESCAPE_DIR      = "#{tools_path}/kubescape"

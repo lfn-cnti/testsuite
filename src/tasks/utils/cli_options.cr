@@ -45,7 +45,6 @@ module CLIOptions
     Option.new("input-config", Kind::Value, "update_config: the cnf-testsuite.yml to convert", value_label: "PATH", file: true, retired: "input-config"),
     Option.new("output-config", Kind::Value, "update_config: where to write the converted file", value_label: "PATH", file: true, retired: "output-config"),
     Option.new("pod-labels", Kind::Value, "label selector of the pods a chaos test targets", value_label: "LABELS", retired: "pod-labels"),
-    Option.new("baseline-count", Kind::Value, "smf_upf_heartbeat: heartbeats to sample for the baseline", value_label: "N", numeric: true, retired: "baseline-count"),
     Option.new("strict", Kind::Flag, "stop at the first failed or errored test", retired: "strict"),
     Option.new("essential", Kind::Flag, "cert: run only the essential tests", retired: "essential"),
     Option.new("poc", Kind::Flag, "include proof-of-concept tests", retired: "poc"),

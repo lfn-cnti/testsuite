@@ -26,32 +26,6 @@ module CNFInstall
       getter git_clone_url : String?
       getter docker_repository : String?
 
-      # 5G related properties
-      getter amf_label : String?
-      getter smf_label : String?
-      getter upf_label : String?
-      getter ric_label : String?
-      getter core : String?
-      getter amf_service_name : String?
-      getter mmc : String?
-      getter mnc : String?
-      getter sst : String?
-      getter sd : String?
-      getter tac : String?
-      getter protectionScheme : String?
-      getter publicKey : String?
-      getter publicKeyId : String?
-      getter routingIndicator : String?
-      getter enabled : String?
-      getter count : String?
-      getter initialMSISDN : String?
-      getter key : String?
-      getter op : String?
-      getter opType : String?
-      getter type : String?
-      getter apn : String?
-      getter emergency : String?
-  
       # Nested class for Helm Repository details
       class HelmRepository < ConfigBase
         getter name : String

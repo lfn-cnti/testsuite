@@ -23,7 +23,6 @@ task "tools_uninstall", [
   "setup:uninstall_jaeger",
   "setup:uninstall_fluentd",
   "setup:uninstall_fluentbit",
-  "uninstall_ueransim",
   # Helm needs to be uninstalled last to allow other uninstalls to use helm if necessary.
   # Check this issue for details - https://github.com/cncf/cnf-testsuite/issues/1586
   "setup:uninstall_local_helm",
