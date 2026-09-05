@@ -25,6 +25,13 @@ module ReleaseManager
 
   CompileTimeVersionGenerater.tagged_version
 
+  # Versions that must be published as GitHub prereleases so they never become
+  # `releases/latest` (which curl_install.sh and other consumers follow):
+  # main snapshots, and tags with a beta/rc suffix (v2.0.0b1, v2.0.0-beta1, v2.0.0-rc.1).
+  def self.prerelease_version?(version : String) : Bool
+    !!(version =~ /(?i)main|\db\d+$|-(?:alpha|beta|rc)\.?\d*$/)
+  end
+
   class GithubReleaseManager
     def initialize(repo_name : String)
       @repo_name = repo_name
@@ -63,13 +70,8 @@ module ReleaseManager
       if self.remote_main_branch_hash == ReleaseManager.current_hash
         upsert_version = upsert_version.sub("HEAD", "main")
       end
-      if upsert_version =~ /(?i)(main)/
-        prerelease = true
-        draft = false
-      else
-        prerelease = false
-        draft = false
-      end
+      prerelease = ReleaseManager.prerelease_version?(upsert_version)
+      draft = false
       Log.info { "upsert_version: #{upsert_version}" }
       Log.info { "upsert_version comparison: upsert_version =~ /(?i)(main|v[0-9]|test_version)/ : #{upsert_version =~ /(?i)(main|v[0-9]|test_version)/}" }
       # master-381d20d
