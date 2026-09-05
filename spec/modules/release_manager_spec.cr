@@ -1,5 +1,18 @@
 require "../spec_helper.cr"
 
+describe "ReleaseManager" do
+  it "flags beta, rc, and snapshot versions as prereleases and stable tags as full releases", tags: ["release_manager"] do
+    ReleaseManager.prerelease_version?("v2.0.0b1").should be_true
+    ReleaseManager.prerelease_version?("v1.5.1b1").should be_true
+    ReleaseManager.prerelease_version?("v2.0.0-beta1").should be_true
+    ReleaseManager.prerelease_version?("v2.0.0-rc.1").should be_true
+    ReleaseManager.prerelease_version?("main-2026-09-02-120000-abc1234").should be_true
+    ReleaseManager.prerelease_version?("v2.0.0").should be_false
+    ReleaseManager.prerelease_version?("v1.5.3").should be_false
+    ReleaseManager.prerelease_version?("v10.20.30").should be_false
+  end
+end
+
 # TODO: fix spec tests for release manager
 # Issues:
 # - after moving release-manager to the testsuite, using cnti-testsuite/release manager repo does not work correctly anymore
