@@ -113,8 +113,9 @@ module CNFManager
           if CNFManager::Points.failed_required_tasks.size > 0
             stdout_failure "Failed required tasks: #{CNFManager::Points.failed_required_tasks.inspect}"
           end
-          # The failing/erroring item was upserted above, so the summary already
-          # carries the derived exit code; exit with the matching value.
+          # A strict stop ends the run on purpose: finalize the results file so it
+          # carries a verdict, then exit with the code matching this item.
+          CNFManager::Points.finalize_results!
           exit_code = result.status == CNFManager::ResultStatus::Error ? CRITICAL_FAILURE_CODE : FAILURE_CODE
           exit exit_code
         end

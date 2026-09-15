@@ -97,13 +97,40 @@ describe "SampleUtils" do
     result[:output].should_not contain("You must install a CNF first")
   end
 
-  it "'write_summary!' should derive the exit code from item outcomes", tags: ["points"] do
+  it "the results file has no verdict until the run is finalized", tags: ["points"] do
+    results_backup = File.read(CNFManager::Points::Results.file)
+    begin
+      # Rewritten after every test, the file must not look finished while tests
+      # are still running: a run that dies part-way leaves `running` behind.
+      CNFManager::Points.clean_results_yml
+      yaml = YAML.parse(File.read(CNFManager::Points::Results.file))
+      yaml["status"].as_s.should eq("running")
+      yaml["exit_code"].raw.should be_nil
+
+      CNFManager::Points.upsert_task(CNFManager::TestCaseResult.new(
+        "liveness", CNFManager::ResultStatus::Passed, "ok", [] of String, Time.utc, Time.utc))
+      yaml = YAML.parse(File.read(CNFManager::Points::Results.file))
+      yaml["status"].as_s.should eq("running")
+      yaml["exit_code"].raw.should be_nil
+      yaml["summary"]["passed"].as_i.should eq(1)
+
+      CNFManager::Points.finalize_results!.should eq(0)
+      yaml = YAML.parse(File.read(CNFManager::Points::Results.file))
+      yaml["exit_code"].as_i.should eq(0)
+      yaml["status"].as_s.should eq("passed")
+    ensure
+      File.write(CNFManager::Points::Results.file, results_backup)
+    end
+  end
+
+  it "'finalize_results!' should derive the exit code from item outcomes", tags: ["points"] do
     results_backup = File.read(CNFManager::Points::Results.file)
     begin
       failed_result = CNFManager::TestCaseResult.new(
         "fake_exit_code_derivation_test", CNFManager::ResultStatus::Failed, "fake failure",
         [] of String, Time.utc, Time.utc)
       CNFManager::Points.upsert_task(failed_result)
+      CNFManager::Points.finalize_results!.should eq(1)
       yaml = YAML.parse(File.read(CNFManager::Points::Results.file))
       yaml["exit_code"].as_i.should eq(1)
       yaml["status"].as_s.should eq("failed")
@@ -111,7 +138,7 @@ describe "SampleUtils" do
       # The derivation is pure: once no failed/errored items remain, the exit
       # code returns to 0 instead of sticking at the highest value seen.
       CNFManager::Points.clean_results_yml
-      CNFManager::Points.write_summary!
+      CNFManager::Points.finalize_results!.should eq(0)
       yaml = YAML.parse(File.read(CNFManager::Points::Results.file))
       yaml["exit_code"].as_i.should eq(0)
       yaml["status"].as_s.should eq("passed")
@@ -134,7 +161,7 @@ describe "SampleUtils" do
       result = CNFManager::Points.evaluate_group!("resilience").not_nil!
       result.passed.should be_false
       result.failed_count.should eq(1)
-      CNFManager::Points.write_summary!
+      CNFManager::Points.finalize_results!
 
       yaml = YAML.parse(File.read(CNFManager::Points::Results.file))
       yaml["exit_code"].as_i.should eq(1)
@@ -157,14 +184,14 @@ describe "SampleUtils" do
 
       # The outermost group evaluated decides the run: SAM runs dependencies
       # before a parent's body, so the last verdict recorded is the parent's.
-      CNFManager::Points.write_summary!
+      CNFManager::Points.finalize_results!
       YAML.parse(File.read(CNFManager::Points::Results.file))["exit_code"].as_i.should eq(1)
 
       # Once the failure is gone the same group passes and the code returns to 0.
       CNFManager::Points.clean_results_yml
       CNFManager::Points.clear_group_results
       CNFManager::Points.evaluate_group!("resilience").not_nil!.passed.should be_true
-      CNFManager::Points.write_summary!
+      CNFManager::Points.finalize_results!
       yaml = YAML.parse(File.read(CNFManager::Points::Results.file))
       yaml["exit_code"].as_i.should eq(0)
       yaml["status"].as_s.should eq("passed")
@@ -292,6 +319,11 @@ describe "SampleUtils" do
     CNFManager::Points.upsert_task(skipped)
 
     schema = JSON.parse(File.read("docs/cnti-testsuite-results.schema.json"))
+    # Both states the file can be in must conform: in progress, and finalized.
+    doc = File.open("#{CNFManager::Points::Results.file}") { |file| YAML.parse(file) }
+    doc["status"].as_s.should eq("running")
+    validate_against_schema(doc, schema, schema["$defs"])
+    CNFManager::Points.finalize_results!
     doc = File.open("#{CNFManager::Points::Results.file}") { |file| YAML.parse(file) }
     validate_against_schema(doc, schema, schema["$defs"])
   end
@@ -329,7 +361,9 @@ describe "SampleUtils" do
       YAML.parse(file)
     end
     (yaml["name"]).should eq("cnti testsuite")
-    (yaml["exit_code"]).should eq(0) 
+    # A fresh file is a run in progress: no verdict until finalize_results!.
+    (yaml["status"]).should eq("running")
+    (yaml["exit_code"].raw).should be_nil
   end
 
   it "'validate_config' should pass, when a cnf has a valid config file yml", tags: ["validate_config"]  do

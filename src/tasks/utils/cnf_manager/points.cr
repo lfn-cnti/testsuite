@@ -331,18 +331,21 @@ module CNFManager
     # Version of the results-file schema. Bump when the file's structure changes
     # so automation can detect the contract it is reading.
     RESULTS_SCHEMA_VERSION = 1
+    # Top-level `status` while the run is in progress. The file is rewritten
+    # after every test, so a run that dies part-way leaves this state behind -
+    # readers can tell an unfinished run from one that completed (issue #2544).
+    RUN_STATUS_RUNNING = "running"
 
     def self.clean_results_yml
       if File.exists?("#{Results.file}")
         results = File.open("#{Results.file}") { |f| YAML.parse(f) }
         File.open("#{Results.file}", "w") do |f|
-          # With no items left, the derived verdict is passed/0; carrying the
-          # previous status/exit_code over would contradict the (empty) items.
+          # A cleaned file is a run in progress again: no verdict until finalized.
           YAML.dump({name:              results["name"],
                      testsuite_version: ReleaseManager::VERSION,
                      schema_version:    RESULTS_SCHEMA_VERSION,
-                     status:            "passed",
-                     exit_code:         0,
+                     status:            RUN_STATUS_RUNNING,
+                     exit_code:         nil,
                      items:             [] of YAML::Any},
             f)
         end
@@ -615,35 +618,6 @@ module CNFManager
         maximum_points:       max_points,
       }
 
-      # Derive the exit code purely from the run's outcomes, so it stays an exact
-      # function of the recorded items: it drops back to 0 when the items are
-      # cleaned, and cannot be clobbered by a later aggregate.
-      #
-      # An errored test always wins with 2 - that means the suite itself broke,
-      # which is never an acceptable result. Otherwise the exit code answers
-      # "did this run meet its objective?":
-      #
-      #   * A task group with a pass criterion (cert) is judged by that criterion
-      #     alone. Individual test failures are inputs to the verdict, not a
-      #     separate failure mode - the threshold already accounts for them - so
-      #     `cnti-testsuite cert` exits 0 exactly when the CNF is certified.
-      #   * Without a criterion (all/workload) the objective is simply
-      #     that nothing failed (issue #2411 - failures previously only mapped to
-      #     exit 1 via the unused `required:` points.yml field, so failing runs
-      #     exited 0).
-      exit_code =
-        if error > 0
-          2
-        elsif outermost = @@group_results.last?
-          outermost.passed ? 0 : 1
-        else
-          failed > 0 ? 1 : 0
-        end
-
-      # Top-level `status` is the overall run verdict, derived from the exit code:
-      # 0 -> passed, 2 -> error (critical), anything else (1) -> failed.
-      run_status = exit_code == 0 ? "passed" : (exit_code == 2 ? "error" : "failed")
-
       summary_yaml = YAML.parse(summary.to_yaml)
       unless @@group_results.empty?
         criteria = @@group_results.map do |result|
@@ -662,11 +636,57 @@ module CNFManager
       end
 
       merged = results.as_h
-      merged[YAML::Any.new("exit_code")] = YAML::Any.new(exit_code.to_i64)
-      merged[YAML::Any.new("status")] = YAML::Any.new(run_status)
+      # No verdict until the run is finalized: a file that still says `running`
+      # belongs to a run that has not finished (or never did).
+      merged[YAML::Any.new("exit_code")] = YAML::Any.new(nil)
+      merged[YAML::Any.new("status")] = YAML::Any.new(RUN_STATUS_RUNNING)
       merged[YAML::Any.new("summary")] = summary_yaml
       File.open("#{Results.file}", "w") { |f| YAML.dump(merged, f) }
       Results.refresh_latest
+    end
+
+    # Close the run: derive the verdict from the recorded outcomes, write it into
+    # the results file and return the process exit code. Called once, when the
+    # run ends - after the last task, or on the deliberate strict-mode stop - so
+    # a run that crashes never gets a verdict.
+    #
+    # An errored test always wins with 2 - that means the suite itself broke,
+    # which is never an acceptable result. Otherwise the exit code answers
+    # "did this run meet its objective?":
+    #
+    #   * A task group with a pass criterion (cert) is judged by that criterion
+    #     alone. Individual test failures are inputs to the verdict, not a
+    #     separate failure mode - the threshold already accounts for them - so
+    #     `cnti-testsuite cert` exits 0 exactly when the CNF is certified.
+    #   * Without a criterion (all/workload) the objective is simply
+    #     that nothing failed (issue #2411 - failures previously only mapped to
+    #     exit 1 via the unused `required:` points.yml field, so failing runs
+    #     exited 0).
+    def self.finalize_results! : Int32
+      write_summary!
+      results = File.open("#{Results.file}") { |f| YAML.parse(f) }
+      summary = results["summary"]
+      error = summary["error"]?.try(&.as_i?) || 0
+      failed = summary["failed"]?.try(&.as_i?) || 0
+      exit_code =
+        if error > 0
+          2
+        elsif outermost = @@group_results.last?
+          outermost.passed ? 0 : 1
+        else
+          failed > 0 ? 1 : 0
+        end
+      # Top-level `status` is the overall run verdict, derived from the exit code:
+      # 0 -> passed, 2 -> error (critical), anything else (1) -> failed.
+      run_status = exit_code == 0 ? "passed" : (exit_code == 2 ? "error" : "failed")
+
+      merged = results.as_h
+      merged[YAML::Any.new("exit_code")] = YAML::Any.new(exit_code.to_i64)
+      merged[YAML::Any.new("status")] = YAML::Any.new(run_status)
+      File.open("#{Results.file}", "w") { |f| YAML.dump(merged, f) }
+      Results.refresh_latest
+      @@logger.for("finalize_results!").info { "Run finalized: status #{run_status}, exit code #{exit_code}" }
+      exit_code
     end
 
     def self.failed_required_tasks
@@ -726,8 +746,8 @@ module CNFManager
 name: cnti testsuite
 testsuite_version: <%= CntiTestSuite::VERSION %>
 schema_version: #{RESULTS_SCHEMA_VERSION}
-status:
-exit_code: 0
+status: #{RUN_STATUS_RUNNING}
+exit_code:
 items: []
 END
     end
