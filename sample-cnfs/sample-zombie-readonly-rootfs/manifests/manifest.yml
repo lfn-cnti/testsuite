@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: zombie-readonly-rootfs
+  name: zombie-readonly-rootfs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zombie-readonly-rootfs
+  template:
+    metadata:
+      labels:
+        app: zombie-readonly-rootfs
+    spec:
+      containers:
+      - image: busybox:1.36
+        command: ["/bin/sleep", "infinity"]
+        name: zombie-readonly-rootfs
+        securityContext:
+          # Nothing can be copied into this container; the zombie probe must
+          # still run (issue #2542) and, with sleep as PID 1, must fail.
+          readOnlyRootFilesystem: true
+        resources: {}
