@@ -7,24 +7,22 @@ require "sam"
 
 describe "State" do
   
-  it "'elastic_volumes' should fail if the cnf does not use volumes that are elastic volume", tags: ["elastic_volume"]  do
+  it "'elastic_volumes' should pass if all persistent volumes are elastic even when non-persistent volumes are present", tags: ["elastic_volume"]  do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-elastic-volume/cnti-testsuite.yaml", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
       result = ShellCmd.run_testsuite("elastic_volumes", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
-      (/(PASSED).*(All used volumes are elastic)/ =~ result[:output]).should be_nil
+      (/(PASSED).*(All used volumes are elastic)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
     end
   end
 
-  #TODO This spec test should be for the skipped scenario instead.
-  # This CNF does not use any volumes except the ones that Kubernetes might mount by default (like the service account token)
-  it "'elastic_volumes' should fail if the cnf does not use any elastic volumes", tags: ["elastic_volume"]  do
+  it "'elastic_volumes' should skip if the cnf does not use any persistent volumes", tags: ["elastic_volume"]  do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_nonroot", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
       result = ShellCmd.run_testsuite("elastic_volumes", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
-      (/FAILED/ =~ result[:output]).should_not be_nil
+      (/(SKIPPED).*(No persistent volumes are used)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -45,13 +43,41 @@ describe "State" do
     end
   end
 
-  it "'elastic_volumes' should fail if the cnf doesn't use an elastic volume", tags: ["elastic_volume"]  do
+  it "'elastic_volumes' should skip if the cnf uses only non-persistent volumes", tags: ["elastic_volume"]  do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
+      result = ShellCmd.run_testsuite("elastic_volumes", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
+      (/(SKIPPED).*(No persistent volumes are used)/ =~ result[:output]).should_not be_nil
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'elastic_volumes' should pass if the cnf uses elastic persistent volumes", tags: ["elastic_volume"]  do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-elastic-pvc/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("elastic_volumes", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
+      (/(PASSED).*(All used volumes are elastic)/ =~ result[:output]).should_not be_nil
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'elastic_volumes' should fail if the cnf uses non-elastic persistent volumes", tags: ["elastic_volume"]  do
+    begin
+      # update the helm parameter with a schedulable node for the pv chart
+      schedulable_nodes = KubectlClient::Get.schedulable_nodes_list
+      schedulable_nodes.should_not be_empty
+
+      update_yml("sample-cnfs/sample-local-storage/worker-node-value.yml", "worker_node", schedulable_nodes[0].dig("metadata", "name"))
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-local-storage/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("elastic_volumes", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
       (/(FAILED).*(Some of the used volumes are not elastic)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
+      update_yml("sample-cnfs/sample-local-storage/worker-node-value.yml", "worker_node", "")
       result[:status].success?.should be_true
     end
   end

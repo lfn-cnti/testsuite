@@ -114,8 +114,13 @@ module StorageClass
     #todo elastic_by_storage_class?
     elastic = false
     provisioners = storage_class_names.reduce( [] of String) do |acc, storage_class|
-      resource = KubectlClient::Get.resource("storageclasses", storage_class.dig?("class_name").to_s, namespace)
-      if resource.dig?("provisioner")
+      resource = begin
+        KubectlClient::Get.resource("storageclasses", storage_class.dig?("class_name").to_s, namespace)
+      rescue ex : KubectlClient::ShellCMD::NotFoundError
+        Log.info { "StorageClass #{storage_class.dig?("class_name")} not found, volume is not elastic" }
+        nil
+      end
+      if resource && resource.dig?("provisioner")
         acc << resource.dig("provisioner").as_s 
       else
         acc
@@ -367,17 +372,17 @@ scored_task "elastic_volumes",
       Log.for("elastic_volumes:test_resource").debug { resource.inspect }
       Log.for("elastic_volumes:volumes").debug { volumes.inspect }
 
-      next true if volumes.size == 0
+      # Only persistent (PVC-backed) volumes are evaluated for elasticity. ConfigMap,
+      # Secret and emptyDir volumes are not persistent storage and have nothing to check.
+      pvc_volumes = volumes.as_a.select { |volume| volume.dig?("persistentVolumeClaim", "claimName") }
+      next true if pvc_volumes.empty?
       volumes_used = true
 
-      # todo use workload resource
-      # elastic = WorkloadResource.elastic?(volumes)
-
       full_resource = KubectlClient::Get.resource(resource["kind"], resource["name"], resource["namespace"])
-      elastic_result = WorkloadResource.elastic?(full_resource, volumes.as_a, resource["namespace"])
+      elastic_result = WorkloadResource.elastic?(full_resource, pvc_volumes, resource["namespace"])
       Log.for("#{t.name}:elastic_result").info {elastic_result}
       unless elastic_result
-        result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], reason: "uses non-elastic volumes: #{volumes.as_a.map(&.dig("name")).join(", ")}")
+        result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], reason: "uses non-elastic volumes: #{pvc_volumes.map(&.dig("name")).join(", ")}")
       end
     
       elastic_result
@@ -385,7 +390,7 @@ scored_task "elastic_volumes",
 
     Log.for("elastic_volumes:result").info { "Volumes used: #{volumes_used}; Elastic?: #{all_volumes_elastic}" }
     if !volumes_used
-      result.skipped("No volumes are used")
+      result.skipped("No persistent volumes are used")
     elsif task_response
       result.passed("All used volumes are elastic")
     else
