@@ -72,10 +72,9 @@ begin
     # One stable line per run for scripts to grep; the pointer is the path
     # that does not change between runs.
     stdout_info "Results: #{CNFManager::Points::Results.file} (latest: #{CNFManager::Points::Results.latest})"
-    yaml = File.open("#{CNFManager::Points::Results.file}") do |file|
-      YAML.parse(file)
-    end
-    case (yaml["exit_code"])
+    # The run is over: write the verdict into the file (it says `running` until
+    # now) and exit with it.
+    case CNFManager::Points.finalize_results!
     when 1
       exit 1
     when 2

@@ -30,12 +30,12 @@
       "const": 1
     },
     "status": {
-      "description": "Overall run verdict, derived from exit_code (0 -> passed, 1 -> failed, 2 -> error). May be null before any test has run.",
+      "description": "Overall run verdict, derived from exit_code (0 -> passed, 1 -> failed, 2 -> error). `running` while the run is in progress - a file still saying `running` belongs to a run that did not finish.",
       "enum": [
+        "running",
         "passed",
         "failed",
-        "error",
-        null
+        "error"
       ]
     },
     "command": {
@@ -43,12 +43,13 @@
       "type": "string"
     },
     "exit_code": {
-      "description": "Process exit code: 0 = passed, 1 = failed (a required test failed), 2 = error (a test raised).",
-      "type": "integer",
+      "description": "Process exit code: 0 = passed, 1 = failed (a required test failed), 2 = error (a test raised). null while the run is in progress (status `running`).",
+      "type": ["integer", "null"],
       "enum": [
         0,
         1,
-        2
+        2,
+        null
       ]
     },
     "summary": {

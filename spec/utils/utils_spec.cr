@@ -114,16 +114,19 @@ describe "Utils" do
   end
 
   # TODO (kosstennbl) Rework this spec, shouldn't contain a real test.
-  it "'single_task_runner' should put a 1 in the results file if it has an exception", tags: ["task_runner"]  do
+  it "'single_task_runner' should make the finalized results file exit with 2 if it has an exception", tags: ["task_runner"]  do
     CNFManager::Points.clean_results_yml
     args = Sam::Args.new()
     task_response = CNFManager::Task.single_task_runner(args) do
       raise Exception.new()
     end
+    # The verdict is only written when the run ends.
+    CNFManager::Points.finalize_results!.should eq(2)
     yaml = File.open("#{CNFManager::Points::Results.file}") do |file|
       YAML.parse(file)
     end
     (yaml["exit_code"]).should eq(2)
+    (yaml["status"]).should eq("error")
   end
 
   it "'logger' command line logger level setting via config.yml", tags: ["logger"]  do

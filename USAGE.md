@@ -77,6 +77,11 @@ To write somewhere else, pass `--results-dir PATH` on the command line or set th
 `CNTI_TESTSUITE_RESULTS_DIR` environment variable; the option wins over the variable. The
 timestamped file and `latest.yml` both go there, and `delete_results` honours the same setting.
 
+The file is rewritten after every test. While the run is in progress it says `status: running`
+and `exit_code: null`; the verdict is written only when the run ends (or stops on `--strict`).
+A file still in the `running` state therefore belongs to a run that did not finish — a crash,
+a kill, a CI timeout — and its `summary` shows only what had run by then.
+
 A machine-readable [JSON Schema](docs/cnti-testsuite-results.schema.json) describes the file
 (matching the current `schema_version`); use it to validate output or generate types.
 
@@ -137,9 +142,9 @@ items:
 | `name` | Always `cnti testsuite`. |
 | `testsuite_version` | Version of the test suite that produced the file. |
 | `schema_version` | Integer version of this results-file schema; bumped on breaking changes. |
-| `status` | Overall run verdict, derived from `exit_code`: `passed` (0), `failed` (1), `error` (2). |
+| `status` | Overall run verdict, derived from `exit_code`: `passed` (0), `failed` (1), `error` (2); `running` until the run ends. |
 | `command` | The command line that produced this file. |
-| `exit_code` | Process exit code, answering "did this run meet its objective?". `2` at least one test errored (raised) - the suite itself broke, which always wins. Otherwise, for a run with a pass criterion (`cert`): `0` the criterion was met, `1` it was not. For a run without one (`all`, `workload`, `platform`): `0` no test failed (passed/skipped/na), `1` at least one test failed. Additionally, the process exits with `64` (usage error) on unknown or malformed command-line arguments, before any test runs. See [Exit codes](#exit-codes) for the full table. |
+| `exit_code` | Process exit code, answering "did this run meet its objective?" (`null` while the run is in progress). `2` at least one test errored (raised) - the suite itself broke, which always wins. Otherwise, for a run with a pass criterion (`cert`): `0` the criterion was met, `1` it was not. For a run without one (`all`, `workload`, `platform`): `0` no test failed (passed/skipped/na), `1` at least one test failed. Additionally, the process exits with `64` (usage error) on unknown or malformed command-line arguments, before any test runs. See [Exit codes](#exit-codes) for the full table. |
 | `summary` | Aggregate numbers for the whole run (see below). |
 | `items` | One entry per test that ran (see below). |
 
