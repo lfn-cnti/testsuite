@@ -462,27 +462,25 @@ scored_task "zombie_handled",
     probed_containers = [] of String
     CNFManager.resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |resource|
       ClusterTools.all_containers_by_resource?(resource, resource[:namespace], include_proctree: false) do |container_id, container_pid_on_node, node|
-        probe_commands = [
-          "nerdctl --namespace=k8s.io cp /zombie #{container_id}:/zombie",
-          "nerdctl --namespace=k8s.io cp /sleep #{container_id}:/sleep",
-          "nerdctl --namespace=k8s.io exec #{container_id} /zombie",
-        ]
-        injected = true
-        probe_commands.each do |probe_command|
-          cmd_result = ClusterTools.exec_by_node(probe_command, node)
-          next if cmd_result[:status].success?
-          Log.for(t.name).error { "zombie probe injection failed for container #{container_id} (#{resource[:kind]}/#{resource[:name]}): #{probe_command}: #{cmd_result[:error]}" }
+        # The probe runs from cluster-tools' own filesystem inside the container's PID
+        # namespace, so nothing is written into the container: a read-only root
+        # filesystem or a distroless image is probed like any other. /zombie forks a
+        # child that execs /sleep and exits at once, so the child is orphaned onto the
+        # container's PID 1 - the process under test - and is found later by its PPid.
+        probe_command = "nsenter --target #{container_pid_on_node} --pid -- /zombie"
+        cmd_result = ClusterTools.exec_by_node(probe_command, node)
+        if cmd_result[:status].success?
+          probed_containers << "#{resource[:kind]}/#{resource[:name]} container #{container_id.to_s[0, 12]}"
+        else
+          Log.for(t.name).error { "zombie probe could not be started in container #{container_id} (#{resource[:kind]}/#{resource[:name]}): #{probe_command}: #{cmd_result[:error]}" }
           injection_failures << "#{resource[:kind]}/#{resource[:name]} container #{container_id}: `#{probe_command}` failed"
-          injected = false
-          break
         end
-        probed_containers << "#{resource[:kind]}/#{resource[:name]} container #{container_id.to_s[0, 12]}" if injected
       end
     end
 
     unless injection_failures.empty?
       injection_failures.each { |failure| result.append_description(failure) }
-      result.skipped("Zombie reaping not checked: the zombie probe could not be injected into every container")
+      result.skipped("Zombie reaping not checked: the zombie probe could not be started in every container")
       next
     end
 
@@ -534,7 +532,7 @@ scored_task "zombie_handled",
     end
 
     if task_response
-      result.append_description("Zombie probe injected into #{probed_containers.size} container(s): #{probed_containers.join("; ")}")
+      result.append_description("Zombie probe started in #{probed_containers.size} container(s): #{probed_containers.join("; ")}")
       result.passed("Zombie handled")
     else
       result.failed("Zombie not handled")

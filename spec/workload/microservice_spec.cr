@@ -369,7 +369,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("zombie_handled")
       result[:status].success?.should be_true
       (/(PASSED).*(Zombie handled)/ =~ result[:output]).should_not be_nil
-      (/> Zombie probe injected into \d+ container\(s\)/ =~ result[:output]).should_not be_nil
+      (/> Zombie probe started in \d+ container\(s\)/ =~ result[:output]).should_not be_nil
       verify_task_result("zombie_handled", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -392,14 +392,14 @@ describe "Microservice" do
     end
   end
 
-  it "'zombie_handled' should be skipped if the zombie probe cannot be injected", tags: ["zombie"] do
+  it "'zombie_handled' should fail for a read-only root filesystem whose PID 1 does not reap", tags: ["zombie"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-zombie-non-injectable/")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-zombie-readonly-rootfs/")
       result = ShellCmd.run_testsuite("zombie_handled")
-      # a skipped test does not fail the run
-      result[:status].success?.should be_true
-      (/(SKIPPED).*(Zombie reaping not checked)/ =~ result[:output]).should_not be_nil
-      verify_task_result("zombie_handled", "skipped")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(Zombie not handled)/ =~ result[:output]).should_not be_nil
+      (/impacted: Pod\/.* in .* \(container .+\): process .* \(pid \d+, parent \d+\) is a zombie/ =~ result[:output]).should_not be_nil
+      verify_task_result("zombie_handled", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
