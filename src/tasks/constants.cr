@@ -21,8 +21,9 @@ EMPTY_JSON = JSON.parse(%({}))
 EMPTY_JSON_ARRAY = JSON.parse(%([]))
 # Matched against the basename of a container's PID 1 executable: tini (also
 # as tini-static, and as docker-init, the copy Docker ships), dumb-init, and
-# s6-svscan (PID 1 once s6-overlay's /init has handed over).
-SPECIALIZED_INIT_SYSTEMS = ["tini", "tini-static", "docker-init", "dumb-init", "s6-svscan"]
+# s6-svscan (PID 1 once s6-overlay's /init has handed over), and catatonit (the
+# init podman ships; packaged as `catatonit` on Debian/Ubuntu/Fedora/openSUSE).
+SPECIALIZED_INIT_SYSTEMS = ["tini", "tini-static", "docker-init", "dumb-init", "s6-svscan", "catatonit"]
 ROLLING_VERSION_CHANGE_TEST_NAMES = ["rolling_update", "rolling_downgrade", "rolling_version_change"]
 WORKLOAD_RESOURCE_KIND_NAMES = ["replicaset", "deployment", "statefulset", "pod", "daemonset"]
 

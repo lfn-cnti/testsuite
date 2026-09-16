@@ -7,7 +7,7 @@ ARG S6_OVERLAY_VERSION=3.1.3.0
 RUN sed -i -e 's/^APT/# APT/' -e 's/^DPkg/# DPkg/' \
       /etc/apt/apt.conf.d/docker-clean && \
     apt update && \
-    apt install wget nginx xz-utils dumb-init -y
+    apt install wget nginx xz-utils dumb-init catatonit -y
 
 # Install tini
 # https://github.com/krallin/tini
