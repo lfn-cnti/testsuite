@@ -15,12 +15,16 @@ ELASTIC_PROVISIONING_DRIVERS_REGEX = /kubernetes.io\/aws-ebs|kubernetes.io\/azur
 ELASTIC_PROVISIONING_DRIVERS_REGEX_SPEC = /kubernetes.io\/aws-ebs|kubernetes.io\/azure-file|kubernetes.io\/azure-disk|kubernetes.io\/cinder|kubernetes.io\/gce-pd|kubernetes.io\/glusterfs|kubernetes.io\/quobyte|kubernetes.io\/rbd|kubernetes.io\/vsphere-volume|kubernetes.io\/portworx-volume|kubernetes.io\/scaleio|kubernetes.io\/storageos|rook-ceph.rbd.csi.ceph.com|rancher.io\/local-path/
 
 module Volume
-  def self.elastic_by_volumes?(volumes : Array(JSON::Any), namespace : String? = nil)
+  def self.pvc_volumes(volumes : Array(JSON::Any)) : Array(JSON::Any)
+    volumes.select { |v| v.dig?("persistentVolumeClaim", "claimName") }
+  end
+
+  def self.elastic_by_volumes?(volumes : Array(JSON::Any), namespace : String? = nil) : {elastic: Bool, missing_classes: Array(String)}
     Log.info {"Volume.elastic_by_volumes"}
     storage_class_names = storage_class_by_volumes(volumes, namespace)
-    elastic = StorageClass.elastic_by_storage_class?(storage_class_names, namespace)
-    Log.info {"Volume.elastic_by_volumes elastic: #{elastic}"}
-    elastic
+    result = StorageClass.elastic_by_storage_class?(storage_class_names, namespace)
+    Log.info {"Volume.elastic_by_volumes elastic: #{result[:elastic]}"}
+    result
   end
   # def self.elastic?(volumes, namespace : String? = nil)
   #   Log.info {"elastic? overload"}
@@ -88,10 +92,15 @@ module Volume
   def self.storage_class_by_volumes(volumes, namespace : String? = nil)
     Log.info {"storage_class_by_volumes? "}
     Log.info {"storage_class_by_volumes? volumes: #{volumes}"}
-    volume_claims = volumes.select{ |x| x.dig?("persistentVolumeClaim", "claimName") } 
+    volume_claims = Volume.pvc_volumes(volumes)
     Log.info {"volume_claims #{volume_claims}"}
     storage_class_names = volume_claims.reduce( [] of Hash(String, JSON::Any)) do |acc, claim| 
-      resource = KubectlClient::Get.resource("pvc", claim.dig?("persistentVolumeClaim", "claimName").to_s, namespace)
+      resource = begin
+        KubectlClient::Get.resource("pvc", claim.dig?("persistentVolumeClaim", "claimName").to_s, namespace)
+      rescue ex : KubectlClient::ShellCMD::NotFoundError
+        Log.info { "PVC #{claim.dig?("persistentVolumeClaim", "claimName")} not found" }
+        nil
+      end
       Log.info {"pvc resource #{resource}"}
 
       if resource && resource.dig?("spec", "storageClassName")
@@ -107,17 +116,19 @@ module Volume
 end
 module StorageClass
   def self.elastic_by_storage_class?(storage_class_names : Array(Hash(String, JSON::Any)), 
-                                     namespace : String? = nil)
+                                     namespace : String? = nil) : {elastic: Bool, missing_classes: Array(String)}
     Log.info {"StorageClass.elastic_by_storage_class"}
     Log.for("elastic_volumes:storage_class_names").info { storage_class_names }
 
     #todo elastic_by_storage_class?
     elastic = false
+    missing_classes = [] of String
     provisioners = storage_class_names.reduce( [] of String) do |acc, storage_class|
       resource = begin
         KubectlClient::Get.resource("storageclasses", storage_class.dig?("class_name").to_s, namespace)
       rescue ex : KubectlClient::ShellCMD::NotFoundError
         Log.info { "StorageClass #{storage_class.dig?("class_name")} not found, volume is not elastic" }
+        missing_classes << storage_class.dig?("class_name").to_s
         nil
       end
       if resource && resource.dig?("provisioner")
@@ -146,7 +157,7 @@ module StorageClass
       end
     end
     Log.info {"elastic? #{elastic}"}
-    elastic
+    {elastic: elastic, missing_classes: missing_classes}
   end
 end
 
@@ -179,7 +190,12 @@ module VolumeClaimTemplate
   def self.storage_class_by_vct_resource(resource, namespace)
     Log.info {"storage_class_by_vct_resource"}
     pvc_name = VolumeClaimTemplate.pvc_name_by_vct_resource(resource)
-    resource = KubectlClient::Get.resource("pvc", pvc_name.to_s, namespace)
+    resource = begin
+      KubectlClient::Get.resource("pvc", pvc_name.to_s, namespace)
+    rescue ex : KubectlClient::ShellCMD::NotFoundError
+      Log.info { "PVC #{pvc_name} not found" }
+      nil
+    end
 
     Log.info {"pvc resource #{resource}"}
     storage_class = nil
@@ -198,19 +214,25 @@ module WorkloadResource
   include Volume
   include VolumeClaimTemplate
 
-  def self.elastic?(resource, volumes, namespace : String? = nil)
+  def self.elastic?(resource, volumes, namespace : String? = nil) : {elastic: Bool, missing_classes: Array(String)}
     Log.info {"workloadresource elastic?"}
-    elastic = false
+    missing_classes = [] of String
     if VolumeClaimTemplate.vct_resource?(resource)
       storage_class = VolumeClaimTemplate.storage_class_by_vct_resource(resource, namespace)
       if storage_class
-        elastic = StorageClass.elastic_by_storage_class?([storage_class], namespace)
+        result = StorageClass.elastic_by_storage_class?([storage_class], namespace)
+        elastic = result[:elastic]
+        missing_classes = result[:missing_classes]
+      else
+        elastic = false
       end
     else
-      elastic = Volume.elastic_by_volumes?(volumes, namespace)
+      result = Volume.elastic_by_volumes?(volumes, namespace)
+      elastic = result[:elastic]
+      missing_classes = result[:missing_classes]
     end
     Log.info {"workloadresource elastic?: #{elastic}"}
-    elastic
+    {elastic: elastic, missing_classes: missing_classes}
   end
 end
 
@@ -365,7 +387,6 @@ scored_task "elastic_volumes",
   type: CNFManager::TestType::Bonus,
   emoji: "🧫" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    all_volumes_elastic = true
     volumes_used = false
 
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, volumes|
@@ -374,21 +395,27 @@ scored_task "elastic_volumes",
 
       # Only persistent (PVC-backed) volumes are evaluated for elasticity. ConfigMap,
       # Secret and emptyDir volumes are not persistent storage and have nothing to check.
-      pvc_volumes = volumes.as_a.select { |volume| volume.dig?("persistentVolumeClaim", "claimName") }
-      next true if pvc_volumes.empty?
+      # StatefulSets with volumeClaimTemplates are always evaluated via the VCT path.
+      pvc_volumes = Volume.pvc_volumes(volumes.as_a)
+      full_resource = KubectlClient::Get.resource(resource["kind"], resource["name"], resource["namespace"])
+      next true if pvc_volumes.empty? && !VolumeClaimTemplate.vct_resource?(full_resource)
       volumes_used = true
 
-      full_resource = KubectlClient::Get.resource(resource["kind"], resource["name"], resource["namespace"])
       elastic_result = WorkloadResource.elastic?(full_resource, pvc_volumes, resource["namespace"])
       Log.for("#{t.name}:elastic_result").info {elastic_result}
-      unless elastic_result
-        result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], reason: "uses non-elastic volumes: #{pvc_volumes.map(&.dig("name")).join(", ")}")
+      unless elastic_result[:elastic]
+        reason = if elastic_result[:missing_classes].any?
+                   "uses non-elastic volumes (missing storage class(es): #{elastic_result[:missing_classes].join(", ")}): #{pvc_volumes.map(&.dig("name")).join(", ")}"
+                 else
+                   "uses non-elastic volumes: #{pvc_volumes.map(&.dig("name")).join(", ")}"
+                 end
+        result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], reason: reason)
       end
     
-      elastic_result
+      elastic_result[:elastic]
     end
 
-    Log.for("elastic_volumes:result").info { "Volumes used: #{volumes_used}; Elastic?: #{all_volumes_elastic}" }
+    Log.for("elastic_volumes:result").info { "Volumes used: #{volumes_used}; Elastic?: #{task_response}" }
     if !volumes_used
       result.skipped("No persistent volumes are used")
     elsif task_response
@@ -440,14 +467,20 @@ scored_task "database_persistence",
       Log.info {"database_persistence resource: #{resource}"}
       Log.info {"database_persistence volumes: #{volumes}"}
       full_resource = KubectlClient::Get.resource(resource["kind"], resource["name"], namespace)
-      elastic_volume = WorkloadResource.elastic?(full_resource, volumes.as_a, namespace)
-      Log.info {"database_persistence elastic_volume: #{elastic_volume}"}
+      pvc_volumes = Volume.pvc_volumes(volumes.as_a)
+      elastic_result = WorkloadResource.elastic?(full_resource, pvc_volumes, namespace)
+      Log.info {"database_persistence elastic_volume: #{elastic_result[:elastic]}"}
 
-      unless elastic_volume
-        result.add_impacted_resource("StatefulSet", resource["name"], resource["namespace"], reason: "uses non-elastic volumes: #{volumes.as_a.map(&.dig("name")).join(", ")}")
+      unless elastic_result[:elastic]
+        reason = if elastic_result[:missing_classes].any?
+                   "uses non-elastic volumes (missing storage class(es): #{elastic_result[:missing_classes].join(", ")}): #{pvc_volumes.map(&.dig("name")).join(", ")}"
+                 else
+                   "uses non-elastic volumes: #{pvc_volumes.map(&.dig("name")).join(", ")}"
+                 end
+        result.add_impacted_resource("StatefulSet", resource["name"], resource["namespace"], reason: reason)
       end
 
-      elastic_volume
+      elastic_result[:elastic]
     end
 
     if task_response
