@@ -221,6 +221,7 @@ describe "Microservice" do
     result[:status].success?.should be_true
     (/Containers use specialized init systems/ =~ result[:output]).should_not be_nil
     (/> Pod\/.* container .*: init '/ =~ result[:output]).should_not be_nil
+    (/> Pod\/catatonit-sample container sleep: init '.*catatonit/ =~ result[:output]).should_not be_nil
   ensure
     result = ShellCmd.cnf_uninstall()
   end

@@ -392,16 +392,16 @@ Make sure that your CNFs containers are not sharing the same [database](https://
 
 #### Overview
 
-This tests if containers in pods use a specialized init system as their PID 1 process: tini (including tini-static and docker-init), dumb-init, or s6-overlay (whose PID 1 is s6-svscan). The check is on the executable's name, not on any part of its path.
+This tests if containers in pods use a specialized init system as their PID 1 process: tini (including tini-static and docker-init), dumb-init, catatonit, or s6-overlay (whose PID 1 is s6-svscan). The check is on the executable's name, not on any part of its path.
 Expectation: Container images should use specialized init systems for containers.
 
 #### Rationale
 
-There are proper init systems and sophisticated supervisors that can be run inside of a container. Both of these systems properly reap and pass signals. Sophisticated supervisors are considered overkill because they take up too many resources and are sometimes too complicated. Some examples of sophisticated supervisors are: supervisord, monit, and runit. Proper init systems are smaller than sophisticated supervisors and therefore suitable for containers. Some of the proper container init systems are tini, dumb-init, and s6-overlay.
+There are proper init systems and sophisticated supervisors that can be run inside of a container. Both of these systems properly reap and pass signals. Sophisticated supervisors are considered overkill because they take up too many resources and are sometimes too complicated. Some examples of sophisticated supervisors are: supervisord, monit, and runit. Proper init systems are smaller than sophisticated supervisors and therefore suitable for containers. Some of the proper container init systems are tini, dumb-init, catatonit, and s6-overlay.
 
 #### Remediation
 
-Use init systems that are purpose-built for containers like tini, dumb-init, s6-overlay.
+Use init systems that are purpose-built for containers like tini, dumb-init, catatonit, s6-overlay.
 
 #### Usage
 

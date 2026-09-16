@@ -83,3 +83,21 @@ spec:
     resources: {}
     ports:
       - containerPort: 80
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: catatonit-sample
+  namespace: cnfspace
+spec:
+  dnsPolicy: Default
+
+  containers:
+  # catatonit as shipped with podman (the fixture image predates its inclusion).
+  - image: quay.io/podman/stable:v5.8.4
+    name: sleep
+    command: ["/usr/libexec/podman/catatonit", "--"]
+    args: ["sleep", "infinity"]
+    securityContext:
+      allowPrivilegeEscalation: false
