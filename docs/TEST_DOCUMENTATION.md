@@ -514,6 +514,7 @@ Ensure that your CNF isn't using any persistent volumes that use a ["local"] mou
 #### Overview
 
 This checks for elastic persistent volumes in use by the CNF.
+If no persistent volumes are found, the test is skipped.
 Expectation: Elastic persistent volumes should be configured for statefulness.
 
 #### Rationale

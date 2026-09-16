@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-elastic-vct
+  namespace: cnti-default
+  labels:
+    app: sample-elastic-vct
+spec:
+  ports:
+  - port: 8080
+    name: web
+  clusterIP: None
+  selector:
+    app: sample-elastic-vct
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sample-elastic-vct
+  namespace: cnti-default
+spec:
+  serviceName: sample-elastic-vct
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sample-elastic-vct
+  template:
+    metadata:
+      labels:
+        app: sample-elastic-vct
+    spec:
+      containers:
+      - name: nginx
+        image: bitnamilegacy/nginx:1.20
+        command:
+          - /opt/bitnami/scripts/nginx/entrypoint.sh
+          - /opt/bitnami/scripts/nginx/run.sh
+        ports:
+        - containerPort: 8080
+          name: web
+        readinessProbe:
+          tcpSocket:
+            port: 8080
+        volumeMounts:
+        - name: data
+          mountPath: /usr/share/nginx/html
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: standard
+      resources:
+        requests:
+          storage: 1Mi

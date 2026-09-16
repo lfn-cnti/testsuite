@@ -6,7 +6,7 @@ require "file_utils"
 require "sam"
 
 describe "State" do
-  
+
   it "'elastic_volumes' should pass if all persistent volumes are elastic even when non-persistent volumes are present", tags: ["elastic_volume"]  do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-elastic-volume/cnti-testsuite.yaml", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
@@ -65,37 +65,28 @@ describe "State" do
     end
   end
 
-  it "'elastic_volumes' should fail if the cnf uses non-elastic persistent volumes", tags: ["elastic_volume"]  do
+  it "'elastic_volumes' should pass for a statefulset with volumeClaimTemplates", tags: ["elastic_volume"]  do
     begin
-      # update the helm parameter with a schedulable node for the pv chart
-      schedulable_nodes = KubectlClient::Get.schedulable_nodes_list
-      schedulable_nodes.should_not be_empty
-
-      update_yml("sample-cnfs/sample-local-storage/worker-node-value.yml", "worker_node", schedulable_nodes[0].dig("metadata", "name"))
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-local-storage/cnti-testsuite.yaml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-elastic-vct/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("elastic_volumes", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
-      (/(FAILED).*(Some of the used volumes are not elastic)/ =~ result[:output]).should_not be_nil
+      (/(PASSED).*(All used volumes are elastic)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
-      update_yml("sample-cnfs/sample-local-storage/worker-node-value.yml", "worker_node", "")
       result[:status].success?.should be_true
     end
   end
 
-  it "'no_local_volume_configuration' should fail if local storage configuration found", tags: ["no_local_volume_configuration"]  do
-    begin
-      # update the helm parameter with a schedulable node for the pv chart
-      schedulable_nodes = KubectlClient::Get.schedulable_nodes_list
-      schedulable_nodes.should_not be_empty
+  it "'elastic_volumes' should fail if the cnf uses non-elastic persistent volumes", tags: ["elastic_volume"]  do
+    with_sample_local_storage do
+      result = ShellCmd.run_testsuite("elastic_volumes", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
+      (/(FAILED).*(Some of the used volumes are not elastic)/ =~ result[:output]).should_not be_nil
+    end
+  end
 
-      update_yml("sample-cnfs/sample-local-storage/worker-node-value.yml", "worker_node", schedulable_nodes[0].dig("metadata", "name"))
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-local-storage/cnti-testsuite.yaml")
+  it "'no_local_volume_configuration' should fail if local storage configuration found", tags: ["no_local_volume_configuration"]  do
+    with_sample_local_storage do
       result = ShellCmd.run_testsuite("no_local_volume_configuration")
       (/(FAILED).*(local storage configuration volumes found)/ =~ result[:output]).should_not be_nil
-    ensure
-      result = ShellCmd.cnf_uninstall()
-      update_yml("sample-cnfs/sample-local-storage/worker-node-value.yml", "worker_node", "")
-      result[:status].success?.should be_true
     end
   end
 
@@ -112,5 +103,19 @@ describe "State" do
 
   after_all do
     result = ShellCmd.run_testsuite("uninstall_all")
+  end
+end
+
+private def with_sample_local_storage(&)
+  schedulable_nodes = KubectlClient::Get.schedulable_nodes_list
+  schedulable_nodes.should_not be_empty
+  update_yml("sample-cnfs/sample-local-storage/worker-node-value.yml", "worker_node", schedulable_nodes[0].dig("metadata", "name"))
+  begin
+    ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-local-storage/cnti-testsuite.yaml")
+    yield
+  ensure
+    result = ShellCmd.cnf_uninstall()
+    update_yml("sample-cnfs/sample-local-storage/worker-node-value.yml", "worker_node", "")
+    result[:status].success?.should be_true
   end
 end
