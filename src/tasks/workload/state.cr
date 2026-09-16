@@ -156,6 +156,12 @@ module StorageClass
         end
       end
     end
+    # A PVC whose StorageClass does not exist can never bind, so a missing
+    # class always makes the workload non-elastic regardless of other PVCs.
+    if missing_classes.any?
+      Log.info {"StorageClass(es) #{missing_classes.join(", ")} not found, workload is not elastic"}
+      elastic = false
+    end
     Log.info {"elastic? #{elastic}"}
     {elastic: elastic, missing_classes: missing_classes}
   end
