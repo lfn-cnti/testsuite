@@ -1,6 +1,0 @@
----
-apiVersion: v1
-appVersion: "0.2.0"
-description: Basic Network Service Mesh Infrastructure
-name: nsm
-version: 0.2.0
