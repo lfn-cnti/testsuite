@@ -1,12 +1,10 @@
 name: free5GC validation
+
 on:
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
 
-# The validation owns a whole kind cluster on a shared self-hosted runner, so
-# runs must not overlap. Queue them instead of cancelling: a nightly run that
-# is already exercising free5GC is worth finishing.
 concurrency:
   group: free5gc-validation
   cancel-in-progress: false
@@ -14,22 +12,32 @@ concurrency:
 jobs:
   free5gc-validation:
     runs-on: [v1.0.0]
+    # A full workload run installs several heavy CNFs and can exceed the default
+    # 360-minute job timeout, so give it twice that.
+    timeout-minutes: 720
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: cert
+            tag: free5gc_cert
+          - suite: workload
+            tag: free5gc_workload
     env:
-      # Unique per run. A fixed name ("free5gc-dev") collided whenever a second
-      # run started before the first had cleaned up, and a leaked cluster then
-      # blocked every later run: "node(s) already exist for a cluster with the
-      # name free5gc-dev".
-      KIND_CLUSTER_NAME: free5gc-${{ github.run_id }}
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+      KIND_CLUSTER_NAME: free5gc-${{ matrix.suite }}-${{ github.run_id }}
     steps:
       - name: Checkout Code & Submodules
         uses: actions/checkout@v4
         with:
-          submodules: recursive 
+          submodules: recursive
       - name: Login to Docker Hub
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_PASSWORD }}
       - name: Install kind
         uses: ./.github/actions/install-kind
       - name: Setup Kind Cluster with Sysctl Patch
@@ -82,9 +90,9 @@ jobs:
         run: |
           shards install
           crystal build src/cnti-testsuite.cr
-      - name: Run Free5GC Spec Test
+      - name: Run the ${{ matrix.suite }} suite against Free5GC
         run: |
-          CNTI_TESTSUITE_LOG_LEVEL=INFO crystal spec spec/free5gc_cert_spec.cr -v
+          CNTI_TESTSUITE_LOG_LEVEL=INFO crystal spec --tag ${{ matrix.tag }} -v
       - name: Delete Kind Cluster
         if: always()
         continue-on-error: true

@@ -38,9 +38,9 @@ else
 end
 
 module ShellCmd
-  def self.run_testsuite(testsuite_cmd, cmd_prefix="")
+  def self.run_testsuite(testsuite_cmd, cmd_prefix = "")
     cmd = "#{cmd_prefix} ./cnti-testsuite #{testsuite_cmd}"
-    run(cmd, log_prefix: "ShellCmd.run_testsuite", force_output: true, joined_output: true)
+    run_live(cmd, log_prefix: "ShellCmd.run_testsuite")
   end
 
   # A failed install or uninstall fails the example with the suite's own
@@ -53,13 +53,45 @@ module ShellCmd
     end
   end
 
-  def self.cnf_install(install_params, timeout=300, cmd_prefix="", expect_failure=false)
+  # Echoes the suite's stdout (and stderr) to the spec runner line by line as
+  # it is produced, instead of buffering it until the process ends, so CI logs
+  # fill up live while a long suite (install/cert/workload) runs. The full
+  # output is still captured for assertions.
+  private def self.run_live(cmd, log_prefix = "ShellCmd.run_live")
+    log = Log.for(log_prefix)
+    log.info { "command: #{cmd}" }
+    # `2>&1` in the shell keeps stdout and stderr in the single pipe read
+    # below, so the echo order matches what a direct run would print.
+    process = Process.new("#{cmd} 2>&1", shell: true, output: Process::Redirect::Pipe)
+    output = IO::Memory.new
+    drained = Channel(Nil).new
+    spawn do
+      begin
+        while line = process.output.gets
+          puts line
+          output << line << '\n'
+        end
+      rescue IO::Error
+        # The child closed the pipe instead of returning EOF. An unhandled
+        # error here would deadlock the caller: the drain fiber is the only
+        # sender on drained, so process.wait would never be followed by a
+        # value on the channel.
+      ensure
+        drained.send(nil)
+      end
+    end
+    status = process.wait
+    drained.receive
+    {status: status, output: output.to_s, error: ""}
+  end
+
+  def self.cnf_install(install_params, timeout = 300, cmd_prefix = "", expect_failure = false)
     result = run_testsuite("cnf_install #{install_params} --timeout #{timeout}", cmd_prefix)
     expect_outcome(result, "cnf_install #{install_params}", expect_failure)
     result
   end
 
-  def self.cnf_uninstall(timeout=300, cmd_prefix="", expect_failure=false)
+  def self.cnf_uninstall(timeout = 300, cmd_prefix = "", expect_failure = false)
     result = run_testsuite("cnf_uninstall --timeout #{timeout}", cmd_prefix)
     expect_outcome(result, "cnf_uninstall", expect_failure)
     result
