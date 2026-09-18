@@ -1,10 +1,21 @@
+# Self-hosted CI runner with the toolchain baked in, so that no shard pays
+# for installing Crystal, kind or kustomize. Published by the images workflow
+# as ghcr.io/lfn-cnti/github-runner:<runner version>-crystal<Crystal version>.
+
+# renovate: datasource=docker depName=myoung34/github-runner
 FROM myoung34/github-runner:2.336.0-ubuntu-noble
 
 # renovate: datasource=github-releases depName=crystal-lang/crystal
 ARG CRYSTAL_VERSION=1.19.1
 ARG CRYSTAL_URL=https://github.com/crystal-lang/crystal/releases/download
+# renovate: datasource=github-releases depName=kubernetes-sigs/kind
 ARG KIND_VERSION=v0.32.0
+# renovate: datasource=github-releases depName=kubernetes-sigs/kustomize versioning=regex:^kustomize/v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$
 ARG KUSTOMIZE_VERSION=v5.8.1
+
+LABEL org.opencontainers.image.source="https://github.com/lfn-cnti/testsuite" \
+      org.opencontainers.image.description="CNTi Test Suite self-hosted CI runner: GitHub runner + Crystal, kind, kubectl, helm, kustomize, gh" \
+      org.opencontainers.image.licenses="Apache-2.0"
 
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg --output /usr/share/keyrings/githubcli-archive-keyring.gpg && \
     chmod 644 /usr/share/keyrings/githubcli-archive-keyring.gpg && \
