@@ -129,7 +129,7 @@ describe "test metadata" do
 
   it "scores a test from its declared type", tags: ["points"] do
     CNFManager::Points.task_points("liveness").should eq(100)          # essential
-    CNFManager::Points.task_points("reasonable_image_size").should eq(5) # normal
+    CNFManager::Points.task_points("reasonable_image_size").should eq(1) # bonus
     CNFManager::Points.task_points("liveness", CNFManager::ResultStatus::Failed).should eq(0)
   end
 

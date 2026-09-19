@@ -20,7 +20,8 @@ module CNFInstall
              image_registry_fqdns = {} of String => String,
              hardcoded_ip_exceptions = [] of HardcodedIPsAllowed,
              tls_profiles = {} of String => TLSConfig,
-             auth_defaults = AuthDefaults.new
+             auth_defaults = AuthDefaults.new,
+             image_size_max_mb : Int32?
       def initialize; end
     end
 
