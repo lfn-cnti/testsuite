@@ -228,15 +228,95 @@ scored_task "reasonable_startup_time" do |t, args|
   end
 end
 
-# There aren't any 5gb images to test.
-# To run this test in a test environment or for testing purposes,
-# set the env var CNTI_TESTSUITE_ENV=TEST when running the test.
-#
-# Example:
+# The default limit is 5000 MB. To lower it for a given CNF, set
+# image_size_max_mb in the <common> section of cnti-testsuite.yaml or the
+# CNTI_TESTSUITE_MAX_IMAGE_SIZE_MB environment variable.
+# For testsuite CI (prototype images), use:
 #    CNTI_TESTSUITE_ENV=TEST ./cnti-testsuite reasonable_image_size
 #
 desc "Does the CNF have a reasonable container image size (< 5GB)?"
+# Returns the maximum allowed compressed image size in bytes for the
+# reasonable_image_size test. Precedence:
+#   1. image_size_max_mb in the <common> section of cnti-testsuite.yaml
+#   2. CNTI_TESTSUITE_MAX_IMAGE_SIZE_MB environment variable
+#   3. 16 MB when CNTI_TESTSUITE_ENV=TEST (testsuite CI), else 5000 MB
+def reasonable_image_size_bytes(config) : Int64
+  if (max_mb = config.common.image_size_max_mb)
+    return max_mb.to_i64 * 1_000_000
+  end
+
+  if (env_mb = ENV["CNTI_TESTSUITE_MAX_IMAGE_SIZE_MB"]?)
+    return env_mb.to_i64 * 1_000_000
+  end
+
+  default_mb = 5_000
+  if ENV["CNTI_TESTSUITE_ENV"]? == "TEST"
+    Log.info { "Using Test Mode max_size" }
+    default_mb = 16
+  end
+
+  default_mb.to_i64 * 1_000_000
+end
+
+# Pulls fqdn_image into the dockerd pod and returns its gzipped size in bytes.
+# Raises on any failure so callers can treat the image as unmeasurable.
+def docker_image_compressed_size(fqdn_image : String) : Int64
+  Dockerd.exec("docker pull #{fqdn_image}")
+  Dockerd.exec("docker save #{fqdn_image} -o /tmp/image.tar")
+  Dockerd.exec("gzip -f /tmp/image.tar")
+  exec_resp = Dockerd.exec("wc -c /tmp/image.tar.gz | awk '{print$1}'")
+  compressed_size = exec_resp[:output].to_s.to_i64
+  Log.info { "compressed_size: #{fqdn_image} = '#{compressed_size}'" }
+  compressed_size
+end
+
+def docker_image_pull_auth(resource, image_secrets_config_path)
+  image_pull_secrets = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace]).dig?("spec", "template", "spec", "imagePullSecrets")
+  if image_pull_secrets
+    auths = image_pull_secrets.as_a.map { |secret|
+      Log.debug { "image pull secret: #{secret["name"]}" }
+      secret_data = KubectlClient::Get.resource("Secret", "#{secret["name"]}", resource[:namespace]).dig?("data")
+      if secret_data
+        dockerconfigjson = Base64.decode_string("#{secret_data[".dockerconfigjson"]}")
+        dockerconfigjson.gsub(%({"auths":{),"")[0..-3]
+        # parsed_dockerconfigjson = JSON.parse(dockerconfigjson)
+        # parsed_dockerconfigjson["auths"].to_json.gsub("{","").gsub("}", "")
+      else
+        # JSON.parse(%({}))
+        ""
+      end
+    }
+    if auths
+      str_auths = %({"auths":{#{auths.reduce("") { | acc, x|
+      acc + x.to_s + ","
+    }[0..-2]}}})
+      Log.debug { "constructed docker auths config for #{auths.size} secret(s)" }
+    end
+    File.write(image_secrets_config_path, str_auths)
+    Dockerd.exec("mkdir -p /root/.docker/")
+    KubectlClient::Utils.copy_to_pod("dockerd", image_secrets_config_path, "/root/.docker/config.json", namespace: TESTSUITE_NAMESPACE)
+  end
+end
+
+def image_fqdn(image_url, image_registry_fqdns) : String
+  image_url_parts = image_url.split("/")
+  image_host = image_url_parts[0]
+
+  # If FQDN mapping is available for the registry,
+  # replace the host in the fqdn_image
+  fqdn_image = image_url
+  if !image_registry_fqdns.nil? && !image_registry_fqdns.empty?
+    if image_registry_fqdns[image_host]?
+      image_url_parts[0] = image_registry_fqdns[image_host]
+      fqdn_image = image_url_parts.join("/")
+    end
+  end
+
+  fqdn_image
+end
+
 scored_task "reasonable_image_size",
+  type: CNFManager::TestType::Bonus,
   emoji: "⚖👀" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     docker_insecure_registries = config.common.docker_insecure_registries || [] of String
@@ -245,96 +325,64 @@ scored_task "reasonable_image_size",
       next
     end
 
-    Log.for(t.name).debug { "cnf_config: #{config}" }
+    max_size = reasonable_image_size_bytes(config)
+    Log.for(t.name).info { "max_size: #{max_size} (#{max_size / 1_000_000} MB)" }
+
+    image_secrets_config_path = File.join(CNF_TEMP_FILES_DIR, "config.json")
+    measured_images = {} of String => Bool
+    oversized_images = [] of String
+    inspected_targets = 0
+
     task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
 
-      image_secrets_config_path = File.join(CNF_TEMP_FILES_DIR, "config.json")
+      # Only measure pod-styled containers; skip anything else without failing.
+      unless WORKLOAD_RESOURCE_KIND_NAMES.includes?(resource[:kind].downcase) && container.as_h["image"]?
+        next true
+      end
 
-      if resource["kind"].downcase == "deployment" ||
-          resource["kind"].downcase == "statefulset" ||
-          resource["kind"].downcase == "pod" ||
-          resource["kind"].downcase == "replicaset"
-          test_passed = true
+      image_url = container.as_h["image"].as_s
+      fqdn_image = image_fqdn(image_url, config.common.image_registry_fqdns)
+      inspected_targets += 1
 
-        image_url = container.as_h["image"].as_s
-        image_url_parts = image_url.split("/")
-        image_host = image_url_parts[0]
+      # Reuse a previous measurement for duplicate images.
+      if measured_images.has_key?(fqdn_image)
+        next measured_images[fqdn_image]
+      end
 
-        # Set default FQDN value
-        fqdn_image = image_url
+      # Registry auth may be required to pull the image.
+      docker_image_pull_auth(resource, image_secrets_config_path)
 
-        # If FQDN mapping is available for the registry,
-        # replace the host in the fqdn_image
-        image_registry_fqdns = config.common.image_registry_fqdns
-        if !image_registry_fqdns.nil? && !image_registry_fqdns.empty?
-          image_registry_fqdns = image_registry_fqdns.not_nil!
-          if image_registry_fqdns[image_host]?
-            image_url_parts[0] = image_registry_fqdns[image_host]
-            fqdn_image = image_url_parts.join("/")
-          end
-        end
+      begin
+        compressed_size = docker_image_compressed_size(fqdn_image)
+      rescue ex
+        Log.for(t.name).warn { "Could not measure #{fqdn_image}: #{ex.message}".colorize(:yellow) }
+        next true
+      end
 
-        image_pull_secrets = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace]).dig?("spec", "template", "spec", "imagePullSecrets")
-        if image_pull_secrets
-          auths = image_pull_secrets.as_a.map { |secret|
-            Log.debug { "image pull secret: #{secret["name"]}" }
-            secret_data = KubectlClient::Get.resource("Secret", "#{secret["name"]}", resource[:namespace]).dig?("data")
-            if secret_data
-              dockerconfigjson = Base64.decode_string("#{secret_data[".dockerconfigjson"]}")
-              dockerconfigjson.gsub(%({"auths":{),"")[0..-3]
-              # parsed_dockerconfigjson = JSON.parse(dockerconfigjson)
-              # parsed_dockerconfigjson["auths"].to_json.gsub("{","").gsub("}", "")
-            else
-              # JSON.parse(%({}))
-              ""
-            end
-          }
-          if auths
-            str_auths = %({"auths":{#{auths.reduce("") { | acc, x|
-            acc + x.to_s + ","
-          }[0..-2]}}})
-            Log.debug { "constructed docker auths config for #{auths.size} secret(s)" }
-          end
-          File.write(image_secrets_config_path, str_auths)
-          Dockerd.exec("mkdir -p /root/.docker/")
-          KubectlClient::Utils.copy_to_pod("dockerd", image_secrets_config_path, "/root/.docker/config.json", namespace: TESTSUITE_NAMESPACE)
-        end
+      size_ok = compressed_size < max_size
+      measured_images[fqdn_image] = size_ok
 
-        Log.info { "FQDN of the docker image: #{fqdn_image}" }
-        Dockerd.exec("docker pull #{fqdn_image}")
-        Dockerd.exec("docker save #{fqdn_image} -o /tmp/image.tar")
-        Dockerd.exec("gzip -f /tmp/image.tar")
-        exec_resp = Dockerd.exec("wc -c /tmp/image.tar.gz | awk '{print$1}'")
-        compressed_size = exec_resp[:output]
-        # TODO strip out secret from under auths, save in array
-        # TODO make a new auths array, assign previous array into auths array
-        # TODO save auths array to a file
-        Log.info { "compressed_size: #{fqdn_image} = '#{compressed_size.to_s}'" }
-        max_size = 5_000_000_000
-        if ENV["CNTI_TESTSUITE_ENV"]? == "TEST"
-           Log.info { "Using Test Mode max_size" }
-           max_size = 16_000_000
-        end
-
-        begin
-          unless compressed_size.to_s.to_i64 < max_size
-            result.append_description("resource: #{resource} and container: #{fqdn_image} was more than #{max_size}")
-            test_passed=false
-          end
-        rescue ex
-          Log.for(t.name).error { "invalid compressed_size: #{fqdn_image} = '#{compressed_size.to_s}', #{ex.message}".colorize(:red) }
-          test_passed = false
+      size_mb = compressed_size / 1_000_000
+      max_mb = max_size / 1_000_000
+      if size_ok
+        result.append_description("image #{fqdn_image} = #{size_mb} MB (limit #{max_mb} MB)")
+        if compressed_size >= max_size * 4 // 5
+          result.append_description("WARNING: image #{fqdn_image} is within 80% of the #{max_mb} MB limit")
         end
       else
-        test_passed = true
+        result.append_description("image #{fqdn_image} = #{size_mb} MB exceeds the #{max_mb} MB limit")
+        oversized_images << fqdn_image
       end
-      test_passed
+
+      size_ok
     end
 
-    if task_response
+    if inspected_targets == 0 || measured_images.empty?
+      result.skipped("Could not measure the size of any container image")
+    elsif task_response && oversized_images.empty?
       result.passed("Image size is good 🐜")
     else
-      result.failed("Image size too large 🦖")
+      result.failed("Image size too large 🦖: #{oversized_images.join(", ")}")
     end
   end
 end
