@@ -7,11 +7,6 @@ The [example-cnfs/](example-cnfs/) directory contains curated, ready-to-run CNF 
 - **[free5GC](example-cnfs/free5gc/)** — an open source 5G core and the **reference CNF** for the CNTi Test Suite ([LF Networking announcement](https://lfnetworking.org/introducing-free5gc-as-a-reference-cnf-for-the-cnti-test-suite/)). Validated nightly in CI against the certification test set.
 - [CoreDNS](example-cnfs/coredns/) — DNS server; the lightweight example used in the quick install steps.
 - [Envoy](example-cnfs/envoy/) — L3/L4/L7 proxy.
-- [linkerd2](example-cnfs/linkerd2/) — service mesh.
-- [NSM](example-cnfs/nsm/) — Network Service Mesh.
-- [Pantheon NSM NAT](example-cnfs/pantheon-nsm-nat/) — NSM-based NAT.
-- [IP Forwarder](example-cnfs/ip-forwarder/) — VPP-based IP forwarder.
-- [VPP 3c2n-csp use case](example-cnfs/vpp-3c2n-csp-use-case/) — VPP-based CNF Testbed use case.
 
 ## CNF samples by OSI layer
 
@@ -51,7 +46,6 @@ This is a preliminary list of CNF samples for each layer in the [OSI model](http
 
 ## [Layer 3 - Network](https://en.wikipedia.org/wiki/Network_layer)
 
-- [Pantheon Network Service Mesh NAT](example-cnfs/pantheon-nsm-nat/README.md)
 - [NFF Go IP Forwarding example](https://github.com/intel-go/nff-go/tree/master/examples/forwarding)
 - [NFF Go IPsec example](https://github.com/intel-go/nff-go/tree/master/examples/ipsec)
 - [CNF Testbed IPsec example](https://github.com/cncf/cnf-testbed/tree/master/examples/use_case/ipsec)

@@ -1,5 +1,0 @@
-apiVersion: v1
-appVersion: "1.0"
-description: A basic deployment of VPP attached to a host bridge
-name: vpp
-version: 0.1.0

@@ -1,9 +1,0 @@
----
-config_version: v2
-deployments:
-  helm_charts:
-  - name: linkerd
-    helm_chart_name: linkerd-control-plane
-    helm_values: --set-file identityTrustAnchorsPEM=$(pwd)/ca.crt --set-file identity.issuer.tls.crtPEM=$(pwd)/issuer.crt --set-file identity.issuer.tls.keyPEM=$(pwd)/issuer-private.pem
-    helm_repo_name: linkerd
-    helm_repo_url: https://helm.linkerd.io/stable
