@@ -7,8 +7,6 @@ The [example-cnfs/](example-cnfs/) directory contains curated, ready-to-run CNF 
 - **[free5GC](example-cnfs/free5gc/)** — an open source 5G core and the **reference CNF** for the CNTi Test Suite ([LF Networking announcement](https://lfnetworking.org/introducing-free5gc-as-a-reference-cnf-for-the-cnti-test-suite/)). Validated nightly in CI against the certification test set.
 - [CoreDNS](example-cnfs/coredns/) — DNS server; the lightweight example used in the quick install steps.
 - [Envoy](example-cnfs/envoy/) — L3/L4/L7 proxy.
-- [linkerd2](example-cnfs/linkerd2/) — service mesh.
-- [VPP 3c2n-csp use case](example-cnfs/vpp-3c2n-csp-use-case/) — VPP-based CNF Testbed use case.
 
 ## CNF samples by OSI layer
 
