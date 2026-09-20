@@ -631,37 +631,78 @@ scored_task "operator_installed",
 
     Log.for(t.name).info { "Subscription Names: #{subscription_names}" }
 
+    if subscription_names.empty?
+      # Informational only: without OLM Subscriptions there is no operator to
+      # verify, and non-OLM operators are out of scope for this test.
+      result.na("No Operators Found: the CNF is not operator-managed")
+      next
+    end
 
-    #TODO Warn if csv is not found for a subscription.
-    csv_names = subscription_names.map do |subscription|
-      csv_created = nil
-      resource_created = false
+    failed_subs = [] of String
+    failed_csvs = [] of String
+    unhealthy_deployments = [] of String
 
-      KubectlClient::Wait.wait_for_resource_key_value("sub", "#{subscription["name"]}", {"status", "installedCSV"}, namespace: subscription["namespace"].as_s)
+    csv_names = subscription_names.compact_map do |subscription|
+      sub_name = subscription["name"].as_s
+      sub_ns = subscription["namespace"].as_s
 
-      installed_csv = KubectlClient::Get.resource("sub", "#{subscription["name"]}", "#{subscription["namespace"]}")
-      if installed_csv.dig?("status", "installedCSV")
-        { "name" => installed_csv.dig("status", "installedCSV"), "namespace" => installed_csv.dig("metadata", "namespace") }
+      unless KubectlClient::Wait.wait_for_resource_key_value("sub", sub_name, {"status", "installedCSV"}, namespace: sub_ns)
+        failed_subs << "Subscription/#{sub_name} in #{sub_ns} never got an installedCSV"
+        next nil
       end
-    end.compact
+
+      installed_csv = KubectlClient::Get.resource("sub", sub_name, sub_ns).dig?("status", "installedCSV")
+      if installed_csv.nil? || installed_csv.as_s.empty?
+        failed_subs << "Subscription/#{sub_name} in #{sub_ns} never got an installedCSV"
+        next nil
+      end
+
+      { "name" => installed_csv.as_s, "namespace" => sub_ns }
+    end
 
     Log.for(t.name).info { "CSV Names: #{csv_names}" }
 
+    csv_names.each do |csv|
+      csv_name = csv["name"]
+      csv_ns = csv["namespace"]
 
-    succeeded = csv_names.map do |csv| 
-      if KubectlClient::Wait.wait_for_resource_key_value("csv", "#{csv["name"]}", {"status", "reason"}, namespace: csv["namespace"].as_s, value: "InstallSucceeded" ) && KubectlClient::Wait.wait_for_resource_key_value("csv", "#{csv["name"]}", {"status", "phase"}, namespace: csv["namespace"].as_s, value: "Succeeded" )
-        csv_succeeded=true
+      # An operator is only installed once its CSV reached InstallSucceeded and
+      # phase Succeeded; a timeout here is a finding, not a crash.
+      install_ok = KubectlClient::Wait.wait_for_resource_key_value("csv", csv_name, {"status", "reason"}, namespace: csv_ns, value: "InstallSucceeded") &&
+                   KubectlClient::Wait.wait_for_resource_key_value("csv", csv_name, {"status", "phase"}, namespace: csv_ns, value: "Succeeded")
+      unless install_ok
+        failed_csvs << "CSV/#{csv_name} in #{csv_ns} did not reach phase Succeeded"
+        next
       end
-      csv_succeeded
+
+      # A CSV in Succeeded phase can still have a broken operator Deployment;
+      # verify the Deployments its install strategy creates are actually ready.
+      operator_deployments(csv_name, csv_ns).each do |dep_name|
+        unless KubectlClient::Wait.resource_wait_for_install("deployment", dep_name, namespace: csv_ns)
+          unhealthy_deployments << "Deployment/#{dep_name} in #{csv_ns} is not ready"
+        end
+      end
     end
 
-    Log.for(t.name).info { "Succeeded CSV Names: #{succeeded}" }
-
-    if succeeded.size > 0 && succeeded.all?(true)
+    if failed_subs.empty? && failed_csvs.empty? && unhealthy_deployments.empty?
       Log.for(t.name).info { "Succeeded All True?" }
       result.passed("Operator is installed: 🐜")
     else
-      result.na("No Operators Found 🦖")
+      (failed_subs + failed_csvs + unhealthy_deployments).each do |finding|
+        result.append_description(finding)
+      end
+      result.failed("Operator is not installed: #{(failed_subs + failed_csvs + unhealthy_deployments).size} issue(s)")
     end
+  end
+end
+
+# Names of the Deployments an OLM ClusterServiceVersion install strategy creates.
+def operator_deployments(csv_name : String, namespace : String) : Array(String)
+  csv = KubectlClient::Get.resource("csv", csv_name, namespace)
+  deployments = csv.dig?("spec", "install", "spec", "deployments")
+  if deployments
+    deployments.as_a.compact_map { |d| d.dig?("name").try(&.as_s) }
+  else
+    [] of String
   end
 end
