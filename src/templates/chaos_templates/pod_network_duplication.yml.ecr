@@ -10,7 +10,7 @@ spec:
   appinfo:
     appns: '<%= @app_namespace %>'
     applabel: '<%= @deployment_label %>=<%= @deployment_label_value %>'
-    appkind: 'deployment'
+    appkind: '<%= @app_kind %>'
   chaosServiceAccount: <%= @chaos_experiment_name %>-sa
   experiments:
     - name: <%= @chaos_experiment_name %>

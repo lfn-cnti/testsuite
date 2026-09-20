@@ -7,7 +7,7 @@ spec:
   appinfo:
     appns: '<%= @app_namespace %>'
     applabel: '<%= @deployment_label %>=<%= @deployment_label_value %>'
-    appkind: 'deployment'
+    appkind: '<%= @app_kind %>'
   # It can be delete/retain
   jobCleanUpPolicy: 'delete'
   # It can be active/stop
