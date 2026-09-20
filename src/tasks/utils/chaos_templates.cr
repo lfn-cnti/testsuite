@@ -6,6 +6,7 @@ class ChaosTemplates
       @test_name : String,
       @chaos_experiment_name : String,
       @app_namespace : String,
+      @app_kind : String,
       @deployment_label : String,
       @deployment_label_value : String,
       @target_pod_name : String,
@@ -32,6 +33,7 @@ class ChaosTemplates
       @test_name : String,
       @chaos_experiment_name : String,
       @app_namespace : String,
+      @app_kind : String,
       @deployment_label : String,
       @deployment_label_value : String,
       @total_chaos_duration : String = "60"
@@ -45,6 +47,7 @@ class ChaosTemplates
       @test_name : String,
       @chaos_experiment_name : String,
       @app_namespace : String,
+      @app_kind : String,
       @deployment_label : String,
       @deployment_label_value : String,
       @total_chaos_duration : String = "60"
@@ -58,6 +61,7 @@ class ChaosTemplates
       @test_name : String,
       @chaos_experiment_name : String,
       @app_namespace : String,
+      @app_kind : String,
       @deployment_label : String,
       @deployment_label_value : String,
       @total_chaos_duration : String = "60"
@@ -71,6 +75,7 @@ class ChaosTemplates
       @test_name : String,
       @chaos_experiment_name : String,
       @app_namespace : String,
+      @app_kind : String,
       @deployment_label : String,
       @deployment_label_value : String
     )
@@ -83,6 +88,7 @@ class ChaosTemplates
       @test_name : String,
       @chaos_experiment_name : String,
       @app_namespace : String,
+      @app_kind : String,
       @deployment_label : String,
       @deployment_label_value : String,
       @target_pod_name : String,
@@ -98,6 +104,7 @@ class ChaosTemplates
       @test_name : String,
       @chaos_experiment_name : String,
       @app_namespace : String,
+      @app_kind : String,
       @deployment_label : String,
       @deployment_label_value : String,
       @target_pod_name : String,
@@ -125,6 +132,7 @@ class ChaosTemplates
       @test_name : String,
       @chaos_experiment_name : String,
       @app_namespace : String,
+      @app_kind : String,
       @deployment_label : String,
       @deployment_label_value : String,
       @total_chaos_duration : String = "120"

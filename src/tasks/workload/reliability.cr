@@ -86,10 +86,10 @@ scored_task "pod_network_latency",
       app_namespace = resource[:namespace]
 
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
-      if spec_labels.as_h? && spec_labels.as_h.size > 0 && resource["kind"] == "Deployment"
+      if spec_labels.as_h? && spec_labels.as_h.size > 0 && WORKLOAD_RESOURCE_KIND_NAMES.includes?(resource["kind"].downcase)
         test_passed = true
       else
-        result.append_description("Resource is not a Deployment or no resource label was found for resource: #{resource["name"]}")
+        result.append_description("Resource is not a supported workload or no resource label was found for resource: #{resource["name"]}")
         test_passed = false
       end
 
@@ -134,6 +134,7 @@ scored_task "pod_network_latency",
               test_name,
               "#{chaos_experiment_name}",
               app_namespace,
+              "#{resource["kind"].downcase}",
               "#{current_pod_key}",
               "#{current_pod_value}"
         ).to_s
@@ -142,6 +143,7 @@ scored_task "pod_network_latency",
             test_name,
             "#{chaos_experiment_name}",
             app_namespace,
+            "#{resource["kind"].downcase}",
             "#{spec_labels.as_h.first_key}",
             "#{spec_labels.as_h.first_value}"
           ).to_s
@@ -178,10 +180,10 @@ scored_task "pod_network_corruption",
       Log.info {"Current Resource Name: #{resource["name"]} Type: #{resource["kind"]}"}
       app_namespace = resource[:namespace]
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
-      if spec_labels.as_h? && spec_labels.as_h.size > 0 && resource["kind"] == "Deployment"
+      if spec_labels.as_h? && spec_labels.as_h.size > 0 && WORKLOAD_RESOURCE_KIND_NAMES.includes?(resource["kind"].downcase)
         test_passed = true
       else
-        result.append_description("Resource is not a Deployment or no resource label was found for resource: #{resource["name"]}")
+        result.append_description("Resource is not a supported workload or no resource label was found for resource: #{resource["name"]}")
         test_passed = false
       end
       if test_passed
@@ -198,6 +200,7 @@ scored_task "pod_network_corruption",
           test_name,
           "#{chaos_experiment_name}",
           app_namespace,
+          "#{resource["kind"].downcase}",
           "#{spec_labels.first_key}",
           "#{spec_labels.first_value}"
         ).to_s
@@ -229,10 +232,10 @@ scored_task "pod_network_duplication",
       app_namespace = resource[:namespace]
       Log.info{ "Current Resource Name: #{resource["name"]} Type: #{resource["kind"]} Namespace: #{resource["namespace"]}"}
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
-      if spec_labels.as_h? && spec_labels.as_h.size > 0 && resource["kind"] == "Deployment"
+      if spec_labels.as_h? && spec_labels.as_h.size > 0 && WORKLOAD_RESOURCE_KIND_NAMES.includes?(resource["kind"].downcase)
         test_passed = true
       else
-        result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], reason: "not a Deployment or no resource label found")
+        result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], reason: "not a supported workload or no resource label found")
         test_passed = false
       end
       if test_passed
@@ -249,6 +252,7 @@ scored_task "pod_network_duplication",
           test_name,
           "#{chaos_experiment_name}",
           app_namespace,
+          "#{resource["kind"].downcase}",
           "#{spec_labels.first_key}",
           "#{spec_labels.first_value}"
         ).to_s
@@ -318,6 +322,7 @@ scored_task "disk_fill",
           test_name,
           "#{chaos_experiment_name}",
           app_namespace,
+          "#{resource["kind"].downcase}",
           "#{spec_labels.first_key}",
           "#{spec_labels.first_value}"
         ).to_s
@@ -399,6 +404,7 @@ scored_task "pod_delete",
           test_name,
           "#{chaos_experiment_name}",
           app_namespace,
+          "#{resource["kind"].downcase}",
           "#{current_pod_key}",
           "#{current_pod_value}",
           target_pod_name
@@ -408,6 +414,7 @@ scored_task "pod_delete",
           test_name,
           "#{chaos_experiment_name}",
           app_namespace,
+          "#{resource["kind"].downcase}",
           "#{spec_labels.as_h.first_key}",
           "#{spec_labels.as_h.first_value}",
           target_pod_name
@@ -462,6 +469,7 @@ scored_task "pod_memory_hog",
           test_name,
           "#{chaos_experiment_name}",
           app_namespace,
+          "#{resource["kind"].downcase}",
           "#{spec_labels.first_key}",
           "#{spec_labels.first_value}",
           target_pod_name
@@ -513,6 +521,7 @@ scored_task "pod_io_stress",
           chaos_test_name,
           "#{chaos_experiment_name}",
           app_namespace,
+          "#{resource["kind"].downcase}",
           "#{spec_labels.first_key}",
           "#{spec_labels.first_value}",
           target_pod_name
@@ -576,6 +585,7 @@ scored_task "pod_dns_error",
             test_name,
             "#{chaos_experiment_name}",
             app_namespace,
+            "#{resource["kind"].downcase}",
             "#{spec_labels.first_key}",
             "#{spec_labels.first_value}"
           ).to_s
