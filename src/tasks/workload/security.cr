@@ -354,24 +354,56 @@ scored_task "insecure_capabilities",
   end
 end
 
-desc "Check if the containers have CPU limits set"
+desc "Check if the containers have CPU requests or limits set"
 scored_task "cpu_limits",
-  type: CNFManager::TestType::Essential,
-  deps: ["setup:kubescape_scan"],
+  type: CNFManager::TestType::Bonus,
   emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    results_json = Kubescape.parse
-    test_json = Kubescape.test_by_test_name(results_json, "Ensure CPU limits are set")
-    test_report = Kubescape.parse_test_report(test_json)
-    resource_keys = CNFManager.workload_resource_keys(args, config)
-    test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
+    # CPU limits are disputed: they throttle CPU usage and hurt tail latency,
+    # and the Pod Security Standards do not require them. A CNF only fails this
+    # when a container has neither CPU requests nor CPU limits; requests-only
+    # is a supported posture reported as info, not as a finding.
+    violation_list = [] of NamedTuple(kind: String, name: String, container: String, namespace: String)
+    inspected_targets = 0
 
-    if test_report.failed_resources.size == 0
-      result.passed("Containers have CPU limits set")
+    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
+      unless WORKLOAD_RESOURCE_KIND_NAMES.includes?(resource[:kind].downcase) && container.as_h["image"]?
+        next true
+      end
+      inspected_targets += 1
+
+      container_name = container.as_h["name"]?.try(&.as_s) || ""
+      container_ref = "#{resource[:kind]}/#{resource[:name]}/#{container_name}"
+
+      resources = container.as_h["resources"]?
+      cpu_requests = resources.try(&.dig?("requests", "cpu"))
+      cpu_limits = resources.try(&.dig?("limits", "cpu"))
+
+      if cpu_limits
+        next true
+      end
+
+      if cpu_requests
+        result.append_description("INFO: #{container_ref} has CPU requests but no CPU limits (requests-only posture)")
+        next true
+      end
+
+      result.append_description("#{container_ref} has neither CPU requests nor CPU limits set")
+      violation_list << {kind: resource[:kind], name: resource[:name], container: container_name, namespace: resource[:namespace]}
+      false
+    end
+
+    if inspected_targets == 0
+      result.skipped("No container to inspect")
+    elsif task_response && violation_list.empty?
+      result.passed("Containers have CPU requests or limits set")
     else
-      Kubescape.report_failed_resources(test_report, result)
-      result.append_remediation(test_report.remediation.to_s) if test_report.remediation
-      result.failed("Found containers without CPU limits set")
+      violation_list.each do |violation|
+        result.add_impacted_resource(violation[:kind], violation[:name], violation[:namespace],
+          container: violation[:container], reason: "neither CPU requests nor limits set")
+      end
+      result.append_remediation("Set CPU requests on containers that miss them; CPU limits are optional and can cause throttling.")
+      result.failed("Found #{violation_list.size} container(s) without CPU requests or limits set")
     end
   end
 end

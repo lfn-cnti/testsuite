@@ -7,7 +7,7 @@ require "../../src/tasks/**"
 describe "DocRemediation" do
   it "documents a remediation for every essential test", tags: ["points"] do
     essentials = CNFManager::TestRegistry.all.select { |_, m| m.type.essential? }.keys
-    essentials.size.should be >= 19
+    essentials.size.should be >= 18
     missing = essentials.reject { |name| DocRemediation.for(name) }
     missing.should eq([] of String)
 
