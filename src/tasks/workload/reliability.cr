@@ -513,17 +513,17 @@ scored_task "pod_io_stress",
 
         chaos_experiment_name = "pod-io-stress"
         target_pod_name = ""
-        chaos_test_name = "#{resource["name"]}-#{Random.rand(99)}" 
+        chaos_test_name = "#{resource["name"]}-#{Random.rand(99)}"
         chaos_result_name = "#{chaos_test_name}-#{chaos_experiment_name}"
 
-        spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"]).as_h
+        deployment_label, deployment_label_value = LitmusManager.resource_target_label(resource)
         template = ChaosTemplates::PodIoStress.new(
           chaos_test_name,
           "#{chaos_experiment_name}",
           app_namespace,
           "#{resource["kind"].downcase}",
-          "#{spec_labels.first_key}",
-          "#{spec_labels.first_value}",
+          deployment_label,
+          deployment_label_value,
           target_pod_name
         ).to_s
 

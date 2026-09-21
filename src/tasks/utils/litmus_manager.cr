@@ -30,6 +30,50 @@ module LitmusManager
     File.write(modified_operator_file, output_file) unless output_file == nil
   end
 
+  # Label pair that selects exactly the pods of `resource`, so a chaos engine
+  # appinfo targets this workload and not every pod sharing a broad selector.
+  # A selector like app.kubernetes.io/instance=<release> matches a whole Helm
+  # release, which made pod-io-stress stress a random free5gc pod instead of
+  # the tested deployment. When several selector labels exist, the first pair
+  # whose value is carried by exactly the resource's own pods (owner-ref match)
+  # wins. Falls back to the first selector label pair -- the historical
+  # behavior -- when no pair resolves uniquely or when there is a single one.
+  def self.resource_target_label(resource : NamedTuple(kind: String, name: String, namespace: String)) : {String, String}
+    logger = Log.for("LitmusManager.resource_target_label")
+    selector_labels = KubectlClient::Get.resource_spec_labels(resource[:kind], resource[:name], resource[:namespace])
+    labels = selector_labels.as_h?
+    unless labels && !labels.empty?
+      logger.info { "No selector label for #{resource[:kind]}/#{resource[:name]}; targeting app.kubernetes.io/name=#{resource[:name]}" }
+      return {"app.kubernetes.io/name", resource[:name]}
+    end
+
+    ordered = labels.to_a
+    return {ordered[0][0].to_s, ordered[0][1].as_s} if ordered.size == 1
+
+    pods = KubectlClient::Get.resource("pods", namespace: resource[:namespace])
+    items = pods.dig?("items").try(&.as_a) || [] of JSON::Any
+    uid = KubectlClient::Get.resource_uid(resource[:kind], resource[:name], resource[:namespace])
+    owned_size = items.count do |pod|
+      refs = pod.dig?("metadata", "ownerReferences").try(&.as_a?) || [] of JSON::Any
+      uid && refs.any? { |ref| ref.dig?("uid").try(&.as_s?) == uid }
+    end
+
+    ordered.each do |key, value|
+      key_s = key.to_s
+      value_s = value.as_s
+      matching = items.count do |pod|
+        pod.dig?("metadata", "labels", key_s).try(&.as_s?) == value_s
+      end
+      if matching == owned_size
+        logger.info { "Targeting #{resource[:kind]}/#{resource[:name]} with #{key_s}=#{value_s} (#{matching} pod(s))" }
+        return {key_s, value_s}
+      end
+    end
+
+    logger.warn { "No uniquely selecting label for #{resource[:kind]}/#{resource[:name]}; falling back to #{ordered[0][0]}=#{ordered[0][1]}" }
+    {ordered[0][0].to_s, ordered[0][1].as_s}
+  end
+
   # Node the workload identified by `deployment_label=deployment_value` sits on,
   # or nil when it has no pod scheduled anywhere.
   # Node of the workload matching `selector` (a `k=v[,k=v...]` label selector).
