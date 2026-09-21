@@ -152,6 +152,27 @@ module LitmusManager
     nil
   end
 
+  # True when a disk-fill fault can be injected into at least one of the given
+  # application containers. The litmus disk-fill helper writes a file into the
+  # target container's root file system (`dd ... <container-root>/...`); when
+  # every container mounts a read-only root file system the injection fails with
+  # "Read-only file system" and the experiment errors out in ChaosInject.
+  #
+  # A workload composed only of `readOnlyRootFilesystem: true` containers is
+  # already hardened against disk fill, so disk_fill must not score it as a
+  # failure - the injection is impossible by design. See the disk_fill task.
+  #
+  # An empty or unknown container list is treated as injectable so we keep the
+  # historical behavior of running the fault rather than skipping blindly.
+  def self.disk_fill_injectable?(containers : JSON::Any) : Bool
+    list = containers.as_a?
+    return true if list.nil? || list.empty?
+    list.any? do |container|
+      ro = container.dig?("securityContext", "readOnlyRootFilesystem").try(&.as_bool?)
+      ro != true
+    end
+  end
+
   def self.chaos_manifests_path
     Log.info {"chaos_manifests_path"}
     chaos_manifests = "#{tools_path}/chaos-experiments"

@@ -274,8 +274,27 @@ scored_task "disk_fill",
   deps: ["setup:install_litmus"],
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
+    runnable_containers = 0
+    skipped_hardened = 0
+    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
       app_namespace = resource[:namespace]
+
+      # A container with readOnlyRootFilesystem set cannot be filled: the litmus
+      # disk-fill helper fails while injecting with "Read-only file system" and
+      # the experiment reports a ChaosInject error instead of exercising the
+      # workload. Such a container is already hardened against disk fill, so it
+      # is skipped instead of being scored as a failure.
+      if !LitmusManager.disk_fill_injectable?(JSON::Any.new([container]))
+        skipped_hardened += 1
+        container_name = container["name"]?.try(&.as_s)
+        result.add_impacted_resource(resource["kind"], resource["name"], app_namespace,
+          container: container_name,
+          reason: "readOnlyRootFilesystem prevents disk_fill injection; skipped")
+        Log.for("#{t.name}").info { "Skipping #{resource["kind"]}/#{resource["name"]} container #{container_name || "unknown"}: readOnlyRootFilesystem set, disk fill cannot be injected" }
+        next true
+      end
+
+      runnable_containers += 1
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
       if spec_labels.as_h? && spec_labels.as_h.size > 0
         test_passed = true
@@ -311,7 +330,10 @@ scored_task "disk_fill",
 
       test_passed
     end
-    if task_response
+    if runnable_containers == 0 && skipped_hardened > 0
+      result.append_description("Skipped #{skipped_hardened} container(s) already hardened against disk fill via readOnlyRootFilesystem")
+      result.skipped("disk_fill not applicable: every workload container has a read-only root file system")
+    elsif task_response
       result.passed("disk_fill chaos test passed")
     else
       result.failed("disk_fill chaos test failed")
