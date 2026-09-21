@@ -10,7 +10,9 @@ class ChaosTemplates
       @deployment_label : String,
       @deployment_label_value : String,
       @target_pod_name : String,
-      @total_chaos_duration : String = "120"
+      @total_chaos_duration : String = "120",
+      @container_runtime : String = "containerd",
+      @socket_path : String = "/run/containerd/containerd.sock"
     )
     end
     ECR.def_to_s("src/templates/chaos_templates/pod_io_stress.yml.ecr")

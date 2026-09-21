@@ -27,8 +27,8 @@ spec:
 
               ## provide the cluster runtime
             - name: CONTAINER_RUNTIME
-              value: 'containerd'
+              value: '<%= @container_runtime %>'
 
             # provide the socket file path
             - name: SOCKET_PATH
-              value: '/run/containerd/containerd.sock'
+              value: '<%= @socket_path %>'
