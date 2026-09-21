@@ -288,7 +288,7 @@ scored_task "disk_fill",
       # the experiment reports a ChaosInject error instead of exercising the
       # workload. Such a container is already hardened against disk fill, so it
       # is skipped instead of being scored as a failure.
-      if !LitmusManager.disk_fill_injectable?(JSON::Any.new([container]))
+      if !LitmusManager.filesystem_fault_injectable?(JSON::Any.new([container]))
         skipped_hardened += 1
         container_name = container["name"]?.try(&.as_s)
         result.add_impacted_resource(resource["kind"], resource["name"], app_namespace,
@@ -497,8 +497,28 @@ scored_task "pod_io_stress",
   deps: ["setup:install_litmus"],
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
+    runnable_containers = 0
+    skipped_hardened = 0
+    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
       app_namespace = resource[:namespace]
+
+      # A container with readOnlyRootFilesystem set cannot be IO-stressed: the
+      # litmus pod-io-stress helper (fio) writes a file into the target
+      # container's root file system and the experiment reports a ChaosInject
+      # error ("exit status 1") instead of exercising the workload. Such a
+      # container is already hardened against IO stress, so it is skipped
+      # instead of being scored as a failure.
+      if !LitmusManager.filesystem_fault_injectable?(JSON::Any.new([container]))
+        skipped_hardened += 1
+        container_name = container["name"]?.try(&.as_s)
+        result.add_impacted_resource(resource["kind"], resource["name"], app_namespace,
+          container: container_name,
+          reason: "readOnlyRootFilesystem prevents pod_io_stress injection; skipped")
+        Log.for("#{t.name}").info { "Skipping #{resource["kind"]}/#{resource["name"]} container #{container_name || "unknown"}: readOnlyRootFilesystem set, IO stress cannot be injected" }
+        next true
+      end
+
+      runnable_containers += 1
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
       if spec_labels.as_h? && spec_labels.as_h.size > 0
         test_passed = true
@@ -536,7 +556,10 @@ scored_task "pod_io_stress",
 
       test_passed
     end
-    if task_response
+    if runnable_containers == 0 && skipped_hardened > 0
+      result.append_description("Skipped #{skipped_hardened} container(s) already hardened against IO stress via readOnlyRootFilesystem")
+      result.skipped("pod_io_stress not applicable: every workload container has a read-only root file system")
+    elsif task_response
       result.passed("pod_io_stress chaos test passed")
     else
       result.failed("pod_io_stress chaos test failed")

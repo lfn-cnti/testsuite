@@ -52,10 +52,22 @@ module LitmusManager
 
     pods = KubectlClient::Get.resource("pods", namespace: resource[:namespace])
     items = pods.dig?("items").try(&.as_a) || [] of JSON::Any
-    uid = KubectlClient::Get.resource_uid(resource[:kind], resource[:name], resource[:namespace])
+
+    # A Deployment's pods are owned by a ReplicaSet, not by the Deployment
+    # itself, so comparing ownerReferences against the resource uid directly
+    # always yields zero owned pods for Deployments: every label then "matches"
+    # in a namespace-wide sense and the engine falls back to a broad selector
+    # (e.g. app.kubernetes.io/instance=<release>) under which the litmus helper
+    # stresses a random pod of the whole release. Resolve the owned pod set
+    # through the descendant tree (Deployment -> ReplicaSet -> Pod, but also
+    # StatefulSet/DaemonSet/Job which own their pods directly) instead.
+    owned_pod_uids = Set(String).new
+    KubectlClient::Get.descendants(resource[:kind], resource[:name], resource[:namespace]).each do |descendant|
+      owned_pod_uids.add(descendant[:uid]) if descendant[:kind].downcase == "pod"
+    end
     owned_size = items.count do |pod|
-      refs = pod.dig?("metadata", "ownerReferences").try(&.as_a?) || [] of JSON::Any
-      uid && refs.any? { |ref| ref.dig?("uid").try(&.as_s?) == uid }
+      pod_uid = pod.dig?("metadata", "uid").try(&.as_s?)
+      pod_uid && owned_pod_uids.includes?(pod_uid)
     end
 
     ordered.each do |key, value|
@@ -64,7 +76,9 @@ module LitmusManager
       matching = items.count do |pod|
         pod.dig?("metadata", "labels", key_s).try(&.as_s?) == value_s
       end
-      if matching == owned_size
+      # Require a strictly positive population so a scaled-to-zero workload (or
+      # an unresolved backend) never "uniquely selects" a label no pod carries.
+      if owned_size > 0 && matching == owned_size
         logger.info { "Targeting #{resource[:kind]}/#{resource[:name]} with #{key_s}=#{value_s} (#{matching} pod(s))" }
         return {key_s, value_s}
       end
@@ -196,19 +210,20 @@ module LitmusManager
     nil
   end
 
-  # True when a disk-fill fault can be injected into at least one of the given
-  # application containers. The litmus disk-fill helper writes a file into the
-  # target container's root file system (`dd ... <container-root>/...`); when
-  # every container mounts a read-only root file system the injection fails with
-  # "Read-only file system" and the experiment errors out in ChaosInject.
+  # True when a root-filesystem fault (disk_fill's `dd`, pod_io_stress's `fio`)
+  # can be injected into at least one of the given application containers. Both
+  # litmus helpers write a file into the target container's root file system;
+  # when every container mounts a read-only root file system the injection
+  # fails ("Read-only file system" / "exit status 1") and the experiment errors
+  # out in ChaosInject.
   #
   # A workload composed only of `readOnlyRootFilesystem: true` containers is
-  # already hardened against disk fill, so disk_fill must not score it as a
-  # failure - the injection is impossible by design. See the disk_fill task.
+  # already hardened against such faults, so disk_fill / pod_io_stress must not
+  # score it as a failure - the injection is impossible by design.
   #
   # An empty or unknown container list is treated as injectable so we keep the
   # historical behavior of running the fault rather than skipping blindly.
-  def self.disk_fill_injectable?(containers : JSON::Any) : Bool
+  def self.filesystem_fault_injectable?(containers : JSON::Any) : Bool
     list = containers.as_a?
     return true if list.nil? || list.empty?
     list.any? do |container|
