@@ -232,6 +232,40 @@ module LitmusManager
     end
   end
 
+  # Runtime name and socket path the litmus chaos helpers need to exec into a
+  # target container, derived from a node's containerRuntimeVersion (e.g.
+  # "containerd://2.0.2"). Returns nil when the runtime is not one the helpers
+  # understand, in which case the caller should skip rather than ship the
+  # default containerd values into an incompatible cluster.
+  def self.runtime_socket_for(container_runtime : String) : {String, String}?
+    name = container_runtime.split("://", 2).first.strip.downcase
+    case name
+    when "docker"
+      {"docker", "/var/run/docker.sock"}
+    when "containerd"
+      {"containerd", "/run/containerd/containerd.sock"}
+    when "crio", "cri-o"
+      {"crio", "/var/run/crio/crio.sock"}
+    else
+      nil
+    end
+  end
+
+  # {runtime, socket_path} for the cluster, from the first node whose container
+  # runtime is supported, or nil when none of them is. The chaos engine must
+  # not arm the experiment with a hard-coded containerd socket on a docker or
+  # cri-o cluster: the litmus helper would be unable to reach the runtime at
+  # injection time and would report a runtime error.
+  def self.detect_runtime_socket : {String, String}?
+    runtimes = KubectlClient::Get.container_runtimes
+    runtimes.each do |runtime|
+      resolved = runtime_socket_for(runtime)
+      return resolved if resolved
+    end
+    Log.for("LitmusManager.detect_runtime_socket").warn { "Unsupported container runtime(s) for chaos injection: #{runtimes.join(", ")}" }
+    nil
+  end
+
   def self.chaos_manifests_path
     Log.info {"chaos_manifests_path"}
     chaos_manifests = "#{tools_path}/chaos-experiments"
