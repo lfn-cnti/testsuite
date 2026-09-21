@@ -1,0 +1,93 @@
+# Values for the ocudu-gnb chart: test mode on a small cluster.
+image:
+  # AVX2 build: GitHub-hosted runners do not guarantee AVX-512. "-stable" tags are
+  # retained; plain nightly tags are deleted after 30 days.
+  repository: registry.gitlab.com/ocudu/ocudu/ocudu_nightly_avx2
+  tag: "20260914_75146075-stable"
+
+# No fronthaul NIC with ru_dummy: the chart otherwise requests an SR-IOV VF
+# (intel.com/intel_sriov_netdevice) that no plain cluster node can offer, and the pod
+# never schedules. The pod stays on the CNI network (hostNetwork: false).
+sriovConfig:
+  enabled: false
+
+# The gNB logs to stdout (see log.filename below). With preserveOldLogs the entrypoint
+# derives a timestamped log directory from that filename ("./<timestamp>"), which the
+# non-root container cannot create, and exits before starting the gNB.
+persistence:
+  # No hostPath log volume (the chart's default): an emptyDir is enough for stdout logging.
+  enabled: false
+  preserveOldLogs: false
+
+# A 4-vCPU runner: one 20 MHz 1x1 cell in test mode instead of the chart's default
+# 100 MHz 4T2R, no hugepages.
+# Sized so that three replicas (increase_decrease_capacity) fit on the two 4-vCPU
+# worker nodes of the runner's kind cluster.
+resources:
+  requests:
+    cpu: "1"
+    memory: 2Gi
+  limits:
+    cpu: "2"
+    memory: 3Gi
+
+config:
+  gnb-config.yml: |-
+    cu_cp:
+      amf:
+        # No core network: the CU-CP runs standalone.
+        no_core: true
+        supported_tracking_areas:
+          - tac: 7
+            plmn_list:
+              - plmn: "00101"
+                tai_slice_support_list:
+                  - sst: 1
+
+    # Dummy radio unit: no fronthaul, no RU; the DU still runs its full L1/L2.
+    # time_scaling > 1 slows the dummy RU's slot clock and with it the CPU load per
+    # gNB, so that three replicas (increase_decrease_capacity) come up on 4 vCPUs.
+    ru_dummy:
+      dl_processing_delay: 1
+      time_scaling: 2
+
+    cell_cfg:
+      dl_arfcn: 632628
+      band: 78
+      channel_bandwidth_MHz: 20
+      common_scs: 30
+      plmn: "00101"
+      tac: 7
+      pci: 1
+      nof_antennas_dl: 1
+      nof_antennas_ul: 1
+      prach:
+        prach_config_index: 7
+        prach_root_sequence_index: 1
+        zero_correlation_zone: 0
+        prach_frequency_start: 0
+      tdd_ul_dl_cfg:
+        dl_ul_tx_period: 10
+        nof_dl_slots: 7
+        nof_dl_symbols: 6
+        nof_ul_slots: 2
+        nof_ul_symbols: 4
+
+    # Built-in traffic generator: one emulated UE with PDSCH and PUSCH active
+    # (configs/testmode.yml in the OCUDU repository).
+    test_mode:
+      test_ue:
+        rnti: 0x44
+        ri: 1
+        cqi: 15
+        nof_ues: 1
+        pusch_active: true
+        pdsch_active: true
+
+    log:
+      filename: stdout
+      all_level: warning
+
+    metrics:
+      autostart_stdout_metrics: false
+      enable_json: false
