@@ -497,6 +497,18 @@ scored_task "pod_io_stress",
   deps: ["setup:install_litmus"],
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # The litmus helper injects the IO stress through the node's container
+    # runtime, so the engine must advertise the actual runtime and its socket
+    # rather than a hard-coded containerd path. Skip cleanly when the cluster
+    # runs something the helpers do not understand.
+    runtime_socket = LitmusManager.detect_runtime_socket
+    unless runtime_socket
+      runtimes = KubectlClient::Get.container_runtimes
+      result.skipped("pod_io_stress not applicable: unsupported container runtime (#{runtimes.join(", ")})")
+      next
+    end
+    container_runtime, socket_path = runtime_socket
+
     runnable_containers = 0
     skipped_hardened = 0
     task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
@@ -544,7 +556,9 @@ scored_task "pod_io_stress",
           "#{resource["kind"].downcase}",
           deployment_label,
           deployment_label_value,
-          target_pod_name
+          target_pod_name,
+          container_runtime: container_runtime,
+          socket_path: socket_path
         ).to_s
 
         chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
