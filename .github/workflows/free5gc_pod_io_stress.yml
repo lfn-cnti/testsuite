@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   free5gc-pod-io-stress-validation:
-    runs-on: [v1.0.0]
+    runs-on: [free5gc]
     timeout-minutes: 720
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -39,9 +39,6 @@ jobs:
           cat <<EOF > kind_setup.yaml
           kind: Cluster
           apiVersion: kind.x-k8s.io/v1alpha4
-          containerdConfigPatches:
-          - |-
-            root = "/tmp/containerd"
           nodes:
           - role: control-plane
             kubeadmConfigPatches:
