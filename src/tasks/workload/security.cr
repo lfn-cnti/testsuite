@@ -356,7 +356,7 @@ end
 
 desc "Check if the containers have CPU requests or limits set"
 scored_task "cpu_limits",
-  type: CNFManager::TestType::Bonus,
+  type: CNFManager::TestType::Essential,
   emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     # CPU limits are disputed: they throttle CPU usage and hurt tail latency,
