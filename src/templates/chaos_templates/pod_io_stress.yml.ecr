@@ -5,6 +5,7 @@ metadata:
   namespace: <%= @app_namespace %>
 spec:
   engineState: 'active'
+  jobCleanUpPolicy: 'retain'
   appinfo:
     appns: '<%= @app_namespace %>'
     applabel: '<%= @deployment_label %>=<%= @deployment_label_value %>'
