@@ -1,0 +1,92 @@
+# TEMPORARY workflow: validate the bounded pod_io_stress fix on free5gc.
+# Trigger it with a pull request and remove both this file and
+# spec/free5gc_pod_io_stress_spec.cr once the fix is confirmed.
+name: free5GC pod_io_stress validation (temporary)
+
+on:
+  pull_request:
+
+concurrency:
+  group: free5gc-pod-io-stress-validation
+  cancel-in-progress: false
+
+jobs:
+  free5gc-pod-io-stress-validation:
+    runs-on: [v1.0.0]
+    timeout-minutes: 720
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+      KIND_CLUSTER_NAME: free5gc-pod-io-stress-${{ github.run_id }}
+    steps:
+      - name: Checkout Code & Submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Login to Docker Hub
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_PASSWORD }}
+      - name: Install kind
+        uses: ./.github/actions/install-kind
+      - name: Setup Kind Cluster with Sysctl Patch
+        run: |
+          cat <<EOF > kind_setup.yaml
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          containerdConfigPatches:
+          - |-
+            root = "/tmp/containerd"
+          nodes:
+          - role: control-plane
+            kubeadmConfigPatches:
+            - |
+              kind: KubeletConfiguration
+              allowedUnsafeSysctls:
+                - "net.ipv4.ip_forward"
+                - "net.ipv4.conf.all.forwarding"
+            - |
+              kind: ClusterConfiguration
+              etcd:
+                local:
+                  dataDir: /tmp/etcd
+            extraMounts:
+            - containerPath: /var/lib/kubelet/config.json
+              hostPath: $HOME/.docker/config.json
+          - role: worker
+            kubeadmConfigPatches:
+            - |
+              kind: KubeletConfiguration
+              allowedUnsafeSysctls:
+                - "net.ipv4.ip_forward"
+                - "net.ipv4.conf.all.forwarding"
+            extraMounts:
+            - containerPath: /var/lib/kubelet/config.json
+              hostPath: $HOME/.docker/config.json
+          - role: worker
+            kubeadmConfigPatches:
+            - |
+              kind: KubeletConfiguration
+              allowedUnsafeSysctls:
+                - "net.ipv4.ip_forward"
+                - "net.ipv4.conf.all.forwarding"
+            extraMounts:
+            - containerPath: /var/lib/kubelet/config.json
+              hostPath: $HOME/.docker/config.json
+          EOF
+          kind create cluster --name "$KIND_CLUSTER_NAME" --config kind_setup.yaml --wait 5m
+      - name: Build CNTi Test Suite
+        run: |
+          shards install
+          crystal build src/cnti-testsuite.cr
+      - name: Run pod_io_stress against Free5GC
+        run: |
+          CNTI_TESTSUITE_LOG_LEVEL=INFO crystal spec --tag free5gc_pod_io_stress -v
+      - name: Delete Kind Cluster
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          until kind delete cluster --name "$KIND_CLUSTER_NAME" --verbosity 1; do sleep 1; done
