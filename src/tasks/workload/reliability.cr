@@ -566,6 +566,9 @@ scored_task "pod_io_stress",
         KubectlClient::Apply.file(chaos_template_path)
         LitmusManager.wait_for_test(chaos_test_name, chaos_experiment_name, args, namespace: app_namespace)
         test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result)
+        unless test_passed
+          LitmusManager.dump_pod_io_stress_diagnostics(chaos_test_name, chaos_experiment_name, app_namespace, resource["kind"], resource["name"])
+        end
       end
 
       test_passed

@@ -300,4 +300,32 @@ module LitmusManager
 
     filepath
   end
+
+  def self.shell_kubectl(cmd : String) : String
+    output = IO::Memory.new
+    error = IO::Memory.new
+    Process.run(cmd, shell: true, output: output, error: error)
+    out = output.to_s
+    out = "(no output)" if out.empty?
+    err = error.to_s
+    out += "\nstderr: #{err}" unless err.empty?
+    out
+  end
+
+  def self.dump_pod_io_stress_diagnostics(test_name : String, chaos_experiment_name : String, namespace : String, target_kind : String, target_name : String)
+    logger = Log.for("LitmusManager.dump_pod_io_stress_diagnostics")
+    chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
+    logger.info { "=== pod_io_stress diagnostics for #{target_kind}/#{target_name} (#{chaos_result_name}) ===" }
+    {"chaosresult" => chaos_result_name, "chaosengine" => test_name}.each do |kind, name|
+      logger.info { "=== #{kind} #{name} ===\n#{shell_kubectl("kubectl get #{kind}.litmuschaos.io #{name} -n #{namespace} -o yaml")}" }
+    end
+    pods = shell_kubectl("kubectl get pods -n #{namespace} -o wide")
+    logger.info { "=== pods in #{namespace} ===\n#{pods}" }
+    pods.each_line do |line|
+      name = line.split(" ").first?
+      next unless name && (name.includes?("pod-io-stress") || name.includes?("chaos-engine") || name.ends_with?("-runner"))
+      logger.info { "=== logs #{name} ===\n#{shell_kubectl("kubectl logs pod/#{name} -n #{namespace} --all-containers --tail=300 --prefix")}" }
+    end
+    logger.info { "=== events in #{namespace} ===\n#{shell_kubectl("kubectl get events -n #{namespace} --sort-by=.lastTimestamp | tail -120")}" }
+  end
 end

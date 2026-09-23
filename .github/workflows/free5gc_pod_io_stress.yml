@@ -92,12 +92,13 @@ jobs:
         continue-on-error: true
         timeout-minutes: 10
         run: |
-          kubectl get pods -A
-          for p in $(kubectl get pods -A -o name | grep -E 'pod-io-stress|chaos-runner' || true); do
+          kubectl get pods -A -o wide
+          for p in $(kubectl get pods -A -o name | grep -E '(pod-io-stress|chaos-engine|chaos-runner|-runner)' | grep -v control-plane || true); do
             echo "=== $p ==="
-            kubectl logs $p --all-containers --tail=200 2>&1 || true
+            kubectl logs $p --all-containers --tail=200 --prefix 2>&1 || true
+            kubectl describe $p 2>&1 | tail -60 || true
           done
-          kubectl get events -A --sort-by=.lastTimestamp | tail -200
+          kubectl get events -A --sort-by=.lastTimestamp | head -4000
       - name: Delete Kind Cluster
         if: always()
         continue-on-error: true
