@@ -19,9 +19,12 @@ spec:
             - name: TOTAL_CHAOS_DURATION
               value: '<%= @total_chaos_duration %>'
 
-            ## specify the size as percentage of free space on the file system
+            # litmus only honors FILESYSTEM_UTILIZATION_BYTES when the percentage is '0'
             - name: FILESYSTEM_UTILIZATION_PERCENTAGE
-              value: '50'
+              value: '0'
+
+            - name: FILESYSTEM_UTILIZATION_BYTES
+              value: '<%= @filesystem_utilization_bytes %>'
             - name: TARGET_PODS
               value: '<%= @target_pod_name %>'
 

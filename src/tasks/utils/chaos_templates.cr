@@ -1,4 +1,6 @@
 NODE_DRAIN_TOTAL_CHAOS_DURATION = ENV.has_key?("CNTI_TESTSUITE_NODE_DRAIN_TOTAL_CHAOS_DURATION") ? ENV["CNTI_TESTSUITE_NODE_DRAIN_TOTAL_CHAOS_DURATION"].to_i : 90
+POD_IO_STRESS_TOTAL_CHAOS_DURATION = ENV.has_key?("CNTI_TESTSUITE_POD_IO_STRESS_TOTAL_CHAOS_DURATION") ? ENV["CNTI_TESTSUITE_POD_IO_STRESS_TOTAL_CHAOS_DURATION"].to_i : 60
+POD_IO_STRESS_FILESYSTEM_UTILIZATION_BYTES = ENV.has_key?("CNTI_TESTSUITE_POD_IO_STRESS_FS_UTILIZATION_BYTES") ? ENV["CNTI_TESTSUITE_POD_IO_STRESS_FS_UTILIZATION_BYTES"].to_i : 2
 
 class ChaosTemplates
   class PodIoStress
@@ -10,7 +12,8 @@ class ChaosTemplates
       @deployment_label : String,
       @deployment_label_value : String,
       @target_pod_name : String,
-      @total_chaos_duration : String = "120",
+      @total_chaos_duration : String = "#{POD_IO_STRESS_TOTAL_CHAOS_DURATION}",
+      @filesystem_utilization_bytes : String = "#{POD_IO_STRESS_FILESYSTEM_UTILIZATION_BYTES}",
       @container_runtime : String = "containerd",
       @socket_path : String = "/run/containerd/containerd.sock"
     )
