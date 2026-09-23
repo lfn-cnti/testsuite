@@ -582,11 +582,13 @@ scored_task "pod_io_stress",
 ensure
   # This ensures that no litmus-related resources are left behind after the test is run.
   # Only the default namespace is cleaned up.
-  begin
-    KubectlClient::Delete.resource("all", labels: {"app.kubernetes.io/part-of" => "litmus"})
-  rescue ex: KubectlClient::ShellCMD::NotFoundError
-    Log.warn { "Cannot delete resources with labels \"app.kubernetes.io/part-of\" => \"litmus\". Resource not found." }
-  end 
+  unless ENV.has_key?("CNTI_TESTSUITE_KEEP_LITMUS_RESOURCES")
+    begin
+      KubectlClient::Delete.resource("all", labels: {"app.kubernetes.io/part-of" => "litmus"})
+    rescue ex: KubectlClient::ShellCMD::NotFoundError
+      Log.warn { "Cannot delete resources with labels \"app.kubernetes.io/part-of\" => \"litmus\". Resource not found." }
+    end 
+  end
 end
 
 

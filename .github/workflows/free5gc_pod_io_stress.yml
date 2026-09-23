@@ -20,6 +20,7 @@ jobs:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
       KIND_CLUSTER_NAME: free5gc-pod-io-stress-${{ github.run_id }}
+      CNTI_TESTSUITE_KEEP_LITMUS_RESOURCES: '1'
     steps:
       - name: Checkout Code & Submodules
         uses: actions/checkout@v4
@@ -86,6 +87,17 @@ jobs:
       - name: Run pod_io_stress against Free5GC
         run: |
           CNTI_TESTSUITE_LOG_LEVEL=INFO crystal spec --tag free5gc_pod_io_stress -v
+      - name: Collect litmus Logs
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          kubectl get pods -A
+          for p in $(kubectl get pods -A -o name | grep -E 'pod-io-stress|chaos-runner' || true); do
+            echo "=== $p ==="
+            kubectl logs $p --all-containers --tail=200 2>&1 || true
+          done
+          kubectl get events -A --sort-by=.lastTimestamp | tail -200
       - name: Delete Kind Cluster
         if: always()
         continue-on-error: true
