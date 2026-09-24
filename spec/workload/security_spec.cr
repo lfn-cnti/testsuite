@@ -157,7 +157,7 @@ describe "Security" do
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf")
       result = ShellCmd.run_testsuite("cpu_limits")
       result[:status].success?.should be_true
-      (/(PASSED).*(Containers have CPU requests or limits set)/ =~ result[:output]).should_not be_nil
+      (/(PASSED).*(Containers have CPU limits set)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -168,15 +168,15 @@ describe "Security" do
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-operator/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("cpu_limits")
       result[:status].exit_code.should eq(1)
-      # The operator creates these Deployments without any CPU resources, so on
-      # a miss show what was reported.
+      # Kubescape findings name the field and the container (#2508). The
+      # operator creates these Deployments, so on a miss show what was reported.
       ["demo-labeled", "demo-owned"].each do |name|
-        expected = /impacted: Deployment\/#{name} in cnti-default \(container .+\): neither CPU requests nor limits set/
+        expected = /impacted: Deployment\/#{name} in cnti-default \(container .+\): spec\.template\.spec\.containers\[\d+\]\.resources\.limits\.cpu is not set/
         unless expected =~ result[:output]
           fail "no per-field finding for Deployment/#{name}; impacted lines were:\n#{result[:output].lines.select(&.includes?("impacted:")).join}"
         end
       end
-      (/remediation: Set CPU requests on containers that miss them; CPU limits are optional and can cause throttling\./ =~ result[:output]).should_not be_nil
+      (/remediation: Set the CPU limits or use exception mechanism to avoid unnecessary notifications\./ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end
