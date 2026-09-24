@@ -210,26 +210,19 @@ module LitmusManager
     nil
   end
 
-  # True when a root-filesystem fault (disk_fill's `dd`, pod_io_stress's `fio`)
-  # can be injected into at least one of the given application containers. Both
-  # litmus helpers write a file into the target container's root file system;
-  # when every container mounts a read-only root file system the injection
-  # fails ("Read-only file system" / "exit status 1") and the experiment errors
-  # out in ChaosInject.
-  #
-  # A workload composed only of `readOnlyRootFilesystem: true` containers is
-  # already hardened against such faults, so disk_fill / pod_io_stress must not
-  # score it as a failure - the injection is impossible by design.
-  #
-  # An empty or unknown container list is treated as injectable so we keep the
-  # historical behavior of running the fault rather than skipping blindly.
-  def self.filesystem_fault_injectable?(containers : JSON::Any) : Bool
-    list = containers.as_a?
-    return true if list.nil? || list.empty?
-    list.any? do |container|
-      ro = container.dig?("securityContext", "readOnlyRootFilesystem").try(&.as_bool?)
-      ro != true
+  # Name of the first application container a root-filesystem fault
+  # (disk_fill's `dd`, pod_io_stress's `fio`) can be injected into, or nil when
+  # every container mounts a read-only root file system. Both litmus helpers
+  # write a file into the target container's root file system, so a read-only
+  # one makes the injection fail in ChaosInject ("Read-only file system" /
+  # "exit status 1"); and both default to the pod's first container, so the
+  # engine must name a writable one explicitly.
+  def self.filesystem_fault_target(containers : JSON::Any) : String?
+    containers.as_a.each do |container|
+      read_only = container.dig?("securityContext", "readOnlyRootFilesystem").try(&.as_bool?)
+      return container["name"].as_s unless read_only == true
     end
+    nil
   end
 
   # Runtime name and socket path the litmus chaos helpers need to exec into a

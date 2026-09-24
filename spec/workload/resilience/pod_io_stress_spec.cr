@@ -30,6 +30,21 @@ describe "Resilience pod delete Chaos" do
     end
   end
 
+  it "'pod_io_stress' passes without injecting when every container has a read-only root file system", tags: ["pod_io_stress"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-zombie-readonly-rootfs/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("pod_io_stress")
+      result[:status].success?.should be_true
+      (/(PASSED).*(pod_io_stress chaos test passed: every container has a read-only root file system)/ =~ result[:output]).should_not be_nil
+      verify_task_result("pod_io_stress", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+      result = ShellCmd.run_testsuite("setup:uninstall_litmus")
+      result[:status].success?.should be_true
+    end
+  end
+
   after_all do
     result = ShellCmd.run_testsuite("uninstall_all")
   end

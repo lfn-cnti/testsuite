@@ -24,6 +24,9 @@ spec:
               value: '50'
             - name: TARGET_PODS
               value: '<%= @target_pod_name %>'
+            # empty means the pod's first container, which may be read-only
+            - name: TARGET_CONTAINER
+              value: '<%= @target_container %>'
 
               ## provide the cluster runtime
             - name: CONTAINER_RUNTIME

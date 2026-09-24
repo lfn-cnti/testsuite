@@ -12,7 +12,8 @@ class ChaosTemplates
       @target_pod_name : String,
       @total_chaos_duration : String = "120",
       @container_runtime : String = "containerd",
-      @socket_path : String = "/run/containerd/containerd.sock"
+      @socket_path : String = "/run/containerd/containerd.sock",
+      @target_container : String = ""
     )
     end
     ECR.def_to_s("src/templates/chaos_templates/pod_io_stress.yml.ecr")
@@ -79,7 +80,8 @@ class ChaosTemplates
       @app_namespace : String,
       @app_kind : String,
       @deployment_label : String,
-      @deployment_label_value : String
+      @deployment_label_value : String,
+      @target_container : String = ""
     )
     end
     ECR.def_to_s("src/templates/chaos_templates/disk_fill.yml.ecr")

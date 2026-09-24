@@ -27,8 +27,9 @@ spec:
               value: '10'
             - name: DISK_FILL_PERCENTAGE
               value: '80'
+            # empty means the pod's first container, which may be read-only
             - name: TARGET_CONTAINER
-              value: ''
+              value: '<%= @target_container %>'
             #- name: FILL_PERCENTAGE
             #  value: ''
             - name: CONTAINER_PATH
