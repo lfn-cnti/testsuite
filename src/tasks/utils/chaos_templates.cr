@@ -139,7 +139,9 @@ class ChaosTemplates
       @app_kind : String,
       @deployment_label : String,
       @deployment_label_value : String,
-      @total_chaos_duration : String = "120"
+      @total_chaos_duration : String = "120",
+      @container_runtime : String = "containerd",
+      @socket_path : String = "/run/containerd/containerd.sock"
     )
     end
     ECR.def_to_s("src/templates/chaos_templates/pod_dns_error.yml.ecr")

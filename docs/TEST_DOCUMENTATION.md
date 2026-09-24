@@ -809,6 +809,7 @@ Ensure that your CNF is resilient to erroneously duplicated packets and can main
 The [pod-dns error](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-dns-error/) experiment injects chaos to disrupt DNS resolution in kubernetes pods and causes loss of access to services by blocking DNS resolution of hostnames/domains.
 Measurement: LitmusChaos experiment [pod-dns-error](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-dns-error/); the Litmus version is in the results file's `tools`.
 Expectation: That the CNF doesn't crash is resilient to DNS resolution failures.
+The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) and its socket the same way `pod_io_stress` does, and the test is not applicable when the runtime is unsupported or no socket is found.
 Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
 
 #### Rationale

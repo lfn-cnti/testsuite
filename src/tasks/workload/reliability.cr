@@ -612,9 +612,23 @@ scored_task "pod_dns_error",
   deps: ["setup:install_litmus"],
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # The litmus helper reaches the target container through the node's
+    # container runtime, like pod-io-stress: detect the runtime and its socket
+    # and hand both to the engine. The test used to run only on a Docker
+    # runtime and was skipped on every containerd or CRI-O cluster (#2579).
     runtimes = KubectlClient::Get.container_runtimes
-    Log.info { "pod_dns_error runtimes: #{runtimes}" }
-    if runtimes.find{|r| r.downcase.includes?("docker")}
+    container_runtime = LitmusManager.detect_runtime(runtimes)
+    unless container_runtime
+      result.na("pod_dns_error not applicable: unsupported container runtime (#{runtimes.join(", ")})")
+      next
+    end
+    socket_path = LitmusManager.detect_runtime_socket(container_runtime)
+    unless socket_path
+      result.na("pod_dns_error not applicable: no #{container_runtime} socket found on the node, set #{LitmusManager::RUNTIME_SOCKET_ENV}")
+      next
+    end
+
+    begin
       task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _|
         app_namespace = resource[:namespace]
         spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
@@ -641,7 +655,9 @@ scored_task "pod_dns_error",
             app_namespace,
             "#{resource["kind"].downcase}",
             "#{spec_labels.first_key}",
-            "#{spec_labels.first_value}"
+            "#{spec_labels.first_value}",
+            container_runtime: container_runtime,
+            socket_path: socket_path
           ).to_s
           chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
           File.write(chaos_template_path, template)
@@ -653,8 +669,6 @@ scored_task "pod_dns_error",
         test_passed
       end
       chaos_verdict(result, t.name, task_response, tested)
-    else
-      result.skipped("pod_dns_error docker runtime not found")
     end
   end
 end

@@ -21,6 +21,14 @@ spec:
 
             - name: TOTAL_CHAOS_DURATION
               value: '<%= @total_chaos_duration %>'
-              
+
+            # empty means the pod's first container; the value used to be
+            # hard-coded to "coredns", which no other CNF has
             - name: TARGET_CONTAINER
-              value: "coredns"
+              value: ''
+
+            - name: CONTAINER_RUNTIME
+              value: '<%= @container_runtime %>'
+
+            - name: SOCKET_PATH
+              value: '<%= @socket_path %>'
