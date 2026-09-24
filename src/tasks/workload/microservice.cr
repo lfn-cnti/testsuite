@@ -497,27 +497,43 @@ scored_task "zombie_handled",
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     injection_failures = [] of String
     probed_containers = [] of String
-    CNFManager.resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |resource|
-      ClusterTools.all_containers_by_resource?(resource, resource[:namespace], include_proctree: false) do |container_id, container_pid_on_node, node|
-        # The probe runs from cluster-tools' own filesystem inside the container's PID
-        # namespace, so nothing is written into the container: a read-only root
-        # filesystem or a distroless image is probed like any other. /zombie forks a
-        # child that execs /sleep and exits at once, so the child is orphaned onto the
-        # container's PID 1 - the process under test - and is found later by its PPid.
-        probe_command = "nsenter --target #{container_pid_on_node} --pid -- /zombie"
-        cmd_result = ClusterTools.exec_by_node(probe_command, node)
-        if cmd_result[:status].success?
-          probed_containers << "#{resource[:kind]}/#{resource[:name]} container #{container_id.to_s[0, 12]}"
-        else
-          Log.for(t.name).error { "zombie probe could not be started in container #{container_id} (#{resource[:kind]}/#{resource[:name]}): #{probe_command}: #{cmd_result[:error]}" }
-          injection_failures << "#{resource[:kind]}/#{resource[:name]} container #{container_id}: `#{probe_command}` failed"
+    # A probe needs a running container to enter. The test before this one,
+    # sig_term_handled, terminates the CNF's PID 1 and the pod restarts; an
+    # enumeration that finds no container at all is retried for the readiness
+    # budget rather than taken as an answer (#2576). Nothing is probed twice:
+    # the retry only happens while both lists are still empty.
+    repeat_with_timeout(timeout: POD_READINESS_TIMEOUT, errormsg: "No running container of the CNF could be found to probe", delay: 5) do
+      CNFManager.resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |resource|
+        ClusterTools.all_containers_by_resource?(resource, resource[:namespace], include_proctree: false) do |container_id, container_pid_on_node, node|
+          # The probe runs from cluster-tools' own filesystem inside the container's PID
+          # namespace, so nothing is written into the container: a read-only root
+          # filesystem or a distroless image is probed like any other. /zombie forks a
+          # child that execs /sleep and exits at once, so the child is orphaned onto the
+          # container's PID 1 - the process under test - and is found later by its PPid.
+          probe_command = "nsenter --target #{container_pid_on_node} --pid -- /zombie"
+          cmd_result = ClusterTools.exec_by_node(probe_command, node)
+          if cmd_result[:status].success?
+            probed_containers << "#{resource[:kind]}/#{resource[:name]} container #{container_id.to_s[0, 12]}"
+          else
+            Log.for(t.name).error { "zombie probe could not be started in container #{container_id} (#{resource[:kind]}/#{resource[:name]}): #{probe_command}: #{cmd_result[:error]}" }
+            injection_failures << "#{resource[:kind]}/#{resource[:name]} container #{container_id}: `#{probe_command}` failed"
+          end
         end
       end
+      !(probed_containers.empty? && injection_failures.empty?)
     end
 
     unless injection_failures.empty?
       injection_failures.each { |failure| result.append_description(failure) }
       result.skipped("Zombie reaping not checked: the zombie probe could not be started in every container")
+      next
+    end
+
+    # The guard above covers a probe that was attempted and failed. This one
+    # covers the case where nothing could be attempted: a verdict needs at
+    # least one probed container, so an empty list is never a pass.
+    if probed_containers.empty?
+      result.skipped("Zombie reaping not checked: no running container of the CNF could be probed")
       next
     end
 
@@ -780,6 +796,10 @@ scored_task "sig_term_handled",
           # kubelet would, so the pod can restart and the next test starts clean.
           ClusterTools.exec_by_node("kill -9 #{pid} || true", node) unless survivors.empty? && !supervised
           sleep(Time::Span.new(seconds: STRACE_WAIT_BUFFER)) unless traced.empty?
+          # PID 1 is gone, so kubelet restarts the container. Give the pod the
+          # readiness budget to come back before moving on: the next test
+          # (zombie_handled) needs a running container to probe (#2576).
+          KubectlClient::Wait.wait_for_resource_availability("pod", pod_name, pod_namespace, POD_READINESS_TIMEOUT)
 
           not_delivered = traced.reject { |cpid| check_sigterm_in_strace_logs(cpid, node) }
           logger.info { "#{pod_name}/#{c_name}: judged #{judged}, survivors after #{grace_seconds}s: #{survivors}, never received SIGTERM: #{not_delivered}" }
