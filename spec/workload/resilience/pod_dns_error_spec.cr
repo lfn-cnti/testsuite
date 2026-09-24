@@ -18,6 +18,7 @@ describe "Resilience pod dns error Chaos" do
       result[:status].success?.should be_true
       # The kind cluster runs containerd; the fault must run there, not be skipped.
       (/(PASSED).*(pod_dns_error chaos test passed)/ =~ result[:output]).should_not be_nil
+      (/> Litmus pod-dns-error on Deployment\/envoy in .*: verdict Pass; target (deployment envoy|pod envoy-\S+) \((targeted|reverted)\)/ =~ result[:output]).should_not be_nil
       verify_task_result("pod_dns_error", "passed")
       
       latest_results = CNFManager::Points::Results.latest

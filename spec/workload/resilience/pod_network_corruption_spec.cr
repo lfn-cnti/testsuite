@@ -17,6 +17,7 @@ describe "Resilience Pod Network corruption Chaos" do
       result = ShellCmd.run_testsuite("pod_network_corruption")
       result[:status].success?.should be_true
       (/(PASSED).*(pod_network_corruption chaos test passed)/ =~ result[:output]).should_not be_nil
+      (/> Litmus pod-network-corruption on Deployment\/coredns-coredns in cnti-default: verdict Pass; target (deployment coredns-coredns|pod coredns-coredns-\S+) \((targeted|reverted)\)/ =~ result[:output]).should_not be_nil
       verify_task_result("pod_network_corruption", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()

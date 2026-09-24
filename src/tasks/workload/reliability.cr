@@ -93,6 +93,15 @@ def chaos_resource_test(args, config, result, task_name : String, check_containe
       result.append_description(message)
       next true
     end
+    # Litmus selects its target by a pod label; a workload whose template
+    # carries none cannot be targeted, and that is a finding, reported the
+    # same way by every chaos test (#2601).
+    spec_labels = KubectlClient::Get.resource_spec_labels(resource[:kind], resource[:name], resource[:namespace])
+    unless spec_labels.as_h? && !spec_labels.as_h.empty?
+      result.add_impacted_resource(resource[:kind], resource[:name], resource[:namespace],
+        reason: "no pod label in its template, litmus cannot target it for #{task_name}")
+      next false
+    end
     tested += 1
     block.call(resource, target, volumes)
   end
@@ -124,12 +133,7 @@ scored_task "pod_network_latency",
       app_namespace = resource[:namespace]
 
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
-      if spec_labels.as_h? && spec_labels.as_h.size > 0
-        test_passed = true
-      else
-        result.append_description("No resource label was found for resource: #{resource["name"]}")
-        test_passed = false
-      end
+      test_passed = true
 
       current_pod_key = ""
       current_pod_value = ""
@@ -190,7 +194,7 @@ scored_task "pod_network_latency",
         File.write(chaos_template_path, template)
         KubectlClient::Apply.file(chaos_template_path)
         LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
-        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result)
+        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result, target: "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}")
       end
 
       test_passed
@@ -214,12 +218,7 @@ scored_task "pod_network_corruption",
       Log.info {"Current Resource Name: #{resource["name"]} Type: #{resource["kind"]}"}
       app_namespace = resource[:namespace]
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
-      if spec_labels.as_h? && spec_labels.as_h.size > 0
-        test_passed = true
-      else
-        result.append_description("No resource label was found for resource: #{resource["name"]}")
-        test_passed = false
-      end
+      test_passed = true
       if test_passed
         LitmusManager.install_fault("pod-network-corruption", app_namespace, t.name)
  
@@ -242,7 +241,7 @@ scored_task "pod_network_corruption",
         File.write(chaos_template_path, template)
         KubectlClient::Apply.file(chaos_template_path)
         LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
-        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name, args, namespace: app_namespace, result: result)
+        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name, args, namespace: app_namespace, result: result, target: "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}")
       end
 
       test_passed
@@ -262,12 +261,7 @@ scored_task "pod_network_duplication",
       app_namespace = resource[:namespace]
       Log.info{ "Current Resource Name: #{resource["name"]} Type: #{resource["kind"]} Namespace: #{resource["namespace"]}"}
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
-      if spec_labels.as_h? && spec_labels.as_h.size > 0
-        test_passed = true
-      else
-        result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], reason: "no resource label found")
-        test_passed = false
-      end
+      test_passed = true
       if test_passed
         LitmusManager.install_fault("pod-network-duplication", app_namespace, t.name)
         Log.for(t.name).debug { "annotating resource for chaos: #{resource["name"]}" }
@@ -290,7 +284,7 @@ scored_task "pod_network_duplication",
         File.write(chaos_template_path, template)
         KubectlClient::Apply.file(chaos_template_path)
         LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
-        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result)
+        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result, target: "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}")
       end
 
       test_passed
@@ -328,12 +322,7 @@ scored_task "disk_fill",
 
       injected += 1
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
-      if spec_labels.as_h? && spec_labels.as_h.size > 0
-        test_passed = true
-      else
-        result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], reason: "no resource label found for #{t.name} test")
-        test_passed = false
-      end
+      test_passed = true
       if test_passed
         LitmusManager.install_fault("disk-fill", app_namespace, t.name)
 
@@ -359,7 +348,7 @@ scored_task "disk_fill",
         File.write(chaos_template_path, template)
         KubectlClient::Apply.file(chaos_template_path)
         LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
-        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name, chaos_experiment_name, args, namespace: app_namespace, result: result)
+        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name, chaos_experiment_name, args, namespace: app_namespace, result: result, target: "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}")
       end
 
       test_passed
@@ -378,12 +367,7 @@ scored_task "pod_delete",
     task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _|
       app_namespace = resource[:namespace]
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
-      if spec_labels.as_h? && spec_labels.as_h.size > 0
-        test_passed = true
-      else
-        result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], reason: "no resource label found for #{t.name} test")
-        test_passed = false
-      end
+      test_passed = true
 
       current_pod_key = ""
       current_pod_value = ""
@@ -450,7 +434,7 @@ scored_task "pod_delete",
         KubectlClient::Apply.file(chaos_template_path)
         LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
       end
-      test_passed=LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result)
+      test_passed=LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result, target: "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}")
       test_passed
     end
     unless args.named["pod-labels"]?
@@ -467,12 +451,7 @@ scored_task "pod_memory_hog",
     task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _|
       app_namespace = resource[:namespace]
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
-      if spec_labels.as_h? && spec_labels.as_h.size > 0
-        test_passed = true
-      else
-        result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], reason: "no resource label found for #{t.name} test")
-        test_passed = false
-      end
+      test_passed = true
       if test_passed
         LitmusManager.install_fault("pod-memory-hog", app_namespace, t.name)
 
@@ -498,7 +477,7 @@ scored_task "pod_memory_hog",
         File.write(chaos_template_path, template)
         KubectlClient::Apply.file(chaos_template_path)
         LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
-        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result)
+        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result, target: "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}")
       end
       test_passed
     end
@@ -555,12 +534,7 @@ scored_task "pod_io_stress",
 
       injected += 1
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
-      if spec_labels.as_h? && spec_labels.as_h.size > 0
-        test_passed = true
-      else
-        result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], reason: "no resource label found for #{t.name} test")
-        test_passed = false
-      end
+      test_passed = true
       if test_passed
         LitmusManager.install_fault("pod-io-stress", app_namespace, t.name)
 
@@ -588,7 +562,7 @@ scored_task "pod_io_stress",
         File.write(chaos_template_path, template)
         KubectlClient::Apply.file(chaos_template_path)
         LitmusManager.wait_for_test(chaos_test_name, chaos_experiment_name, args, namespace: app_namespace)
-        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result)
+        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result, target: "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}")
       end
 
       test_passed
@@ -632,12 +606,7 @@ scored_task "pod_dns_error",
       task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _|
         app_namespace = resource[:namespace]
         spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
-        if spec_labels.as_h? && spec_labels.as_h.size > 0
-          test_passed = true
-        else
-          result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], reason: "no resource label found for #{t.name} test")
-          test_passed = false
-        end
+        test_passed = true
         if test_passed
           LitmusManager.install_fault("pod-dns-error", app_namespace, t.name)
 
@@ -663,7 +632,7 @@ scored_task "pod_dns_error",
           File.write(chaos_template_path, template)
           KubectlClient::Apply.file(chaos_template_path)
           LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
-          test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result)
+          test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result, target: "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}")
         end
 
         test_passed
