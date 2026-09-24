@@ -402,18 +402,18 @@ Make sure the CNF exposes any of its containers as a Kubernetes Service. This is
 
 #### Overview
 
-This tests if multiple CNFs are using the same database.
-Expectation: Multiple microservices should not share the same database.
+Finds the databases among the CNF's workloads (MariaDB/MySQL, PostgreSQL, MongoDB, Redis, Cassandra, etcd, by image name or port) and watches each one's connections for a minute to see which CNF workloads connect to it. A workload counts as a service when a Service of the CNF selects its pods; other clients (jobs, batch workers) are listed but do not count. Every database is reported with the services that connected to it, and a database with two or more services is a finding. N/A when the CNF has no database.
+Expectation: No database of the CNF is used by more than one service.
 
 #### Rationale
 
-A K8s microservice should not share a database with another K8s database because it forces the two services to upgrade in lock step.
+A database shared by two services couples them: a schema change made for one breaks the other, they must upgrade in lock step and neither can be scaled, replaced or rolled back alone, which defeats the point of splitting them. This is the [integration database](https://martinfowler.com/bliki/IntegrationDatabase.html) anti-pattern; a service should own its data and expose it through its API. Sources: [Fowler, IntegrationDatabase](https://martinfowler.com/bliki/IntegrationDatabase.html); [microservices.io, database per service](https://microservices.io/patterns/data/database-per-service.html); [CBPP-0002 Microservices](https://github.com/lfn-cnti/bestpractices/blob/main/cbpps/cbpp-0002.md).
 
 Sources: [The Twelve-Factor App, backing services](https://12factor.net/backing-services); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
 
 #### Remediation
 
-Make sure that your CNFs containers are not sharing the same [database](https://martinfowler.com/bliki/IntegrationDatabase.html).
+Give each service its own database (or its own schema with no cross-service access) and expose the data through the owning service's API instead of a shared database.
 
 #### Usage
 

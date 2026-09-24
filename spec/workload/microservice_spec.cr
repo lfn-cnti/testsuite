@@ -13,12 +13,12 @@ describe "Microservice" do
     process_result.should be_true
   end
 
-  it "'shared_database' should be skipped no MariaDB containers are found", tags: ["shared_database1"]  do
+  it "'shared_database' should be N/A when the CNF has no database", tags: ["shared_database1"]  do
     begin
       ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_coredns/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].success?.should be_true
-      (/(N\/A).*(No MariaDB containers were found)/ =~ result[:output]).should_not be_nil
+      (/(N\/A).*(No database workload found in the CNF)/ =~ result[:output]).should_not be_nil
       verify_task_result("shared_database", "na")
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -32,6 +32,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].success?.should be_true
       (/(PASSED).*(No shared database found)/ =~ result[:output]).should_not be_nil
+      (/> StatefulSet\/test-mariadb in cnfspace \(MariaDB\/MySQL in container mariadb, port 3306\): services connected: Deployment\/test-wordpress in cnfspace/ =~ result[:output]).should_not be_nil
       verify_task_result("shared_database", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -45,6 +46,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].success?.should be_true
       (/(PASSED).*(No shared database found)/ =~ result[:output]).should_not be_nil
+      (/other clients: Deployment\/test-wordpress2 in cnfspace/ =~ result[:output]).should_not be_nil
       verify_task_result("shared_database", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -57,7 +59,8 @@ describe "Microservice" do
       ShellCmd.cnf_install("--cnf-config sample-cnfs/ndn-multi-db-connections-fail/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].exit_code.should eq(1)
-      (/(FAILED).*(Found a shared database)/ =~ result[:output]).should_not be_nil
+      (/(FAILED).*(Found 1 database\(s\) shared by more than one service)/ =~ result[:output]).should_not be_nil
+      (/impacted: StatefulSet\/test-mariadb in wordpress \(container mariadb\): MariaDB\/MySQL shared by 2 services: Deployment\/test-wordpress in wordpress, Deployment\/test-wordpress2 in wordpress/ =~ result[:output]).should_not be_nil
       verify_task_result("shared_database", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -66,7 +69,7 @@ describe "Microservice" do
     end
   end
 
-  it "'shared_database' should pass if two services on the cluster connect to the same database but they are not in the helm chart of the cnf", tags: ["shared_database4"]  do
+  it "'shared_database' should be N/A when the shared database on the cluster is not part of the CNF", tags: ["shared_database4"]  do
     begin
       ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_coredns")
       KubectlClient::Apply.namespace(DEFAULT_CNF_NAMESPACE)
@@ -74,15 +77,10 @@ describe "Microservice" do
       Helm.install("multi-db", "sample-cnfs/ndn-multi-db-connections-fail/wordpress/", DEFAULT_CNF_NAMESPACE)
       KubectlClient::Wait.resource_wait_for_install(kind: "Deployment", resource_name: "multi-db-wordpress", wait_count: 180, namespace: DEFAULT_CNF_NAMESPACE)
       KubectlClient::Wait.resource_wait_for_install(kind: "Deployment", resource_name: "multi-db-wordpress2", wait_count: 180, namespace: DEFAULT_CNF_NAMESPACE)
-      # todo kubctl appy of all resourcesin ndn-multi-db-connections-fail
-      # todo cnf_install of coredns
-      # todo run shared_database (should pass)
-      # todo kubectl delete on ndn resourcws
-      # toto cnf_uninstall on coredns
       result = ShellCmd.run_testsuite("shared_database")
       result[:status].success?.should be_true
-      (/(PASSED).*(No shared database found)/ =~ result[:output]).should_not be_nil
-      verify_task_result("shared_database", "passed")
+      (/(N\/A).*(No database workload found in the CNF)/ =~ result[:output]).should_not be_nil
+      verify_task_result("shared_database", "na")
     ensure
       Helm.uninstall("multi-db", DEFAULT_CNF_NAMESPACE)
       KubectlClient::Delete.resource("pvc", "data-multi-db-mariadb-0")

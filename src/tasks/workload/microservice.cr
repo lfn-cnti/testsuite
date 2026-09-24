@@ -22,82 +22,141 @@ enum StraceAttachResult
   NoSuchProcess
 end
 
-desc "To check if the CNF has multiple microservices that share a database"
+# How long shared_database watches each database's connections, and how
+# often it samples them; TIME_WAIT entries keep a client visible for about
+# a minute after it disconnects.
+SHARED_DATABASE_OBSERVATION_SECONDS = 60
+SHARED_DATABASE_SAMPLE_INTERVAL_SECONDS = 5
+
+alias WorkloadRef = NamedTuple(kind: String, name: String, namespace: String)
+
+def workload_label(ref : WorkloadRef) : String
+  "#{ref[:kind]}/#{ref[:name]} in #{ref[:namespace]}"
+end
+
+desc "Does each service of the CNF have its own database?"
 scored_task "shared_database",
   deps: ["setup:install_cluster_tools"],
   emoji: "💾" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    # todo loop through local resources and see if db match found
-    db_match = Netstat::Mariadb.match
-
-    if db_match[:found] == false
-      result.na("[shared_database] No MariaDB containers were found")
+    # Databases among the CNF's own workloads (#2597): MariaDB/MySQL,
+    # PostgreSQL, MongoDB, Redis, Cassandra and etcd, by image name or port.
+    databases = [] of NamedTuple(ref: WorkloadRef, container: String, kind: String, port: Int32)
+    CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, _|
+      containers.as_a.each do |container|
+        if db = Netstat::Database.detect(container)
+          databases << {ref: resource, container: container["name"].as_s, kind: db[:name], port: db[:port]}
+        end
+      end
+      true
+    end
+    if databases.empty?
+      result.na("No database workload found in the CNF")
       next
     end
 
-    resource_ymls = CNFManager.cnf_workload_resources(args, config) { |resource| resource }
-    resource_names = Helm.workload_resource_kind_names(resource_ymls)
-    helm_chart_cnf_services : Array(JSON::Any)
-    helm_chart_cnf_services = resource_names.map do |resource_name|
-      Log.info { "helm_chart_cnf_services resource_name: #{resource_name}"}
-      if resource_name[:kind].downcase == "service"
-        #todo check for namespace
-        resource = KubectlClient::Get.resource(resource_name[:kind], resource_name[:name], resource_name[:namespace])
-      end
-      resource
-    end.flatten.compact
-
-    Log.info { "helm_chart_cnf_services: #{helm_chart_cnf_services}"}
-
-    db_pod_ips = Netstat::K8s.get_all_db_pod_ips
-
-    cnf_service_pod_ips = [] of Array(NamedTuple(service_group_id: Int32, pod_ips: Array(JSON::Any)))
-    helm_chart_cnf_services.each_with_index do |helm_cnf_service, index|
-      service_pods = KubectlClient::Get.pods_by_service(helm_cnf_service)
-      if service_pods
-        cnf_service_pod_ips << service_pods.map { |pod|
-          {
-            service_group_id: index,
-            pod_ips: pod.dig("status", "podIPs").as_a.select{|ip|
-              db_pod_ips.select{|dbip| dbip["ip"].as_s != ip["ip"].as_s}
-            }
-          }
-
-        }.flatten.compact
+    # Pods of every CNF workload: the clients whose connections are read. A
+    # workload counts as a service when a Service of the CNF selects its
+    # pods; other clients (jobs, batch workers) are reported but do not make
+    # the database shared.
+    pods_of = {} of WorkloadRef => Array(JSON::Any)
+    CNFManager.resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |ref|
+      live = KubectlClient::Get.resource(ref[:kind], ref[:name], ref[:namespace])
+      pods_of[ref] = KubectlClient::Get.pods_by_resource_labels(live, ref[:namespace])
+    end
+    service_backed = Set(WorkloadRef).new
+    CNFManager.resource_refs(args, config, ["service"]) do |svc|
+      selector = KubectlClient::Get.resource(svc[:kind], svc[:name], svc[:namespace]).dig?("spec", "selector").try(&.as_h?)
+      next if selector.nil? || selector.empty?
+      pods_of.each do |ref, pods|
+        next unless ref[:namespace] == svc[:namespace]
+        service_backed << ref unless KubectlClient::Get.pods_by_labels(pods, selector).empty?
       end
     end
 
-    cnf_service_pod_ips = cnf_service_pod_ips.compact.flatten
-    Log.info { "cnf_service_pod_ips: #{cnf_service_pod_ips}"}
-
-
-    violators = Netstat::K8s.get_multiple_pods_connected_to_mariadb_violators
-
-    Log.info { "violators: #{violators}"}
-    Log.info { "cnf_service_pod_ips: #{cnf_service_pod_ips}"}
-
-
-    cnf_violators = violators.find do |violator|
-      cnf_service_pod_ips.find do |service|
-        service["pod_ips"].find do |ip|
-          violator["ip"].as_s.includes?(ip["ip"].as_s)
+    shared = 0
+    databases.each do |db|
+      label = "#{workload_label(db[:ref])} (#{db[:kind]} in container #{db[:container]}, port #{db[:port]})"
+      # Where a client's socket can point at this database: its pods on the
+      # database port, and the cluster IPs of the Services selecting those
+      # pods, on each of their ports. A client connects to the Service, and
+      # the translation to a pod happens outside its namespace, so its own
+      # connection table shows the cluster IP.
+      db_pods = pods_of[db[:ref]]? || [] of JSON::Any
+      endpoints = Set(String).new
+      db_pods.each do |pod|
+        (pod.dig?("status", "podIPs").try(&.as_a?) || [] of JSON::Any).each { |ip| endpoints << "#{ip["ip"]}:#{db[:port]}" if ip["ip"]? }
+      end
+      (KubectlClient::Get.resource("services", namespace: db[:ref][:namespace])["items"]?.try(&.as_a?) || [] of JSON::Any).each do |svc|
+        selector = svc.dig?("spec", "selector").try(&.as_h?)
+        next if selector.nil? || selector.empty? || KubectlClient::Get.pods_by_labels(db_pods, selector).empty?
+        ips = (svc.dig?("spec", "clusterIPs").try(&.as_a?) || [] of JSON::Any).compact_map(&.as_s?).reject { |ip| ip == "None" }
+        (svc.dig?("spec", "ports").try(&.as_a?) || [] of JSON::Any).each do |port|
+          ips.each { |ip| endpoints << "#{ip}:#{port["port"]}" }
         end
       end
+
+      # Connections are read on the client side: a client that closes first
+      # leaves a TIME_WAIT entry in its own namespace for a minute, while the
+      # server side forgets the connection at once, so the database's pods
+      # would show nothing between two requests. Every pod of every other
+      # workload is sampled; watching stops once each workload has been seen.
+      others = pods_of.keys.reject { |ref| ref == db[:ref] }
+      clients = [] of NamedTuple(ref: WorkloadRef, pod: String, node: String, pid: Int64)
+      others.each do |ref|
+        pods_of[ref].each do |pod|
+          pod_name = pod.dig("metadata", "name").as_s
+          status = (pod.dig?("status", "containerStatuses").try(&.as_a?) || [] of JSON::Any).find { |c| c.dig?("state", "running") }
+          container_id = status.try(&.dig?("containerID")).try(&.as_s?)
+          node = pod.dig?("spec", "nodeName").try(&.as_s?)
+          next if container_id.nil? || node.nil?
+          pid = Netstat::K8s.container_pid(node, container_id)
+          if pid.nil?
+            result.append_description("#{workload_label(ref)}: could not find the process of pod #{pod_name} on node #{node}, its connections were not read")
+            next
+          end
+          clients << {ref: ref, pod: pod_name, node: node, pid: pid}
+        end
+      end
+
+      seen = {} of WorkloadRef => Set(String)
+      rounds = SHARED_DATABASE_OBSERVATION_SECONDS // SHARED_DATABASE_SAMPLE_INTERVAL_SECONDS
+      rounds.times do |round|
+        clients.each do |client|
+          next if seen.has_key?(client[:ref])
+          connected = Netstat::K8s.connections(client[:node], client[:pid]).any? do |conn|
+            endpoints.includes?("#{Netstat.address_ip(conn[:foreign_address])}:#{Netstat.address_port(conn[:foreign_address])}")
+          end
+          (seen[client[:ref]] ||= Set(String).new) << client[:pod] if connected
+        end
+        break if others.all? { |ref| seen.has_key?(ref) }
+        sleep(SHARED_DATABASE_SAMPLE_INTERVAL_SECONDS.seconds) if round + 1 < rounds
+      end
+
+      services = seen.keys.select { |ref| service_backed.includes?(ref) }.sort_by { |ref| workload_label(ref) }
+      non_services = seen.keys - services
+      summary = [] of String
+      summary << "services connected: #{services.map { |r| workload_label(r) }.join(", ")}" unless services.empty?
+      summary << "other clients: #{non_services.map { |r| workload_label(r) }.join(", ")}" unless non_services.empty?
+      summary << "no CNF workload connected in #{SHARED_DATABASE_OBSERVATION_SECONDS} s" if seen.empty?
+      result.append_description("#{label}: #{summary.join("; ")}")
+
+      next if services.size < 2
+      shared += 1
+      names = services.map { |r| workload_label(r) }.join(", ")
+      result.add_impacted_resource(db[:ref][:kind], db[:ref][:name], db[:ref][:namespace], container: db[:container],
+        reason: "#{db[:kind]} shared by #{services.size} services: #{names}")
+      services.each do |svc|
+        result.add_impacted_resource(svc[:kind], svc[:name], svc[:namespace],
+          reason: "connects to the #{db[:kind]} of #{workload_label(db[:ref])}, shared with #{services.reject { |r| r == svc }.map { |r| workload_label(r) }.join(", ")}")
+      end
     end
 
-    Log.info { "cnf_violators: #{cnf_violators}"}
-
-    integrated_database_found = false
-
-    if violators.size > 1 && cnf_violators
-      result.append_description("Found multiple pod ips from different services that connect to the same database: #{violators}")
-      integrated_database_found = true 
-    end
-
-    if integrated_database_found
-      result.failed("Found a shared database (ভ_ভ) ރ")
-    else
+    if shared == 0
       result.passed("No shared database found 🖥️")
+    else
+      result.append_remediation("Give each service its own database (or its own schema with no cross-service access) and expose the data through the owning service's API instead of a shared [integration database](https://martinfowler.com/bliki/IntegrationDatabase.html).")
+      result.failed("Found #{shared} database(s) shared by more than one service (ভ_ভ) ރ")
     end
   end
 end

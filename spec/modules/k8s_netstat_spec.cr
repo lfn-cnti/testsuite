@@ -1,57 +1,40 @@
 require "../spec_helper.cr"
 
-def helm_install(release_name : String, helm_chart_or_directory : String, helm_namespace_option = nil, helm_values = nil)
-  install_success = true
+describe "Netstat" do
+  netstat_output = <<-OUT
+  Active Internet connections (w/o servers)
+  Proto Recv-Q Send-Q Local Address           Foreign Address         State
+  tcp        0      0 10.244.0.193:3306       10.244.0.194:36378      TIME_WAIT
+  tcp        0      0 10.244.0.193:3306       10.244.0.195:36680      ESTABLISHED
+  tcp6       0      0 ::ffff:10.244.0.193:3306 ::ffff:10.244.0.196:41000 ESTABLISHED
+  Active UNIX domain sockets (w/o servers)
+  Proto RefCnt Flags       Type       State         I-Node   Path
+  unix  3      [ ]         STREAM     CONNECTED     123456   /run/mysqld/mysqld.sock
+  OUT
 
-  begin
-    resp = Helm.install(release_name, helm_chart_or_directory, helm_namespace_option, helm_values)
-    Log.info { resp }
-    install_success = (resp[:status].exit_status == 0)
-  rescue e : Helm::ShellCMD::CannotReuseReleaseNameError
-    Log.info {"Release name #{release_name} has already been setup."}
-    install_success = false
-  rescue e : Helm::ShellCMD::HelmCMDException
-    Log.fatal {"Helm installation failed"} 
-    Log.fatal {"\t#{e.message}"} 
-    install_success = false
+  it "parses the TCP connections and ignores headers and UNIX sockets", tags: ["k8s_netstat"] do
+    connections = Netstat.parse(netstat_output)
+    connections.size.should eq 3
+    connections[0][:foreign_address].should eq "10.244.0.194:36378"
+    connections[0][:state].should eq "TIME_WAIT"
+    connections[2][:proto].should eq "tcp6"
   end
 
-  (install_success).should be_true
-end
-
-describe "netstat" do
-  before_all do
-    KubectlClient::Apply.namespace("cnti-testsuite")
-    ClusterTools.install
+  it "extracts the IP and port of IPv4 and IPv4-mapped addresses", tags: ["k8s_netstat"] do
+    Netstat.address_ip("10.244.0.194:36378").should eq "10.244.0.194"
+    Netstat.address_port("10.244.0.194:36378").should eq "36378"
+    Netstat.address_ip("::ffff:10.244.0.196:41000").should eq "10.244.0.196"
+    Netstat.address_port("::ffff:10.244.0.193:3306").should eq "3306"
   end
 
-  after_all do
-    # Cleanup logic after all tests have run
-    KubectlClient::Delete.resource("pvc", "data-wordpress-mariadb-0")
-    KubectlClient::Delete.resource("pvc", "wordpress")
-    Log.info { "Cleanup complete" }
-  end
-
-  it "cnf with two services on the cluster that connect to the same database", tags:["k8s_netstat"] do
-    release_name = "wordpress"
-    helm_chart_directory = "sample-cnfs/ndn-multi-db-connections-fail/wordpress"
-
-    resp = Helm.uninstall(release_name)
-    helm_install(release_name, helm_chart_directory)
-    KubectlClient::Wait.resource_wait_for_install(kind = "Deployment", resource_name = "wordpress", wait_count = 180, namespace = "default")
-    violators = Netstat::K8s.get_multiple_pods_connected_to_mariadb_violators
-    (Netstat::K8s.detect_multiple_pods_connected_to_mariadb_from_violators(violators)).should be_false
-  end
-
-  it "cnf with no database is used by two microservices", tags:["k8s_netstat"] do
-    release_name = "test"
-    helm_chart = "bitnami/wordpress"
-
-    Helm.helm_repo_add("bitnami", "https://charts.bitnami.com/bitnami")
-    resp = Helm.uninstall(release_name)
-    helm_install(release_name, helm_chart, nil, "--set mariadb.primary.persistence.enabled=false --set persistence.enabled=false")
-    KubectlClient::Wait.resource_wait_for_install(kind = "Deployment", resource_name = "test-wordpress", wait_count = 180, namespace = "default")
-    violators = Netstat::K8s.get_multiple_pods_connected_to_mariadb_violators
-    (Netstat::K8s.detect_multiple_pods_connected_to_mariadb_from_violators(violators)).should be_false
+  it "recognises databases by image name and by port, and nothing else", tags: ["k8s_netstat"] do
+    detect = ->(json : String) { Netstat::Database.detect(JSON.parse(json)) }
+    detect.call(%({"name":"mariadb","image":"bitnamilegacy/mariadb:10.6.9-debian-11-r0"})).should eq({name: "MariaDB/MySQL", port: 3306})
+    detect.call(%({"name":"db","image":"ghcr.io/org/postgresql@sha256:0123"})).should eq({name: "PostgreSQL", port: 5432})
+    detect.call(%({"name":"mongo","image":"mongo:7"})).should eq({name: "MongoDB", port: 27017})
+    detect.call(%({"name":"cache","image":"valkey/valkey:8"})).should eq({name: "Redis", port: 6379})
+    detect.call(%({"name":"store","image":"my-registry/custom-db:1","ports":[{"containerPort":5432}]})).should eq({name: "PostgreSQL", port: 5432})
+    detect.call(%({"name":"exporter","image":"prom/mysqld-exporter:v0.15"})).should be_nil
+    detect.call(%({"name":"app","image":"coredns/coredns:1.11","ports":[{"containerPort":53}]})).should be_nil
   end
 end
