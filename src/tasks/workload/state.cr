@@ -511,56 +511,47 @@ scored_task "no_local_volume_configuration",
   type: CNFManager::TestType::Bonus,
   emoji: "💾" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    task_response = CNFManager.cnf_workload_resources(args, config) do | resource|
-      hostPath_found = nil 
-      begin
-        # Note: A storageClassName value of "local-storage" is insufficient to determine if the
-        # persistent volume is indeed local storage.  This is because the storageClass can be redefined
-        # to be anything (e.g. the name local-storage can be redefined to be block storage behind the scenes) 
-
-        volumes = [] of YAML::Any
-        if resource["spec"].as_h["template"].as_h["spec"].as_h["volumes"]?
-            volumes = resource["spec"].as_h["template"].as_h["spec"].as_h["volumes"].as_a 
+    # Note: A storageClassName value of "local-storage" is insufficient to determine if the
+    # persistent volume is indeed local storage.  This is because the storageClass can be redefined
+    # to be anything (e.g. the name local-storage can be redefined to be block storage behind the scenes)
+    # The PersistentVolume a claim is bound to is the authority: spec.local.path.
+    #
+    # No rescue-all here: the previous one turned any error reading a resource or
+    # a volume into a pass (#2594). A kubectl failure now errors the test, and a
+    # claim that is not bound to any PV is reported as undetermined, not as clean.
+    local = 0
+    unbound = 0
+    CNFManager.cnf_workload_resources(args, config) do |resource|
+      kind = resource["kind"].as_s
+      name = resource.dig("metadata", "name").as_s
+      namespace = resource.dig?("metadata", "namespace").try(&.as_s?)
+      pod_spec = resource.dig?("spec", "template", "spec") || resource.dig?("spec")
+      volumes = pod_spec.try(&.dig?("volumes")).try(&.as_a?) || [] of YAML::Any
+      volumes.each do |volume|
+        claim_name = volume.dig?("persistentVolumeClaim", "claimName").try(&.as_s?)
+        next unless claim_name
+        volume_name = volume.dig?("name").try(&.as_s?) || claim_name
+        bound = KubectlClient::Get.pv_items_by_claim_name(claim_name)
+        if bound.empty?
+          result.append_description("#{kind}/#{name} volume #{volume_name}: claim #{claim_name} is not bound to a PersistentVolume, storage type undetermined")
+          unbound += 1
+          next
         end
-        Log.for(t.name).debug { "volumes: #{volumes}" }
-        persistent_volume_claim_names = volumes.map do |volume|
-          # get persistent volume claim that matches persistent volume claim name
-          if volume.as_h["persistentVolumeClaim"]? && volume.as_h["persistentVolumeClaim"].as_h["claimName"]?
-              volume.as_h["persistentVolumeClaim"].as_h["claimName"]
-          else
-            nil 
-          end
-        end.compact
-        Log.for(t.name).debug { "persistent volume claim names: #{persistent_volume_claim_names}" }
-
-        # TODO (optional) check storage class of persistent volume claim
-        # loop through all pvc names
-        # get persistent volume that matches pvc name
-        # get all items, get spec, get claimRef, get pvc name that matches pvc name 
-        local_storage_not_found = true 
-        persistent_volume_claim_names.map do | claim_name|
-          items = KubectlClient::Get.pv_items_by_claim_name(claim_name.as_s)
-          items.map do |item|
-            begin
-              if item["spec"]["local"]? && item["spec"]["local"]["path"]?
-                  local_storage_not_found = false 
-              end
-            rescue ex
-              Log.for(t.name).info { ex.message }
-              local_storage_not_found = true 
-            end
-          end
+        bound.each do |pv|
+          path = pv.dig?("spec", "local", "path").try(&.as_s?)
+          next unless path
+          result.add_impacted_resource(kind, name, namespace, reason: "volume #{volume_name} (claim #{claim_name}) is bound to PersistentVolume #{pv.dig?("metadata", "name")} with local path #{path}")
+          local += 1
         end
-      rescue ex
-        Log.for(t.name).error { ex.message }
-        result.append_description("Rescued: On resource #{resource["metadata"]["name"]?} of kind #{resource["kind"]}, local storage configuration volumes not found")
-        local_storage_not_found = true
       end
-      local_storage_not_found
+      true
     end
 
-    if task_response.any?(false)
+    if local > 0
+      result.append_remediation("Back the claim with a network or cloud volume through a StorageClass; a local PersistentVolume ties the workload to one node and its disk.")
       result.failed("local storage configuration volumes found (ভ_ভ) ރ")
+    elsif unbound > 0
+      result.skipped("#{unbound} persistent volume claim(s) not bound to a PersistentVolume: storage type could not be determined")
     else
       result.passed("local storage configuration volumes not found 🖥️")
     end

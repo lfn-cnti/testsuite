@@ -492,7 +492,7 @@ Ensure that your CNF can be successfully rescheduled when a node fails or is [dr
 
 #### Overview
 
-This tests if local volumes are being used for the CNF.
+Checks every persistent volume claim the CNF's workloads mount: the PersistentVolume it is bound to must not be a local volume (`spec.local.path`), which ties the workload to one node and its disk. Each local volume is reported with the workload, the claim and the path; a claim bound to no PersistentVolume leaves the storage type undetermined and the test is skipped rather than passed.
 Expectation: Local storage should not be used or configured.
 
 #### Rationale
