@@ -16,14 +16,10 @@ describe "Resilience pod dns error Chaos" do
       ShellCmd.cnf_install("--cnf-config example-cnfs/envoy/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("pod_dns_error")
       result[:status].success?.should be_true
-      # Until pod_dns_error runs on containerd (#2587) the fault may be skipped on
-      # kind; when it runs, its details line names the target.
-      ((/( SKIPPED).*(pod_dns_error docker runtime not found)/)  =~ result[:output] || 
-       (/(PASSED).*(pod_dns_error chaos test passed)/ =~ result[:output])).should_not be_nil
-      if /(PASSED).*(pod_dns_error chaos test passed)/ =~ result[:output]
-        (/> Litmus pod-dns-error on Deployment\/envoy in .*: verdict Pass; target (deployment envoy|pod envoy-\S+) \((targeted|reverted)\)/ =~ result[:output]).should_not be_nil
-        verify_task_result("pod_dns_error", "passed")
-      end
+      # The kind cluster runs containerd; the fault must run there, not be skipped.
+      (/(PASSED).*(pod_dns_error chaos test passed)/ =~ result[:output]).should_not be_nil
+      (/> Litmus pod-dns-error on Deployment\/envoy in .*: verdict Pass; target (deployment envoy|pod envoy-\S+) \((targeted|reverted)\)/ =~ result[:output]).should_not be_nil
+      verify_task_result("pod_dns_error", "passed")
       
       latest_results = CNFManager::Points::Results.latest
       File.exists?(latest_results).should be_true
