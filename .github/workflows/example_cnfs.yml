@@ -14,6 +14,9 @@ jobs:
   validation:
     name: ${{ matrix.suite }}-${{ matrix.cnf.name }}
     runs-on: ubuntu-latest
+    # A workload run takes about 25 minutes; a hung install or chaos test must
+    # not hold a runner for the 6-hour default.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -69,6 +72,9 @@ jobs:
           kind create cluster --name "$KIND_CLUSTER_NAME" --config kind_setup.yaml --wait 5m
       - name: Install Crystal
         uses: crystal-lang/install-crystal@v1
+        with:
+          # renovate: datasource=github-releases depName=crystal-lang/crystal
+          crystal: 1.19.1
       - name: Build CNTi Test Suite
         run: |
           shards install
@@ -93,12 +99,33 @@ jobs:
             echo "::error::${{ matrix.suite }} exited $SUITE_EXIT (max $MAX_EXIT) for ${{ matrix.cnf.name }}"
             FAILED=1
           fi
+          # The exit code alone does not prove the suite got to its verdict, so
+          # the log must also carry it: `cert` prints "Cert: PASSED (...)" and
+          # `workload` prints its "Final workload score: ..." line.
+          if [ "${{ matrix.suite }}" = "cert" ]; then
+            EXPECTED='^Cert: PASSED '
+          else
+            EXPECTED='^Final workload score: '
+          fi
+          if ! grep -q -E "$EXPECTED" suite.log; then
+            echo "::error::${{ matrix.suite }} log has no line matching '$EXPECTED' for ${{ matrix.cnf.name }}"
+            FAILED=1
+          fi
           ./cnti-testsuite cnf_uninstall
           ./cnti-testsuite uninstall_all
           if [ -n "$FAILED" ]; then
             echo "::error::${{ matrix.suite }} checks failed for ${{ matrix.cnf.name }}"
             exit 1
           fi
+      - name: Upload suite log and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.suite }}-${{ matrix.cnf.name }}
+          path: |
+            suite.log
+            cnti/results/
+          if-no-files-found: warn
       - name: Delete Kind Cluster
         if: always()
         continue-on-error: true
