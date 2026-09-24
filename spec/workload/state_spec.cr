@@ -22,7 +22,7 @@ describe "State" do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_nonroot", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
       result = ShellCmd.run_testsuite("elastic_volumes", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
-      (/(SKIPPED).*(No persistent volumes are used)/ =~ result[:output]).should_not be_nil
+      (/(N\/A).*(No persistent volumes are used)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -47,7 +47,7 @@ describe "State" do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
       result = ShellCmd.run_testsuite("elastic_volumes", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
-      (/(SKIPPED).*(No persistent volumes are used)/ =~ result[:output]).should_not be_nil
+      (/(N\/A).*(No persistent volumes are used)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true

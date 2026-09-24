@@ -48,8 +48,8 @@ Every run prints a per-test line to stdout **and** writes a full results file.
 
 - :heavy_check_mark: **PASSED** — the test met best practice; points awarded.
 - :x: **FAILED** — the test failed; no points.
-- ⏭ **SKIPPED** — the test was not executed (a reason is printed); no points.
-- ⏭ **N/A** — the test does not apply to this CNF (the feature under test is absent); excluded from scoring.
+- ⏭ **SKIPPED** — the test could not be executed (a helper tool failed to install, a timeout, a probe that could not start); no points, and the test still counts in the maximum.
+- ⏭ **N/A** — the test does not apply to this CNF (its subject is absent: no Secret, no database, no persistent volume, no chart repository, no metrics, logging or tracing stack, no CNI that enforces policy); excluded from the maximum. A test reports N/A, never SKIPPED, when its subject is absent.
 - 💥 **ERROR** — the test errored while running.
 
 Failed/errored tests also print indented detail lines beneath the result:

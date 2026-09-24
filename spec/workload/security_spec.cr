@@ -231,12 +231,16 @@ describe "Security" do
     end
   end
 
-  it "'ingress_egress_blocked' should fail on a cnf that has no ingress and egress traffic policy", tags: ["security"] do
+  it "'ingress_egress_blocked' should not pass on a cnf that has no ingress and egress traffic policy", tags: ["security"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf")
       result = ShellCmd.run_testsuite("ingress_egress_blocked")
       result[:status].exit_code.should eq(1)
       (/(PASSED).*(Ingress and Egress traffic blocked on pods)/ =~ result[:output]).should be_nil
+      # kind's kindnet enforces no NetworkPolicy, so the test is N/A there; on
+      # an enforcing CNI the missing policy is a failure. Never a pass.
+      ((/(N\/A).*(No CNI that enforces NetworkPolicy)/ =~ result[:output]) ||
+       (/(FAILED).*(Ingress and Egress traffic not blocked on pods)/ =~ result[:output])).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end

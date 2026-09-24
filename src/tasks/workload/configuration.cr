@@ -365,8 +365,9 @@ scored_task "secrets_used",
     if task_response
       result.passed("Secrets defined and used")
     else
-      result.append_remediation("To address this issue please see the USAGE.md documentation")
-      result.skipped("Secrets not used")
+      # No Secret volume or secretKeyRef anywhere in the CNF: the practice does
+      # not apply, which is N/A, not a skipped run (#2580).
+      result.na("Secrets not used: the CNF defines no Secret volume or secretKeyRef")
     end
   end
 end

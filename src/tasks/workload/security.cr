@@ -435,12 +435,29 @@ scored_task "memory_limits",
   end
 end
 
+# CNIs that enforce NetworkPolicy, by the name of the agent they run on every
+# node. flannel implements none: a policy that cannot take effect is not the
+# CNF's doing, so ingress_egress_blocked is not applicable there. kindnet
+# counts: kind ships kube-network-policies inside kindnetd since v0.23.
+NETWORK_POLICY_CNI_AGENTS = /calico|cilium|antrea|weave|kube-router|ovn|canal|kindnet/i
+
+def network_policy_enforced? : Bool
+  daemonsets = KubectlClient::Get.resource("daemonsets", all_namespaces: true)
+  items = daemonsets["items"]?.try(&.as_a?) || [] of JSON::Any
+  items.any? { |ds| ds.dig?("metadata", "name").to_s =~ NETWORK_POLICY_CNI_AGENTS }
+end
+
 desc "Check Ingress and Egress traffic policy"
 scored_task "ingress_egress_blocked",
   type: CNFManager::TestType::Bonus,
   deps: ["setup:kubescape_scan"],
   emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    unless network_policy_enforced?
+      result.na("No CNI that enforces NetworkPolicy in this cluster: an ingress/egress policy could not take effect")
+      next
+    end
+
     results_json = Kubescape.parse
     test_json = Kubescape.test_by_test_name(results_json, "Ingress and Egress blocked")
     test_report = Kubescape.parse_test_report(test_json)
