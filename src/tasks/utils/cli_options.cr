@@ -44,6 +44,8 @@ module CLIOptions
     Option.new("skip", Kind::Multi, "skip a task within a suite; repeatable", value_label: "TASK", retired: "exclude"),
     Option.new("input-config", Kind::Value, "update_config: the cnti-testsuite.yaml to convert", value_label: "PATH", file: true, retired: "input-config"),
     Option.new("output-config", Kind::Value, "update_config: where to write the converted file", value_label: "PATH", file: true, retired: "output-config"),
+    Option.new("results-file", Kind::Value, "results_junit: the results file to convert (default: the newest)", value_label: "PATH", file: true),
+    Option.new("junit-file", Kind::Value, "results_junit: where to write the report (default: next to the results file, as .xml)", value_label: "PATH", file: true),
     Option.new("pod-labels", Kind::Value, "label selector of the pods a chaos test targets", value_label: "LABELS", retired: "pod-labels"),
     Option.new("strict", Kind::Flag, "stop at the first failed or errored test", retired: "strict"),
     Option.new("essential", Kind::Flag, "cert: run only the essential tests", retired: "essential"),
