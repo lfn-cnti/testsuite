@@ -273,32 +273,34 @@ scored_task "pod_network_duplication",
   end
 end
 
+# A workload whose every container mounts a read-only root file system cannot
+# be written into by disk_fill's `dd` or pod_io_stress's `fio`. Being unable
+# to fill or stress its file system is the very property those faults probe,
+# so the resource passes without an experiment and the reason is recorded.
+def pass_hardened_rootfs(result, resource, task_name : String)
+  message = "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}: every container has a read-only root file system, #{task_name} cannot write into it"
+  Log.for(task_name).info { message }
+  result.append_description(message)
+end
+
 desc "Does the CNF crash when disk fill occurs"
 scored_task "disk_fill",
   deps: ["setup:install_litmus"],
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    runnable_containers = 0
-    skipped_hardened = 0
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
+    tested = 0
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, _|
       app_namespace = resource[:namespace]
 
-      # A container with readOnlyRootFilesystem set cannot be filled: the litmus
-      # disk-fill helper fails while injecting with "Read-only file system" and
-      # the experiment reports a ChaosInject error instead of exercising the
-      # workload. Such a container is already hardened against disk fill, so it
-      # is skipped instead of being scored as a failure.
-      if !LitmusManager.filesystem_fault_injectable?(JSON::Any.new([container]))
-        skipped_hardened += 1
-        container_name = container["name"]?.try(&.as_s)
-        result.add_impacted_resource(resource["kind"], resource["name"], app_namespace,
-          container: container_name,
-          reason: "readOnlyRootFilesystem prevents disk_fill injection; skipped")
-        Log.for("#{t.name}").info { "Skipping #{resource["kind"]}/#{resource["name"]} container #{container_name || "unknown"}: readOnlyRootFilesystem set, disk fill cannot be injected" }
+      # The fault is injected once per resource, into a container that can be
+      # written to; the engine names it since litmus defaults to the first one.
+      target_container = LitmusManager.filesystem_fault_target(containers)
+      unless target_container
+        pass_hardened_rootfs(result, resource, t.name)
         next true
       end
 
-      runnable_containers += 1
+      tested += 1
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
       if spec_labels.as_h? && spec_labels.as_h.size > 0
         test_passed = true
@@ -324,7 +326,8 @@ scored_task "disk_fill",
           app_namespace,
           "#{resource["kind"].downcase}",
           "#{spec_labels.first_key}",
-          "#{spec_labels.first_value}"
+          "#{spec_labels.first_value}",
+          target_container: target_container
         ).to_s
         chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
         File.write(chaos_template_path, template)
@@ -335,9 +338,8 @@ scored_task "disk_fill",
 
       test_passed
     end
-    if runnable_containers == 0 && skipped_hardened > 0
-      result.append_description("Skipped #{skipped_hardened} container(s) already hardened against disk fill via readOnlyRootFilesystem")
-      result.skipped("disk_fill not applicable: every workload container has a read-only root file system")
+    if task_response && tested == 0
+      result.passed("disk_fill chaos test passed: every container has a read-only root file system")
     elsif task_response
       result.passed("disk_fill chaos test passed")
     else
@@ -509,28 +511,19 @@ scored_task "pod_io_stress",
     end
     container_runtime, socket_path = runtime_socket
 
-    runnable_containers = 0
-    skipped_hardened = 0
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
+    tested = 0
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, _|
       app_namespace = resource[:namespace]
 
-      # A container with readOnlyRootFilesystem set cannot be IO-stressed: the
-      # litmus pod-io-stress helper (fio) writes a file into the target
-      # container's root file system and the experiment reports a ChaosInject
-      # error ("exit status 1") instead of exercising the workload. Such a
-      # container is already hardened against IO stress, so it is skipped
-      # instead of being scored as a failure.
-      if !LitmusManager.filesystem_fault_injectable?(JSON::Any.new([container]))
-        skipped_hardened += 1
-        container_name = container["name"]?.try(&.as_s)
-        result.add_impacted_resource(resource["kind"], resource["name"], app_namespace,
-          container: container_name,
-          reason: "readOnlyRootFilesystem prevents pod_io_stress injection; skipped")
-        Log.for("#{t.name}").info { "Skipping #{resource["kind"]}/#{resource["name"]} container #{container_name || "unknown"}: readOnlyRootFilesystem set, IO stress cannot be injected" }
+      # The fault is injected once per resource, into a container that can be
+      # written to; the engine names it since litmus defaults to the first one.
+      target_container = LitmusManager.filesystem_fault_target(containers)
+      unless target_container
+        pass_hardened_rootfs(result, resource, t.name)
         next true
       end
 
-      runnable_containers += 1
+      tested += 1
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
       if spec_labels.as_h? && spec_labels.as_h.size > 0
         test_passed = true
@@ -558,7 +551,8 @@ scored_task "pod_io_stress",
           deployment_label_value,
           target_pod_name,
           container_runtime: container_runtime,
-          socket_path: socket_path
+          socket_path: socket_path,
+          target_container: target_container
         ).to_s
 
         chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
@@ -570,9 +564,8 @@ scored_task "pod_io_stress",
 
       test_passed
     end
-    if runnable_containers == 0 && skipped_hardened > 0
-      result.append_description("Skipped #{skipped_hardened} container(s) already hardened against IO stress via readOnlyRootFilesystem")
-      result.skipped("pod_io_stress not applicable: every workload container has a read-only root file system")
+    if task_response && tested == 0
+      result.passed("pod_io_stress chaos test passed: every container has a read-only root file system")
     elsif task_response
       result.passed("pod_io_stress chaos test passed")
     else

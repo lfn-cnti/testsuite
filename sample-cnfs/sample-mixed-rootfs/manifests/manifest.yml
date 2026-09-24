@@ -1,0 +1,41 @@
+# A pod whose FIRST container mounts a read-only root file system and whose
+# second one is writable. disk_fill and pod_io_stress must inject their fault
+# into the writable container rather than into the first one, which litmus
+# would pick by default and fail on with "Read-only file system".
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mixed-rootfs
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mixed-rootfs
+  namespace: mixed-rootfs
+  labels:
+    app: mixed-rootfs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mixed-rootfs
+  template:
+    metadata:
+      labels:
+        app: mixed-rootfs
+    spec:
+      containers:
+      - name: readonly
+        image: busybox:1.36
+        command: ["/bin/sleep", "2147483647"]
+        securityContext:
+          readOnlyRootFilesystem: true
+      - name: writable
+        image: busybox:1.36
+        command: ["/bin/sleep", "2147483647"]
+        resources:
+          limits:
+            ephemeral-storage: 100Mi

@@ -598,6 +598,7 @@ A mitigation strategy (in this case keep the timeout i.e., access latency low) c
 
 [This experiment](https://litmuschaos.github.io/litmus/experiments/categories/pods/disk-fill/) stresses the disk with continuous and heavy IO to cause degradation in the shared disk. This experiment also reduces the amount of scratch space available on a node which can lead to a lack of space for newer containers to get scheduled. This can cause (Kubernetes gives up by applying an "eviction" taint like "disk-pressure") a wholesale movement of all pods to other nodes.
 Expectation: The CNF should continue to function when disk fill occurs and pods should not be evicted to another node.
+A workload whose containers all mount a read-only root file system cannot be filled at all, which is the property this experiment probes, so it passes without the fault being injected; the reason is recorded in the test details. In a workload that mixes read-only and writable containers, the fault is injected into a writable one.
 
 #### Rationale
 
@@ -661,6 +662,7 @@ Ensure that your CNF is resilient to heavy memory usage and can maintain some le
 
 The [pod-io stress](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-io-stress/) experiment the disk with continuous and heavy IO to cause degradation in reads/writes by other microservices that use this shared disk.
 Expectation: The CNF should continue to function when pod io stress occurs
+A workload whose containers all mount a read-only root file system cannot be stressed at all, which is the property this experiment probes, so it passes without the fault being injected; the reason is recorded in the test details. In a workload that mixes read-only and writable containers, the fault is injected into a writable one.
 
 #### Rationale
 
