@@ -596,36 +596,56 @@ scored_task "deprecated_k8s_features" do |t, args|
   logger.info { "Testing CNF for usage of deprecated Kubernetes features" }
 
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    skipped = false
-    passed = false
-    warnings = [] of String
-
-    unless File.exists?(CNF_INSTALL_LOG_FILE)
-      logger.warn { "Installation log file not found, should be in: #{CNF_INSTALL_LOG_FILE}" }
-      skipped = true
+    unless File.exists?(COMMON_MANIFEST_FILE_PATH)
+      result.skipped("CNF manifest not found: #{COMMON_MANIFEST_FILE_PATH}; run cnf_install first")
+      next
     end
 
-    unless skipped
-      pattern = /deprecated/
-      File.each_line(CNF_INSTALL_LOG_FILE) { |line| warnings << line if pattern.match(line) }
-      logger.info { "Found #{warnings.size} deprecated feature warnings" }
+    # The API server is the authority on what is deprecated: a server-side
+    # dry-run of the CNF's composite manifest returns the same Warning headers
+    # kubectl shows on install, for every resource whatever its install
+    # method, without depending on a log file (#2578).
+    #
+    # Some warnings are only issued on create (the Ingress strategy warns
+    # about kubernetes.io/ingress.class when the annotation is new, not when
+    # an installed object is re-applied unchanged), so the manifest is
+    # dry-run both as a create and as an apply and the warnings are joined.
+    # A resource whose *name* contains "deprecated" is not a finding: the
+    # word has to stand on its own in the warning.
+    resp = KubectlClient::ShellCMD.run("kubectl apply --dry-run=server -f #{COMMON_MANIFEST_FILE_PATH}", logger)
+    create = KubectlClient::ShellCMD.run("kubectl create --dry-run=server -f #{COMMON_MANIFEST_FILE_PATH}", logger)
+    warnings = (resp[:error].lines + create[:error].lines).map(&.strip)
+      .select { |line| line.starts_with?("Warning:") && line =~ /(?<![\w-])deprecated(?![\w-])/i }
+      .map { |line| line.sub(/^Warning:\s*/, "") }
+      .uniq
+    logger.info { "Found #{warnings.size} deprecation warning(s)" }
 
-      if warnings.empty?
-        passed = true
-        logger.info { "CNF does not use any deprecated features" }
-      else
-        result.append_description("Deprecated features warnings:\n#{warnings.join("\n")}")
-        logger.info { "Warnings:\n#{warnings.join("\n")}" }
-        passed = false
+    if warnings.empty? && !resp[:status].success?
+      result.skipped("Could not dry-run the CNF manifest against the API server: #{resp[:error].lines.first?.to_s.strip}")
+      next
+    end
+
+    if warnings.empty?
+      result.passed("CNF does not use deprecated K8s features")
+      next
+    end
+
+    # A warning names an API version and kind, or an annotation, never the
+    # object; the manifest says which of the CNF's resources it belongs to.
+    resources = CNFInstall::Manifest.manifest_path_to_ymls(COMMON_MANIFEST_FILE_PATH)
+    warnings.each do |warning|
+      result.append_description("Deprecated: #{warning}")
+      matched = [] of YAML::Any
+      if (m = warning.match(/^(\S+\/\S+) (\S+) is deprecated/))
+        matched = resources.select { |r| r["apiVersion"]?.to_s == m[1] && r["kind"]?.to_s == m[2] }
+      elsif (m = warning.match(/annotations?\W+"?([A-Za-z0-9.\/_-]+)"?/))
+        matched = resources.select { |r| r.dig?("metadata", "annotations", m[1]) }
+      end
+      matched.each do |r|
+        result.add_impacted_resource(r["kind"].to_s, r.dig("metadata", "name").to_s, r.dig?("metadata", "namespace").try(&.to_s), reason: warning)
       end
     end
-
-    if skipped
-      result.skipped("CNF installation log file not found")
-    elsif passed
-      result.passed("CNF does not use deprecated K8s features")
-    else
-      result.failed("CNF uses deprecated K8s features")
-    end
+    result.append_remediation("Move to the replacement named in each warning; the API server drops the deprecated version in the release the warning states.")
+    result.failed("CNF uses deprecated K8s features")
   end
 end

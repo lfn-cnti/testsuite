@@ -268,8 +268,7 @@ Avoid vendor-specific network APIs, annotations and device resources in the CNF'
 
 #### Overview
 
-Checks whether any deprecated Kubernetes features (API versions, annotations, types etc.) are used by CNF. It is done
-by inspecting CNF installation logs.
+Checks whether any deprecated Kubernetes features (API versions, annotations, fields) are used by the CNF. The CNF's manifest is applied to the cluster as a server-side dry-run, and the deprecation warnings the API server returns are reported, each attributed to the resource that carries it. The API server is the authority on what is deprecated in the Kubernetes version the CNF runs on.
 
 #### Rationale
 
