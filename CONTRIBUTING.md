@@ -128,7 +128,7 @@ and `docker`; the version, or the `tag` and `digest` of an image, must sit on th
 
 What happens to an update depends on what it can break, see `packageRules` in `renovate.json`:
 low-risk tool pins and CI images merge on their own once the spec matrix is green; tools whose rules
-decide test verdicts (kubescape, kyverno, LitmusChaos, gatekeeper) get one PR each and a human
+decide test verdicts (kubescape, kyverno, LitmusChaos) get one PR each and a human
 review, because a red CI run there usually means a rule changed meaning rather than a bug; majors
 wait on the dependency dashboard issue until someone approves them.
 

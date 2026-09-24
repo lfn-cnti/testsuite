@@ -16,12 +16,6 @@ module EmbeddedFileManager
   macro chaos_container_kill
     CHAOS_CONTAINER_KILL = Base64.decode_string("{{ `cat ./embedded_files/chaos_container_kill.yml  | base64`}}")
   end
-  macro enforce_image_tag
-    ENFORCE_IMAGE_TAG = Base64.decode_string("{{ `cat ./embedded_files/enforce-image-tag.yml  | base64`}}")
-  end
-  macro constraint_template
-    CONSTRAINT_TEMPLATE = Base64.decode_string("{{ `cat ./embedded_files/constraint_template.yml  | base64`}}")
-  end
   macro test_documentation
     TEST_DOCUMENTATION_MD = Base64.decode_string("{{ `cat ./docs/TEST_DOCUMENTATION.md | base64`}}")
   end

@@ -23,7 +23,6 @@ task "tools_uninstall", [
   "_tools_uninstall_start",
   "setup:uninstall_litmus",
   "setup:uninstall_cluster_tools",
-  "setup:uninstall_opa",
   "setup:uninstall_kyverno",
   "setup:uninstall_jaeger",
   "setup:uninstall_fluentd",

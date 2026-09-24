@@ -1,0 +1,39 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: unversioned
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
+# One container with a versioned tag, one untagged: versioned_tag must
+# name the untagged one and pass the other.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unversioned
+  namespace: unversioned
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: unversioned
+  template:
+    metadata:
+      labels:
+        app: unversioned
+    spec:
+      containers:
+      - name: versioned
+        image: bitnamilegacy/nginx:1.20
+        ports:
+        - containerPort: 8080
+      - name: untagged
+        image: bitnamilegacy/nginx
+        env:
+        - name: NGINX_HTTP_PORT_NUMBER
+          value: "8081"
+        - name: NGINX_HTTPS_PORT_NUMBER
+          value: "8444"
+        ports:
+        - containerPort: 8081

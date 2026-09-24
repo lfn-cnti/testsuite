@@ -5,6 +5,7 @@ require "colorize"
 require "totem"
 require "json"
 require "../utils/utils.cr"
+require "../utils/image_tag.cr"
 
 rolling_version_change_test_names = ["rolling_update", "rolling_downgrade", "rolling_version_change"]
 
@@ -107,42 +108,31 @@ end
 
 desc "Do all cnf images have versioned tags?"
 scored_task "versioned_tag",
-  deps: ["install_opa"],
   emoji: "🏷️" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    fail_msgs = [] of String
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
-      test_passed = true
-      resource_yaml = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
-      pods = KubectlClient::Get.pods_by_resource_labels(resource_yaml, namespace: resource[:namespace])
-      pods.map do |pod|
-        pod_name = pod.dig("metadata", "name")
-
-        if OPA.find_non_versioned_pod(pod_name.as_s)
-          if resource[:kind] == "pod"
-            fail_msg = "Pod/#{resource[:name]} in #{resource[:namespace]} namespace does not use a versioned image"
-          else
-            fail_msg = "Pod/#{pod_name} in #{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]} namespace does not use a versioned image"
-          end
-
-          unless fail_msgs.find{|x| x== fail_msg}
-            fail_msgs << fail_msg
-          end
-
-          test_passed = false
-        end
+    # Read from the workload's own containers, no policy engine in between
+    # (#2599): an image is versioned when it is pinned by digest or by a
+    # tag that is not "latest" and names a version (see ImageTag).
+    unversioned = 0
+    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
+      image = container["image"]?.try(&.as_s?) || ""
+      name = container["name"]?.try(&.as_s?) || "?"
+      reason = ImageTag.unversioned_reason(image)
+      if reason
+        unversioned += 1
+        result.add_impacted_resource(resource[:kind], resource[:name], resource[:namespace], container: name, reason: "image #{image} #{reason}")
+        false
+      else
+        result.append_description("#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]} container #{name}: #{image} is versioned")
+        true
       end
-
-      test_passed
     end
 
     if task_response
       result.passed("Container images use versioned tags")
     else
-      fail_msgs.each do |msg|
-        result.append_description(msg)
-      end
-      result.failed("Container images do not use versioned tags")
+      result.append_remediation("Pin every image to a release tag that names a version (or to a digest); avoid latest, untagged images and moving tags such as stable or main, which cannot be tracked or rolled back.")
+      result.failed("#{unversioned} container image(s) do not use versioned tags")
     end
   end
 end
