@@ -350,8 +350,8 @@ Ensure that there is only one process type within a container. This does not cou
 
 #### Overview
 
-This tests and checks if the containers within a CNF have services exposed via a Kubernetes Service resource. Application access for microservices within a cluster should be exposed via a Service. Read more about K8s Service [here](https://kubernetes.io/docs/concepts/services-networking/service/).
-Expectation: CNFs accessible to other applications should be exposed via a Service.
+Checks, for every workload resource of the CNF, that a Service of the CNF selects its pods; each workload is reported with the Service that exposes it, and each one nothing exposes is a finding. Application access for microservices within a cluster should be exposed via a Service. Read more about K8s Service [here](https://kubernetes.io/docs/concepts/services-networking/service/).
+Expectation: Every workload resource of the CNF is exposed by a Service.
 
 #### Rationale
 

@@ -827,43 +827,46 @@ scored_task "sig_term_handled",
   end
 end
 
-desc "Are any of the containers exposed as a service?"
+desc "Is every workload resource of the CNF exposed by a Service?"
 scored_task "service_discovery",
   type: CNFManager::TestType::Bonus,
   emoji: "⚖👀" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    # Collect service names from the CNF resource list
-    cnf_service_names = CNFManager.resource_refs(args, config, ["service"]) do |service|
-      service[:name]
+    # The CNF's Services with their live selectors. Judged per workload
+    # resource against its pod template labels, so the verdict names each
+    # workload nothing exposes instead of passing on the first match (#2593).
+    services = [] of NamedTuple(name: String, namespace: String, selector: Hash(String, JSON::Any))
+    CNFManager.resource_refs(args, config, ["service"]) do |service|
+      selector = KubectlClient::Get.resource("service", service[:name], service[:namespace]).dig?("spec", "selector").try(&.as_h?)
+      # A Service without a selector (an ExternalName or a manually endpointed one) exposes no pod by label.
+      services << {name: service[:name], namespace: service[:namespace], selector: selector} if selector && !selector.empty?
+    rescue KubectlClient::ShellCMD::NotFoundError
+      Log.for(t.name).warn { "Service #{service[:name]} in #{service[:namespace]} is in the manifest but not in the cluster" }
     end
 
-    # Get all the pods in the cluster
-    pods = KubectlClient::Get.resource("pods", all_namespaces: true).dig("items").as_a
-
-    # Get pods for the services in the CNF based on the labels
-    test_passed = false
-    KubectlClient::Get.resource("services", all_namespaces: true).dig("items").as_a.each do |service_info|
-      # Only check for pods for services that are defined by the CNF
-      service_name = service_info["metadata"]["name"]
-      next unless cnf_service_names.includes?(service_name)
-
-      # Some services may not have selectors defined. Example: service/kubernetes
-      pod_selector = service_info.dig?("spec", "selector")
-      next unless pod_selector
-
-      # Fetch matching pods for the CNF
-      # If any service has a matching pod, then mark test as passed
-      matching_pods = KubectlClient::Get.pods_by_labels(pods, pod_selector.as_h)
-      if matching_pods.size > 0
-        Log.debug { "Matching pods for service #{service_name}: #{matching_pods.inspect}" }
-        test_passed = true
+    unexposed = 0
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
+      live = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+      labels = (live.dig?("spec", "template", "metadata", "labels") || live.dig?("metadata", "labels")).try(&.as_h?) || {} of String => JSON::Any
+      exposing = services.select do |service|
+        service[:namespace] == resource[:namespace] &&
+          service[:selector].all? { |key, value| labels[key]? == value }
+      end
+      if exposing.empty?
+        result.add_impacted_resource(resource[:kind], resource[:name], resource[:namespace], reason: "no Service of the CNF selects its pods")
+        unexposed += 1
+        false
+      else
+        result.append_description("#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}: exposed by Service #{exposing.map(&.[:name]).join(", ")}")
+        true
       end
     end
 
-    if test_passed
-      result.passed("Some containers exposed as a service")
+    if task_response
+      result.passed("Every workload resource of the CNF is exposed by a Service")
     else
-      result.failed("No containers exposed as a service")
+      result.append_remediation("Expose each workload through a Service whose selector matches its pod labels; a workload that is reached only through the host network or a secondary interface can declare that as a documented exception.")
+      result.failed("#{unexposed} workload resource(s) of the CNF are not exposed by a Service")
     end
   end
 end
