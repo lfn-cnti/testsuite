@@ -420,6 +420,45 @@ describe CntiTestSuite do
     end
   end
 
+  it "'versioned_tag' should pass when every image is pinned to a version", tags: ["versioned_tag"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns")
+      result = ShellCmd.run_testsuite("versioned_tag")
+      result[:status].success?.should be_true
+      (/(PASSED).*(Container images use versioned tags)/ =~ result[:output]).should_not be_nil
+      (/> Deployment\/coredns-coredns in .* container coredns: .*coredns:[\d.]+ is versioned/ =~ result[:output]).should_not be_nil
+      verify_task_result("versioned_tag", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'versioned_tag' should fail on a latest tag and name the container", tags: ["versioned_tag"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_latest_tag")
+      result = ShellCmd.run_testsuite("versioned_tag")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(1 container image\(s\) do not use versioned tags)/ =~ result[:output]).should_not be_nil
+      (/impacted: Pod\/nginx in nginx-stuff \(container nginx\): image bitnamilegacy\/nginx:latest uses the latest tag/ =~ result[:output]).should_not be_nil
+      verify_task_result("versioned_tag", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'versioned_tag' should fail on an untagged image and pass the versioned container beside it", tags: ["versioned_tag"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-unversioned-tags")
+      result = ShellCmd.run_testsuite("versioned_tag")
+      result[:status].exit_code.should eq(1)
+      (/impacted: Deployment\/unversioned in unversioned \(container untagged\): image bitnamilegacy\/nginx has no tag \(implicitly latest\)/ =~ result[:output]).should_not be_nil
+      (/> Deployment\/unversioned in unversioned container versioned: bitnamilegacy\/nginx:1.20 is versioned/ =~ result[:output]).should_not be_nil
+      verify_task_result("versioned_tag", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'latest_tag' should require a cnf be installed to run", tags: ["latest_tag"] do
     # NOTE: Purposefully not installing a CNF to test
     result = ShellCmd.run_testsuite("latest_tag")

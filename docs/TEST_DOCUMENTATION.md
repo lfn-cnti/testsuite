@@ -1003,7 +1003,7 @@ Instrument your CNF with OpenTelemetry or Jaeger client libraries and point it a
 
 ## Category: Security Tests
 
-CNF containers should be isolated from one another and the host. The CNTI Test Suite uses tools like [OPA Gatekeeper](https://github.com/open-policy-agent/gatekeeper) and [Armosec Kubescape](https://github.com/armosec/kubescape)
+CNF containers should be isolated from one another and the host. The CNTI Test Suite uses tools like [Armosec Kubescape](https://github.com/armosec/kubescape)
 
 > "Cloud native security is a [...] multifaceted topic [...] with multiple, diverse components that need to be secured. The cloud platform, the underlying host operating system, the container runtime, the container orchestrator, and then the applications themselves each require specialist security attention" -- Chris Binne, Rory Mccune. Cloud Native Security. (Wiley, 2021)(pp. xix)
 
@@ -1557,7 +1557,7 @@ Sources: [Kubernetes configuration best practices](https://kubernetes.io/docs/co
 
 #### Remediation
 
-When specifying container images, always specify a tag and ensure to use an immutable tag that maps to a specific version of an application Pod. Remove any usage of the `latest` tag, as it is not guaranteed to be always point to the same version of the image.
+Pin every container image to a release tag that names a version, or to a digest. Remove `latest`, untagged images and moving tags such as `stable` or `main`, which are not guaranteed to point to the same build twice and cannot be tracked or rolled back.
 
 #### Usage
 
@@ -1593,8 +1593,8 @@ Make sure to define `app.kubernetes.io/name` label under metadata for your CNF.
 
 #### Overview
 
-Checks if the CNF is using a 'latest' tag instead of a semantic version using OPA Gatekeeper.
-Expectation: The CNF should use an immutable tag that maps to a symantic version of the application.
+Reads the image reference of every container of the CNF's workloads and reports each one that is not versioned, with the image and the reason. An image is versioned when it is pinned by digest, or by a tag that is present, is not `latest` and names a version, which for the test means it contains a digit (`1.2.3`, `v2`, `6.0.2-debian-11-r0`); untagged images (implicitly `latest`) and moving tags such as `stable` or `main` are not.
+Expectation: Every container image is pinned to a version or a digest.
 
 #### Rationale
 
