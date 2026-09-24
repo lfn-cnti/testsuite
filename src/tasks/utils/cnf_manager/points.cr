@@ -331,6 +331,20 @@ module CNFManager
     # Version of the results-file schema. Bump when the file's structure changes
     # so automation can detect the contract it is reading.
     RESULTS_SCHEMA_VERSION = 1
+
+    # Versions of the tools whose verdicts the results file contains, so two
+    # runs can be compared for what they measured with (#2602): the pins the
+    # suite installs, which ToolInstall's version markers keep in step.
+    def self.tool_versions
+      {
+        kubescape:             Setup::KUBESCAPE_VERSION,
+        kubescape_framework:   "nsa",
+        kubescape_regolibrary: Setup::KUBESCAPE_FRAMEWORK_VERSION,
+        kyverno:               Kyverno::VERSION,
+        kyverno_policies:      Kyverno::POLICIES_BRANCH,
+        litmus:                LitmusManager::Version,
+      }
+    end
     # Top-level `status` while the run is in progress. The file is rewritten
     # after every test, so a run that dies part-way leaves this state behind -
     # readers can tell an unfinished run from one that completed (issue #2544).
@@ -346,6 +360,7 @@ module CNFManager
                      schema_version:    RESULTS_SCHEMA_VERSION,
                      status:            RUN_STATUS_RUNNING,
                      exit_code:         nil,
+                     tools:             tool_versions,
                      items:             [] of YAML::Any},
             f)
         end
@@ -563,6 +578,7 @@ module CNFManager
                    status:            results["status"],
                    command:           "#{Process.executable_path} #{ARGV.join(" ")}",
                    exit_code:         results["exit_code"],
+                   tools:             tool_versions,
                    items:             result_items}, f)
       end
       write_summary!
@@ -748,6 +764,8 @@ testsuite_version: <%= CntiTestSuite::VERSION %>
 schema_version: #{RESULTS_SCHEMA_VERSION}
 status: #{RUN_STATUS_RUNNING}
 exit_code:
+tools:
+#{tool_versions.to_yaml.lines[1..].map { |l| "  #{l}\n" }.join.chomp}
 items: []
 END
     end

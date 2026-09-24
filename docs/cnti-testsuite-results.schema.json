@@ -44,7 +44,10 @@
     },
     "exit_code": {
       "description": "Process exit code: 0 = passed, 1 = failed (a required test failed), 2 = error (a test raised). null while the run is in progress (status `running`).",
-      "type": ["integer", "null"],
+      "type": [
+        "integer",
+        "null"
+      ],
       "enum": [
         0,
         1,
@@ -54,6 +57,45 @@
     },
     "summary": {
       "$ref": "#/$defs/summary"
+    },
+    "tools": {
+      "description": "Versions of the tools whose verdicts this file contains, as pinned by the test suite: kubescape and the regolibrary release its framework comes from, the kyverno CLI and the policies branch, and LitmusChaos. Two runs that disagree with different values here measured with different rulers.",
+      "type": "object",
+      "required": [
+        "kubescape",
+        "kubescape_framework",
+        "kubescape_regolibrary",
+        "kyverno",
+        "kyverno_policies",
+        "litmus"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kubescape": {
+          "description": "Kubescape CLI version.",
+          "type": "string"
+        },
+        "kubescape_framework": {
+          "description": "Kubescape framework the security tests read their controls from.",
+          "type": "string"
+        },
+        "kubescape_regolibrary": {
+          "description": "Release of kubescape/regolibrary the framework was downloaded from.",
+          "type": "string"
+        },
+        "kyverno": {
+          "description": "Kyverno CLI version.",
+          "type": "string"
+        },
+        "kyverno_policies": {
+          "description": "Branch of kyverno/policies the audit policies are taken from.",
+          "type": "string"
+        },
+        "litmus": {
+          "description": "LitmusChaos operator and chaos-charts version.",
+          "type": "string"
+        }
+      }
     },
     "items": {
       "description": "One entry per test that ran.",

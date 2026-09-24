@@ -471,6 +471,7 @@ All state: `./cnti-testsuite state`
 #### Overview
 
 A node is drained and workload resources rescheduled to another node, passing with a liveness and readiness check. This will skip when the cluster has fewer than two schedulable nodes, when the workload has no scheduled pod, or when no schedulable node is left to move the chaos operator onto.
+Measurement: LitmusChaos experiment [node-drain](https://litmuschaos.github.io/litmus/experiments/categories/nodes/node-drain/); the Litmus version is in the results file's `tools`.
 Expectation: All workload resources are successfully rescheduled onto other available node(s).
 
 #### Rationale
@@ -573,6 +574,7 @@ All resilience: `./cnti-testsuite resilience`
 
 [This experiment](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-latency/) causes network degradation without the pod being marked unhealthy/unworthy of traffic by kube-proxy (unless you have a liveness probe of sorts that measures latency and restarts/crashes the container). The idea of this experiment is to simulate issues within your pod network OR microservice communication across services in different availability zones/regions etc.
 The applications may stall or get corrupted while they wait endlessly for a packet. The experiment limits the impact (blast radius) to only the traffic you want to test by specifying IP addresses or application information. This experiment will help to improve the resilience of your services over time.
+Measurement: LitmusChaos experiment [pod-network-latency](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-latency/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when network latency occurs
 
 #### Rationale
@@ -597,6 +599,7 @@ A mitigation strategy (in this case keep the timeout i.e., access latency low) c
 #### Overview
 
 [This experiment](https://litmuschaos.github.io/litmus/experiments/categories/pods/disk-fill/) stresses the disk with continuous and heavy IO to cause degradation in the shared disk. This experiment also reduces the amount of scratch space available on a node which can lead to a lack of space for newer containers to get scheduled. This can cause (Kubernetes gives up by applying an "eviction" taint like "disk-pressure") a wholesale movement of all pods to other nodes.
+Measurement: LitmusChaos experiment [disk-fill](https://litmuschaos.github.io/litmus/experiments/categories/pods/disk-fill/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when disk fill occurs and pods should not be evicted to another node.
 A workload whose containers all mount a read-only root file system cannot be filled at all, which is the property this experiment probes, so it passes without the fault being injected; the reason is recorded in the test details. In a workload that mixes read-only and writable containers, the fault is injected into a writable one.
 
@@ -619,6 +622,7 @@ Ensure that your CNF is resilient and doesn't stall when heavy IO causes a degra
 #### Overview
 
 [This experiment](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-delete/) helps to simulate such a scenario with forced/graceful pod failure on specific or random replicas of an application resource and checks the deployment sanity (replica availability & uninterrupted service) and recovery workflow of the application.
+Measurement: LitmusChaos experiment [pod-delete](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-delete/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when pod delete occurs
 
 #### Rationale
@@ -640,6 +644,7 @@ Ensure that your CNF is resilient and doesn't fail on a forced/graceful pod fail
 #### Overview
 
 The [pod-memory hog](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-memory-hog/) experiment launches a stress process within the target container - which can cause either the primary process in the container to be resource constrained in cases where the limits are enforced OR eat up available system memory on the node in cases where the limits are not specified.
+Measurement: LitmusChaos experiment [pod-memory-hog](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-memory-hog/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when pod memory hog occurs
 
 #### Rationale
@@ -661,6 +666,7 @@ Ensure that your CNF is resilient to heavy memory usage and can maintain some le
 #### Overview
 
 The [pod-io stress](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-io-stress/) experiment the disk with continuous and heavy IO to cause degradation in reads/writes by other microservices that use this shared disk.
+Measurement: LitmusChaos experiment [pod-io-stress](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-io-stress/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when pod io stress occurs
 A workload whose containers all mount a read-only root file system cannot be stressed at all, which is the property this experiment probes, so it passes without the fault being injected; the reason is recorded in the test details. In a workload that mixes read-only and writable containers, the fault is injected into a writable one.
 
@@ -685,6 +691,7 @@ Ensure that your CNF is resilient to continuous and heavy disk IO load and can m
 #### Overview
 
 The [pod-network corruption](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-corruption/) experiment injects packet corruption on the CNF by starting a traffic control (tc) process with netem rules to add egress packet corruption.
+Measurement: LitmusChaos experiment [pod-network-corruption](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-corruption/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should be resilient to a lossy/flaky network and should continue to provide some level of availability.
 
 #### Rationale
@@ -707,6 +714,7 @@ Ensure that your CNF is resilient to a lossy/flaky network and can maintain a le
 #### Overview
 
 The [pod-network duplication](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-duplication/) experiment injects network duplication into the CNF by starting a traffic control (tc) process with netem rules to add egress delays.
+Measurement: LitmusChaos experiment [pod-network-duplication](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-duplication/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function and be resilient to a duplicate network.
 
 #### Rationale
@@ -729,6 +737,7 @@ Ensure that your CNF is resilient to erroneously duplicated packets and can main
 #### Overview
 
 The [pod-dns error](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-dns-error/) experiment injects chaos to disrupt DNS resolution in kubernetes pods and causes loss of access to services by blocking DNS resolution of hostnames/domains.
+Measurement: LitmusChaos experiment [pod-dns-error](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-dns-error/); the Litmus version is in the results file's `tools`.
 Expectation: That the CNF doesn't crash is resilient to DNS resolution failures.
 
 #### Rationale
@@ -923,6 +932,7 @@ All security: `./cnti-testsuite security`
 #### Overview
 
 This test checks all of the CNFs containers and looks to see if any of them have access to a container runtime socket from the host.
+Measurement: Kyverno audit policy [best-practices/disallow-cri-sock-mount](https://github.com/kyverno/policies/tree/release-1.19/best-practices/disallow-cri-sock-mount); the CLI version and policies branch are in the results file's `tools`.
 Expectation: Container runtime sockets should not be mounted as volumes
 
 #### Rationale
@@ -965,6 +975,7 @@ Remove privileged capabilities by setting the securityContext.privileged to fals
 #### Overview
 
 Checks if the CNF has services with external IPs configured
+Measurement: Kyverno audit policy [best-practices/restrict-service-external-ips](https://github.com/kyverno/policies/tree/release-1.19/best-practices/restrict-service-external-ips); the CLI version and policies branch are in the results file's `tools`.
 Expectation: A CNF should not run services with external IPs
 
 #### Rationale
@@ -987,6 +998,7 @@ Make sure to not define external IPs in your kubernetes service configuration
 #### Overview
 
 Checks if the CNF has escalatory SELinuxOptions configured.
+Measurement: Kyverno audit policy [pod-security/baseline/disallow-selinux](https://github.com/kyverno/policies/tree/release-1.19/pod-security/baseline/disallow-selinux), plus the suite's own check-selinux-enabled policy; the CLI version and policies branch are in the results file's `tools`.
 Expectation: A CNF should not have any 'seLinuxOptions' configured that allow privilege escalation.
 
 #### Rationale
@@ -1011,6 +1023,7 @@ Ensure the following guidelines are followed for any cluster resource that allow
 #### Overview
 
 Checks the CNF for usage of non-namespaced sysctls mechanisms that can affect the entire host.
+Measurement: Kyverno audit policy [pod-security/baseline/restrict-sysctls](https://github.com/kyverno/policies/tree/release-1.19/pod-security/baseline/restrict-sysctls); the CLI version and policies branch are in the results file's `tools`.
 Expectation: The CNF should only have "safe" sysctls mechanisms configured, that are isolated from other Pods.
 
 #### Rationale
@@ -1032,6 +1045,7 @@ The spec.securityContext.sysctls field must be unset or not use.
 #### Overview
 
 Check that the allowPrivilegeEscalation field in the securityContext of each container is set to false.
+Measurement: Kubescape control [C-0016](https://hub.armosec.io/docs/c-0016) (Allow privilege escalation) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: Containers should not allow privilege escalation
 
 #### Rationale
@@ -1054,6 +1068,7 @@ If your application does not need it, make sure the allowPrivilegeEscalation fie
 #### Overview
 
 This test checks for vulnerable K8s versions and the actual usage of the subPath feature for all Pods in the CNF.
+Measurement: Kubescape control [C-0058](https://hub.armosec.io/docs/c-0058) (CVE-2021-25741, using symlink for arbitrary host file system access) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: No vulnerable K8s version being used in conjunction with the subPath feature.
 
 #### Rationale
@@ -1075,6 +1090,7 @@ To mitigate this vulnerability without upgrading kubelet, you can disable the Vo
 #### Overview
 
 Checks the CNF for sensitive information in environment variables, by using list of known sensitive key names. Also checks for configmaps with sensitive information.
+Measurement: Kubescape control [C-0012](https://hub.armosec.io/docs/c-0012) (Applications credentials in configuration files) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: Application credentials should not be found in the CNFs configuration files
 
 #### Rationale
@@ -1097,6 +1113,7 @@ Use Kubernetes secrets or Key Management Systems to store credentials.
 #### Overview
 
 Checks if there is a [host network](https://bit.ly/C0041_hostNetwork) attached to any of the Pods in the CNF.
+Measurement: Kubescape control [C-0041](https://hub.armosec.io/docs/c-0041) (HostNetwork access) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: The CNF should not have access to the host systems network.
 
 #### Rationale
@@ -1118,6 +1135,7 @@ Only connect PODs to the hostNetwork when it is necessary. If not, set the hostN
 #### Overview
 
 Check if the CNF is using service accounts that are automatically mapped.
+Measurement: Kubescape control [C-0034](https://hub.armosec.io/docs/c-0034) (Automatic mapping of service account) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: The [automatic mapping](https://bit.ly/C0034_service_account_mapping) of service account tokens should be disabled.
 
 #### Rationale
@@ -1139,6 +1157,7 @@ Disable automatic mounting of service account tokens to PODs either at the servi
 #### Overview
 
 Checks each Pod in the CNF for a defined ingress and egress policy.
+Measurement: Kubescape control [C-0030](https://hub.armosec.io/docs/c-0030) (Ingress and Egress blocked) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: Ingress and Egress traffic should be blocked on Pods.
 
 #### Rationale
@@ -1161,6 +1180,7 @@ By default, you should disable or restrict Ingress and Egress traffic on all pod
 #### Overview
 
 Checks the CNF for any usage of insecure capabilities using the following [deny list](https://man7.org/linux/man-pages/man7/capabilities.7.html)
+Measurement: Kubescape control [C-0046](https://hub.armosec.io/docs/c-0046) (Insecure capabilities) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: Containers should not have insecure capabilities enabled.
 
 #### Rationale
@@ -1183,6 +1203,7 @@ Remove all insecure capabilities which aren’t necessary for the container.
 
 Checks, through Kubescape control C-0013 (Non-root containers), that no container of the CNF runs as root or can become root: `runAsNonRoot` is true, or `runAsUser`/`runAsGroup` are set to non-root IDs, at the pod or container level. Whether privilege escalation is allowed is checked separately by the `privilege_escalation` test.
 Read more at [ARMO-C0013](https://bit.ly/2Zzlts3)
+Measurement: Kubescape control [C-0013](https://hub.armosec.io/docs/c-0013) (Non-root containers) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: Containers should run with non-root user and allowPrivilegeEscalation should be set to false.
 
 #### Rationale
@@ -1205,6 +1226,7 @@ If your application does not need root privileges, set `runAsNonRoot: true`, or 
 
 Checks if containers are running with hostPID or hostIPC privileges.
 Read more at [ARMO-C0038](https://bit.ly/3nGvpIQ)
+Measurement: Kubescape control [C-0038](https://hub.armosec.io/docs/c-0038) (Host PID/IPC privileges) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: Containers should not have hostPID and hostIPC privileges
 
 #### Rationale
@@ -1227,6 +1249,7 @@ Apply least privilege principle and remove hostPID and hostIPC from the yaml con
 
 Check if there are AppArmor, Seccomp, SELinux or Capabilities defined in the securityContext of the CNF's containers and pods.
 Read more at [ARMO-C0055](https://bit.ly/2ZKOjpJ).
+Measurement: Kubescape control [C-0055](https://hub.armosec.io/docs/c-0055) (Linux hardening) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: Security services are being used to harden application.
 
 #### Rationale
@@ -1248,6 +1271,7 @@ Use AppArmor, Seccomp, SELinux and Linux Capabilities mechanisms to restrict con
 #### Overview
 
 Check if there is a ‘containers[].resources.limits.cpu’ field defined for all pods in the CNF.
+Measurement: Kubescape control [C-0270](https://hub.armosec.io/docs/c-0270) (Ensure CPU limits are set) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: Containers should have cpu limits defined
 
 #### Rationale
@@ -1269,6 +1293,7 @@ Define LimitRange and ResourceQuota policies to limit CPU usage for namespaces o
 #### Overview
 
 Check if there is a ‘containers[].resources.limits.memory’ field defined for all pods in the CNF.
+Measurement: Kubescape control [C-0271](https://hub.armosec.io/docs/c-0271) (Ensure memory limits are set) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: Containers should have memory limits defined
 
 #### Rationale
@@ -1291,6 +1316,7 @@ Define LimitRange and ResourceQuota policies to limit memory usage for namespace
 
 Checks whether the readOnlyRootFilesystem field in the SecurityContext is set to true.
 Read more at [ARMO-C0017](https://bit.ly/3pSMtxK)
+Measurement: Kubescape control [C-0017](https://hub.armosec.io/docs/c-0017) (Immutable container filesystem) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: Containers should use an immutable file system when possible.
 
 #### Rationale
@@ -1314,6 +1340,7 @@ Set the filesystem of the container to read-only when possible. If the container
 
 Checks, through Kubescape control C-0048 (HostPath mount), whether any pod of the CNF mounts a hostPath volume. Any hostPath mount is reported, read-only ones included: a host directory mounted into a container is a path to the underlying host either way.
 Read more at [ARMO-C0045](https://bit.ly/3EvltIL)
+Measurement: Kubescape control [C-0048](https://hub.armosec.io/docs/c-0048) (HostPath mount) scanned on its own; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: Containers should not have hostPath mounts
 
 #### Rationale
@@ -1349,6 +1376,7 @@ All configuration: `./cnti-testsuite configuration`
 #### Overview
 
 Checks if any of the CNF's resources are deployed in the default namespace.
+Measurement: Kyverno audit policy [best-practices/disallow-default-namespace](https://github.com/kyverno/policies/tree/release-1.19/best-practices/disallow-default-namespace); the CLI version and policies branch are in the results file's `tools`.
 Expectation: Resources should not be deployed in the default namespace.
 
 #### Rationale
@@ -1371,6 +1399,7 @@ Ensure that your CNF is configured to use a Namespace and is not using the defau
 #### Overview
 
 Checks if the CNF is using a 'latest' tag instead of a semantic version.
+Measurement: Kyverno audit policy [best-practices/disallow-latest-tag](https://github.com/kyverno/policies/tree/release-1.19/best-practices/disallow-latest-tag); the CLI version and policies branch are in the results file's `tools`.
 Expectation: The CNF should use an immutable tag that maps to a symantic version of the application.
 
 #### Rationale
@@ -1392,6 +1421,7 @@ When specifying container images, always specify a tag and ensure to use an immu
 #### Overview
 
 Checks if the CNF validates that the label `app.kubernetes.io/name` is specified with some value.
+Measurement: Kyverno audit policy [best-practices/require-labels](https://github.com/kyverno/policies/tree/release-1.19/best-practices/require-labels); the CLI version and policies branch are in the results file's `tools`.
 Expectation: Checks if pods are using the 'app.kubernetes.io/name' label
 
 #### Rationale
