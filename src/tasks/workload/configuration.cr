@@ -482,102 +482,61 @@ desc "Does the CNF use immutable configmaps?"
 scored_task "immutable_configmap",
   type: CNFManager::TestType::Bonus,
   emoji: "⚖️" do |t, args|
-  resp = ""
-
-  task_response = CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     # https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/
-
-    # feature test to see if immutable_configmaps are enabled
-    # https://github.com/lfn-cnti/testsuite/issues/508#issuecomment-758438413
-
-    test_config_map_filename = "#{CNF_TEMP_FILES_DIR}/test_config_map.yml";
-
-    template = ImmutableConfigMapTemplate.new("doesnt_matter").to_s
-    Log.for(t.name).debug { "test immutable_configmap template: #{template}" }
-    File.write(test_config_map_filename, template)
+    # Feature probe: an immutable ConfigMap must reject a change. Whether the
+    # cluster enforces that is a cluster property, so a cluster that does not
+    # makes the test not applicable (#2595). The probe is removed either way.
+    test_config_map_filename = "#{CNF_TEMP_FILES_DIR}/test_config_map.yml"
+    File.write(test_config_map_filename, ImmutableConfigMapTemplate.new("doesnt_matter").to_s)
     KubectlClient::Apply.file(test_config_map_filename)
-
-    # now we change then apply again
-
-    template = ImmutableConfigMapTemplate.new("doesnt_matter_again").to_s
-    Log.for(t.name).debug { "test immutable_configmap change template: #{template}" }
-    File.write(test_config_map_filename, template)
-
-    immutable_configmap_supported = true
-    immutable_configmap_enabled = true
-
-    # if the reapply with a change succedes immutable configmaps is NOT enabled
-    # if KubectlClient::Apply.file(test_config_map_filename) == 0
-    begin
+    File.write(test_config_map_filename, ImmutableConfigMapTemplate.new("doesnt_matter_again").to_s)
+    enforced = begin
       KubectlClient::Apply.file(test_config_map_filename)
-    rescue ex : KubectlClient::ShellCMD::UnspecifiedError
-      Log.for(t.name).info { "immutable configmaps supported, continuing with test" }
-    else
-      # Delete configmap immediately to avoid interfering with further tests
-      begin
-        KubectlClient::Delete.file(test_config_map_filename)
-      rescue ex: KubectlClient::ShellCMD::NotFoundError
-        Log.warn { "Cannot delete #{test_config_map_filename}. File not found." }
-      end
-
-      Log.for(t.name).info { "kubectl apply on immutable configmap succeeded for: #{test_config_map_filename}" }
-      k8s_ver = KubectlClient.server_version
-      if version_less_than(k8s_ver, "1.19.0")
-        result.skipped("immutable configmaps are not supported in this k8s cluster")
-      else
-        result.failed("immutable configmaps are not enabled in this k8s cluster")
-      end
+      false
+    rescue KubectlClient::ShellCMD::UnspecifiedError
+      true
+    end
+    begin
+      KubectlClient::Delete.file(test_config_map_filename)
+    rescue KubectlClient::ShellCMD::NotFoundError
+      Log.for(t.name).warn { "Probe ConfigMap already gone" }
+    end
+    unless enforced
+      result.na("Immutable ConfigMaps are not enforced in this cluster: a change to one was accepted, so the test cannot apply here")
       next
     end
 
-    volumes_test_results = [] of MutableConfigMapsVolumesResult
-    envs_with_mutable_configmap = [] of MutableConfigMapsInEnvResult
+    # Findings are collected across every workload resource; they used to be
+    # overwritten per resource, so only the last workload's were reported.
+    volume_findings = [] of MutableConfigMapsVolumesResult
+    env_findings = [] of MutableConfigMapsInEnvResult
 
-    cnf_manager_workload_resource_task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, volumes|
-      Log.for(t.name).info { "resource: #{resource}" }
-      Log.for(t.name).info { "volumes: #{volumes}" }
-
-      # If the install type is manifest, the namesapce would be in the manifest.
-      # Else rely on config for helm-based install
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, volumes|
       namespace = resource[:namespace]
-      configmaps = KubectlClient::Get.resource("configmaps", namespace: namespace)
-      if configmaps.dig?("items")
-        configmaps = configmaps.dig("items").as_a
-      else
-        configmaps = [] of JSON::Any
-      end
+      configmaps = KubectlClient::Get.resource("configmaps", namespace: namespace).dig?("items").try(&.as_a?) || [] of JSON::Any
 
-      volumes_test_results = mutable_configmaps_as_volumes(resource, configmaps, volumes.as_a, containers.as_a)
-      envs_with_mutable_configmap = containers.as_a.flat_map do |container|
-        container_env_configmap_refs(resource, configmaps, container)
-      end.compact
-
-      Log.for("immutable_configmap_volumes").info { volumes_test_results }
-      Log.for("immutable_configmap_envs").info { envs_with_mutable_configmap }
-
-      volumes_test_results.size == 0 && envs_with_mutable_configmap.size == 0
+      in_volumes = mutable_configmaps_as_volumes(resource, configmaps, volumes.as_a, containers.as_a)
+      in_envs = containers.as_a.flat_map { |container| container_env_configmap_refs(resource, configmaps, container) }.compact
+      volume_findings.concat(in_volumes)
+      env_findings.concat(in_envs)
+      in_volumes.empty? && in_envs.empty?
     end
 
-    if cnf_manager_workload_resource_task_response
+    if task_response
       result.passed("All volume or container mounted configmaps immutable")
-    elsif immutable_configmap_supported
-
-      # Print out any mutable configmaps mounted as volumes
-      volumes_test_results.each do |vol_result|
-        msg = ""
-        if vol_result[:resource] == nil
-          msg = "Mutable configmap #{vol_result[:configmap]} used as volume in #{vol_result[:resource][:kind]}/#{vol_result[:resource][:name]} in #{vol_result[:resource][:namespace]} namespace."
-        else
-          msg = "Mutable configmap #{vol_result[:configmap]} mounted as volume #{vol_result[:volume]} in #{vol_result[:container]} container part of #{vol_result[:resource][:kind]}/#{vol_result[:resource][:name]} in #{vol_result[:resource][:namespace]} namespace."
-        end
-        result.append_description(msg)
+    else
+      volume_findings.each do |f|
+        where = f[:container] ? "mounted as volume #{f[:volume]} in container #{f[:container]}" : "used as volume #{f[:volume]}"
+        result.add_impacted_resource(f[:resource][:kind], f[:resource][:name], f[:resource][:namespace],
+          container: f[:container], reason: "ConfigMap #{f[:configmap]} #{where} is mutable")
       end
-      envs_with_mutable_configmap.each do |env_result|
-        msg = "Mutable configmap #{env_result[:configmap]} used in env in #{env_result[:container]} part of #{env_result[:resource][:kind]}/#{env_result[:resource][:name]} in #{env_result[:resource][:namespace]}."
-        result.append_description(msg)
+      env_findings.each do |f|
+        result.add_impacted_resource(f[:resource][:kind], f[:resource][:name], f[:resource][:namespace],
+          container: f[:container], reason: "ConfigMap #{f[:configmap]} used in env of container #{f[:container]} is mutable")
       end
-      result.failed("Found mutable configmap(s)")
+      result.append_remediation("Set immutable: true on ConfigMaps that hold non-mutable data; changing one then means creating a new ConfigMap and rolling the workload to it.")
+      result.failed("Found #{volume_findings.size + env_findings.size} mutable configmap use(s)")
     end
   end
 end

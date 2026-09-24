@@ -1711,7 +1711,7 @@ The whole test passes if _any_ workload resource in the cnf uses a (non-exempt) 
 
 #### Overview
 
-The immutable configmap test will scan the CNF's workload resources and see if immutable configmaps are being used.
+The immutable configmap test scans the CNF's workload resources for ConfigMaps mounted as volumes or used in container environments and reports each mutable one with the workload and container that uses it. The cluster is first probed with an immutable ConfigMap that must reject a change; a cluster that accepts it does not enforce immutability, and the test is not applicable there.
 Expectation: Immutable configmaps are being used for non-mutable data.
 
 #### Rationale
