@@ -293,7 +293,8 @@ describe "Microservice" do
       ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_coredns")
       result = ShellCmd.run_testsuite("service_discovery")
       result[:status].success?.should be_true
-      (/(PASSED).*(Some containers exposed as a service)/ =~ result[:output]).should_not be_nil
+      (/(PASSED).*(Every workload resource of the CNF is exposed by a Service)/ =~ result[:output]).should_not be_nil
+      (/> Deployment\/coredns-coredns in .*: exposed by Service coredns-coredns/ =~ result[:output]).should_not be_nil
       verify_task_result("service_discovery", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -306,11 +307,27 @@ describe "Microservice" do
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-ndn-privileged")
       result = ShellCmd.run_testsuite("service_discovery")
       result[:status].exit_code.should eq(1)
-      (/(FAILED).*(No containers exposed as a service)/ =~ result[:output]).should_not be_nil
+      (/(FAILED).*(workload resource\(s\) of the CNF are not exposed by a Service)/ =~ result[:output]).should_not be_nil
+      (/impacted: .* in .*: no Service of the CNF selects its pods/ =~ result[:output]).should_not be_nil
       verify_task_result("service_discovery", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
+    end
+  end
+
+  it "'service_discovery' should name the workload a Service does not reach, even when another is exposed", tags: ["service_discovery"] do
+    begin
+      # k8s-non-helm: a Deployment behind a Service, and a bare Pod nothing selects.
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/k8s-non-helm --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("service_discovery")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(1 workload resource\(s\) of the CNF are not exposed by a Service)/ =~ result[:output]).should_not be_nil
+      (/> Deployment\/nginx-webapp in cnfspace: exposed by Service nginx-webapp/ =~ result[:output]).should_not be_nil
+      (/impacted: Pod\/sidecar-container-demo in cnfspace: no Service of the CNF selects its pods/ =~ result[:output]).should_not be_nil
+      verify_task_result("service_discovery", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
     end
   end
 
