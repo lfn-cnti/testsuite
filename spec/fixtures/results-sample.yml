@@ -1,0 +1,73 @@
+# A results file with one item per status, for the JUnit report spec. Test
+# names are real so the categories resolve; the last one is not a test.
+name: cnti testsuite
+testsuite_version: v2.0.0
+schema_version: 1
+status: failed
+command: cnti-testsuite cert
+exit_code: 1
+summary:
+  points: 42
+  maximum_points: 90
+  passed: 1
+  max_passed: 3
+  essential_passed: 1
+  essential_max_passed: 2
+  failed: 1
+  skipped: 1
+  na: 1
+  error: 1
+  criteria:
+    cert:
+      passed: false
+items:
+  - name: privileged_containers
+    status: failed
+    message: Found 2 privileged containers
+    type: essential
+    points: 0
+    start_time: "2026-07-07T10:00:00.000000000Z"
+    end_time: "2026-07-07T10:00:03.000000000Z"
+    task_runtime: 3.0
+    details:
+      - Deployment/coredns-coredns in cnti-default runs privileged
+    remediation:
+      - Set securityContext.privileged=false on the offending containers
+    impacted_resources:
+      - kind: Deployment
+        name: coredns-coredns
+        namespace: cnti-default
+        container: coredns
+        reason: privileged container
+  - name: liveness
+    status: passed
+    message: All workload resources have at least one container with a liveness probe
+    type: essential
+    points: 100
+    task_runtime: 1.5
+  - name: reasonable_startup_time
+    status: error
+    message: Unexpected error occurred
+    type: normal
+    points: 0
+    task_runtime: 0.25
+  - name: helm_chart_published
+    status: skipped
+    message: Chart is not published
+    type: normal
+    points: 0
+    task_runtime: 0
+  - name: operator_installed
+    status: na
+    message: "No Operators Found: the CNF is not operator-managed"
+    type: bonus
+    points: 0
+    task_runtime: 0.1
+  - name: not_a_test
+    status: passed
+    message:
+      - first line
+      - second line
+    type: normal
+    points: 5
+    task_runtime: 2

@@ -73,6 +73,23 @@ directory. Every run also ends with one stable line naming both paths:
 Results: cnti/results/cnti-testsuite-results-<timestamp>.yml (latest: cnti/results/latest.yml)
 ```
 
+#### JUnit report
+
+Most CI systems render JUnit XML natively (GitLab's merge request widget, Jenkins, Azure DevOps).
+`results_junit` converts a results file into one:
+
+```
+./cnti-testsuite results_junit                                    # the newest results file
+./cnti-testsuite results_junit --results-file PATH --junit-file PATH
+```
+
+By default the report is written next to the results file with the `.xml` extension. It holds one
+`<testsuite>` per test category and one `<testcase>` per test: a failed test carries a `<failure>`
+with the message, and the `details`, `impacted_resources` and `remediation` as its body; an
+errored test an `<error>`; skipped and not-applicable tests a `<skipped>`. The run's `status`,
+`exit_code` and every `summary` field are `<properties>` of the root, so a consumer can show
+"17 of 19 essential tests passed, threshold 15" without opening the YAML.
+
 To write somewhere else, pass `--results-dir PATH` on the command line or set the
 `CNTI_TESTSUITE_RESULTS_DIR` environment variable; the option wins over the variable. The
 timestamped file and `latest.yml` both go there, and `delete_results` honours the same setting.
