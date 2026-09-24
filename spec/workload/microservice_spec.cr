@@ -54,7 +54,7 @@ describe "Microservice" do
     end
   end
 
-  it "'shared_database' should fail if two services on the cluster connect to the same database", tags: ["shared_database_flaky"]  do
+  it "'shared_database' should fail if two services on the cluster connect to the same database", tags: ["shared_database5"]  do
     begin
       ShellCmd.cnf_install("--cnf-config sample-cnfs/ndn-multi-db-connections-fail/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("shared_database")
