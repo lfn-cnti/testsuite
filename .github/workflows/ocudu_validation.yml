@@ -2,83 +2,23 @@ name: OCUDU validation
 
 on:
   schedule:
-    - cron: '0 0 * * *'
+    # After the free5GC validation, which starts at midnight on the same
+    # runner pool and takes about six hours end to end.
+    - cron: '0 7 * * *'
   workflow_dispatch:
 
+# Each job owns a whole kind cluster on the shared self-hosted runners, so runs
+# must not overlap. Queue them instead of cancelling.
 concurrency:
   group: ocudu-validation
   cancel-in-progress: false
 
 jobs:
-  ocudu-validation:
-    runs-on: [v1.0.0]
-    # A full workload run installs several heavy CNFs and can exceed the default
-    # 360-minute job timeout, so give it twice that.
-    timeout-minutes: 720
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - suite: cert
-            tag: ocudu_cert
-          - suite: workload
-            tag: ocudu_workload
-    env:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
-      KIND_CLUSTER_NAME: ocudu-${{ matrix.suite }}-${{ github.run_id }}
-    steps:
-      - name: Checkout Code & Submodules
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: Login to Docker Hub
-        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
-        uses: docker/login-action@v3
-        with:
-          username: ${{ env.DOCKERHUB_USERNAME }}
-          password: ${{ env.DOCKERHUB_PASSWORD }}
-      - name: Install kind
-        uses: ./.github/actions/install-kind
-      - name: Setup Kind Cluster
-        run: |
-          cat <<EOF > kind_setup.yaml
-          kind: Cluster
-          apiVersion: kind.x-k8s.io/v1alpha4
-          containerdConfigPatches:
-          - |-
-            root = "/tmp/containerd"
-          nodes:
-          - role: control-plane
-            kubeadmConfigPatches:
-            - |
-              kind: ClusterConfiguration
-              etcd:
-                local:
-                  dataDir: /tmp/etcd
-            extraMounts:
-            - containerPath: /var/lib/kubelet/config.json
-              hostPath: $HOME/.docker/config.json
-          - role: worker
-            extraMounts:
-            - containerPath: /var/lib/kubelet/config.json
-              hostPath: $HOME/.docker/config.json
-          - role: worker
-            extraMounts:
-            - containerPath: /var/lib/kubelet/config.json
-              hostPath: $HOME/.docker/config.json
-          EOF
-          kind create cluster --name "$KIND_CLUSTER_NAME" --config kind_setup.yaml --wait 5m
-      - name: Build CNTi Test Suite
-        run: |
-          shards install
-          crystal build src/cnti-testsuite.cr
-      - name: Run the ${{ matrix.suite }} suite against OCUDU
-        run: |
-          CNTI_TESTSUITE_LOG_LEVEL=INFO crystal spec --tag ${{ matrix.tag }} -v
-      - name: Delete Kind Cluster
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 10
-        run: |
-          until kind delete cluster --name "$KIND_CLUSTER_NAME" --verbosity 1; do sleep 1; done
+  ocudu:
+    uses: ./.github/workflows/example_cnf_validation.yml
+    with:
+      cnf: ocudu
+      display_name: OCUDU
+      # The cert leg takes about 10 minutes and the workload leg about 30.
+      timeout_minutes: 90
+    secrets: inherit

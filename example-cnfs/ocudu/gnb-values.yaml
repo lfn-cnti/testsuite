@@ -1,7 +1,7 @@
 # Values for the ocudu-gnb chart: test mode on a small cluster.
 image:
-  # AVX2 build: GitHub-hosted runners do not guarantee AVX-512. "-stable" tags are
-  # retained; plain nightly tags are deleted after 30 days.
+  # AVX2 build: the self-hosted validation runners do not guarantee AVX-512.
+  # "-stable" tags are retained; plain nightly tags are deleted after 30 days.
   repository: registry.gitlab.com/ocudu/ocudu/ocudu_nightly_avx2
   tag: "20260914_75146075-stable"
 

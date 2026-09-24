@@ -5,6 +5,7 @@
 The [example-cnfs/](example-cnfs/) directory contains curated, ready-to-run CNF configurations, each with its own `cnti-testsuite.yaml` (and a README where applicable):
 
 - **[free5GC](example-cnfs/free5gc/)** — an open source 5G core and the **reference CNF** for the CNTi Test Suite ([LF Networking announcement](https://lfnetworking.org/introducing-free5gc-as-a-reference-cnf-for-the-cnti-test-suite/)). Validated nightly in CI against the certification test set.
+- **[OCUDU](example-cnfs/ocudu/)** — the open CU/DU by SRS, a 5G gNB run in test mode (dummy RU, no core). Validated nightly in CI against the cert and workload suites.
 - [CoreDNS](example-cnfs/coredns/) — DNS server; the lightweight example used in the quick install steps.
 - [Envoy](example-cnfs/envoy/) — L3/L4/L7 proxy.
 
