@@ -106,6 +106,13 @@ summary:                          # aggregate numbers for the whole run
   essential_max_passed: 10
   points: 42
   maximum_points: 90
+tools:                            # versions of the tools whose verdicts the file contains
+  kubescape: 4.0.12
+  kubescape_framework: nsa
+  kubescape_regolibrary: 2.0.33
+  kyverno: 1.19.0
+  kyverno_policies: release-1.19
+  litmus: 3.31.0
 items:
   - name: privileged_containers
     status: failed                # passed | failed | skipped | na | error
@@ -146,7 +153,21 @@ items:
 | `command` | The command line that produced this file. |
 | `exit_code` | Process exit code, answering "did this run meet its objective?" (`null` while the run is in progress). `2` at least one test errored (raised) - the suite itself broke, which always wins. Otherwise, for a run with a pass criterion (`cert`): `0` the criterion was met, `1` it was not. For a run without one (`all`, `workload`, `platform`): `0` no test failed (passed/skipped/na), `1` at least one test failed. Additionally, the process exits with `64` (usage error) on unknown or malformed command-line arguments, before any test runs. See [Exit codes](#exit-codes) for the full table. |
 | `summary` | Aggregate numbers for the whole run (see below). |
+| `tools` | Versions of the tools whose verdicts the file contains (see below). |
 | `items` | One entry per test that ran (see below). |
+
+##### `tools` fields
+
+What counts as a finding in the Kubescape, Kyverno and LitmusChaos based tests depends on the scanner and policy versions, so the file records the versions the suite pinned and installed. Two runs that disagree with different values here measured with different rulers; the per-test entries in `docs/TEST_DOCUMENTATION.md` name the control, policy or experiment each test reads.
+
+| Field | Description |
+|-------|-------------|
+| `kubescape` | Kubescape CLI version. |
+| `kubescape_framework` | Kubescape framework the security tests read their controls from (`nsa`). |
+| `kubescape_regolibrary` | Release of [kubescape/regolibrary](https://github.com/kubescape/regolibrary) the framework was downloaded from. |
+| `kyverno` | Kyverno CLI version. |
+| `kyverno_policies` | Branch of [kyverno/policies](https://github.com/kyverno/policies) the audit policies are taken from. |
+| `litmus` | LitmusChaos operator and chaos-charts version. |
 
 ##### `summary` fields
 

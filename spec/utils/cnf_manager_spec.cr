@@ -302,6 +302,21 @@ describe "SampleUtils" do
     liveness_item["impacted_resources"]?.should be_nil
   end
 
+  it "records the pinned scanner and policy versions under tools", tags: ["points"] do
+    CNFManager::Points.clean_results_yml
+    CNFManager::Points.upsert_task(CNFManager::TestCaseResult.new("liveness", CNFManager::ResultStatus::Passed, "ok"))
+    doc = File.open("#{CNFManager::Points::Results.file}") { |file| YAML.parse(file) }
+    doc["tools"]["kubescape"].as_s.should eq(Setup::KUBESCAPE_VERSION)
+    doc["tools"]["kubescape_framework"].as_s.should eq("nsa")
+    doc["tools"]["kubescape_regolibrary"].as_s.should eq(Setup::KUBESCAPE_FRAMEWORK_VERSION)
+    doc["tools"]["kyverno"].as_s.should eq(Kyverno::VERSION)
+    doc["tools"]["kyverno_policies"].as_s.should eq(Kyverno::POLICIES_BRANCH)
+    doc["tools"]["litmus"].as_s.should eq(LitmusManager::Version)
+    CNFManager::Points.finalize_results!
+    doc = File.open("#{CNFManager::Points::Results.file}") { |file| YAML.parse(file) }
+    doc["tools"]["litmus"].as_s.should eq(LitmusManager::Version)
+  end
+
   it "results file conforms to docs/cnti-testsuite-results.schema.json", tags: ["points"] do
     CNFManager::Points.clean_results_yml
 
