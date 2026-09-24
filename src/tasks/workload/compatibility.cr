@@ -19,63 +19,63 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
     CNFManager::Task.task_runner(args, task: t) do |args, config, result|
       container_names = config.common.container_names
       Log.for(t.name).debug { "container_names: #{container_names}" }
-      update_applied = true
-      unless container_names
-        result.append_remediation("Please add a container names set of entries into your cnti-testsuite.yaml")
-        update_applied = false
-      end
+      rolled = 0
+      unconfigured = 0
 
       # TODO use tag associated with image name string (e.g. busybox:v1.7.9) as the version tag
       # TODO optional get a valid version from the remote repo and roll to that, if no tag
       #  e.g. wget -q https://registry.hub.docker.com/v1/repositories/debian/tags -O -  | sed -e 's/[][]//g' -e 's/"//g' -e 's/ //g' | tr '}' '\n'  | awk -F: '{print $3}'
       # note: all images are not on docker hub nor are they always on a docker hub compatible api
 
-      task_response = update_applied && CNFManager.workload_resource_test(args, config) do |resource, container, _|
+      task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
         namespace = resource["namespace"]
+        container_name = container.as_h["name"].as_s
         test_passed = true
-        valid_cnti_testsuite_yml = true
         Log.for(t.name).debug { "container: #{container}" }
-        Log.for(t.name).debug { "container_names: #{container_names}" }
         #todo use skopeo to get the next and previous versions of the cnf image dynamically
-        config_container = container_names.find{|x| x.name==container.as_h["name"]} if container_names
+        config_container = container_names.find{|x| x.name == container_name} if container_names
         Log.debug { "config_container: #{config_container}" }
+
+        # A container without the tag this test needs is a configuration gap,
+        # not a rollout failure: it is left out with the remediation, and the
+        # test is skipped when no container had one (#2577).
         unless config_container && !config_container.get_container_tag(tn).empty?
-          result.append_remediation("Please add the container name #{container.as_h["name"]} and a corresponding #{tn}_test_tag into your cnti-testsuite.yaml under container names")
-          valid_cnti_testsuite_yml = false
+          result.append_remediation("Please add the container name #{container_name} and a corresponding #{tn}_test_tag into your cnti-testsuite.yaml under container names")
+          unconfigured += 1
+          next true
+        end
+        rolled += 1
+
+        # split out image name from version tag
+        image_name = container.as_h["image"].as_s.rpartition(":")[0]
+        tag = config_container.get_container_tag(tn)
+        resp = KubectlClient::Utils.set_image(resource["kind"], resource["name"], container_name, image_name, tag, namespace: namespace)
+        unless resp[:status].success?
+          result.add_impacted_resource(resource["kind"], resource["name"], namespace, container: container_name,
+            reason: "could not set image #{image_name}:#{tag}: #{resp[:error].to_s.strip}")
+          next false
         end
 
-        Log.trace { "#{tn}: #{container} valid_cnti_testsuite_yml=#{valid_cnti_testsuite_yml}" }
-        Log.trace { "#{tn}: #{container} config_container=#{config_container}" }
-        if valid_cnti_testsuite_yml && config_container
-          resp = KubectlClient::Utils.set_image(
-            resource["kind"],
-            resource["name"],
-            container.as_h["name"].as_s,
-            # split out image name from version tag
-            container.as_h["image"].as_s.rpartition(":")[0],
-            config_container.get_container_tag(tn),
-            namespace: namespace
-          )
-        else
-          resp = false
-        end
-        # If any containers dont have an update applied, fail
-        test_passed = false if resp == false
-
+        rollout_error = nil
         begin
           rollout_status = KubectlClient::Rollout.status(resource["kind"], resource["name"], namespace: namespace, timeout: "200s")
-        rescue KubectlClient::ShellCMD::UnspecifiedError
+        rescue ex : KubectlClient::ShellCMD::UnspecifiedError
+          rollout_error = ex.message.to_s.lines.first?
         end
 
         unless rollout_status
           Log.info { "Rollout failed for #{resource["kind"]}/#{resource["name"]} in #{namespace} namespace" }
+          result.add_impacted_resource(resource["kind"], resource["name"], namespace, container: container_name,
+            reason: "rollout to #{image_name}:#{tag} did not complete within 200s#{rollout_error ? ": #{rollout_error}" : ""}")
           test_passed = false
         end
         Log.trace { "#{tn}: #{container} test_passed=#{test_passed}" }
         test_passed
       end
       Log.trace { "#{tn}: task_response=#{task_response}" }
-      if task_response
+      if rolled == 0 && unconfigured > 0
+        result.skipped("No #{tn}_test_tag configured for any container: add container_names with a #{tn}_test_tag to cnti-testsuite.yaml")
+      elsif task_response
         result.passed("CNF for #{pretty_test_name_capitalized} Passed")
       else
         result.failed("CNF for #{pretty_test_name_capitalized} Failed")
@@ -92,16 +92,8 @@ scored_task "rollback" do |t, args|
     container_names = config.common.container_names
     Log.for(t.name).debug { "container_names: #{container_names}" }
 
-    update_applied = true
-    rollout_status = true
-    rollback_status = true
-    version_change_applied = true
-
-    unless container_names
-      result.append_remediation("Please add a container names set of entries into your cnti-testsuite.yaml")
-      result.failed("CNF Rollback Failed")
-      next
-    end
+    rolled = 0
+    unconfigured = 0
 
     task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
       resource_kind = resource["kind"]
@@ -117,44 +109,59 @@ scored_task "rollback" do |t, args|
       }
       #do_update = `kubectl set image deployment/coredns-coredns coredns=coredns/coredns:latest --record`
 
-      version_change_applied = true
-      # compare cnti-testsuite.yaml container list with the current container name
+      # A container without a usable rollback_from_tag is a configuration gap,
+      # not a rollback failure: it is left out with the remediation, and the
+      # test is skipped when no container had one (#2577).
       config_container = container_names.find{|x| x.name == container_name } if container_names
       unless config_container && !config_container.get_container_tag("rollback_from").empty?
         result.append_remediation("Please add the container name #{container_name} and a corresponding rollback_from_tag into your cnti-testsuite.yaml under container names")
-        next false
+        unconfigured += 1
+        next true
       end
 
       rollback_from_tag = config_container.get_container_tag("rollback_from")
       if rollback_from_tag == image_tag
-        result.append_remediation("Rollback not possible. Please specify a different version than the helm chart default image.tag for 'rollback_from_tag' ")
-        next false
+        result.append_remediation("Rollback not possible for #{container_name}: rollback_from_tag equals the installed tag #{image_tag}; specify a different version")
+        unconfigured += 1
+        next true
       end
+      rolled += 1
 
       Log.for(t.name).debug {
         "rollback: update #{resource_kind}/#{resource_name}, container: #{container_name}, image: #{image_name}, tag: #{rollback_from_tag}"
       }
 
-      version_change_applied = KubectlClient::Utils.set_image(
-        resource_kind,
-        resource_name,
-        container_name,
-        image_name,
-        rollback_from_tag,
-        namespace: namespace
-      )[:status].success?
-      Log.for(t.name).info { "rollback version change successful? #{version_change_applied}" }
+      resp = KubectlClient::Utils.set_image(resource_kind, resource_name, container_name, image_name, rollback_from_tag, namespace: namespace)
+      unless resp[:status].success?
+        result.add_impacted_resource(resource_kind, resource_name, namespace, container: container_name,
+          reason: "could not set image #{image_name}:#{rollback_from_tag}: #{resp[:error].to_s.strip}")
+        next false
+      end
 
-      rollout_status = KubectlClient::Rollout.status(resource_kind, resource_name, namespace: namespace, timeout: "180s")
-      result.add_impacted_resource(resource_kind, resource_name, container: container_name, reason: "rollback failed") unless rollout_status
+      rollout_error = nil
+      begin
+        rollout_status = KubectlClient::Rollout.status(resource_kind, resource_name, namespace: namespace, timeout: "180s")
+      rescue ex : KubectlClient::ShellCMD::UnspecifiedError
+        rollout_error = ex.message.to_s.lines.first?
+      end
+      unless rollout_status
+        result.add_impacted_resource(resource_kind, resource_name, namespace, container: container_name,
+          reason: "rollout to #{image_name}:#{rollback_from_tag} did not complete within 180s#{rollout_error ? ": #{rollout_error}" : ""}")
+      end
 
       Log.for(t.name).debug { "rollback: rolling back to old version" }
-      rollback_status = KubectlClient::Rollout.undo(resource_kind, resource_name, namespace: namespace)[:status].success?
+      undo = KubectlClient::Rollout.undo(resource_kind, resource_name, namespace: namespace)
+      unless undo[:status].success?
+        result.add_impacted_resource(resource_kind, resource_name, namespace, container: container_name,
+          reason: "rollout undo failed: #{undo[:error].to_s.strip}")
+      end
 
-      version_change_applied && rollout_status && rollback_status
+      !rollout_status.nil? && undo[:status].success?
     end
 
-    if task_response
+    if rolled == 0 && unconfigured > 0
+      result.skipped("No usable rollback_from_tag configured for any container: add container_names with a rollback_from_tag to cnti-testsuite.yaml")
+    elsif task_response
       result.passed("CNF Rollback Passed")
     else
       result.failed("CNF Rollback Failed")

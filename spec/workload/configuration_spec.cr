@@ -82,6 +82,21 @@ describe CntiTestSuite do
       result = ShellCmd.run_testsuite("rolling_update")
       result[:status].exit_code.should eq(1)
       (/Failed/ =~ result[:output]).should_not be_nil
+      # A rollout that does not complete names the resource, the image and why.
+      (/impacted: Deployment\/.* in .* \(container .+\): rollout to .*:.* did not complete within 200s/ =~ result[:output]).should_not be_nil
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'rolling_update' should skip with remediation when no test tag is configured", tags: ["rolling_update"] do
+    begin
+      # sample-coredns-cnf declares no container_names at all.
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("rolling_update")
+      (/(SKIPPED).*(No rolling_update_test_tag configured for any container)/ =~ result[:output]).should_not be_nil
+      (/remediation: Please add the container name coredns and a corresponding rolling_update_test_tag/ =~ result[:output]).should_not be_nil
+      verify_task_result("rolling_update", "skipped")
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -113,6 +128,8 @@ describe CntiTestSuite do
       result = ShellCmd.run_testsuite("rolling_downgrade")
       result[:status].exit_code.should eq(1)
       (/Failed/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/coredns-coredns in .* \(container coredns\): rollout to .*coredns:this_is_not_a_valid_version did not complete/ =~ result[:output]).should_not be_nil
+      verify_task_result("rolling_downgrade", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -135,6 +152,8 @@ describe CntiTestSuite do
       result = ShellCmd.run_testsuite("rolling_version_change")
       result[:status].exit_code.should eq(1)
       (/Failed/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/coredns-coredns in .* \(container coredns\): rollout to .*coredns:this_is_not_a_valid_version did not complete/ =~ result[:output]).should_not be_nil
+      verify_task_result("rolling_version_change", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -146,6 +165,18 @@ describe CntiTestSuite do
       result = ShellCmd.run_testsuite("rollback")
       result[:status].success?.should be_true
       (/Passed/ =~ result[:output]).should_not be_nil
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'rollback' should skip with remediation when no rollback_from_tag is configured", tags: ["rollback"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("rollback")
+      (/(SKIPPED).*(No usable rollback_from_tag configured for any container)/ =~ result[:output]).should_not be_nil
+      (/remediation: Please add the container name coredns and a corresponding rollback_from_tag/ =~ result[:output]).should_not be_nil
+      verify_task_result("rollback", "skipped")
     ensure
       result = ShellCmd.cnf_uninstall()
     end
