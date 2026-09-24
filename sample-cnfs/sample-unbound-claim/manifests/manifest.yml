@@ -1,0 +1,43 @@
+# A bare Pod mounting a claim that can never bind (its StorageClass does not
+# exist), so the pod stays Pending and the claim has no PersistentVolume.
+# no_local_volume_configuration must report the storage type as
+# undetermined, never pass it (#2594). Install with skip-wait-for-install.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: unbound-claim
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: unbound-claim
+  namespace: unbound-claim
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: no-such-storage-class-cnti-testsuite
+  resources:
+    requests:
+      storage: 1Mi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: unbound-claim
+  namespace: unbound-claim
+  labels:
+    app: unbound-claim
+spec:
+  containers:
+  - name: app
+    image: busybox:1.36
+    command: ["/bin/sleep", "2147483647"]
+    volumeMounts:
+    - name: data
+      mountPath: /data
+  volumes:
+  - name: data
+    persistentVolumeClaim:
+      claimName: unbound-claim

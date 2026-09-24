@@ -87,6 +87,21 @@ describe "State" do
     with_sample_local_storage do
       result = ShellCmd.run_testsuite("no_local_volume_configuration")
       (/(FAILED).*(local storage configuration volumes found)/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/.* in .*: volume .* \(claim foo-pvc\) is bound to PersistentVolume example-pv with local path \/var\/tmp/ =~ result[:output]).should_not be_nil
+    end
+  end
+
+  it "'no_local_volume_configuration' should not pass a claim that is bound to nothing", tags: ["no_local_volume_configuration"] do
+    begin
+      # A bare Pod (no spec.template, which used to raise into a rescue that
+      # passed) whose claim can never bind: the storage type is unknown.
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-unbound-claim --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("no_local_volume_configuration")
+      (/(SKIPPED).*(1 persistent volume claim\(s\) not bound to a PersistentVolume)/ =~ result[:output]).should_not be_nil
+      (/> Pod\/unbound-claim volume data: claim unbound-claim is not bound to a PersistentVolume/ =~ result[:output]).should_not be_nil
+      verify_task_result("no_local_volume_configuration", "skipped")
+    ensure
+      result = ShellCmd.cnf_uninstall()
     end
   end
 
