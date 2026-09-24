@@ -300,7 +300,8 @@ describe CntiTestSuite do
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/ndn-mutable-configmap")
       result = ShellCmd.run_testsuite("immutable_configmap")
       result[:status].exit_code.should eq(1)
-      (/(FAILED).*(Found mutable configmap)/ =~ result[:output]).should_not be_nil
+      (/(FAILED).*(Found \d+ mutable configmap use\(s\))/ =~ result[:output]).should_not be_nil
+      (/impacted: (Deployment|Pod)\/.* in .*: ConfigMap .* (mounted as volume .* in container .*|used in env of container .*) is mutable/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end
