@@ -17,6 +17,22 @@ require "../utils.cr"
 module CNFManager
   Log = ::Log.for("CNFManager")
 
+  # Raised by a test that examines the CNF's workloads when the composite
+  # manifest has none to examine. The task runner turns it into one
+  # not-applicable verdict with this reason, instead of the test failing on
+  # its own subject (#2603).
+  class NoWorkloadResources < Exception
+    def initialize
+      super("no workload resources in the CNF manifest (no #{KubectlClient::WORKLOAD_RESOURCES.values.select { |k| WORKLOAD_RESOURCE_KIND_NAMES.includes?(k.downcase) }.join(", ")})")
+    end
+  end
+
+  # True when the composite manifest holds at least one workload resource.
+  def self.workload_resources?(manifest_path : String = COMMON_MANIFEST_FILE_PATH) : Bool
+    ymls = CNFInstall::Manifest.manifest_path_to_ymls(manifest_path)
+    ymls.any? { |r| WORKLOAD_RESOURCE_KIND_NAMES.includes?(r.dig?("kind").to_s.downcase) }
+  end
+
   def self.cnf_resource_ymls(args, config)
     logger = Log.for("cnf_resource_ymls")
     logger.debug { "Load YAMLs from manifest: #{COMMON_MANIFEST_FILE_PATH}" }
@@ -90,6 +106,7 @@ module CNFManager
     resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |ref|
       resources << ref
     end
+    raise NoWorkloadResources.new if resources.empty?
 
     resources.each do |resource|
       logger.debug { "Testing #{resource[:kind]}/#{resource[:name]}" }
@@ -106,9 +123,8 @@ module CNFManager
       end
     end
 
-    initialized = resources.size > 0
-    logger.info { "Workload resource test intialized: #{initialized}, test passed: #{test_passed}" }
-    initialized && test_passed
+    logger.info { "Workload resource test over #{resources.size} resource(s), test passed: #{test_passed}" }
+    test_passed
   end
 
   def self.cnf_config_list(raise_exc : Bool = false)
@@ -152,6 +168,9 @@ module CNFManager
       name = resource.dig?("metadata", "name")
       "#{namespace},#{kind}/#{name}".downcase
     end
+    # The scanner-backed tests filter a cluster-wide report down to these
+    # keys; with none there is nothing to judge, not a clean report.
+    raise NoWorkloadResources.new if resource_keys.empty?
 
     resource_keys
   end

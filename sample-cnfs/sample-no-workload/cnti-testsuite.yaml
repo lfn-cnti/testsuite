@@ -1,0 +1,8 @@
+---
+# A CNF whose manifest has no workload resource at all: only a namespace
+# and a ConfigMap. Every test that examines workloads is not applicable.
+config_version: v2
+deployments:
+  manifests:
+  - name: no-workload
+    manifest_directory: manifests
