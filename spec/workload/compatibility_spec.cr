@@ -84,16 +84,29 @@ describe "Compatibility" do
       (/annotation "kubernetes.io\/ingress.class" is deprecated/ =~ result[:output]).should_not be_nil
       (/metadata\.annotations\[kubernetes\.io\/enforce-mountable-secrets\]: deprecated in v1\.32\+/ =~
         result[:output]).should_not be_nil
+      # Each warning is attributed to the resource that carries it.
+      (/impacted: ServiceAccount\/deprecated-sa in cnti-default: metadata\.annotations\[kubernetes\.io\/enforce-mountable-secrets\]/ =~ result[:output]).should_not be_nil
+      (/impacted: Ingress\/deprecated-ingress in .*: annotation "kubernetes.io\/ingress.class" is deprecated/ =~ result[:output]).should_not be_nil
     ensure
       ShellCmd.cnf_uninstall
     end
 
-    it "should skip if the CNF installation log is not present" do
+    it "should not depend on the installation log" do
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-deprecated-k8s-v1.32/cnti-testsuite.yaml")
       File.delete?(CNF_INSTALL_LOG_FILE).should be_true
       result = ShellCmd.run_testsuite("deprecated_k8s_features")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(CNF uses deprecated K8s features)/ =~ result[:output]).should_not be_nil
+    ensure
+      ShellCmd.cnf_uninstall
+    end
+
+    it "should skip if the CNF manifest is not present" do
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-deprecated-k8s-v1.32/cnti-testsuite.yaml")
+      File.delete?(COMMON_MANIFEST_FILE_PATH).should be_true
+      result = ShellCmd.run_testsuite("deprecated_k8s_features")
       result[:status].success?.should be_true
-      (/(SKIPPED).*(CNF installation log file not found)/ =~ result[:output]).should_not be_nil
+      (/(SKIPPED).*(CNF manifest not found)/ =~ result[:output]).should_not be_nil
     ensure
       ShellCmd.cnf_uninstall
     end
