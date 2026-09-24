@@ -59,6 +59,8 @@ Expectation: The number of replicas for a Pod increases and then decreases.
 
 A CNF should be able to increase and decrease its capacity without running into errors.
 
+Sources: [Kubernetes Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/); [Horizontal Pod Autoscaling](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
+
 #### Remediation
 
 Check out the kubectl docs for how to [manually scale your cnf.](https://kubernetes.io/docs/reference/kubectl/cheatsheet/#scaling-resources)
@@ -83,6 +85,8 @@ If a helm chart is published, it is significantly easier to install for the end 
 The management and versioning of the helm chart are handled by the helm registry and client tools
 rather than manually as directly referencing the helm chart source.
 
+Sources: [Helm chart best practices](https://helm.sh/docs/chart_best_practices/).
+
 #### Remediation
 
 Make sure your CNF helm charts are published in a Helm Repository.
@@ -103,6 +107,8 @@ Expectation: No syntax or validation problems are found in the chart.
 #### Rationale
 
 A chart should pass the [lint specification](https://helm.sh/docs/helm/helm_lint/#helm)
+
+Sources: [Helm chart best practices](https://helm.sh/docs/chart_best_practices/); [ETSI NFV, Helm charts as the CNF package (NFV-SOL 004/018)](https://www.etsi.org/technologies/nfv).
 
 #### Remediation
 
@@ -125,6 +131,8 @@ Expectation: The CNF was installed using Helm.
 
 A helm chart should be [deployable to a cluster](https://helm.sh/docs/helm/helm_install/#helm)
 
+Sources: [ETSI NFV, Helm charts as the CNF package (NFV-SOL 004/018)](https://www.etsi.org/technologies/nfv); [Helm chart best practices](https://helm.sh/docs/chart_best_practices/).
+
 #### Remediation
 
 Make sure your helm charts are valid and can be deployed to clusters.
@@ -145,6 +153,8 @@ Expectation: The CNF Software version can be successfully incremented, then roll
 #### Rationale
 
 K8s best practice is to allow [K8s to manage the rolling back](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#rolling-back-a-deployment) of an application resource instead of having operators manually rolling back the resource by using something like blue/green deploys.
+
+Sources: [Kubernetes Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/).
 
 #### Remediation
 
@@ -169,6 +179,8 @@ Expectation: The CNF Software version is successfully rolled back to its origina
 Whenever a rollback is needed the resource will have the exact manifest information that was tied to the application when it was deployed.
 This adheres the principles driving immutable infrastructure and declarative specifications.
 
+Sources: [Kubernetes Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/).
+
 #### Remediation
 
 Ensure that you can successfully rollback the software version of your CNF by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) command.
@@ -189,6 +201,8 @@ Expectation: The CNF Software version can be successfully incremented.
 #### Rationale
 
 See rolling version change.
+
+Sources: [Kubernetes Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/).
 
 #### Remediation
 
@@ -211,6 +225,8 @@ Expectation: The CNF Software version is successfully downgraded to a software v
 
 See rolling version change.
 
+Sources: [Kubernetes Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/).
+
 #### Remediation
 
 Ensure that you can successfully change the software version of your CNF back to an older version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) command.
@@ -231,6 +247,8 @@ Expectation: the CNF requests nothing that only one specific CNI plugin can prov
 #### Rationale
 
 A CNF should be runnable by any CNI that adheres to the [CNI specification](https://github.com/containernetworking/cni/blob/master/SPEC.md); manifests that hardwire vendor-specific network features only run on matching clusters.
+
+Sources: [Anuket Reference Architecture for Kubernetes (RA2)](https://cntt.readthedocs.io/projects/ra2/en/latest/).
 
 #### Remediation
 
@@ -253,6 +271,8 @@ by inspecting CNF installation logs.
 
 A CNF should avoid using any deprecated features that are scheduled for removal. It should transition to stable and
 actively maintained alternatives.
+
+Sources: [Kubernetes API deprecation policy](https://kubernetes.io/docs/reference/using-api/deprecation-policy/); [Anuket Reference Architecture for Kubernetes (RA2)](https://cntt.readthedocs.io/projects/ra2/en/latest/).
 
 #### Remediation
 
@@ -287,6 +307,8 @@ Expectation: Each CNF image is under 5000 MB. A CNF may lower the limit with `im
 
 A CNF with smaller image sizes provides faster deployment and scaling (critical for functions like 5G control plane components), enables faster updates, reduces the risk of timeouts, and reduces the attack surface (key for regulated telecom environments).  In addition, smaller image sizes are important in edge/disaggregated deployments common in Open RAN and MEC scenarios.
 
+Sources: [NIST SP 800-190, Application Container Security Guide](https://csrc.nist.gov/pubs/sp/800/190/final); [Google Cloud, best practices for building containers](https://cloud.google.com/architecture/best-practices-for-building-containers).
+
 #### Remediation
 
 Audit your CNF's images:
@@ -313,6 +335,8 @@ Expectation: CNF starts up under one minute
 
 A CNF that starts up with a time (adjusted for server resources) that is approaching a minute is indicative of a monolithic application. The liveness probe's `initialDelaySeconds` and `failureThreshold` determine the startup time and retry amount of the CNF. Specifically, if the `initialDelay` is too long, it is indicative of a monolithic application. If the `failureThreshold` is too high, it is indicative of a CNF or a component of the CNF that has too many intermittent failures.
 
+Sources: [Kubernetes probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/); [Google Cloud, best practices for building containers](https://cloud.google.com/architecture/best-practices-for-building-containers).
+
 #### Remediation
 
 Ensure that your CNF gets into a running state within 30 seconds.
@@ -336,6 +360,8 @@ The container's own init/supervisor process (PID 1) is not counted as an applica
 
 A microservice should have only one application process (or set of parent/child processes of the same type), optionally managed by an init/supervisor. The microservice should not spawn other process types (e.g., executables) as a way to contribute to the workload but rather should interact with other processes through a microservice API.
 
+Sources: [CNTi CBPP-0005, single concern per container](https://github.com/lfn-cnti/bestpractices/blob/main/doc/cbpps/0005-single-concern-per-container.md); [Docker, running multiple services in a container](https://docs.docker.com/engine/containers/multi-service_container/); [The Twelve-Factor App, processes](https://12factor.net/processes).
+
 #### Remediation
 
 Ensure that there is only one process type within a container. This does not count against child processes, e.g., nginx or httpd could be a parent process with 10 child processes and pass this test, but if both nginx and httpd were running, this test would fail.
@@ -356,6 +382,8 @@ Expectation: CNFs accessible to other applications should be exposed via a Servi
 #### Rationale
 
 A K8s microservice should expose its API through a K8s service resource. K8s services handle service discovery and load balancing for the cluster, ensuring that microservices can efficiently communicate and distribute traffic among themselves.
+
+Sources: [Kubernetes Services](https://kubernetes.io/docs/concepts/services-networking/service/); [The Twelve-Factor App, backing services](https://12factor.net/backing-services).
 
 #### Remediation
 
@@ -378,6 +406,8 @@ Expectation: Multiple microservices should not share the same database.
 
 A K8s microservice should not share a database with another K8s database because it forces the two services to upgrade in lock step.
 
+Sources: [The Twelve-Factor App, backing services](https://12factor.net/backing-services); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
+
 #### Remediation
 
 Make sure that your CNFs containers are not sharing the same [database](https://martinfowler.com/bliki/IntegrationDatabase.html).
@@ -398,6 +428,8 @@ Expectation: Container images should use specialized init systems for containers
 #### Rationale
 
 There are proper init systems and sophisticated supervisors that can be run inside of a container. Both of these systems properly reap and pass signals. Sophisticated supervisors are considered overkill because they take up too many resources and are sometimes too complicated. Some examples of sophisticated supervisors are: supervisord, monit, and runit. Proper init systems are smaller than sophisticated supervisors and therefore suitable for containers. Some of the proper container init systems are tini, dumb-init, catatonit, and s6-overlay.
+
+Sources: [Docker, `--init` for signal handling and zombie reaping](https://docs.docker.com/reference/cli/docker/container/run/#init); [Google Cloud, best practices for building containers](https://cloud.google.com/architecture/best-practices-for-building-containers).
 
 #### Remediation
 
@@ -420,6 +452,8 @@ Expectation: Sigterm is handled by PID 1 process of containers.
 
 The Linux kernel handles signals differently for the process that has PID 1 than it does for other processes. Signal handlers aren't automatically registered for this process, meaning that signals such as SIGTERM or SIGINT will have no effect by default. By default, one must kill processes by using SIGKILL, preventing any graceful shutdown. Depending on the application, using SIGKILL can result in user-facing errors, interrupted writes (for data stores), or unwanted alerts in a monitoring system.
 
+Sources: [Kubernetes pod lifecycle, termination](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination); [The Twelve-Factor App, disposability](https://12factor.net/disposability).
+
 #### Remediation
 
 Make the PID 1 container process to handle SIGTERM; enable process namespace sharing in Kubernetes or use specialized Init system.
@@ -441,6 +475,8 @@ Expectation: Zombie processes are handled/reaped by PID 1 process of containers.
 #### Rationale
 
 Classic init systems such as systemd are also used to remove (reap) orphaned, zombie processes. Orphaned processes — processes whose parents have died - are reattached to the process that has PID 1, which should reap them when they die. A normal init system does that. But in a container, this responsibility falls on whatever process has PID 1. If that process doesn't properly handle the reaping, you risk running out of memory or some other resources.
+
+Sources: [Docker, `--init` for signal handling and zombie reaping](https://docs.docker.com/reference/cli/docker/container/run/#init); [Google Cloud, best practices for building containers](https://cloud.google.com/architecture/best-practices-for-building-containers).
 
 #### Remediation
 
@@ -478,6 +514,8 @@ Expectation: All workload resources are successfully rescheduled onto other avai
 No CNF should fail because of stateful configuration. A CNF should function properly if it is rescheduled on other nodes.
 This test will remove resources which are running on a target node and reschedule them on another node.
 
+Sources: [Safely drain a node](https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/); [Kubernetes disruptions and PodDisruptionBudgets](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/).
+
 #### Remediation
 
 Ensure that your CNF can be successfully rescheduled when a node fails or is [drained](https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/)
@@ -498,6 +536,8 @@ Expectation: Local storage should not be used or configured.
 #### Rationale
 
 A CNF should refrain from using the [local storage class](https://kubernetes.io/docs/concepts/storage/storage-classes/#local)
+
+Sources: [Kubernetes persistent volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/); [Anuket Reference Architecture for Kubernetes (RA2)](https://cntt.readthedocs.io/projects/ra2/en/latest/).
 
 #### Remediation
 
@@ -521,6 +561,8 @@ Expectation: Elastic persistent volumes should be configured for statefulness.
 
 A cnf that uses elastic volumes can be rescheduled to other nodes by the orchestrator easily
 
+Sources: [Kubernetes persistent volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/); [Anuket Reference Architecture for Kubernetes (RA2)](https://cntt.readthedocs.io/projects/ra2/en/latest/).
+
 #### Remediation
 
 Setup and use elastic persistent volumes instead of local storage.
@@ -543,6 +585,8 @@ Expectation: Elastic volumes and or statefulsets should be used for databases to
 When a traditional database such as mysql is configured to use statefulsets, it allows the database to use a persistent identifier that it maintains across any rescheduling.
 Persistent Pod identifiers make it easier to match existing volumes to the new Pods that have been rescheduled.
 <https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/>
+
+Sources: [Kubernetes persistent volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/); [The Twelve-Factor App, backing services](https://12factor.net/backing-services).
 
 #### Remediation
 
@@ -582,6 +626,8 @@ Network latency can have a significant impact on the overall performance of the 
 a range of failures for applications and can severely impact user/customers with downtime. This chaos experiment allows you to see the impact of latency
 traffic on the CNF.
 
+Sources: [LitmusChaos pod-network-latency fault](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-latency/); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
+
 #### Remediation
 
 Ensure that your CNF doesn't stall or get into a corrupted state when network degradation occurs.
@@ -606,6 +652,8 @@ A workload whose containers all mount a read-only root file system cannot be fil
 
 Disk Pressure is a scenario we find in Kubernetes applications that can result in the eviction of the application replica and impact its delivery. Such scenarios can still occur despite whatever availability aids K8s provides. These problems are generally referred to as "Noisy Neighbour" problems.
 
+Sources: [LitmusChaos disk-fill fault](https://litmuschaos.github.io/litmus/experiments/categories/pods/disk-fill/); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
+
 #### Remediation
 
 Ensure that your CNF is resilient and doesn't stall when heavy IO causes a degradation in storage resource availability.
@@ -628,6 +676,8 @@ Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or R
 
 In a distributed system like Kubernetes, application replicas may not be sufficient to manage the traffic (indicated by SLIs) when some replicas are unavailable due to any failure (can be system or application). The application needs to meet the SLO (service level objectives) for this. It's imperative that the application has defenses against this sort of failure to ensure that the application always has a minimum number of available replicas.
 
+Sources: [LitmusChaos pod-delete fault](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-delete/); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
+
 #### Remediation
 
 Ensure that your CNF is resilient and doesn't fail on a forced/graceful pod failure on specific or random replicas of an application.
@@ -649,6 +699,8 @@ Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or R
 #### Rationale
 
 If the memory policies for a CNF are not set and granular, containers on the node can be killed based on their oom_score and the QoS class a given pod belongs to (best-effort ones are first to be targeted). This eval is extended to all pods running on the node, thereby causing a bigger blast radius.
+
+Sources: [LitmusChaos pod-memory-hog fault](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-memory-hog/); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
 
 #### Remediation
 
@@ -675,6 +727,8 @@ Stressing the disk with continuous and heavy IO can cause degradation in reads/w
 shared disk.  Scratch space can be used up on a node which leads to the lack of space for newer containers to get scheduled which
 causes a movement of all pods to other nodes. This test determines the limits of how a CNF uses its storage device.
 
+Sources: [LitmusChaos pod-io-stress fault](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-io-stress/); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
+
 #### Remediation
 
 Ensure that your CNF is resilient to continuous and heavy disk IO load and can maintain some level of availability
@@ -697,6 +751,8 @@ Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or R
 
 A higher quality CNF should be resilient to a lossy/flaky network.  This test injects packet corruption on the specified CNF's container by
 starting a traffic control (tc) process with netem rules to add egress packet corruption.
+
+Sources: [LitmusChaos pod-network-corruption fault](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-corruption/); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
 
 #### Remediation
 
@@ -721,6 +777,8 @@ Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or R
 A higher quality CNF should be resilient to erroneously duplicated packets. This test injects network duplication on the specified container
 by starting a traffic control (tc) process with netem rules to add egress delays.
 
+Sources: [LitmusChaos pod-network-duplication fault](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-duplication/); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
+
 #### Remediation
 
 Ensure that your CNF is resilient to erroneously duplicated packets and can maintain a level of availability.
@@ -742,6 +800,8 @@ Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or R
 #### Rationale
 
 A CNF should be resilient to name resolution (DNS) disruptions within the kubernetes pod. This ensures that at least some application availability will be maintained if DNS resolution fails.
+
+Sources: [LitmusChaos pod-dns-error fault](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-dns-error/); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
 
 #### Remediation
 
@@ -768,6 +828,8 @@ A cloud native principle is that application developers understand their own res
 
 This is exemplified in the Kubernetes best practice of pods declaring how they should be managed through the liveness and readiness entries in the pod's configuration.
 
+Sources: [Kubernetes probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
+
 #### Remediation
 
 Ensure that your CNF has a [Liveness Probe](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/) configured.
@@ -788,6 +850,8 @@ Expectation: Each workload resource should have at least one container with a re
 #### Rationale
 
 A CNF should tell Kubernetes when it is [ready to serve traffic](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/#define-readiness-probes).
+
+Sources: [Kubernetes probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
 
 #### Remediation
 
@@ -820,6 +884,8 @@ Expectation: Resource output logs should be sent to STDOUT/STDERR
 
 By sending logs to standard out/standard error [logs will be treated like event streams](https://12factor.net/) as recommended by 12 factor apps principles.
 
+Sources: [The Twelve-Factor App, logs](https://12factor.net/logs); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
+
 #### Remediation
 
 Make sure applications and CNF's are sending log output to STDOUT and or STDERR.
@@ -840,6 +906,8 @@ Expectation: The CNF is configured and sending metrics to a Prometheus server.
 #### Rationale
 
 Recording metrics within a cloud native deployment is important because it gives the maintainer of a cluster of hundreds or thousands of services the ability to pinpoint [small anomalies](https://about.gitlab.com/blog/2018/09/27/why-all-organizations-need-prometheus/), such as those that will eventually cause a failure.
+
+Sources: [OpenMetrics specification](https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
 
 #### Remediation
 
@@ -862,6 +930,8 @@ Expectation: Fluentd or FluentBit is installed and capturing logs for the CNF.
 
 A CNF should have logs managed by a [unified logging layer](https://www.fluentd.org/why) It's considered a best-practice for CNFs to route logs and data through programs like fluentd to analyze and better understand data.
 
+Sources: [The Twelve-Factor App, logs](https://12factor.net/logs).
+
 #### Remediation
 
 Install and configure fluentd or fluentbit to collect data and logs. See more at [fluentd.org](https://bit.ly/fluentd) for fluentd or [fluentbit.io](https://fluentbit.io/) for fluentbit.
@@ -883,6 +953,8 @@ Expectation: CNF should emit OpenMetrics compatible traffic.
 
 OpenMetrics is the de facto standard for transmitting cloud native metrics at scale, with support for both text representation and Protocol Buffers and brings it into an Internet Engineering Task Force (IETF) standard. A CNF should expose metrics that are [OpenMetrics compatible](https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md)
 
+Sources: [OpenMetrics specification](https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md).
+
 #### Remediation
 
 Ensure that your CNF is publishing OpenMetrics compatible metrics.
@@ -903,6 +975,8 @@ Expectation: The CNF is sending traces to Jaeger.
 #### Rationale
 
 A CNF should provide tracing that conforms to the [open telemetry tracing specification](https://opentelemetry.io/docs/reference/specification/trace/api/)
+
+Sources: [OpenTelemetry](https://opentelemetry.io/docs/); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
 
 #### Remediation
 
@@ -937,6 +1011,8 @@ Expectation: Container runtime sockets should not be mounted as volumes
 
 [Container daemon socket bind mounts](https://kyverno.io/policies/best-practices/disallow_cri_sock_mount/disallow_cri_sock_mount/) allows access to the container engine on the node. This access can be used for privilege escalation and to manage containers outside of Kubernetes, and hence should not be allowed.
 
+Sources: [NIST SP 800-190, Application Container Security Guide](https://csrc.nist.gov/pubs/sp/800/190/final); [CIS Kubernetes Benchmark](https://www.cisecurity.org/benchmark/kubernetes).
+
 #### Remediation
 
 Make sure your CNF doesn't mount `/var/run/docker.sock`, `/var/run/containerd.sock` or `/var/run/crio.sock` on any containers.
@@ -957,6 +1033,8 @@ Expectation: Containers should not run in privileged mode
 #### Rationale
 
 > "... docs describe Privileged mode as essentially enabling “…access to all devices on the host as well as [having the ability to] set some configuration in AppArmor or SElinux to allow the container nearly all the same access to the host as processes running outside containers on the host.” In other words, you should rarely, if ever, use this switch on your container command line." -- Binnie, Chris; McCune, Rory (2021-06-17T23:58:59). Cloud Native Security . Wiley. Kindle Edition.
+
+Sources: [CNTi CBPP-0004, no privilege flag](https://github.com/lfn-cnti/bestpractices/blob/main/doc/cbpps/0004-do-not-run-containers-with-privilege-flag.md); [Pod Security Standards, baseline](https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline); [CIS Kubernetes Benchmark](https://www.cisecurity.org/benchmark/kubernetes).
 
 #### Remediation
 
@@ -980,6 +1058,8 @@ Expectation: A CNF should not run services with external IPs
 Service external IPs can be used for a MITM attack (CVE-2020-8554). Restrict external IPs or limit to a known set of addresses.
 See: <https://github.com/kyverno/kyverno/issues/1367>
 
+Sources: [CVE-2020-8554, Kubernetes externalIPs](https://github.com/kubernetes/kubernetes/issues/97076).
+
 #### Remediation
 
 Make sure to not define external IPs in your kubernetes service configuration
@@ -1000,6 +1080,8 @@ Expectation: A CNF should not have any 'seLinuxOptions' configured that allow pr
 #### Rationale
 
 If [SELinux options](https://kyverno.io/policies/pod-security/baseline/disallow-selinux/disallow-selinux/) is configured improperly it can be used to escalate privileges and should not be allowed.
+
+Sources: [Pod Security Standards, baseline](https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline).
 
 #### Remediation
 
@@ -1025,6 +1107,8 @@ Expectation: The CNF should only have "safe" sysctls mechanisms configured, that
 
 Sysctls can disable security mechanisms or affect all containers on a host, and should be disallowed except for an allowed "safe" subset. A sysctl is considered safe if it is namespaced in the container or the Pod, and it is isolated from other Pods or processes on the same Node. This test ensures that only those "safe" subsets are specified in a Pod.
 
+Sources: [Pod Security Standards, baseline](https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline); [Kubernetes sysctls](https://kubernetes.io/docs/tasks/administer-cluster/sysctl-cluster/).
+
 #### Remediation
 
 The spec.securityContext.sysctls field must be unset or not use.
@@ -1047,6 +1131,8 @@ Expectation: Containers should not allow privilege escalation
 When [privilege escalation](https://kubernetes.io/docs/concepts/policy/pod-security-policy/#privilege-escalation) is [enabled for a container](https://hub.armo.cloud/docs/c-0016), it will allow setuid binaries to change the effective user ID, allowing processes to turn on extra capabilities.
 In order to prevent illegitimate escalation by processes and restrict a process to a NonRoot user mode, escalation must be disabled.
 
+Sources: [Pod Security Standards, restricted](https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted); [CIS Kubernetes Benchmark](https://www.cisecurity.org/benchmark/kubernetes); [Kubernetes security context](https://kubernetes.io/docs/tasks/configure-pod-container/security-context/).
+
 #### Remediation
 
 If your application does not need it, make sure the allowPrivilegeEscalation field of the securityContext is set to false. See more at [ARMO-C0016](https://bit.ly/C0016_privilege_escalation)
@@ -1067,6 +1153,8 @@ Expectation: No vulnerable K8s version being used in conjunction with the subPat
 #### Rationale
 
 Due to CVE-2021-25741, subPath or subPathExpr volume mounts can be [used to gain unauthorised access](https://hub.armo.cloud/docs/c-0058) to files and directories anywhere on the host filesystem. In order to follow a best-practice security standard and prevent unauthorised data access, there should be no active CVEs affecting either the container or underlying platform.
+
+Sources: [NIST SP 800-190, Application Container Security Guide](https://csrc.nist.gov/pubs/sp/800/190/final).
 
 #### Remediation
 
@@ -1090,6 +1178,8 @@ Expectation: Application credentials should not be found in the CNFs configurati
 Developers store secrets in the Kubernetes configuration files, such as environment variables in the pod configuration. Such behavior is commonly seen in clusters that are monitored by Azure Security Center.
 Attackers who have access to those configurations, by querying the API server or by accessing those files on the developer’s endpoint, can steal the stored secrets and use them.
 
+Sources: [NIST SP 800-190, Application Container Security Guide](https://csrc.nist.gov/pubs/sp/800/190/final); [The Twelve-Factor App, config](https://12factor.net/config).
+
 #### Remediation
 
 Use Kubernetes secrets or Key Management Systems to store credentials.
@@ -1111,6 +1201,8 @@ Expectation: The CNF should not have access to the host systems network.
 
 When a container has the [hostNetwork](https://hub.armo.cloud/docs/c-0041) feature turned on, the container has direct access to the underlying hostNetwork. Hackers frequently exploit this feature to [facilitate a container breakout](https://media.defense.gov/2021/Aug/03/2002820425/-1/-1/1/CTR_KUBERNETES%20HARDENING%20GUIDANCE.PDF) and gain access to the underlying host network, data and other integral resources.
 
+Sources: [Pod Security Standards, baseline](https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline); [CIS Kubernetes Benchmark](https://www.cisecurity.org/benchmark/kubernetes).
+
 #### Remediation
 
 Only connect PODs to the hostNetwork when it is necessary. If not, set the hostNetwork field of the pod spec to false, or completely remove it (false is the default). Allow only those PODs that must have access to host network by design.
@@ -1131,6 +1223,8 @@ Expectation: The [automatic mapping](https://bit.ly/C0034_service_account_mappin
 #### Rationale
 
 When a pod gets created and a service account wasn't specified, then the default service account will be used. Service accounts assigned in this way can unintentionally give third-party applications root access to the K8s APIs and other application services. In order to follow a zero-trust / fine-grained security methodology, this functionality will need to be explicitly disabled by using the automountServiceAccountToken: false flag. In addition, if RBAC is not enabled, the SA has unlimited permissions in the cluster.
+
+Sources: [CIS Kubernetes Benchmark](https://www.cisecurity.org/benchmark/kubernetes); [Kubernetes service account tokens](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/).
 
 #### Remediation
 
@@ -1154,6 +1248,8 @@ Expectation: Ingress and Egress traffic should be blocked on Pods.
 By default, [no network policies are applied](https://hub.armo.cloud/docs/c-0030) to Pods or namespaces, resulting in unrestricted ingress and egress traffic within the Pod network. In order to [prevent lateral movement](https://media.defense.gov/2021/Aug/03/2002820425/-1/-1/1/CTR_KUBERNETES%20HARDENING%20GUIDANCE.PDF) or escalation on a compromised cluster, administrators should implement a default policy to deny all ingress and egress traffic.
 This will ensure that all Pods are isolated by default and further policies could then be used to specifically relax these restrictions on a case-by-case basis.
 
+Sources: [CIS Kubernetes Benchmark](https://www.cisecurity.org/benchmark/kubernetes); [Kubernetes NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/); [NIST SP 800-190, Application Container Security Guide](https://csrc.nist.gov/pubs/sp/800/190/final).
+
 #### Remediation
 
 By default, you should disable or restrict Ingress and Egress traffic on all pods.
@@ -1174,6 +1270,8 @@ Expectation: Containers should not have insecure capabilities enabled.
 #### Rationale
 
 Giving [insecure](https://hub.armo.cloud/docs/c-0046) and unnecessary capabilities for a container can increase the impact of a container compromise.
+
+Sources: [Pod Security Standards, baseline](https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline); [CIS Kubernetes Benchmark](https://www.cisecurity.org/benchmark/kubernetes).
 
 #### Remediation
 
@@ -1197,6 +1295,8 @@ Expectation: Containers should run with non-root user and allowPrivilegeEscalati
 
 Container engines allow containers to run applications as a non-root user with non-root group membership. Typically, this non-default setting is configured when the container image is built. Alternatively, Kubernetes can load containers into a Pod with SecurityContext:runAsUser specifying a non-zero user. While the runAsUser directive effectively forces non-root execution at deployment, [NSA and CISA encourage developers](https://hub.armo.cloud/docs/c-0013) to build container applications to execute as a non-root user. Having non-root execution integrated at build time provides better assurance that applications will function correctly without root privileges.
 
+Sources: [CNTi CBPP-0002, non-root containers](https://github.com/lfn-cnti/bestpractices/blob/main/doc/cbpps/0002-no-root-in-containers.md); [Pod Security Standards, restricted](https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted); [CIS Kubernetes Benchmark](https://www.cisecurity.org/benchmark/kubernetes).
+
 #### Remediation
 
 If your application does not need root privileges, set `runAsNonRoot: true`, or set `runAsUser` and `runAsGroup` to IDs of 1000 or higher, under the pod or container securityContext.
@@ -1218,6 +1318,8 @@ Expectation: Containers should not have hostPID and hostIPC privileges
 #### Rationale
 
 Containers should be isolated from the host machine as much as possible. The [hostPID and hostIPC](https://hub.armo.cloud/docs/c-0038) fields in deployment yaml may allow cross-container influence and may expose the host itself to potentially malicious or destructive actions. This control identifies all PODs using hostPID or hostIPC privileges.
+
+Sources: [Pod Security Standards, baseline](https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline); [CIS Kubernetes Benchmark](https://www.cisecurity.org/benchmark/kubernetes).
 
 #### Remediation
 
@@ -1241,6 +1343,8 @@ Expectation: Security services are being used to harden application.
 
 In order to reduce the attack surface, it is recommend, when it is possible, to harden your application using [security services](https://hub.armo.cloud/docs/c-0055) such as SELinux®, AppArmor®, and seccomp. Starting from Kubernetes version 1.22, SELinux is enabled by default.
 
+Sources: [Pod Security Standards, restricted](https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted); [CIS Kubernetes Benchmark](https://www.cisecurity.org/benchmark/kubernetes); [NIST SP 800-190, Application Container Security Guide](https://csrc.nist.gov/pubs/sp/800/190/final).
+
 #### Remediation
 
 Use AppArmor, Seccomp, SELinux and Linux Capabilities mechanisms to restrict containers abilities to utilize unwanted privileges.
@@ -1262,6 +1366,8 @@ Expectation: Containers should have cpu limits defined
 
 Every container [should have a limit set for the CPU available for it](https://hub.armo.cloud/docs/c-0270) set for every container or a namespace to prevent resource exhaustion. This test identifies all the Pods without CPU limit definitions by checking their yaml definition file as well as their namespace LimitRange objects. It is also recommended to use ResourceQuota object to restrict overall namespace resources, but this is not verified by this test.
 
+Sources: [Kubernetes resource management](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/).
+
 #### Remediation
 
 Define LimitRange and ResourceQuota policies to limit CPU usage for namespaces or in the deployment/POD yamls.
@@ -1282,6 +1388,8 @@ Expectation: Containers should have memory limits defined
 #### Rationale
 
 Every container [should have a limit set for the memory available for it](https://hub.armo.cloud/docs/c-0271) set for every container or a namespace to prevent resource exhaustion. This test identifies all the Pods without memory limit definitions by checking their yaml definition file as well as their namespace LimitRange objects. It is also recommended to use ResourceQuota object to restrict overall namespace resources, but this is not verified by this test.
+
+Sources: [Kubernetes resource management](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/); [CIS Kubernetes Benchmark](https://www.cisecurity.org/benchmark/kubernetes).
 
 #### Remediation
 
@@ -1306,6 +1414,8 @@ Expectation: Containers should use an immutable file system when possible.
 Mutable container filesystem can be abused to gain malicious code and data injection into containers. By default, containers are permitted unrestricted execution within their own context.
 An attacker who has access to a container, [can create files](https://hub.armo.cloud/docs/c-0017) and download scripts as they wish, and modify the underlying application running on the container.
 
+Sources: [NIST SP 800-190, Application Container Security Guide](https://csrc.nist.gov/pubs/sp/800/190/final); [CIS Kubernetes Benchmark](https://www.cisecurity.org/benchmark/kubernetes).
+
 #### Remediation
 
 Set the filesystem of the container to read-only when possible. If the containers application needs to write into the filesystem, it is possible to mount secondary filesystems for specific directories where application require write access.
@@ -1327,6 +1437,8 @@ Expectation: Containers should not have hostPath mounts
 #### Rationale
 
 [hostPath mount](https://hub.armo.cloud/docs/c-0006) can be used by attackers to get access to the underlying host and thus break from the container to the host. (See “3: Writable hostPath mount” for details).
+
+Sources: [Pod Security Standards, baseline](https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline); [Kubernetes volumes](https://kubernetes.io/docs/concepts/storage/volumes/); [NIST SP 800-190, Application Container Security Guide](https://csrc.nist.gov/pubs/sp/800/190/final).
 
 #### Remediation
 
@@ -1364,6 +1476,8 @@ Expectation: Resources should not be deployed in the default namespace.
 Namespaces provide a way to segment and isolate cluster resources across multiple applications and users.
 As a best practice, workloads should be isolated with Namespaces and not use the default namespace.
 
+Sources: [Kubernetes namespaces](https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/); [CIS Kubernetes Benchmark](https://www.cisecurity.org/benchmark/kubernetes).
+
 #### Remediation
 
 Ensure that your CNF is configured to use a Namespace and is not using the default namespace.
@@ -1384,6 +1498,8 @@ Expectation: The CNF should use an immutable tag that maps to a symantic version
 #### Rationale
 
 You should [avoid using the :latest tag](https://kubernetes.io/docs/concepts/containers/images/) when deploying containers in production as it is harder to track which version of the image is running and more difficult to roll back properly.
+
+Sources: [Kubernetes configuration best practices](https://kubernetes.io/docs/concepts/configuration/overview/); [Kubernetes images](https://kubernetes.io/docs/concepts/containers/images/).
 
 #### Remediation
 
@@ -1406,6 +1522,8 @@ Expectation: Checks if pods are using the 'app.kubernetes.io/name' label
 
 Defining and using labels help identify semantic attributes of your application or Deployment. A common set of labels allows tools to work collaboratively, while describing objects in a common manner that all tools can understand. You should use recommended labels to describe applications in a way that can be queried.
 
+Sources: [Kubernetes recommended labels](https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/).
+
 #### Remediation
 
 Make sure to define `app.kubernetes.io/name` label under metadata for your CNF.
@@ -1426,6 +1544,8 @@ Expectation: The CNF should use an immutable tag that maps to a symantic version
 #### Rationale
 
 You should [avoid using the :latest tag](https://kubernetes.io/docs/concepts/containers/images/) when deploying containers in production as it is harder to track which version of the image is running and more difficult to roll back properly.
+
+Sources: [Kubernetes configuration best practices](https://kubernetes.io/docs/concepts/configuration/overview/); [Kubernetes images](https://kubernetes.io/docs/concepts/containers/images/).
 
 #### Remediation
 
@@ -1448,6 +1568,8 @@ Expectation: The nodePort configuration field is not found in any of the CNF's s
 
 Using node ports ties the CNF to a specific node and therefore makes the CNF less portable and scalable.
 
+Sources: [Kubernetes Services](https://kubernetes.io/docs/concepts/services-networking/service/).
+
 #### Remediation
 
 Review all Helm Charts & Kubernetes Manifest files for the CNF and remove all occurrences of the nodePort field in your configuration. Alternatively, configure a service or use another mechanism for exposing your container.
@@ -1468,6 +1590,8 @@ Expectation: The hostPort configuration field is not found in any of the defined
 #### Rationale
 
 Using host ports ties the CNF to a specific node and therefore makes the CNF less portable and scalable.
+
+Sources: [Pod Security Standards, baseline](https://kubernetes.io/docs/concepts/security/pod-security-standards/#baseline); [Kubernetes configuration best practices](https://kubernetes.io/docs/concepts/configuration/overview/).
 
 #### Remediation
 
@@ -1490,6 +1614,8 @@ Expectation: That no hardcoded IP addresses are found in the Kubernetes workload
 
 Using a hard coded IP in a CNF's configuration designates *how* (imperative) a CNF should achieve a goal, not *what* (declarative) goal the CNF should achieve.
 
+Sources: [The Twelve-Factor App, config](https://12factor.net/config); [Kubernetes Services](https://kubernetes.io/docs/concepts/services-networking/service/).
+
 #### Remediation
 
 Review all Helm Charts & Kubernetes Manifest files of the CNF and look for any hardcoded usage of ip addresses. If any are found, you will need to use an operator or some other method to abstract the IP management out of your configuration in order to pass this test.
@@ -1510,6 +1636,8 @@ Expectation: The CNF is using K8s secrets for the management of sensitive data.
 #### Rationale
 
 If a CNF uses kubernetes K8s secrets instead of unencrypted environment variables or configmaps, there is [less risk of the Secret (and its data) being exposed](https://kubernetes.io/docs/concepts/configuration/secret/) during the workflow of creating, viewing, and editing Pods.
+
+Sources: [Kubernetes Secrets](https://kubernetes.io/docs/concepts/configuration/secret/); [NIST SP 800-190, Application Container Security Guide](https://csrc.nist.gov/pubs/sp/800/190/final); [The Twelve-Factor App, config](https://12factor.net/config).
 
 #### Remediation
 
@@ -1539,6 +1667,8 @@ to their data has the following advantages:
 * protects you from accidental (or unwanted) updates that could cause applications outages
 * improves performance of your cluster by significantly reducing load on kube-apiserver, by closing watches for ConfigMaps marked as immutable.
 
+Sources: [Immutable ConfigMaps](https://kubernetes.io/docs/concepts/configuration/configmap/#configmap-immutable).
+
 #### Remediation
 
 Use immutable configmaps for any non-mutable configuration data.
@@ -1560,6 +1690,8 @@ Expectation: CNF should not use Kubernetes alpha APIs
 
 If a CNF uses alpha or undocumented APIs, the CNF is tightly coupled to an unstable platform
 
+Sources: [Kubernetes API deprecation policy](https://kubernetes.io/docs/reference/using-api/deprecation-policy/); [Anuket Reference Architecture for Kubernetes (RA2)](https://cntt.readthedocs.io/projects/ra2/en/latest/).
+
 #### Remediation
 
 Make sure your CNFs are not utilizing any Kubernetes alpha APIs. You can learn more about Kubernetes API versioning [here](https://bit.ly/k8s_api).
@@ -1580,6 +1712,8 @@ Expectation: If the CNF ships an Operator, it is installed through OLM, its Clus
 #### Rationale
 
 [Operators](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/) encode operational knowledge for a workload in software, enabling declarative, self-healing lifecycle management. Installing Operators through OLM makes their installation, upgrade, and dependency handling declarative and verifiable instead of relying on manual or ad-hoc installation steps.
+
+Sources: [Kubernetes operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/).
 
 #### Remediation
 
