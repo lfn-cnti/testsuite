@@ -423,7 +423,7 @@ scored_task "elastic_volumes",
 
     Log.for("elastic_volumes:result").info { "Volumes used: #{volumes_used}; Elastic?: #{task_response}" }
     if !volumes_used
-      result.skipped("No persistent volumes are used")
+      result.na("No persistent volumes are used")
     elsif task_response
       result.passed("All used volumes are elastic")
     else
@@ -453,7 +453,7 @@ scored_task "database_persistence",
     Log.info {"database_persistence mysql: #{match}"}
 
     unless match && match[:found]
-      result.skipped("CNF does not use database")
+      result.na("CNF does not use database")
       next
     end
 

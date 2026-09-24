@@ -83,7 +83,7 @@ scored_task "prometheus_traffic",
     server = Prometheus.find_server
     if server.nil? || server[:url].nil?
       result.append_description(Prometheus.describe_missing(server))
-      result.skipped("Prometheus server not found")
+      result.na("Prometheus server not found: nothing scrapes the CNF in this cluster")
       next
     end
     result.append_description(Prometheus.describe(server))
@@ -132,7 +132,7 @@ scored_task "open_metrics",
     server = Prometheus.find_server
     if server.nil? || server[:url].nil?
       result.append_description(Prometheus.describe_missing(server))
-      result.skipped("Prometheus server not found")
+      result.na("Prometheus server not found: nothing scrapes the CNF in this cluster")
       next
     end
     result.append_description(Prometheus.describe(server))
@@ -184,7 +184,7 @@ scored_task "routed_logs",
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     fluent_pods = FluentManager.find_active_match_pods
     unless fluent_pods
-      result.skipped("Fluentd or FluentBit not configured")
+      result.na("Fluentd or FluentBit not configured: nothing routes the CNF's logs in this cluster")
       next
     end
 
@@ -217,7 +217,7 @@ scored_task "tracing",
   emoji: "⎈🚀" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     unless JaegerManager.available?
-      result.skipped("Jaeger not configured")
+      result.na("Jaeger not configured: nothing collects the CNF's traces in this cluster")
       next
     end
 

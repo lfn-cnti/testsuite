@@ -99,9 +99,9 @@ describe "Observability" do
       result = ShellCmd.run("#{helm} delete prometheus -n #{TESTSUITE_NAMESPACE}", force_output: true)
 
       result = ShellCmd.run_testsuite("prometheus_traffic")
-      (/(SKIPPED).*(Prometheus server not found)/ =~ result[:output]).should_not be_nil
+      (/(N\/A).*(Prometheus server not found)/ =~ result[:output]).should_not be_nil
       (/> no process named prometheus found in any ready container/ =~ result[:output]).should_not be_nil
-      verify_task_result("prometheus_traffic", "skipped")
+      verify_task_result("prometheus_traffic", "na")
     ensure
       result = ShellCmd.cnf_uninstall()
   end

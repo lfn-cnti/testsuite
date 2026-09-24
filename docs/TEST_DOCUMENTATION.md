@@ -913,7 +913,7 @@ Make sure applications and CNF's are sending log output to STDOUT and or STDERR.
 
 #### Overview
 
-Finds the [Prometheus](https://prometheus.io/) server in the cluster (a pod running a `prometheus` process and the Service in front of it), reads its active targets, and checks that every workload of the CNF has a pod among them. The details name the server, the URL its targets API answered at and, per workload, the scrape URL and target health; a workload no target scrapes is a finding. Skipped, with the pods and URLs probed in the details, when no server answers.
+Finds the [Prometheus](https://prometheus.io/) server in the cluster (a pod running a `prometheus` process and the Service in front of it), reads its active targets, and checks that every workload of the CNF has a pod among them. The details name the server, the URL its targets API answered at and, per workload, the scrape URL and target health; a workload no target scrapes is a finding. Not applicable, with the pods and URLs probed in the details, when no Prometheus server answers: nothing scrapes the CNF in that cluster.
 Expectation: The CNF is configured and sending metrics to a Prometheus server.
 
 #### Rationale
@@ -959,7 +959,7 @@ Install and configure fluentd or fluentbit to collect data and logs. See more at
 
 #### Overview
 
-Fetches every endpoint Prometheus scrapes on the CNF's pods and runs it through the [OpenMetrics](https://openmetrics.io/) validator; each endpoint is reported by URL with the validator's verdict, and a failing one is a finding with the validator's message. Skipped when no Prometheus server answers, or when no endpoint of the CNF is scraped.
+Fetches every endpoint Prometheus scrapes on the CNF's pods and runs it through the [OpenMetrics](https://openmetrics.io/) validator; each endpoint is reported by URL with the validator's verdict, and a failing one is a finding with the validator's message. Not applicable when no Prometheus server answers; skipped when a server answers but no endpoint of the CNF is scraped.
 Expectation: CNF should emit OpenMetrics compatible traffic.
 
 #### Rationale
@@ -982,7 +982,7 @@ Ensure that your CNF is publishing OpenMetrics compatible metrics.
 
 #### Overview
 
-Checks whether the CNF's pods actually emit traces: the test queries the Jaeger API for recent traces and matches their process tags against the CNF's pods. Skipped when no Jaeger is installed on the cluster.
+Checks whether the CNF's pods actually emit traces: the test queries the Jaeger API for recent traces and matches their process tags against the CNF's pods. Not applicable when no Jaeger is installed on the cluster: nothing collects the CNF's traces there.
 Expectation: The CNF is sending traces to Jaeger.
 
 #### Rationale
@@ -1265,6 +1265,7 @@ Disable automatic mounting of service account tokens to PODs either at the servi
 Checks each Pod in the CNF for a defined ingress and egress policy.
 Measurement: Kubescape control [C-0030](https://hub.armosec.io/docs/c-0030) (Ingress and Egress blocked) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: Ingress and Egress traffic should be blocked on Pods.
+The test is not applicable on a cluster whose CNI does not enforce NetworkPolicy (kindnet, flannel): a policy that cannot take effect is not the CNF's doing.
 
 #### Rationale
 
