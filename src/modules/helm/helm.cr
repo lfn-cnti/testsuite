@@ -362,6 +362,21 @@ module Helm
     end
   end
 
+  # The release `name` in `namespace` as `helm status` reports it (chart,
+  # version, status), or nil when there is no such release.
+  # The release as `helm list` reports it (name, namespace, chart as
+  # name-version, app_version, status, ...), or nil when no release of that
+  # name exists in the namespace. `helm status -o json` leaves the chart
+  # metadata out, so the list entry is the one place with chart and status.
+  def self.release_status(name : String, namespace : String) : JSON::Any?
+    logger = Log.for("release_status")
+    resp = ShellCMD.run("#{Binary.get} list -n #{namespace} -o json --filter '^#{Regex.escape(name)}$'", logger)
+    return nil unless resp[:status].success? && !resp[:output].strip.empty?
+    JSON.parse(resp[:output]).as_a?.try(&.find { |r| r["name"]? == name })
+  rescue JSON::ParseException
+    nil
+  end
+
   def self.uninstall(release_name : String, namespace : String? = nil, wait : Bool = false) : CMDResult
     logger = Log.for("uninstall")
     logger.info { "Uninstalling helm chart: #{release_name}" }

@@ -368,22 +368,48 @@ def extract_f_flags(helm_values : String?) : String?
   f_flags.empty? ? nil : f_flags.join(" ")
 end
 
-desc "Will the CNF install using helm with helm_deploy?"
+desc "Check that each Helm deployment of the CNF is installed as a Helm release"
 scored_task "helm_deploy",
   emoji: "⚙🛠️⬆☁" do |t, args|
-  Log.for(t.name).debug { "helm_deploy args: #{args.inspect}" }
-
   CNFManager::Task.task_runner(args, task: t, check_cnf_installed: false) do |args, config, result|
-    if check_cnf_config(args) || CNFManager.cnf_installed?
-      helm_used = !config.deployments.helm_charts.empty? || !config.deployments.helm_dirs.empty?
+    unless check_cnf_config(args) || CNFManager.cnf_installed?
+      usage_error! "No cnti-testsuite.yaml found: run cnf_install first, or pass --cnf-config PATH."
+    end
 
-      if helm_used
-        result.passed("CNF is installed via helm")
-      else
-        result.failed("CNF has deployments that are not installed with helm")
+    # The verdict used to come from the config alone; it now comes from the
+    # cluster: every Helm deployment must be a deployed Helm release under the
+    # name and namespace the installer gave it (#2592).
+    deployments = config.deployments.helm_charts.map { |d| {d.name, d.namespace} } +
+                  config.deployments.helm_dirs.map { |d| {d.name, d.namespace} }
+    if deployments.empty?
+      result.na("CNF is installed from manifests, not from Helm charts")
+      next
+    end
+
+    missing = 0
+    deployments.each do |name, configured_namespace|
+      namespace = configured_namespace.empty? ? DEFAULT_CNF_NAMESPACE : configured_namespace
+      release = Helm.release_status(name, namespace)
+      unless release
+        result.add_impacted_resource("HelmRelease", name, namespace, reason: "no Helm release with this name")
+        missing += 1
+        next
       end
+      chart = release["chart"]?.to_s
+      app_version = release["app_version"]?.to_s
+      status = release["status"]?.to_s
+      result.append_description("release #{name} in #{namespace}: chart #{chart}#{app_version.empty? ? "" : " (app #{app_version})"}, status #{status}")
+      unless status == "deployed"
+        result.add_impacted_resource("HelmRelease", name, namespace, reason: "release status is #{status}, not deployed")
+        missing += 1
+      end
+    end
+
+    if missing == 0
+      result.passed("Every Helm deployment of the CNF is a deployed Helm release (#{deployments.size})")
     else
-      result.failed("No cnti-testsuite.yaml found! Did you run the \"cnf_install\" task?")
+      result.append_remediation("Install each Helm deployment with `helm install <name>` in its namespace; the suite's cnf_install does this from cnti-testsuite.yaml.")
+      result.failed("#{missing} of #{deployments.size} Helm deployment(s) have no deployed Helm release")
     end
   end
 end

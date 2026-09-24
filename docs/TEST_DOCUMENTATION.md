@@ -118,8 +118,8 @@ Make sure your helm charts pass lint tests.
 
 #### Overview
 
-Checks if the CNF is installed by using a Helm Chart.
-Expectation: The CNF was installed using Helm.
+Checks that every Helm deployment declared in `cnti-testsuite.yaml` exists in the cluster as a deployed Helm release, under the name and namespace the installer gave it; the chart, version and status of each release are reported. A CNF installed from manifests only is not applicable.
+Expectation: Every Helm deployment of the CNF is a deployed Helm release.
 
 #### Rationale
 

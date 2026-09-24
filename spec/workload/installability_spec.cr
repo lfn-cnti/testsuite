@@ -7,19 +7,44 @@ describe CntiTestSuite do
   end
 
 
-  it "'helm_deploy' should fail on a manifest CNF", tags: ["helm_validation"] do
+  it "'helm_deploy' should be not applicable to a manifest CNF", tags: ["helm_validation"] do
     ShellCmd.cnf_install("--cnf-config ./sample-cnfs/k8s-non-helm")
     result = ShellCmd.run_testsuite("helm_deploy")
-    result[:status].exit_code.should eq(1)
-    (/(FAILED).*(CNF has deployments that are not installed with helm)/ =~ result[:output]).should_not be_nil
+    (/(N\/A).*(CNF is installed from manifests, not from Helm charts)/ =~ result[:output]).should_not be_nil
+    verify_task_result("helm_deploy", "na")
   ensure
     result = ShellCmd.cnf_uninstall()
   end
 
-  it "'helm_deploy' should fail if command is not supplied cnf-config argument", tags: ["helm_validation"] do
+  it "'helm_deploy' should be a usage error without a CNF or a cnf-config", tags: ["helm_validation"] do
+    result = ShellCmd.run_testsuite("helm_deploy")
+    result[:status].exit_code.should eq(64)
+    (/No cnti-testsuite.yaml found: run cnf_install first/ =~ result[:output]).should_not be_nil
+  end
+
+  it "'helm_deploy' should pass when the Helm deployment is a deployed release, and say which", tags: ["helm_validation"] do
+    ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
+    result = ShellCmd.run_testsuite("helm_deploy")
+    result[:status].success?.should be_true
+    (/(PASSED).*(Every Helm deployment of the CNF is a deployed Helm release \(1\))/ =~ result[:output]).should_not be_nil
+    (/> release coredns in cnti-default: chart coredns-[\d.]+ \(app [\d.]+\), status deployed/ =~ result[:output]).should_not be_nil
+    verify_task_result("helm_deploy", "passed")
+  ensure
+    result = ShellCmd.cnf_uninstall()
+  end
+
+  it "'helm_deploy' should fail when the release the config names is not in the cluster", tags: ["helm_validation"] do
+    ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
+    # The config still lists the deployment; the release itself is gone.
+    Helm.uninstall("coredns", "cnti-default")
     result = ShellCmd.run_testsuite("helm_deploy")
     result[:status].exit_code.should eq(1)
-    (/No cnti-testsuite.yaml found! Did you run the \"cnf_install\" task?/ =~ result[:output]).should_not be_nil
+    (/(FAILED).*(1 of 1 Helm deployment\(s\) have no deployed Helm release)/ =~ result[:output]).should_not be_nil
+    (/impacted: HelmRelease\/coredns in cnti-default: no Helm release with this name/ =~ result[:output]).should_not be_nil
+    verify_task_result("helm_deploy", "failed")
+  ensure
+    # The release is already gone; only the suite's own bookkeeping is left to clean.
+    ShellCmd.run_testsuite("cnf_uninstall")
   end
 
   it "'helm_chart_valid' should pass on a good helm chart", tags: ["helm_validation"]  do
