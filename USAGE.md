@@ -504,6 +504,7 @@ CNTI_TESTSUITE_NETWORK_RETRY_BACKOFF=10   # base seconds between attempts (attem
 - **CNTI_TESTSUITE_FORCE_INSTALL**: set (to any value) to reinstall the suite-managed local Helm even when an installation is already present.
 - **CNTI_TESTSUITE_ENV**: set to `TEST` for test-mode shortcuts (smaller samples, quicker checks). Used by the spec suite; not meant for normal runs.
 - **CNTI_TESTSUITE_RESULTS_DIR**: redirect the results directory; see [Results file](#results-file).
+- **CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET**: host path of the container runtime socket the LitmusChaos helpers use for `pod_io_stress`. By default the suite detects the runtime from the nodes and probes the usual socket locations (including the k3s, RKE2 and microk8s ones) on a node; set this when the cluster keeps the socket elsewhere. A cluster property, not part of the CNF config.
 
 Every variable that configures the suite's own behavior carries the `CNTI_TESTSUITE_` prefix.
 Credentials and ecosystem-wide standards deliberately keep their conventional names, so one
