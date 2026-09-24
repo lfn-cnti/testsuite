@@ -12,20 +12,22 @@ task "_tools_uninstall_start" do
   stdout_success "Uninstalling testsuite helper tools."
 end
 
-desc "Cleans up the CNTi Test Suite helper tools and containers"
+# Removes what the suite deployed into the cluster. The tools it downloaded
+# for itself (kubescape and its framework, the kyverno CLI and policies, helm,
+# the chaos experiments) stay under the suite home: they carry a version
+# marker and are only downloaded again when a pin changes, so removing them
+# on every uninstall cost a full re-download per run (and, in CI, a fresh
+# exposure to every GitHub outage). tools_purge removes them on request.
+desc "Removes the helper tools the suite deployed into the cluster; keeps its local downloads (see tools_purge)"
 task "tools_uninstall", [
   "_tools_uninstall_start",
   "setup:uninstall_litmus",
-  "setup:uninstall_kubescape",
   "setup:uninstall_cluster_tools",
   "setup:uninstall_opa",
   "setup:uninstall_kyverno",
   "setup:uninstall_jaeger",
   "setup:uninstall_fluentd",
   "setup:uninstall_fluentbit",
-  # Helm needs to be uninstalled last to allow other uninstalls to use helm if necessary.
-  # Check this issue for details - https://github.com/cncf/cnf-testsuite/issues/1586
-  "setup:uninstall_local_helm",
 ] do |_, args|
   # (rafal-lal) Temporary solution that will be replaced soon
   Dockerd.uninstall
@@ -34,7 +36,13 @@ task "tools_uninstall", [
   stdout_success "Testsuite helper tools uninstalled."
 end
 
-desc "Cleans up the CNTi Test Suite sample projects, helper tools, and containers"
+desc "Deletes the tools the suite downloaded for itself (kubescape, kyverno CLI and policies, helm, chaos experiments); the next run downloads them again"
+task "tools_purge" do |_, args|
+  FileUtils.rm_rf(tools_path)
+  stdout_success "Testsuite local tool downloads deleted."
+end
+
+desc "Cleans up the CNF and the helper tools the suite deployed into the cluster; keeps the suite's local downloads (see tools_purge)"
 task "uninstall_all", ["cnf_uninstall", "tools_uninstall"] do |_, args|
 end
 

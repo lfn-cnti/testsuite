@@ -359,6 +359,8 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
+    - name: Cache the suite tools
+      uses: ./.github/actions/cache-suite-tools
     - name: Install kind
       uses: ./.github/actions/install-kind
     - name: Install kubectl

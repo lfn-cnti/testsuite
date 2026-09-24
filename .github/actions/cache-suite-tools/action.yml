@@ -1,0 +1,29 @@
+name: "Cache the suite tools"
+description: >-
+  Restores and saves the tools the suite installs for itself (kubescape and its
+  framework, kyverno CLI and policies, helm, chaos experiments) under
+  ~/.cnti-testsuite/tools, so a GitHub-hosted job only downloads them when a
+  pinned version changes. Each tool carries a version marker, so a cache built
+  for other versions is simply reinstalled over. Self-hosted runners keep the
+  directory between runs on their own and do not need this.
+inputs:
+  scope:
+    description: >-
+      Part of the cache key. Jobs download different tool sets (a chaos shard
+      fetches only chaos experiments, the debian job kubescape, kyverno and
+      helm), and a cache entry is never overwritten once saved, so jobs must
+      not share a key unless they download the same tools. Defaults to the
+      job id, which a matrix shares across its legs.
+    required: false
+    default: ${{ github.job }}
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cnti-testsuite/tools
+          !~/.cnti-testsuite/tools/kubescape/*_results.json
+          !~/.cnti-testsuite/tools/rendered-manifests
+        # The files that pin the tool versions the suite downloads.
+        key: ${{ runner.os }}-${{ runner.arch }}-cnti-tools-${{ inputs.scope }}-${{ hashFiles('src/tasks/setup/constants.cr', 'src/tasks/utils/kyverno.cr', 'src/tasks/utils/litmus_manager.cr', 'src/tasks/utils/jaeger.cr') }}
