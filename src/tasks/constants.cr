@@ -1,6 +1,8 @@
 require "./utils/embedded_file_manager.cr"
 
 ESSENTIAL_PASSED_THRESHOLD = 15
+# Default limit for reasonable_image_size; a CNF lowers it with image_size_max_mb.
+REASONABLE_IMAGE_SIZE_MAX_MB = 5_000
 # The one directory the suite owns in the user's working directory. Everything
 # a run writes into the CWD lives under it: the installed CNF's files and the
 # results (unless results-dir/CNTI_TESTSUITE_RESULTS_DIR redirect those).

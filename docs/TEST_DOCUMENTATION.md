@@ -280,8 +280,8 @@ All microservice: `./cnti-testsuite microservice`
 
 #### Overview
 
-Checks the size of the image used.
-Expectation: Each CNF image size is under 500 MB.
+Checks the compressed size of every container image used by the CNF's workload resources. Each distinct image is pulled and measured once, and the measured size is reported per image.
+Expectation: Each CNF image is under 5000 MB. A CNF may lower the limit with `image_size_max_mb` in the `common` section of `cnti-testsuite.yaml`. Images that cannot be pulled are reported and left out; the test is skipped when none could be measured.
 
 #### Rationale
 

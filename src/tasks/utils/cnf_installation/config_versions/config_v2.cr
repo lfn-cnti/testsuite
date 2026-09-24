@@ -23,6 +23,12 @@ module CNFInstall
              auth_defaults = AuthDefaults.new,
              image_size_max_mb : Int32?
       def initialize; end
+
+      def after_initialize
+        if (max_mb = @image_size_max_mb) && max_mb <= 0
+          raise YAML::Error.new("image_size_max_mb must be a positive number of megabytes, got #{max_mb}")
+        end
+      end
     end
 
     class DeploymentsConfig < CNFInstall::Config::ConfigBase
