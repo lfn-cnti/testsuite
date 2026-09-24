@@ -174,6 +174,16 @@ common:
   image_size_max_mb: 500
 ```
 
+##### `startup_time_max_seconds`
+
+The `reasonable_startup_time` test measures, for every workload of the CNF, how long its slowest pod took from its containers starting to reporting Ready, and fails when that exceeds a limit, 30 seconds by default. Use this optional key to change the limit for the CNF, in seconds; it must be a positive integer. As with `image_size_max_mb`, the config is the only place the limit comes from, so a verdict is reproducible from the config alone.
+
+```yaml
+config_version: v2
+common:
+  startup_time_max_seconds: 90
+```
+
 ##### tls_profiles
 
 Define reusable TLS bundles (CA/cert/key) that deployments can reference. Useful for private Helm repos and OCI registries.

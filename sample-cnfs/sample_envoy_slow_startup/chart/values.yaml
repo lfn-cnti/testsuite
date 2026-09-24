@@ -106,7 +106,8 @@ livenessProbe:
 readinessProbe:
   tcpSocket:
     port: admin
-  initialDelaySeconds: 30
+  # Ready only after 45 s: over the 30 s default of reasonable_startup_time.
+  initialDelaySeconds: 45
   # periodSeconds: 10
   # timeoutSeconds: 5
   # failureThreshold: 3

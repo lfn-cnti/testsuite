@@ -14,7 +14,6 @@ require "../utils/utils.cr"
 desc "The CNF test suite checks to see if CNFs follows microservice principles"
 category_task "microservice", ["reasonable_image_size", "reasonable_startup_time", "single_process_type", "service_discovery", "shared_database", "specialized_init_system", "sig_term_handled", "zombie_handled"]
 
-REASONABLE_STARTUP_BUFFER = 10.0
 STRACE_WAIT_BUFFER = 3
 
 enum StraceAttachResult
@@ -103,127 +102,70 @@ scored_task "shared_database",
   end
 end
 
-desc "Does the CNF have a reasonable startup time (< 30 seconds)?"
+# Default limit for reasonable_startup_time; a CNF changes it with
+# startup_time_max_seconds in the common section of cnti-testsuite.yaml.
+REASONABLE_STARTUP_TIME_MAX_SECONDS = 30
+
+# Seconds from the moment a pod's last container started running to the
+# moment the pod reported Ready, read from the pod's status: image pulls and
+# scheduling are excluded, the application's own start-up is what remains.
+# Nil when the pod has no running container or never became Ready.
+def pod_startup_seconds(pod : JSON::Any) : Float64?
+  ready = (pod.dig?("status", "conditions").try(&.as_a?) || [] of JSON::Any).find { |c| c["type"]? == "Ready" && c["status"]? == "True" }
+  ready_at = ready.try(&.dig?("lastTransitionTime")).try(&.as_s?)
+  started = (pod.dig?("status", "containerStatuses").try(&.as_a?) || [] of JSON::Any).compact_map { |c| c.dig?("state", "running", "startedAt").try(&.as_s?) }
+  return nil if ready_at.nil? || started.empty?
+  started_at = started.map { |t| Time.parse_rfc3339(t) }.max
+  seconds = (Time.parse_rfc3339(ready_at) - started_at).total_seconds
+  seconds < 0 ? 0.0 : seconds
+end
+
+desc "Does the CNF have a reasonable startup time (#{REASONABLE_STARTUP_TIME_MAX_SECONDS} seconds unless startup_time_max_seconds is set)?"
 scored_task "reasonable_startup_time" do |t, args|
-  # TODO (kosstennbl) Redesign this test, now it is based only on livness probes. 
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    current_dir = FileUtils.pwd
-
-    # (kosstennbl) That part was copied from cnf_manager.cr, but it wasn't given much attention as
-    # it would be probably redesigned in future.
-    startup_time = 0
-    resource_ymls = CNFManager.cnf_workload_resources(args, config) { |resource| resource }
-    # get liveness probe initialDelaySeconds and FailureThreshold
-    # if   ((periodSeconds * failureThreshhold) + initialDelaySeconds) / defaultFailureThreshold) > startuptimelimit then fail; else pass
-    # get largest startuptime of all resoures
-    resource_ymls.map do |resource|
-      kind = resource["kind"].as_s.downcase
-      case kind 
-      when "pod"
-        Log.for(t.name).info { "resource: #{resource}" }
-        containers = resource.dig("spec", "containers")
-      when .in?(WORKLOAD_RESOURCE_KIND_NAMES)
-        Log.for(t.name).info { "resource: #{resource}" }
-        containers = resource.dig("spec", "template", "spec", "containers")
+    # The start-up time is measured on the CNF's own pods, per workload
+    # resource, as the slowest pod's time from container start to Ready.
+    # The limit is a documented number, in the config, not a value fitted to
+    # a disk benchmark (#2596).
+    limit = config.common.startup_time_max_seconds || REASONABLE_STARTUP_TIME_MAX_SECONDS
+    slow = 0
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
+      live = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+      pods = KubectlClient::Get.pods_by_resource_labels(live, namespace: resource[:namespace])
+      if pods.empty?
+        result.append_description("#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}: no pod to measure")
+        next true
       end
-      containers && containers.as_a.map do |container|
-        initialDelaySeconds = container.dig?("livenessProbe", "initialDelaySeconds")
-        failureThreshhold = container.dig?("livenessProbe", "failureThreshhold")
-        periodSeconds = container.dig?("livenessProbe", "periodSeconds")
-        total_period_failure = 0 
-        total_extended_period = 0
-        adjusted_with_default = 0
-        defaultFailureThreshold = 3
-        defaultPeriodSeconds = 10
-
-        if !failureThreshhold.nil? && failureThreshhold.as_i?
-          ft = failureThreshhold.as_i
-        else
-          ft = defaultFailureThreshold
+      slowest = nil.as(Tuple(String, Float64)?)
+      pods.each do |pod|
+        name = pod.dig("metadata", "name").as_s
+        seconds = pod_startup_seconds(pod)
+        if seconds.nil?
+          result.add_impacted_resource(resource[:kind], resource[:name], resource[:namespace], pod: name,
+            reason: "never reported Ready (phase #{pod.dig?("status", "phase")})")
+          slow += 1
+          next
         end
-
-        if !periodSeconds.nil? && periodSeconds.as_i?
-          ps = periodSeconds.as_i
-        else
-          ps = defaultPeriodSeconds
-        end
-
-        total_period_failure = ps * ft
-
-        if !initialDelaySeconds.nil? && initialDelaySeconds.as_i?
-          total_extended_period = initialDelaySeconds.as_i + total_period_failure
-        else
-          total_extended_period = total_period_failure
-        end
-
-        adjusted_with_default = (total_extended_period / defaultFailureThreshold).round.to_i
-
-        Log.info { "total_period_failure: #{total_period_failure}" }
-        Log.info { "total_extended_period: #{total_extended_period}" }
-        Log.info { "startup_time: #{startup_time}" }
-        Log.info { "adjusted_with_default: #{adjusted_with_default}" }
-        if startup_time < adjusted_with_default
-          startup_time = adjusted_with_default
-        end
+        slowest = {name, seconds} if slowest.nil? || seconds > slowest[1]
+      end
+      next false if slowest.nil?
+      pod_name, seconds = slowest
+      result.append_description("#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}: slowest pod #{pod_name} Ready #{seconds.round(1)} s after its containers started (limit #{limit} s)")
+      if seconds > limit
+        result.add_impacted_resource(resource[:kind], resource[:name], resource[:namespace], pod: pod_name,
+          reason: "Ready #{seconds.round(1)} s after its containers started, over the #{limit} s limit")
+        slow += 1
+        false
+      else
+        true
       end
     end
-    # Correlation for a slow box vs a fast box 
-    # sysbench base fast machine (disk), time in ms 0.16
-    # sysbench base slow machine (disk), time in ms 6.55
-    # percentage 0.16 is 2.44% of 6.55
-    # How much more is 6.55 than 0.16? (0.16 - 6.55) / 0.16 * 100 = 3993.75%
-    # startup time fast machine: 21 seconds
-    # startup slow machine: 34 seconds
-    # how much more is 34 seconds than 21 seconds? (21 - 34) / 21 * 100 = 61.90%
-    # app seconds set 1: 21, set 2: 34
-    # disk miliseconds set 1: .16 set 2: 6.55
-    # get the mean of app seconds (x)
-    #   (sum all: 55, count number of sets: 2, divide sum by count: 27.5)
-    # get the mean of disk milliseconds (y)
-    #   (sum all: 6.71, count number of sets: 2, divide sum by count: 3.35)
-    # Subtract the mean of x from every x value (call them "a")
-    # set 1: 6.5 
-    # set 2: -6.5 
-    # and subtract the mean of y from every y value (call them "b")
-    # set 1: 3.19
-    # set 2: -3.2
-    # calculate: ab, a2 and b2 for every value
-    # set 1: 20.735, 42.25, 42.25
-    # set 2: 20.8, 10.17, 10.24
-    # Sum up ab, sum up a2 and sum up b2
-    # 41.535, 52.42, 52.49
-    # Divide the sum of ab by the square root of [(sum of a2) × (sum of b2)]
-    # (sum of a2) × (sum of b2) = 2751.5258
-    # square root of 2751.5258 = 52.4549
-    # divide sum of ab by sqrt = 41.535 / 52.4549 = .7918
-    # example
-    # sysbench returns a 5.55 disk millisecond result
-    # disk millisecond has a pearson correlation of .79 to app seconds
-    # 
-    # Regression for predication based on slow and fast box disk times
-    # regression = ŷ = bX + a
-    # b = 2.02641
-    # a = 20.72663
 
-    resp = K8sInstrumentation.disk_speed
-    if resp["95th percentile"]?
-        disk_speed = resp["95th percentile"].to_f
-      startup_time_limit = ((0.30593 * disk_speed) + 21.9162 + REASONABLE_STARTUP_BUFFER).round.to_i
-    else
-      startup_time_limit = 30
-    end
-    # if ENV["CNTI_TESTSUITE_ENV"]? == "TEST"
-    #   startup_time_limit = 35 
-    #   Log.info { "startup_time_limit TEST mode: #{startup_time_limit}" }
-    # end
-    Log.info { "startup_time_limit: #{startup_time_limit}" }
-    Log.info { "startup_time: #{startup_time}" }
-
-    if startup_time <= startup_time_limit
+    if task_response
       result.passed("CNF had a reasonable startup time 🚀")
     else
-      result.append_description("CNF had a startup time of #{startup_time} seconds (limit: #{startup_time_limit} seconds)")
-      result.failed("CNF had a startup time of #{startup_time} seconds 🐢")
+      result.append_remediation("Move work out of the start-up path (lazy initialisation, pre-built caches, smaller images), gate readiness on what the service needs rather than on a fixed initial delay, and use a startupProbe for genuinely slow starters.")
+      result.failed("CNF had #{slow} workload(s) over the #{limit} s startup limit 🐢")
     end
   end
 end

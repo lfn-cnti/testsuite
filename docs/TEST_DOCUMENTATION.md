@@ -306,16 +306,16 @@ Audit your CNF's images:
 
 #### Overview
 
-Checks how long it takes for the CNF to pass a Readiness Probe and reach a ready/running state.
-Expectation: CNF starts up under one minute
+Measures, for every workload resource of the CNF, how long its slowest pod took from its containers starting to reporting Ready, as recorded in the pod's status; image pulls and scheduling are excluded. Each workload is reported with its slowest pod and time, and each one over the limit is a finding. The limit is 30 seconds unless the CNF sets `startup_time_max_seconds` in `cnti-testsuite.yaml`.
+Expectation: Every workload of the CNF is Ready within 30 seconds of its containers starting.
 
 #### Rationale
 
-A CNF that starts up with a time (adjusted for server resources) that is approaching a minute is indicative of a monolithic application. The liveness probe's `initialDelaySeconds` and `failureThreshold` determine the startup time and retry amount of the CNF. Specifically, if the `initialDelay` is too long, it is indicative of a monolithic application. If the `failureThreshold` is too high, it is indicative of a CNF or a component of the CNF that has too many intermittent failures.
+Start-up time bounds how fast a CNF can scale out, recover from a pod loss and roll a new version; a pod that takes minutes to become Ready holds up every one of those. Long start-ups usually come from work done in the start-up path that belongs elsewhere, or from a fixed [readiness delay](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/) standing in for a real readiness check; Kubernetes provides a startupProbe for the genuinely slow starters so that liveness settings need not be relaxed. Sources: [Kubernetes probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/); [Google Cloud, best practices for building containers](https://cloud.google.com/architecture/best-practices-for-building-containers).
 
 #### Remediation
 
-Ensure that your CNF gets into a running state within 30 seconds.
+Move work out of the start-up path (lazy initialisation, pre-built caches, smaller images), gate readiness on what the service actually needs rather than on a fixed initial delay, and use a startupProbe for components that genuinely need longer. Set `startup_time_max_seconds` when the CNF's design justifies a longer limit.
 
 #### Usage
 
