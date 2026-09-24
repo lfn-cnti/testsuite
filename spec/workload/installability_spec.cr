@@ -27,6 +27,8 @@ describe CntiTestSuite do
     result = ShellCmd.run_testsuite("helm_chart_valid")
     result[:status].success?.should be_true
     (/Helm chart lint passed on all charts/ =~ result[:output]).should_not be_nil
+    (/> chart coredns: lint passed/ =~ result[:output]).should_not be_nil
+    verify_task_result("helm_chart_valid", "passed")
   ensure
     result = ShellCmd.cnf_uninstall()
   end
@@ -45,7 +47,10 @@ describe CntiTestSuite do
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-bad_helm_coredns-cnf/cnti-testsuite.yaml --skip-wait-for-install", expect_failure: true)
       result = ShellCmd.run_testsuite("helm_chart_valid")
       result[:status].exit_code.should eq(1)
-      (/Helm chart lint failed on one or more charts/ =~ result[:output]).should_not be_nil
+      (/Helm chart lint failed on 1 chart\(s\)/ =~ result[:output]).should_not be_nil
+      (/> chart bad-helm-coredns-coredns: lint failed: \[ERROR\] templates\/: parse error .* function "sdfskfsdf" not defined/ =~ result[:output]).should_not be_nil
+      (/impacted: HelmChart\/bad-helm-coredns-coredns: \[ERROR\] templates\/: parse error/ =~ result[:output]).should_not be_nil
+      verify_task_result("helm_chart_valid", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -57,6 +62,8 @@ describe CntiTestSuite do
       result = ShellCmd.run_testsuite("helm_chart_published")
       result[:status].success?.should be_true
       (/(PASSED).*(All Helm charts are published)/ =~ result[:output]).should_not be_nil
+      (/> chart coredns: stable\/coredns found in repository https:\/\/cncf.gitlab.io\/stable \(chart version [\d.]+, app version [\d.]+\)/ =~ result[:output]).should_not be_nil
+      verify_task_result("helm_chart_published", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -69,7 +76,10 @@ describe CntiTestSuite do
       result = ShellCmd.run("helm search repo stable/coredns", force_output: true)
       result = ShellCmd.run_testsuite("helm_chart_published")
       result[:status].exit_code.should eq(1)
-      (/(FAILED).*(One or more Helm charts are not published)/ =~ result[:output]).should_not be_nil
+      (/(FAILED).*(1 Helm chart\(s\) not published)/ =~ result[:output]).should_not be_nil
+      (/> chart coredns: badrepo\/coredns not found in repository https:\/\/bad-helm-repo.googleapis.com: No results found/ =~ result[:output]).should_not be_nil
+      (/impacted: HelmChart\/coredns: badrepo\/coredns is not published in https:\/\/bad-helm-repo.googleapis.com/ =~ result[:output]).should_not be_nil
+      verify_task_result("helm_chart_published", "failed")
     ensure
       result = ShellCmd.run("#{Helm::Binary.get} repo remove badrepo")
       result = ShellCmd.cnf_uninstall()

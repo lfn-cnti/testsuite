@@ -76,7 +76,7 @@ Also here is some info about [things that could cause failures.](https://kuberne
 
 #### Overview
 
-Checks if the helm chart is found in a remote repository when running [`helm search`](https://helm.sh/docs/helm/helm_search_repo/).
+Looks every Helm chart of the CNF up in its repository with [`helm search`](https://helm.sh/docs/helm/helm_search_repo/) and reports, per chart, the repository searched and the version found or the reason nothing was; a chart the repository does not know is a finding. Charts pulled from an OCI registry are published by construction. N/A when the CNF has no Helm chart deployment.
 Expectation: The Helm chart is published in a Helm Repository.
 
 #### Rationale
@@ -101,7 +101,7 @@ Make sure your CNF helm charts are published in a Helm Repository.
 
 #### Overview
 
-Checks the syntax & validity of the chart using [`helm lint`](https://helm.sh/docs/helm/helm_lint/)
+Runs [`helm lint`](https://helm.sh/docs/helm/helm_lint/) on every chart and chart directory of the CNF, with the values files the CNF installs with, and reports each chart's lint result; a failing chart is a finding with its first error. N/A when the CNF has no Helm chart deployment.
 Expectation: No syntax or validation problems are found in the chart.
 
 #### Rationale

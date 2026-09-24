@@ -401,50 +401,42 @@ scored_task "helm_chart_published",
   emoji: "⎈📦🌐" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     helm = Helm::Binary.get
-
-    # Store chart search commands in an array
-    chart_searches = [] of String
-
-    # Collect helm chart search queries from deployments
-    config.deployments.helm_charts.each do |deployment|
-      helm_repo_name = deployment.helm_repo_name
-      helm_chart_name = deployment.helm_chart_name
-
-      helm_chart_full_name = "#{helm_repo_name}/#{helm_chart_name}"
-      chart_searches << helm_chart_full_name
+    charts = config.deployments.helm_charts
+    if charts.empty?
+      result.na("The CNF has no Helm chart deployment; only charts can be published in a repository")
+      next
     end
 
-    # Initialize flags to track the state of the task
-    charts_found = !chart_searches.empty?
-    all_published = true
-
-    # Process the helm chart searches and log results for each search
-    chart_searches.each do |helm_chart_full_name|
-      helm_search_cmd = "#{helm} search repo #{helm_chart_full_name}"
-      helm_search_status = Process.run(helm_search_cmd, shell: true, output: helm_search_stdout = IO::Memory.new, error: helm_search_stderr = IO::Memory.new)
-      helm_search_output = helm_search_stdout.to_s
-      Log.for(t.name).info { "Searching Helm chart: #{helm_chart_full_name}" }
-      Log.for(t.name).info { "Helm search output:\n#{helm_search_output}" }
-
-      # Check if the chart was found
-      if helm_search_output =~ /No results found/
-        all_published = false
+    # Every chart is reported with where it was looked for and what came
+    # back; each one the repository does not know is a finding (#2598).
+    unpublished = 0
+    charts.each do |deployment|
+      unless deployment.registry_url.empty?
+        result.append_description("chart #{deployment.name}: pulled from OCI registry #{deployment.registry_url}")
+        next
       end
-    end
-
-    # Handle the case where no charts were specified
-    unless charts_found
-      Log.for(t.name).info { "No Helm charts found for searching." }
-      result.skipped("No Helm charts found to search")
-    else
-      if all_published
-        result.passed("All Helm charts are published")
+      full_name = "#{deployment.helm_repo_name}/#{deployment.helm_chart_name}"
+      status = Process.run("#{helm} search repo #{full_name}", shell: true, output: stdout = IO::Memory.new, error: stderr = IO::Memory.new)
+      output = stdout.to_s
+      Log.for(t.name).info { "helm search repo #{full_name}:\n#{output}#{stderr}" }
+      versions = output.lines.select { |l| l.starts_with?("#{full_name}\t") || l.starts_with?("#{full_name} ") }
+      if status.success? && !versions.empty?
+        found = versions.first.split(/\t|\s{2,}/).map(&.strip).reject(&.empty?)
+        result.append_description("chart #{deployment.name}: #{full_name} found in repository #{deployment.helm_repo_url} (chart version #{found[1]?}, app version #{found[2]?})")
       else
-        chart_searches.each do |chart|
-          result.append_description("Chart search: #{chart}") unless all_published
-        end
-        result.failed("One or more Helm charts are not published")
+        unpublished += 1
+        why = status.success? ? output.strip : stderr.to_s.strip
+        why = "no results" if why.empty?
+        result.append_description("chart #{deployment.name}: #{full_name} not found in repository #{deployment.helm_repo_url}: #{why}")
+        result.add_impacted_resource("HelmChart", deployment.name, reason: "#{full_name} is not published in #{deployment.helm_repo_url}")
       end
+    end
+
+    if unpublished == 0
+      result.passed("All Helm charts are published")
+    else
+      result.append_remediation("Publish the chart in a Helm repository (or an OCI registry) and reference it from there in cnti-testsuite.yaml, so users install a versioned, signed artifact instead of chart sources.")
+      result.failed("#{unpublished} Helm chart(s) not published")
     end
   end
 end
@@ -456,68 +448,50 @@ scored_task "helm_chart_valid",
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     current_dir = FileUtils.pwd
     helm = Helm::Binary.get
-    Log.info { "Current directory: #{current_dir}" }
 
-    # Store chart locations and helm values
+    # Chart directory and values of every chart or chart directory deployment.
     chart_info = [] of Tuple(String, String, String?)
-
-    # Collect helm chart paths and their values
     config.deployments.helm_charts.each do |deployment|
-      chart_info << {
-        File.join(current_dir, DEPLOYMENTS_DIR, deployment.name, deployment.helm_chart_name),
-        deployment.name,
-        deployment.helm_values
-      }
+      chart_info << {File.join(current_dir, DEPLOYMENTS_DIR, deployment.name, deployment.helm_chart_name), deployment.name, deployment.helm_values}
     end
-
-    # Collect helm directory paths and their values
     config.deployments.helm_dirs.each do |deployment|
-      chart_info << {
-        File.join(current_dir, DEPLOYMENTS_DIR, deployment.name, File.basename(deployment.helm_directory)),
-        deployment.name,
-        deployment.helm_values
-      }
+      chart_info << {File.join(current_dir, DEPLOYMENTS_DIR, deployment.name, File.basename(deployment.helm_directory)), deployment.name, deployment.helm_values}
+    end
+    if chart_info.empty?
+      result.na("The CNF has no Helm chart deployment; only charts can be linted")
+      next
     end
 
-    # Initialize flags to track the task state
-    charts_found = !chart_info.empty?
-    all_passed = true
-
-    # Iterate over chart directories and store the results for each lint
+    # Every chart's lint output goes to the details; a failing chart is a
+    # finding with its first error as the reason (#2598).
+    failing = 0
     chart_info.each do |chart_dir, deployment_name, helm_values|
-      # Extract any `-f <files>` occurrences
       f_flags = extract_f_flags(helm_values)
-      helm_lint_cmd = if f_flags
-        "#{helm} lint #{chart_dir} #{f_flags}"
-      else
-        "#{helm} lint #{chart_dir}"
-      end
-
-      Log.for(t.name).info { "Linting helm chart for deployment: #{deployment_name}" }
+      helm_lint_cmd = f_flags ? "#{helm} lint #{chart_dir} #{f_flags}" : "#{helm} lint #{chart_dir}"
       Log.for(t.name).info { "Helm lint command: #{helm_lint_cmd}" }
+      status = Process.run(helm_lint_cmd, shell: true, output: stdout = IO::Memory.new, error: stderr = IO::Memory.new)
+      output = (stdout.to_s + stderr.to_s).strip
+      Log.for(t.name).info { "Helm lint output:\n#{output}" }
 
-      helm_lint_status = Process.run(helm_lint_cmd, shell: true, output: helm_lint_stdout = IO::Memory.new, error: helm_lint_stderr = IO::Memory.new)
-      helm_lint_output = helm_lint_stdout.to_s
-
-      Log.for(t.name).info { "Helm Lint output:\n#{helm_lint_output}" }
-
-      # If the linting failed, mark as failed
-      if !helm_lint_status.success?
-        all_passed = false
+      # Lines helm marks [ERROR] or [WARNING]; the "==> Linting" banner and
+      # the closing tally say nothing a reader needs.
+      findings = output.lines.map(&.strip).select { |l| l.starts_with?("[") }
+      if status.success?
+        result.append_description("chart #{deployment_name}: lint passed#{findings.empty? ? "" : " with " + findings.join("; ")}")
+      else
+        failing += 1
+        errors = findings.select(&.starts_with?("[ERROR]"))
+        first = errors.first? || output.lines.map(&.strip).reject(&.empty?).last? || "helm lint exited #{status.exit_code}"
+        result.append_description("chart #{deployment_name}: lint failed: #{findings.empty? ? output : findings.join("; ")}")
+        result.add_impacted_resource("HelmChart", deployment_name, reason: first)
       end
     end
 
-    # Handle case where no charts were found
-    unless charts_found
-      Log.for(t.name).info { "No Helm charts or directories found for linting." }
-      result.skipped("No Helm charts found to lint")
+    if failing == 0
+      result.passed("Helm chart lint passed on all charts")
     else
-      # Return appropriate results based on linting outcomes
-      if all_passed
-        result.passed("Helm chart lint passed on all charts")
-      else
-        result.failed("Helm chart lint failed on one or more charts")
-      end
+      result.append_remediation("Fix the errors helm lint reports for each chart (run `helm lint <chart> [-f values]` locally) so the chart renders and validates before it is shipped.")
+      result.failed("Helm chart lint failed on #{failing} chart(s)")
     end
   end
 end
