@@ -1,0 +1,30 @@
+# An OLM Subscription, outside the default namespace, for a package that no
+# catalog provides: OLM never sets status.installedCSV, so operator_installed
+# must report the Subscription as a finding instead of crashing or waiting
+# forever. Needs OLM installed in the cluster (the operator specs do that).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cnti-operator-unresolvable
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: cnti-operator-unresolvable
+  namespace: cnti-operator-unresolvable
+spec:
+  targetNamespaces:
+  - cnti-operator-unresolvable
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: no-such-operator
+  namespace: cnti-operator-unresolvable
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: no-such-package-cnti-testsuite
+  source: operatorhubio-catalog
+  sourceNamespace: operator-lifecycle-manager

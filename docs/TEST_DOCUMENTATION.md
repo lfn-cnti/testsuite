@@ -1564,8 +1564,8 @@ Make sure your CNFs are not utilizing any Kubernetes alpha APIs. You can learn m
 
 #### Overview
 
-This test checks if the CNF installs an Operator using the [Operator Lifecycle Manager (OLM)](https://olm.operatorframework.io/). It scans the CNF's resources for OLM Subscriptions and verifies that each Subscription results in a ClusterServiceVersion (CSV) that reaches the `Succeeded` phase.
-Expectation: If the CNF ships an Operator, it is installed through OLM and its ClusterServiceVersion reports a successful installation. If no Operator is found, the test is not applicable.
+This test checks if the CNF installs an Operator using the [Operator Lifecycle Manager (OLM)](https://olm.operatorframework.io/). It scans the CNF's resources for OLM Subscriptions and verifies that each Subscription resolves to a ClusterServiceVersion (CSV) that reaches the `Succeeded` phase, and that every Deployment the CSV's install strategy creates becomes ready.
+Expectation: If the CNF ships an Operator, it is installed through OLM, its ClusterServiceVersion reports a successful installation and its operator Deployments are ready. A Subscription that never resolves, a CSV that does not succeed or an operator Deployment that is not ready is reported as a failure, with each affected resource listed under the test's impacted resources. If no Subscription is found, the test is not applicable.
 
 #### Rationale
 
