@@ -1,0 +1,120 @@
+# Reusable validation of one example CNF: on its own kind cluster, install the
+# CNF from example-cnfs/<cnf>/cnti-testsuite.yaml and run the cert suite, then
+# do the same on a fresh cluster for the workload suite. Each caller (one per
+# CNF) only owns its schedule, its concurrency group and its time budget, so a
+# fix here reaches every example CNF at once.
+name: Example CNF validation
+
+on:
+  workflow_call:
+    inputs:
+      cnf:
+        description: "Directory under example-cnfs/ and prefix of the spec tags (<cnf>_cert, <cnf>_workload)"
+        required: true
+        type: string
+      display_name:
+        description: "How the CNF is called in job names and logs"
+        required: true
+        type: string
+      timeout_minutes:
+        description: "Job time budget; a hung run holds a shared runner for this long"
+        required: false
+        type: number
+        default: 360
+
+jobs:
+  validation:
+    name: ${{ inputs.display_name }} ${{ matrix.suite }}
+    runs-on: [v1.0.0]
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    strategy:
+      fail-fast: false
+      # The caller's concurrency group serialises runs, not the jobs inside
+      # one run: cert and workload would otherwise each build a three-node kind
+      # cluster and install the CNF on the same runner pool at the same time.
+      max-parallel: 1
+      matrix:
+        suite: [cert, workload]
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+      KIND_CLUSTER_NAME: ${{ inputs.cnf }}-${{ matrix.suite }}-${{ github.run_id }}
+    steps:
+      - name: Checkout Code & Submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Login to Docker Hub
+        if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_PASSWORD }}
+      - name: Install kind
+        uses: ./.github/actions/install-kind
+      - name: Setup Kind Cluster
+        run: |
+          # The unsafe sysctls are what free5GC's UPF needs; they cost the
+          # other CNFs nothing.
+          cat <<EOF > kind_setup.yaml
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          containerdConfigPatches:
+          - |-
+            root = "/tmp/containerd"
+          nodes:
+          - role: control-plane
+            kubeadmConfigPatches:
+            - |
+              kind: KubeletConfiguration
+              allowedUnsafeSysctls:
+                - "net.ipv4.ip_forward"
+                - "net.ipv4.conf.all.forwarding"
+            - |
+              kind: ClusterConfiguration
+              etcd:
+                local:
+                  dataDir: /tmp/etcd
+            extraMounts:
+            - containerPath: /var/lib/kubelet/config.json
+              hostPath: $HOME/.docker/config.json
+          - role: worker
+            kubeadmConfigPatches:
+            - |
+              kind: KubeletConfiguration
+              allowedUnsafeSysctls:
+                - "net.ipv4.ip_forward"
+                - "net.ipv4.conf.all.forwarding"
+            extraMounts:
+            - containerPath: /var/lib/kubelet/config.json
+              hostPath: $HOME/.docker/config.json
+          - role: worker
+            kubeadmConfigPatches:
+            - |
+              kind: KubeletConfiguration
+              allowedUnsafeSysctls:
+                - "net.ipv4.ip_forward"
+                - "net.ipv4.conf.all.forwarding"
+            extraMounts:
+            - containerPath: /var/lib/kubelet/config.json
+              hostPath: $HOME/.docker/config.json
+          EOF
+          kind create cluster --name "$KIND_CLUSTER_NAME" --config kind_setup.yaml --wait 5m
+      - name: Install Crystal
+        uses: crystal-lang/install-crystal@v1
+        with:
+          # renovate: datasource=github-releases depName=crystal-lang/crystal
+          crystal: 1.19.1
+      - name: Build CNTi Test Suite
+        run: |
+          shards install
+          crystal build src/cnti-testsuite.cr
+      - name: Run the ${{ matrix.suite }} suite against ${{ inputs.display_name }}
+        run: |
+          CNTI_TESTSUITE_LOG_LEVEL=INFO crystal spec --tag ${{ inputs.cnf }}_${{ matrix.suite }} -v
+      - name: Delete Kind Cluster
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          until kind delete cluster --name "$KIND_CLUSTER_NAME" --verbosity 1; do sleep 1; done

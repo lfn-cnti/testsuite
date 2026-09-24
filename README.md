@@ -2,7 +2,7 @@
 
 | Main                                                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| [![Build Status](https://github.com/lfn-cnti/testsuite/workflows/Crystal%20Specs/badge.svg)](https://github.com/lfn-cnti/testsuite/actions) [![free5GC validation](https://github.com/lfn-cnti/testsuite/actions/workflows/free5gc_validation.yml/badge.svg)](https://github.com/lfn-cnti/testsuite/actions/workflows/free5gc_validation.yml) |
+| [![Build Status](https://github.com/lfn-cnti/testsuite/workflows/Crystal%20Specs/badge.svg)](https://github.com/lfn-cnti/testsuite/actions) [![free5GC validation](https://github.com/lfn-cnti/testsuite/actions/workflows/free5gc_validation.yml/badge.svg)](https://github.com/lfn-cnti/testsuite/actions/workflows/free5gc_validation.yml) [![OCUDU validation](https://github.com/lfn-cnti/testsuite/actions/workflows/ocudu_validation.yml/badge.svg)](https://github.com/lfn-cnti/testsuite/actions/workflows/ocudu_validation.yml) |
 
 The CNTi Test Suite is an open source and vendor neutral tool that can be used to validate a telco application's adherence to [cloud native principles](https://networking.cloud-native-principles.org/) and best practices. 
 

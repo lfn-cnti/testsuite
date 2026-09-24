@@ -7,7 +7,9 @@ config_version: "v2"
 common:
   container_names:
     - name: ocudu-gnb
-      # A second, retained image tag for the rolling update / rollback tests.
+      # A second, retained image tag for the rolling update / downgrade /
+      # version change / rollback tests. The tests only need it to differ from
+      # the installed tag; it happens to be older, so the "update" moves back.
       rolling_update_test_tag: "20260911_bd0d2cd2-stable"
       rolling_downgrade_test_tag: "20260911_bd0d2cd2-stable"
       rolling_version_change_test_tag: "20260911_bd0d2cd2-stable"
