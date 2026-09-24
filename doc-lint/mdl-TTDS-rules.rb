@@ -169,3 +169,31 @@ rule "TTDS006", "TOC should not contain 'dead' local links" do
     violation_lines.empty? ? nil : violation_lines
   end
 end
+
+rule "TTDS007", "Every Rationale names the source of the practice (at least one external link)" do
+  tags :documentation
+  check do |doc|
+    violation_lines = []
+    in_rationale = false
+    rationale_line = nil
+    has_link = false
+    close = lambda do
+      violation_lines << rationale_line if in_rationale && !has_link
+    end
+    doc.lines.each_with_index do |line, index|
+      if line.start_with?("#### Rationale")
+        close.call
+        in_rationale = true
+        rationale_line = index + 1
+        has_link = false
+      elsif line.start_with?("#### ") || line.start_with?("### ")
+        close.call
+        in_rationale = false
+      elsif in_rationale && line =~ /\]\(https?:\/\//
+        has_link = true
+      end
+    end
+    close.call
+    violation_lines.empty? ? nil : violation_lines
+  end
+end
