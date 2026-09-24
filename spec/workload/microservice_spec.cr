@@ -418,6 +418,20 @@ describe "Microservice" do
     end
   end
 
+  it "'zombie_handled' still probes a CNF whose PID 1 sig_term_handled has just terminated", tags: ["zombie"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-bad-zombie/")
+      # The two tests back to back, as a suite runs them: the second must find
+      # the restarted container and judge it, never pass with nothing probed.
+      result = ShellCmd.run_testsuite("sig_term_handled zombie_handled")
+      (/(FAILED).*(Zombie not handled)/ =~ result[:output]).should_not be_nil
+      (/> Zombie probe started in 0 container/ =~ result[:output]).should be_nil
+      verify_task_result("zombie_handled", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'zombie_handled' should fail for a read-only root filesystem whose PID 1 does not reap", tags: ["zombie"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-zombie-readonly-rootfs/")
