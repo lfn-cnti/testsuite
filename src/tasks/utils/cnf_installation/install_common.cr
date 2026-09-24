@@ -160,6 +160,12 @@ module CNFInstall
       add_label_resources_to_manifest(config, parsed_args[:timeout])
       add_crds_for_custom_resources_to_manifest
     end
+
+    # Said once here rather than by every test: a manifest with nothing to
+    # examine makes every workload test not applicable (#2603).
+    unless CNFManager.workload_resources?
+      stdout_warning "The CNF manifest has no workload resources (Deployment, StatefulSet, DaemonSet, ReplicaSet or Pod): tests that examine workloads will be reported as not applicable. Check the config points at the right chart or manifests, or set workload_resource_labels for workloads an operator creates."
+    end
   end
 
   def self.uninstall_cnf(cli_args)

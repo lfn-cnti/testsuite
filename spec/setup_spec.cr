@@ -285,6 +285,23 @@ describe "Installation" do
     end
   end
 
+  it "'cnf_install' should warn once when the manifest has no workload resource, and workload tests are then not applicable", tags: ["cnf_installation1"] do
+    begin
+      result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-no-workload/cnti-testsuite.yaml")
+      result[:status].success?.should be_true
+      (/The CNF manifest has no workload resources/ =~ result[:output]).should_not be_nil
+      result = ShellCmd.run_testsuite("liveness")
+      result[:status].success?.should be_true
+      (/(N\/A).*(liveness not applicable: no workload resources in the CNF manifest)/ =~ result[:output]).should_not be_nil
+      verify_task_result("liveness", "na")
+      result = ShellCmd.run_testsuite("non_root_containers")
+      (/(N\/A).*(non_root_containers not applicable: no workload resources in the CNF manifest)/ =~ result[:output]).should_not be_nil
+      verify_task_result("non_root_containers", "na")
+    ensure
+      ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'cnf_install' should correctly handle deployment priority", tags: ["cnf_installation_priority"] do
     # (kosstennbl) ELK stack requires to be installed with specific order, otherwise it would give errors
     begin

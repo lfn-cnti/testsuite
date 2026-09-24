@@ -1,0 +1,13 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: no-workload
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: no-workload-settings
+  namespace: no-workload
+data:
+  greeting: hello
