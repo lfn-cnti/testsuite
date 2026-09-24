@@ -22,7 +22,8 @@ module CNFInstall
              tls_profiles = {} of String => TLSConfig,
              auth_defaults = AuthDefaults.new,
              image_size_max_mb : Int32?,
-             startup_time_max_seconds : Int32?
+             startup_time_max_seconds : Int32?,
+             exceptions = [] of ExceptionConfig
       def initialize; end
 
       def after_initialize
@@ -31,6 +32,39 @@ module CNFInstall
         end
         if (max_s = @startup_time_max_seconds) && max_s <= 0
           raise YAML::Error.new("startup_time_max_seconds must be a positive number of seconds, got #{max_s}")
+        end
+        @exceptions.each_with_index { |exception, index| exception.validate!(index) }
+      end
+    end
+
+    # A documented exception to one test's finding, per CBPP-0003: which test,
+    # which container or workload resource, what exactly is allowed, and why.
+    # A covered finding is reported as excepted, with the reason, rather than
+    # as failed; the test passes only when every finding is excepted.
+    class ExceptionConfig < CNFInstall::Config::ConfigBase
+      TESTS       = ["insecure_capabilities", "sysctls", "host_network", "privileged_containers"]
+      WITH_VALUES = ["insecure_capabilities", "sysctls"]
+
+      getter test : String,
+             reason = "",
+             container = "",
+             resource = "",
+             allow = [] of String
+
+      def validate!(index : Int32)
+        where = "exceptions[#{index}]"
+        unless TESTS.includes?(test)
+          raise YAML::Error.new("#{where}: unknown test \"#{test}\"; exceptions exist for #{TESTS.join(", ")}")
+        end
+        raise YAML::Error.new("#{where} (#{test}): reason is required") if reason.strip.empty?
+        if container.empty? && resource.empty?
+          raise YAML::Error.new("#{where} (#{test}): name the container or the workload resource it applies to")
+        end
+        if WITH_VALUES.includes?(test) && allow.empty?
+          raise YAML::Error.new("#{where} (#{test}): allow must list the #{test == "sysctls" ? "sysctls" : "capabilities"} the exception covers")
+        end
+        if !WITH_VALUES.includes?(test) && !allow.empty?
+          raise YAML::Error.new("#{where} (#{test}): allow does not apply to this test")
         end
       end
     end

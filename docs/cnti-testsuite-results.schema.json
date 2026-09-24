@@ -320,7 +320,28 @@
           "items": {
             "$ref": "#/$defs/impacted_resource"
           }
+        },
+        "excepted": {
+          "description": "Findings covered by a documented exception in the CNF's config (CBPP-0003), with the reason. Present only when non-empty.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/excepted_finding"
+          }
         }
+      }
+    },
+    "excepted_finding": {
+      "description": "A finding the CNF's config declares an exception for: what was found, where, and the documented reason it is allowed.",
+      "type": "object",
+      "required": ["kind", "name", "finding", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"type": "string"},
+        "name": {"type": "string"},
+        "namespace": {"type": "string"},
+        "container": {"type": "string"},
+        "finding": {"type": "string"},
+        "reason": {"type": "string"}
       }
     },
     "impacted_resource": {

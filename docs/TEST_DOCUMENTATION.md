@@ -1043,6 +1043,7 @@ Make sure your CNF doesn't mount `/var/run/docker.sock`, `/var/run/containerd.so
 
 Checks if any containers are running in privileged mode.
 Expectation: Containers should not run in privileged mode
+A CNF that needs this can declare a documented exception in `cnti-testsuite.yaml` (`common.exceptions`, see CNTI_TESTSUITE_YAML_USAGE.md); a covered finding is reported as excepted with its reason instead of failing the test.
 
 #### Rationale
 
@@ -1119,6 +1120,7 @@ Ensure the following guidelines are followed for any cluster resource that allow
 Checks the CNF for usage of non-namespaced sysctls mechanisms that can affect the entire host.
 Measurement: Kyverno audit policy [pod-security/baseline/restrict-sysctls](https://github.com/kyverno/policies/tree/release-1.19/pod-security/baseline/restrict-sysctls); the CLI version and policies branch are in the results file's `tools`.
 Expectation: The CNF should only have "safe" sysctls mechanisms configured, that are isolated from other Pods.
+A CNF that needs this can declare a documented exception in `cnti-testsuite.yaml` (`common.exceptions`, see CNTI_TESTSUITE_YAML_USAGE.md); a covered finding is reported as excepted with its reason instead of failing the test.
 
 #### Rationale
 
@@ -1217,6 +1219,7 @@ Use Kubernetes secrets or Key Management Systems to store credentials.
 Checks if there is a [host network](https://bit.ly/C0041_hostNetwork) attached to any of the Pods in the CNF.
 Measurement: Kubescape control [C-0041](https://hub.armosec.io/docs/c-0041) (HostNetwork access) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: The CNF should not have access to the host systems network.
+A CNF that needs this can declare a documented exception in `cnti-testsuite.yaml` (`common.exceptions`, see CNTI_TESTSUITE_YAML_USAGE.md); a covered finding is reported as excepted with its reason instead of failing the test.
 
 #### Rationale
 
@@ -1291,6 +1294,7 @@ By default, you should disable or restrict Ingress and Egress traffic on all pod
 Checks the CNF for any usage of insecure capabilities using the following [deny list](https://man7.org/linux/man-pages/man7/capabilities.7.html)
 Measurement: Kubescape control [C-0046](https://hub.armosec.io/docs/c-0046) (Insecure capabilities) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: Containers should not have insecure capabilities enabled.
+A CNF that needs this can declare a documented exception in `cnti-testsuite.yaml` (`common.exceptions`, see CNTI_TESTSUITE_YAML_USAGE.md); a covered finding is reported as excepted with its reason instead of failing the test.
 
 #### Rationale
 

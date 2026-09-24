@@ -231,6 +231,68 @@ describe "Security" do
     end
   end
 
+  describe "documented exceptions (common.exceptions)" do
+    fail_config = "./sample-cnfs/sample-exceptions/cnti-testsuite.yaml"
+    pass_config = "./sample-cnfs/sample-exceptions/cnti-testsuite-excepted.yaml"
+
+    it "'insecure_capabilities' fails on an added capability and passes once it is documented", tags: ["security"] do
+      begin
+        ShellCmd.cnf_install("--cnf-config #{fail_config} --skip-wait-for-install")
+        result = ShellCmd.run_testsuite("insecure_capabilities")
+        (/(FAILED).*(Found containers with insecure capabilities)/ =~ result[:output]).should_not be_nil
+        (/impacted: Deployment\/dataplane in exceptions \(container upf\): capability NET_ADMIN added/ =~ result[:output]).should_not be_nil
+        ShellCmd.cnf_uninstall()
+
+        ShellCmd.cnf_install("--cnf-config #{pass_config} --skip-wait-for-install")
+        result = ShellCmd.run_testsuite("insecure_capabilities")
+        (/(PASSED).*(beyond the documented exceptions)/ =~ result[:output]).should_not be_nil
+        (/excepted: Deployment\/dataplane in exceptions \(container upf\): capability NET_ADMIN added .* \(reason: user-plane packet steering on N3\/N6\)/ =~ result[:output]).should_not be_nil
+        verify_task_result("insecure_capabilities", "passed")
+        yaml = YAML.parse(File.read(CNFManager::Points::Results.latest))
+        item = yaml["items"].as_a.find { |i| i["name"].as_s == "insecure_capabilities" }.not_nil!
+        item["excepted"].as_a.first["reason"].as_s.should eq("user-plane packet steering on N3/N6")
+        item["impacted_resources"]?.should be_nil
+      ensure
+        ShellCmd.cnf_uninstall()
+      end
+    end
+
+    it "'host_network' fails on the host network and passes once it is documented", tags: ["security"] do
+      begin
+        ShellCmd.cnf_install("--cnf-config #{fail_config} --skip-wait-for-install")
+        result = ShellCmd.run_testsuite("host_network")
+        (/(FAILED).*(Found host network attached to pod)/ =~ result[:output]).should_not be_nil
+        ShellCmd.cnf_uninstall()
+
+        ShellCmd.cnf_install("--cnf-config #{pass_config} --skip-wait-for-install")
+        result = ShellCmd.run_testsuite("host_network")
+        (/(PASSED).*(beyond the documented exceptions)/ =~ result[:output]).should_not be_nil
+        (/excepted: Deployment\/dataplane in exceptions: .*\(reason: fronthaul NIC access through the host network\)/ =~ result[:output]).should_not be_nil
+        verify_task_result("host_network", "passed")
+      ensure
+        ShellCmd.cnf_uninstall()
+      end
+    end
+
+    it "'sysctls' fails on an unsafe sysctl and passes once it is documented", tags: ["sysctls"] do
+      begin
+        ShellCmd.cnf_install("--cnf-config #{fail_config} --skip-wait-for-install")
+        result = ShellCmd.run_testsuite("sysctls")
+        (/(FAILED).*(Restricted values for are being used for sysctls)/ =~ result[:output]).should_not be_nil
+        (/impacted: Deployment\/forwarder in exceptions: sysctl net.ipv4.ip_forward is outside the safe set/ =~ result[:output]).should_not be_nil
+        ShellCmd.cnf_uninstall()
+
+        ShellCmd.cnf_install("--cnf-config #{pass_config} --skip-wait-for-install")
+        result = ShellCmd.run_testsuite("sysctls")
+        (/(PASSED).*(beyond the documented exceptions)/ =~ result[:output]).should_not be_nil
+        (/excepted: Deployment\/forwarder in exceptions: sysctl net.ipv4.ip_forward is outside the safe set \(reason: user-plane forwarding between N3 and N6\)/ =~ result[:output]).should_not be_nil
+        verify_task_result("sysctls", "passed")
+      ensure
+        ShellCmd.cnf_uninstall()
+      end
+    end
+  end
+
   it "'ingress_egress_blocked' should not pass on a cnf that has no ingress and egress traffic policy", tags: ["security"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf")
