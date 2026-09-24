@@ -5,6 +5,9 @@ on:
     - cron: '0 0 * * *'
   workflow_dispatch:
 
+# Each job owns a whole kind cluster on the shared self-hosted runners, so runs
+# must not overlap. Queue them instead of cancelling: a nightly run that is
+# already exercising free5GC is worth finishing.
 concurrency:
   group: free5gc-validation
   cancel-in-progress: false
@@ -17,6 +20,10 @@ jobs:
     timeout-minutes: 720
     strategy:
       fail-fast: false
+      # The concurrency group serialises runs, not the jobs inside one run:
+      # cert and workload would otherwise each build a three-node kind cluster
+      # and install free5GC on the same runner pool at the same time.
+      max-parallel: 1
       matrix:
         include:
           - suite: cert

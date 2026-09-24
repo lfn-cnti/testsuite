@@ -45,6 +45,24 @@ describe "Resilience pod delete Chaos" do
     end
   end
 
+  it "'pod_io_stress' targets each Deployment by a label that selects only its own pods", tags: ["pod_io_stress"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-shared-selector/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("pod_io_stress", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=info")
+      result[:status].success?.should be_true
+      # The shared first pair app.kubernetes.io/instance=shared must not be used.
+      (/Targeting Deployment\/shared-a with app.kubernetes.io\/name=shared-a \(1 pod\(s\)\)/ =~ result[:output]).should_not be_nil
+      (/Targeting Deployment\/shared-b with app.kubernetes.io\/name=shared-b \(1 pod\(s\)\)/ =~ result[:output]).should_not be_nil
+      (/No uniquely selecting label/ =~ result[:output]).should be_nil
+      verify_task_result("pod_io_stress", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+      result = ShellCmd.run_testsuite("setup:uninstall_litmus")
+      result[:status].success?.should be_true
+    end
+  end
+
   after_all do
     result = ShellCmd.run_testsuite("uninstall_all")
   end

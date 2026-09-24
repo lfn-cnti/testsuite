@@ -1,0 +1,55 @@
+# Two Deployments whose FIRST selector label is shared, the way every
+# free5GC deployment carries app.kubernetes.io/instance=free5gc. A chaos
+# engine built from that first pair would select both workloads' pods; the
+# engine must be built from the pair that selects exactly the tested one.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shared-selector
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shared-a
+  namespace: shared-selector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: shared
+      app.kubernetes.io/name: shared-a
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: shared
+        app.kubernetes.io/name: shared-a
+    spec:
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["/bin/sleep", "2147483647"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shared-b
+  namespace: shared-selector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: shared
+      app.kubernetes.io/name: shared-b
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: shared
+        app.kubernetes.io/name: shared-b
+    spec:
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["/bin/sleep", "2147483647"]

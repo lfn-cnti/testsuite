@@ -73,6 +73,44 @@ scored_task "readiness",
   run_probe_task(t, args, "readiness")
 end
 
+# Kinds a litmus ChaosEngine can name as its appkind. Pod and ReplicaSet are
+# workload kinds for the suite but not for litmus, whose annotation check
+# rejects the engine outright ("appkind is not supported"), so a chaos test
+# reports such a resource as not applicable instead of failing on an engine
+# error.
+LITMUS_APPKINDS = ["deployment", "statefulset", "daemonset"]
+
+# Runs a chaos test over the CNF's workload resources, yielding only those
+# litmus can target. Returns {passed, tested}: tested counts the targets the
+# block saw, so the caller reports not applicable when it is zero.
+def chaos_resource_test(args, config, result, task_name : String, check_containers = true,
+                        &block : (NamedTuple(kind: String, name: String, namespace: String), JSON::Any, JSON::Any) -> Bool) : {Bool, Int32}
+  tested = 0
+  passed = CNFManager.workload_resource_test(args, config, check_containers) do |resource, target, volumes|
+    unless LITMUS_APPKINDS.includes?(resource[:kind].downcase)
+      message = "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}: litmus cannot target a #{resource[:kind]}, #{task_name} is not applicable to it"
+      Log.for(task_name).info { message }
+      result.append_description(message)
+      next true
+    end
+    tested += 1
+    block.call(resource, target, volumes)
+  end
+  {passed, tested}
+end
+
+# Verdict shared by the chaos tests: not applicable when litmus could target
+# nothing, otherwise pass or fail on the experiments.
+def chaos_verdict(result, task_name : String, passed : Bool, tested : Int32, passed_message : String? = nil)
+  if tested == 0
+    result.na("#{task_name} not applicable: no Deployment, StatefulSet or DaemonSet for litmus to target")
+  elsif passed
+    result.passed(passed_message || "#{task_name} chaos test passed")
+  else
+    result.failed("#{task_name} chaos test failed")
+  end
+end
+
 desc "Does the CNF crash when network latency occurs"
 scored_task "pod_network_latency",
   type: CNFManager::TestType::Bonus,
@@ -81,15 +119,15 @@ scored_task "pod_network_latency",
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     #todo if args has list of labels to perform test on, go into pod specific mode
     #TODO tests should fail if cnf not installed
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
+    task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _|
       Log.info { "Current Resource Name: #{resource["name"]} Type: #{resource["kind"]}" }
       app_namespace = resource[:namespace]
 
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
-      if spec_labels.as_h? && spec_labels.as_h.size > 0 && WORKLOAD_RESOURCE_KIND_NAMES.includes?(resource["kind"].downcase)
+      if spec_labels.as_h? && spec_labels.as_h.size > 0
         test_passed = true
       else
-        result.append_description("Resource is not a supported workload or no resource label was found for resource: #{resource["name"]}")
+        result.append_description("No resource label was found for resource: #{resource["name"]}")
         test_passed = false
       end
 
@@ -159,11 +197,7 @@ scored_task "pod_network_latency",
     end
     unless args.named["pod-labels"]?
         #todo if in pod specific mode, dont do upserts and resp = ""
-        if task_response
-          result.passed("pod_network_latency chaos test passed")
-        else
-          result.failed("pod_network_latency chaos test failed")
-        end
+        chaos_verdict(result, t.name, task_response, tested)
     end
 
   end
@@ -176,14 +210,14 @@ scored_task "pod_network_corruption",
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     #TODO tests should fail if cnf not installed
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
+    task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _|
       Log.info {"Current Resource Name: #{resource["name"]} Type: #{resource["kind"]}"}
       app_namespace = resource[:namespace]
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
-      if spec_labels.as_h? && spec_labels.as_h.size > 0 && WORKLOAD_RESOURCE_KIND_NAMES.includes?(resource["kind"].downcase)
+      if spec_labels.as_h? && spec_labels.as_h.size > 0
         test_passed = true
       else
-        result.append_description("Resource is not a supported workload or no resource label was found for resource: #{resource["name"]}")
+        result.append_description("No resource label was found for resource: #{resource["name"]}")
         test_passed = false
       end
       if test_passed
@@ -213,11 +247,7 @@ scored_task "pod_network_corruption",
 
       test_passed
     end
-    if task_response
-      result.passed("pod_network_corruption chaos test passed")
-    else
-      result.failed("pod_network_corruption chaos test failed")
-    end
+    chaos_verdict(result, t.name, task_response, tested)
   end
 end
 
@@ -228,14 +258,14 @@ scored_task "pod_network_duplication",
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     #TODO tests should fail if cnf not installed
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
+    task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _|
       app_namespace = resource[:namespace]
       Log.info{ "Current Resource Name: #{resource["name"]} Type: #{resource["kind"]} Namespace: #{resource["namespace"]}"}
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
-      if spec_labels.as_h? && spec_labels.as_h.size > 0 && WORKLOAD_RESOURCE_KIND_NAMES.includes?(resource["kind"].downcase)
+      if spec_labels.as_h? && spec_labels.as_h.size > 0
         test_passed = true
       else
-        result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], reason: "not a supported workload or no resource label found")
+        result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], reason: "no resource label found")
         test_passed = false
       end
       if test_passed
@@ -265,11 +295,7 @@ scored_task "pod_network_duplication",
 
       test_passed
     end
-    if task_response
-      result.passed("pod_network_duplication chaos test passed")
-    else
-      result.failed("pod_network_duplication chaos test failed")
-    end
+    chaos_verdict(result, t.name, task_response, tested)
   end
 end
 
@@ -288,8 +314,8 @@ scored_task "disk_fill",
   deps: ["setup:install_litmus"],
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    tested = 0
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, _|
+    injected = 0
+    task_response, tested = chaos_resource_test(args, config, result, t.name, check_containers: false) do |resource, containers, _|
       app_namespace = resource[:namespace]
 
       # The fault is injected once per resource, into a container that can be
@@ -300,7 +326,7 @@ scored_task "disk_fill",
         next true
       end
 
-      tested += 1
+      injected += 1
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
       if spec_labels.as_h? && spec_labels.as_h.size > 0
         test_passed = true
@@ -338,13 +364,8 @@ scored_task "disk_fill",
 
       test_passed
     end
-    if task_response && tested == 0
-      result.passed("disk_fill chaos test passed: every container has a read-only root file system")
-    elsif task_response
-      result.passed("disk_fill chaos test passed")
-    else
-      result.failed("disk_fill chaos test failed")
-    end
+    hardened_only = injected == 0 ? "disk_fill chaos test passed: every container has a read-only root file system" : nil
+    chaos_verdict(result, t.name, task_response, tested, hardened_only)
   end
 end
 
@@ -354,7 +375,7 @@ scored_task "pod_delete",
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     #todo clear all annotations
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
+    task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _|
       app_namespace = resource[:namespace]
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
       if spec_labels.as_h? && spec_labels.as_h.size > 0
@@ -433,11 +454,7 @@ scored_task "pod_delete",
       test_passed
     end
     unless args.named["pod-labels"]?
-        if task_response
-          result.passed("pod_delete chaos test passed")
-        else
-          result.failed("pod_delete chaos test failed")
-        end
+        chaos_verdict(result, t.name, task_response, tested)
     end
   end
 end
@@ -447,7 +464,7 @@ scored_task "pod_memory_hog",
   deps: ["setup:install_litmus"],
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
+    task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _|
       app_namespace = resource[:namespace]
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
       if spec_labels.as_h? && spec_labels.as_h.size > 0
@@ -485,11 +502,7 @@ scored_task "pod_memory_hog",
       end
       test_passed
     end
-    if task_response
-      result.passed("pod_memory_hog chaos test passed")
-    else
-      result.failed("pod_memory_hog chaos test failed")
-    end
+    chaos_verdict(result, t.name, task_response, tested)
   end
 end
 
@@ -511,8 +524,8 @@ scored_task "pod_io_stress",
     end
     container_runtime, socket_path = runtime_socket
 
-    tested = 0
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, _|
+    injected = 0
+    task_response, tested = chaos_resource_test(args, config, result, t.name, check_containers: false) do |resource, containers, _|
       app_namespace = resource[:namespace]
 
       # The fault is injected once per resource, into a container that can be
@@ -523,7 +536,7 @@ scored_task "pod_io_stress",
         next true
       end
 
-      tested += 1
+      injected += 1
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
       if spec_labels.as_h? && spec_labels.as_h.size > 0
         test_passed = true
@@ -564,13 +577,8 @@ scored_task "pod_io_stress",
 
       test_passed
     end
-    if task_response && tested == 0
-      result.passed("pod_io_stress chaos test passed: every container has a read-only root file system")
-    elsif task_response
-      result.passed("pod_io_stress chaos test passed")
-    else
-      result.failed("pod_io_stress chaos test failed")
-    end
+    hardened_only = injected == 0 ? "pod_io_stress chaos test passed: every container has a read-only root file system" : nil
+    chaos_verdict(result, t.name, task_response, tested, hardened_only)
   end
 ensure
   # This ensures that no litmus-related resources are left behind after the test is run.
@@ -591,7 +599,7 @@ scored_task "pod_dns_error",
     runtimes = KubectlClient::Get.container_runtimes
     Log.info { "pod_dns_error runtimes: #{runtimes}" }
     if runtimes.find{|r| r.downcase.includes?("docker")}
-      task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
+      task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _|
         app_namespace = resource[:namespace]
         spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
         if spec_labels.as_h? && spec_labels.as_h.size > 0
@@ -628,11 +636,7 @@ scored_task "pod_dns_error",
 
         test_passed
       end
-      if task_response
-        result.passed("pod_dns_error chaos test passed")
-      else
-        result.failed("pod_dns_error chaos test failed")
-      end
+      chaos_verdict(result, t.name, task_response, tested)
     else
       result.skipped("pod_dns_error docker runtime not found")
     end
