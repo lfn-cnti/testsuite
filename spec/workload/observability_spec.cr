@@ -83,6 +83,9 @@ describe "Observability" do
 
     test_result = ShellCmd.run_testsuite("prometheus_traffic")
     (/(PASSED).*(Your cnf is sending prometheus traffic)/ =~ test_result[:output]).should_not be_nil
+    (/> Prometheus: pod prometheus-server-\S+ in cnti-testsuite, Service prometheus-server, targets API at http:\/\/prometheus-server.cnti-testsuite.svc.cluster.local:80, \d+ active target\(s\)/ =~ test_result[:output]).should_not be_nil
+    (/> Deployment\/coredns-coredns in .*: scraped at http:\/\/[\d.]+:9153\/metrics \(health \w+/ =~ test_result[:output]).should_not be_nil
+    verify_task_result("prometheus_traffic", "passed")
   ensure
     ShellCmd.cnf_uninstall()
     result = ShellCmd.run("#{helm} delete prometheus -n #{TESTSUITE_NAMESPACE}", "helm_delete_prometheus")
@@ -97,6 +100,8 @@ describe "Observability" do
 
       result = ShellCmd.run_testsuite("prometheus_traffic")
       (/(SKIPPED).*(Prometheus server not found)/ =~ result[:output]).should_not be_nil
+      (/> no process named prometheus found in any ready container/ =~ result[:output]).should_not be_nil
+      verify_task_result("prometheus_traffic", "skipped")
     ensure
       result = ShellCmd.cnf_uninstall()
   end
@@ -113,7 +118,10 @@ describe "Observability" do
       #todo logging on prometheus pod
 
       result = ShellCmd.run_testsuite("prometheus_traffic")
-      (/(FAILED).*(Your cnf is not sending prometheus traffic)/ =~ result[:output]).should_not be_nil
+      (/(FAILED).*(Your cnf is not sending prometheus traffic: 1 workload\(s\) not scraped)/ =~ result[:output]).should_not be_nil
+      (/> Prometheus: pod prometheus-server-\S+ in cnti-testsuite, Service prometheus-server, targets API at http:\/\/prometheus-server.cnti-testsuite.svc.cluster.local:80/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/coredns-coredns in cnti-default: none of Prometheus's \d+ active targets scrapes its pods \(pod IPs [\d., ]+\)/ =~ result[:output]).should_not be_nil
+      verify_task_result("prometheus_traffic", "failed")
   ensure
       result = ShellCmd.cnf_uninstall()
       result = ShellCmd.run("#{helm} delete prometheus -n #{TESTSUITE_NAMESPACE}", force_output: true)
@@ -132,6 +140,9 @@ describe "Observability" do
 
     result = ShellCmd.run_testsuite("open_metrics")
     (/(FAILED).*(Your cnf's metrics traffic is not OpenMetrics compatible)/ =~ result[:output]).should_not be_nil
+    (/> Deployment\/coredns-coredns in .*: http:\/\/[\d.]+:9153\/metrics failed validation: / =~ result[:output]).should_not be_nil
+    (/impacted: Deployment\/coredns-coredns in .*: metrics at http:\/\/[\d.]+:9153\/metrics are not OpenMetrics compatible: / =~ result[:output]).should_not be_nil
+    verify_task_result("open_metrics", "failed")
   ensure
     result = ShellCmd.cnf_uninstall()
     result = ShellCmd.run("#{helm} delete prometheus -n #{TESTSUITE_NAMESPACE}", force_output: true)
@@ -150,6 +161,8 @@ describe "Observability" do
 
     result = ShellCmd.run_testsuite("open_metrics")
     (/(PASSED).*(Your cnf's metrics traffic is OpenMetrics compatible)/ =~ result[:output]).should_not be_nil
+    (/> Pod\/metrics-example in cnfspace: http:\/\/[\d.]+:80\/metrics is OpenMetrics compatible/ =~ result[:output]).should_not be_nil
+    verify_task_result("open_metrics", "passed")
   ensure
     result = ShellCmd.cnf_uninstall()
     result = ShellCmd.run("#{helm} delete prometheus -n #{TESTSUITE_NAMESPACE}", force_output: true)

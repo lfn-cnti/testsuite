@@ -900,7 +900,7 @@ Make sure applications and CNF's are sending log output to STDOUT and or STDERR.
 
 #### Overview
 
-Tests for the presence of [Prometheus](https://prometheus.io/) and if the CNF configured to send metrics to the prometheus server.
+Finds the [Prometheus](https://prometheus.io/) server in the cluster (a pod running a `prometheus` process and the Service in front of it), reads its active targets, and checks that every workload of the CNF has a pod among them. The details name the server, the URL its targets API answered at and, per workload, the scrape URL and target health; a workload no target scrapes is a finding. Skipped, with the pods and URLs probed in the details, when no server answers.
 Expectation: The CNF is configured and sending metrics to a Prometheus server.
 
 #### Rationale
@@ -946,7 +946,7 @@ Install and configure fluentd or fluentbit to collect data and logs. See more at
 
 #### Overview
 
-Checks if the CNFs metrics are [OpenMetrics](https://openmetrics.io/) compliant.
+Fetches every endpoint Prometheus scrapes on the CNF's pods and runs it through the [OpenMetrics](https://openmetrics.io/) validator; each endpoint is reported by URL with the validator's verdict, and a failing one is a finding with the validator's message. Skipped when no Prometheus server answers, or when no endpoint of the CNF is scraped.
 Expectation: CNF should emit OpenMetrics compatible traffic.
 
 #### Rationale
