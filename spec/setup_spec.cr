@@ -276,6 +276,15 @@ describe "Installation" do
     end
   end
 
+  it "'cnf_install' should reject a non-positive startup_time_max_seconds", tags: ["cnf_installation1"] do
+    begin
+      result = ShellCmd.cnf_install("--cnf-config spec/fixtures/sample-invalid-startup-limit.yml", expect_failure: true)
+      (/startup_time_max_seconds must be a positive number of seconds, got 0/ =~ result[:output]).should_not be_nil
+    ensure
+      ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'cnf_install' should correctly handle deployment priority", tags: ["cnf_installation_priority"] do
     # (kosstennbl) ELK stack requires to be installed with specific order, otherwise it would give errors
     begin

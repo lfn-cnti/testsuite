@@ -153,6 +153,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("reasonable_startup_time")
       result[:status].success?.should be_true
       (/(PASSED).*(CNF had a reasonable startup time)/ =~ result[:output]).should_not be_nil
+      (/> Deployment\/coredns-coredns in .*: slowest pod coredns-coredns-\S+ Ready [\d.]+ s after its containers started \(limit 30 s\)/ =~ result[:output]).should_not be_nil
       verify_task_result("reasonable_startup_time", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -165,11 +166,24 @@ describe "Microservice" do
     begin
       result = ShellCmd.run_testsuite("reasonable_startup_time")
       result[:status].exit_code.should eq(1)
-      (/(FAILED).*(CNF had a startup time of)/ =~ result[:output]).should_not be_nil
+      (/(FAILED).*(CNF had 1 workload\(s\) over the 30 s startup limit)/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/envoy in .* \(pod envoy-\S+\): Ready [\d.]+ s after its containers started, over the 30 s limit/ =~ result[:output]).should_not be_nil
       verify_task_result("reasonable_startup_time", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
+    end
+  end
+
+  it "'reasonable_startup_time' should take its limit from startup_time_max_seconds in the config", tags: ["reasonable_startup_time"] do
+    ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_envoy_slow_startup/cnti-testsuite-relaxed.yaml")
+    begin
+      result = ShellCmd.run_testsuite("reasonable_startup_time")
+      (/(PASSED).*(CNF had a reasonable startup time)/ =~ result[:output]).should_not be_nil
+      (/\(limit 120 s\)/ =~ result[:output]).should_not be_nil
+      verify_task_result("reasonable_startup_time", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
     end
   end
 

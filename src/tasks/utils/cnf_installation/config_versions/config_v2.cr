@@ -21,12 +21,16 @@ module CNFInstall
              hardcoded_ip_exceptions = [] of HardcodedIPsAllowed,
              tls_profiles = {} of String => TLSConfig,
              auth_defaults = AuthDefaults.new,
-             image_size_max_mb : Int32?
+             image_size_max_mb : Int32?,
+             startup_time_max_seconds : Int32?
       def initialize; end
 
       def after_initialize
         if (max_mb = @image_size_max_mb) && max_mb <= 0
           raise YAML::Error.new("image_size_max_mb must be a positive number of megabytes, got #{max_mb}")
+        end
+        if (max_s = @startup_time_max_seconds) && max_s <= 0
+          raise YAML::Error.new("startup_time_max_seconds must be a positive number of seconds, got #{max_s}")
         end
       end
     end
