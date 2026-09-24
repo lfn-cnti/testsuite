@@ -24,7 +24,7 @@
 
 * [**Category: Security Tests**](#category-security-tests)
 
-   [[Container socket mounts]](#container-socket-mounts) | [[Privileged Containers]](#privileged-containers) | [[External IPs]](#external-ips) | [[SELinux Options]](#selinux-options) | [[Sysctls]](#sysctls) | [[Privilege escalation]](#privilege-escalation) | [[Symlink file system]](#symlink-file-system) | [[Application credentials]](#application-credentials) | [[Host network]](#host-network) | [[Service account mapping]](#service-account-mapping) | [[Ingress and Egress blocked]](#ingress-and-egress-blocked) | [[Insecure capabilities]](#insecure-capabilities) | [[Non-root containers]](#non-root-containers) | [[Host PID/IPC privileges]](#host-pidipc-privileges) | [[Linux hardening]](#linux-hardening) | [[CPU limits]](#cpu-limits) | [[Memory limits]](#memory-limits) | [[Immutable File Systems]](#immutable-file-systems) | [[HostPath Mounts]](#hostpath-mounts)
+   [[Container socket mounts]](#container-socket-mounts) | [[Privileged Containers]](#privileged-containers) | [[External IPs]](#external-ips) | [[SELinux Options]](#selinux-options) | [[Sysctls]](#sysctls) | [[Privilege escalation]](#privilege-escalation) | [[Seccomp profile]](#seccomp-profile) | [[Symlink file system]](#symlink-file-system) | [[Application credentials]](#application-credentials) | [[Host network]](#host-network) | [[Service account mapping]](#service-account-mapping) | [[Ingress and Egress blocked]](#ingress-and-egress-blocked) | [[Insecure capabilities]](#insecure-capabilities) | [[Non-root containers]](#non-root-containers) | [[Host PID/IPC privileges]](#host-pidipc-privileges) | [[Linux hardening]](#linux-hardening) | [[CPU limits]](#cpu-limits) | [[Memory limits]](#memory-limits) | [[Immutable File Systems]](#immutable-file-systems) | [[HostPath Mounts]](#hostpath-mounts)
 
 * [**Category: Configuration Tests**](#category-configuration-tests)
 
@@ -1355,6 +1355,27 @@ Apply least privilege principle and remove hostPID and hostIPC from the yaml con
 #### Usage
 
 `./cnti-testsuite host_pid_ipc_privileges`
+
+----------
+
+### Seccomp profile
+
+#### Overview
+
+Checks that every container of the CNF runs under a seccomp profile: its own `securityContext.seccompProfile`, or the pod's. A profile of type `RuntimeDefault` or `Localhost` passes; `Unconfined`, or no profile at all, fails, reported per container.
+Expectation: Every container runs under a seccomp profile.
+
+#### Rationale
+
+Seccomp filters the system calls a process may make, so a compromised container cannot reach kernel surface its workload never needs. The Kubernetes [Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/) require a `RuntimeDefault` or `Localhost` profile at the restricted level, and the [CIS Kubernetes Benchmark](https://www.cisecurity.org/benchmark/kubernetes) (5.7.2) recommends the runtime default for all containers. Unlike the broader `linux_hardening` check, this test asks for that one control alone, so a CNF can be judged on the requirement the standards actually state.
+
+#### Remediation
+
+Set `securityContext.seccompProfile.type: RuntimeDefault` on the pod, so every container inherits it, or per container; use `Localhost` with a profile of your own where the runtime default is too permissive or too strict.
+
+#### Usage
+
+`./cnti-testsuite seccomp_profile`
 
 ----------
 

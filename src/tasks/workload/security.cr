@@ -8,6 +8,7 @@ require "../utils/utils.cr"
 desc "CNF containers should be isolated from one another and the host.  The CNF Test suite uses tools like Sysdig Inspect and gVisor"
 category_task "security", [
     "symlink_file_system",
+    "seccomp_profile",
     "privilege_escalation",
     "insecure_capabilities",
     "memory_limits",
@@ -307,6 +308,42 @@ scored_task "service_account_mapping",
       Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Service accounts automatically mapped")
+    end
+  end
+end
+
+# The seccomp profile types Pod Security Standards (restricted) accept.
+SECCOMP_PROFILES = ["RuntimeDefault", "Localhost"]
+
+desc "Check if every container runs under a seccomp profile"
+scored_task "seccomp_profile",
+  emoji: "🔓🔑" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # A container's profile is its own securityContext.seccompProfile, else the
+    # pod's; unset means Unconfined on every runtime. Judged per container, so
+    # the finding names what to fix (#2582).
+    violations = 0
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
+      live = KubectlClient::Get.resource(resource["kind"], resource["name"], resource["namespace"])
+      pod_spec = live.dig?("spec", "template", "spec") || live.dig?("spec")
+      pod_profile = pod_spec.try(&.dig?("securityContext", "seccompProfile", "type")).try(&.as_s?)
+      resource_passed = true
+      KubectlClient::Get.resource_all_containers(resource["kind"], resource["name"], resource["namespace"]).each do |container|
+        container_name = container.dig?("name").try(&.as_s) || ""
+        profile = container.dig?("securityContext", "seccompProfile", "type").try(&.as_s?) || pod_profile
+        next if SECCOMP_PROFILES.includes?(profile)
+        reason = profile ? "seccompProfile.type is #{profile}" : "no seccompProfile on the container or its pod"
+        result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], container: container_name, reason: reason)
+        violations += 1
+        resource_passed = false
+      end
+      resource_passed
+    end
+    if task_response
+      result.passed("Every container runs under a seccomp profile")
+    else
+      result.append_remediation("Set securityContext.seccompProfile.type: RuntimeDefault on the pod, or per container, or a Localhost profile of your own.")
+      result.failed("Found #{violations} container(s) without a seccomp profile")
     end
   end
 end

@@ -1,0 +1,38 @@
+# The pod sets RuntimeDefault but one container opts out with Unconfined:
+# seccomp_profile must fail that container and name it.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: seccomp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seccomp-unconfined
+  namespace: seccomp
+  labels:
+    app: seccomp-unconfined
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: seccomp-unconfined
+  template:
+    metadata:
+      labels:
+        app: seccomp-unconfined
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["/bin/sleep", "2147483647"]
+      - name: opt-out
+        image: busybox:1.36
+        command: ["/bin/sleep", "2147483647"]
+        securityContext:
+          seccompProfile:
+            type: Unconfined

@@ -1,0 +1,41 @@
+# Every container runs under a seccomp profile: the pod sets RuntimeDefault
+# and one container overrides it with a Localhost profile. seccomp_profile
+# must pass. (The Localhost profile need not exist for the test: it reads
+# the spec; the pod is installed without waiting for readiness.)
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: seccomp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seccomp
+  namespace: seccomp
+  labels:
+    app: seccomp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: seccomp
+  template:
+    metadata:
+      labels:
+        app: seccomp
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["/bin/sleep", "2147483647"]
+      - name: custom
+        image: busybox:1.36
+        command: ["/bin/sleep", "2147483647"]
+        securityContext:
+          seccompProfile:
+            type: Localhost
+            localhostProfile: profiles/app.json
