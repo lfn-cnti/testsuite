@@ -82,6 +82,7 @@ module ShellCmd
     end
     status = process.wait
     drained.receive
+    # stderr is merged into output above, so error is always empty here.
     {status: status, output: output.to_s, error: ""}
   end
 
