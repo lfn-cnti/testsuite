@@ -193,6 +193,44 @@ describe "Security" do
     end
   end
 
+  it "'seccomp_profile' should fail on a cnf whose containers set no seccomp profile", tags: ["security"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf")
+      result = ShellCmd.run_testsuite("seccomp_profile")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(Found 1 container\(s\) without a seccomp profile)/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/coredns-coredns in cnti-default \(container coredns\): no seccompProfile on the container or its pod/ =~ result[:output]).should_not be_nil
+      (/remediation: Set securityContext.seccompProfile.type: RuntimeDefault/ =~ result[:output]).should_not be_nil
+      verify_task_result("seccomp_profile", "failed")
+    ensure
+      ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'seccomp_profile' should pass when the pod sets RuntimeDefault and a container overrides with Localhost", tags: ["security"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-seccomp --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("seccomp_profile")
+      result[:status].success?.should be_true
+      (/(PASSED).*(Every container runs under a seccomp profile)/ =~ result[:output]).should_not be_nil
+      verify_task_result("seccomp_profile", "passed")
+    ensure
+      ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'seccomp_profile' should fail a container that opts out with Unconfined", tags: ["security"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-seccomp-unconfined --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("seccomp_profile")
+      result[:status].exit_code.should eq(1)
+      (/impacted: Deployment\/seccomp-unconfined in seccomp \(container opt-out\): seccompProfile.type is Unconfined/ =~ result[:output]).should_not be_nil
+      verify_task_result("seccomp_profile", "failed")
+    ensure
+      ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'ingress_egress_blocked' should fail on a cnf that has no ingress and egress traffic policy", tags: ["security"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf")
