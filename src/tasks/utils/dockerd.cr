@@ -38,6 +38,17 @@ module Dockerd
     KubectlClient::Utils.exec("dockerd", cli, namespace: TESTSUITE_NAMESPACE)
   end
 
+  # Like exec, but raises when the command fails. KubectlClient::Utils.exec
+  # swallows every error except network errors and hands back the failed
+  # status, so a caller that needs the command to have worked must check.
+  def self.exec!(cli)
+    resp = exec(cli)
+    unless resp[:status].success?
+      raise "`#{cli}` failed in the dockerd pod (exit #{resp[:status].exit_code}): #{resp[:error].to_s.strip}"
+    end
+    resp
+  end
+
   def self.dockerd_manifest_file
     manifest_path = "#{tools_path}/dockerd-manifest.yml"
     unless File.exists?(manifest_path)

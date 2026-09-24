@@ -228,44 +228,32 @@ scored_task "reasonable_startup_time" do |t, args|
   end
 end
 
-# The default limit is 5000 MB. To lower it for a given CNF, set
-# image_size_max_mb in the <common> section of cnti-testsuite.yaml or the
-# CNTI_TESTSUITE_MAX_IMAGE_SIZE_MB environment variable.
-# For testsuite CI (prototype images), use:
-#    CNTI_TESTSUITE_ENV=TEST ./cnti-testsuite reasonable_image_size
-#
-desc "Does the CNF have a reasonable container image size (< 5GB)?"
-# Returns the maximum allowed compressed image size in bytes for the
-# reasonable_image_size test. Precedence:
-#   1. image_size_max_mb in the <common> section of cnti-testsuite.yaml
-#   2. CNTI_TESTSUITE_MAX_IMAGE_SIZE_MB environment variable
-#   3. 16 MB when CNTI_TESTSUITE_ENV=TEST (testsuite CI), else 5000 MB
+# Returns the maximum allowed compressed image size in bytes. The default is
+# REASONABLE_IMAGE_SIZE_MAX_MB; only image_size_max_mb in the common section of
+# cnti-testsuite.yaml changes it, so the verdict is reproducible from the
+# config alone.
 def reasonable_image_size_bytes(config) : Int64
-  if (max_mb = config.common.image_size_max_mb)
-    return max_mb.to_i64 * 1_000_000
-  end
+  (config.common.image_size_max_mb || REASONABLE_IMAGE_SIZE_MAX_MB).to_i64 * 1_000_000
+end
 
-  if (env_mb = ENV["CNTI_TESTSUITE_MAX_IMAGE_SIZE_MB"]?)
-    return env_mb.to_i64 * 1_000_000
-  end
-
-  default_mb = 5_000
-  if ENV["CNTI_TESTSUITE_ENV"]? == "TEST"
-    Log.info { "Using Test Mode max_size" }
-    default_mb = 16
-  end
-
-  default_mb.to_i64 * 1_000_000
+def image_size_in_mb(bytes : Int64) : String
+  (bytes / 1_000_000.0).round(1).to_s
 end
 
 # Pulls fqdn_image into the dockerd pod and returns its gzipped size in bytes.
-# Raises on any failure so callers can treat the image as unmeasurable.
+# Raises on any failure so callers can treat the image as unmeasurable. Every
+# step is checked: Dockerd.exec does not raise on a failed command, and a
+# leftover archive from the previous image would otherwise be measured in
+# place of one that could not be pulled.
 def docker_image_compressed_size(fqdn_image : String) : Int64
-  Dockerd.exec("docker pull #{fqdn_image}")
-  Dockerd.exec("docker save #{fqdn_image} -o /tmp/image.tar")
-  Dockerd.exec("gzip -f /tmp/image.tar")
-  exec_resp = Dockerd.exec("wc -c /tmp/image.tar.gz | awk '{print$1}'")
-  compressed_size = exec_resp[:output].to_s.to_i64
+  Dockerd.exec!("rm -f /tmp/image.tar /tmp/image.tar.gz")
+  Dockerd.exec!("docker pull #{fqdn_image}")
+  Dockerd.exec!("docker save #{fqdn_image} -o /tmp/image.tar")
+  Dockerd.exec!("gzip -f /tmp/image.tar")
+  output = Dockerd.exec!("wc -c /tmp/image.tar.gz")[:output].to_s
+  Dockerd.exec("rm -f /tmp/image.tar.gz")
+  compressed_size = output.split.first?.try(&.to_i64?)
+  raise "unexpected `wc -c` output: #{output.inspect}" unless compressed_size
   Log.info { "compressed_size: #{fqdn_image} = '#{compressed_size}'" }
   compressed_size
 end
@@ -315,6 +303,7 @@ def image_fqdn(image_url, image_registry_fqdns) : String
   fqdn_image
 end
 
+desc "Are the CNF's container images under the size limit (#{REASONABLE_IMAGE_SIZE_MAX_MB} MB unless image_size_max_mb is set)?"
 scored_task "reasonable_image_size",
   type: CNFManager::TestType::Bonus,
   emoji: "⚖👀" do |t, args|
@@ -326,7 +315,8 @@ scored_task "reasonable_image_size",
     end
 
     max_size = reasonable_image_size_bytes(config)
-    Log.for(t.name).info { "max_size: #{max_size} (#{max_size / 1_000_000} MB)" }
+    max_mb = max_size // 1_000_000
+    Log.for(t.name).info { "max_size: #{max_size} (#{max_mb} MB)" }
 
     image_secrets_config_path = File.join(CNF_TEMP_FILES_DIR, "config.json")
     measured_images = {} of String => Bool
@@ -362,8 +352,7 @@ scored_task "reasonable_image_size",
       size_ok = compressed_size < max_size
       measured_images[fqdn_image] = size_ok
 
-      size_mb = compressed_size / 1_000_000
-      max_mb = max_size / 1_000_000
+      size_mb = image_size_in_mb(compressed_size)
       if size_ok
         result.append_description("image #{fqdn_image} = #{size_mb} MB (limit #{max_mb} MB)")
         if compressed_size >= max_size * 4 // 5

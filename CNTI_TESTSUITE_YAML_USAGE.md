@@ -164,6 +164,16 @@ image_registry_fqdns:
     "foobar:5000": "foobar.default.svc.cluster.local:5000"
 ```
 
+##### `image_size_max_mb`
+
+The `reasonable_image_size` test fails when the compressed size of a container image exceeds a limit, 5000 MB by default. Use this optional key to lower the limit for the CNF, in megabytes; it must be a positive integer. This is the only way to change the limit, so a verdict is reproducible from the config alone.
+
+```yaml
+config_version: v2
+common:
+  image_size_max_mb: 500
+```
+
 ##### tls_profiles
 
 Define reusable TLS bundles (CA/cert/key) that deployments can reference. Useful for private Helm repos and OCI registries.

@@ -192,12 +192,37 @@ describe "Microservice" do
     result = ShellCmd.cnf_uninstall()
   end
 
-  it "'reasonable_image_size' should fail if image is larger than 5gb", tags: ["reasonable_image_size"] do
+  it "'reasonable_image_size' should fail if an image is larger than the configured limit", tags: ["reasonable_image_size"] do
     ShellCmd.cnf_install("--cnf-config ./sample-cnfs/ndn-reasonable-image-size --skip-wait-for-install")
     result = ShellCmd.run_testsuite("reasonable_image_size")
     result[:status].exit_code.should eq(1)
     (/Image size too large/ =~ result[:output]).should_not be_nil
     verify_task_result("reasonable_image_size", "failed")
+  ensure
+    result = ShellCmd.cnf_uninstall()
+  end
+
+  it "'reasonable_image_size' should report the measured size against the limit from cnti-testsuite.yaml", tags: ["reasonable_image_size"] do
+    ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-image-size-limit")
+    result = ShellCmd.run_testsuite("reasonable_image_size")
+    result[:status].exit_code.should eq(1)
+    verify_task_result("reasonable_image_size", "failed")
+
+    yaml = YAML.parse(File.read(CNFManager::Points::Results.latest))
+    item = yaml["items"].as_a.find { |i| i["name"].as_s == "reasonable_image_size" }.not_nil!
+    details = item["details"].as_a.map(&.as_s)
+    details.any? { |d| d =~ /^image \S+ = \d+\.\d MB exceeds the 1 MB limit$/ }.should be_true
+  ensure
+    result = ShellCmd.cnf_uninstall()
+  end
+
+  it "'reasonable_image_size' should skip when no image can be measured", tags: ["reasonable_image_size"] do
+    ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-unpullable-image --skip-wait-for-install")
+    result = ShellCmd.run_testsuite("reasonable_image_size")
+    (/Could not measure the size of any container image/ =~ result[:output]).should_not be_nil
+    verify_task_result("reasonable_image_size", "skipped")
+  ensure
+    result = ShellCmd.cnf_uninstall()
   end
 
   it "'specialized_init_system' should fail if pods do not use specialized init systems", tags: ["specialized_init_system"] do
