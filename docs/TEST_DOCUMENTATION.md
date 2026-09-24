@@ -149,6 +149,7 @@ Make sure your helm charts are valid and can be deployed to clusters.
 
 Checks if the Pod can be upgraded to a new software version, then restored back to the original software version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) and [Kubectl Rollout Undo](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#rollout) commands.
 Expectation: The CNF Software version can be successfully incremented, then rolled back.
+The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rollback_from_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason.
 
 #### Rationale
 
@@ -172,6 +173,7 @@ Ensure that you can upgrade your CNF using the [Kubectl Set Image](https://kuber
 
 Checks if the Pod can be rolled back to the original software version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) to perform a rollback.
 Expectation: The CNF Software version is successfully rolled back to its original version.
+The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_version_change_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason.
 
 #### Rationale
 
@@ -197,6 +199,7 @@ Ensure that you can successfully rollback the software version of your CNF by us
 
 Checks if the Pod can be upgraded to a new software version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-)
 Expectation: The CNF Software version can be successfully incremented.
+The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_update_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason.
 
 #### Rationale
 
@@ -220,6 +223,7 @@ Ensure that you can successfully perform a rolling upgrade of your CNF using the
 
 Checks if the Pod can be rolled back older software version(Older than the original software version) by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) to perform a downgrade.
 Expectation: The CNF Software version is successfully downgraded to a software version older than the original installation version.
+The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_downgrade_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason.
 
 #### Rationale
 
