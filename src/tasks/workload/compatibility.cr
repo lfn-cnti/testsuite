@@ -325,7 +325,11 @@ def wait_for_scaling(resource, target_replica_count, args)
   )
   current_replicas = replicas_stdout.to_s.empty? ? "0" : replicas_stdout.to_s
   previous_replicas = current_replicas
-  repeat_with_timeout(timeout: GENERIC_OPERATION_TIMEOUT, errormsg: "Pod scaling has timed-out", reset_on_nil: true) do
+  # This waits for pods to become ready, so it gets the pod readiness budget
+  # rather than the generic one: a replica that needs a minute to pass its
+  # readiness probe on a busy node is what the budget is for. The timer resets
+  # on every change of the ready count, so it bounds the gap between replicas.
+  repeat_with_timeout(timeout: POD_READINESS_TIMEOUT, errormsg: "Pod scaling has timed-out", reset_on_nil: true) do
     Log.debug { "current_replicas before get #{resource["kind"]}: #{current_replicas}" }
     Log.trace { "$KUBECONFIG = #{ENV.fetch("KUBECONFIG", nil)}" }
 
