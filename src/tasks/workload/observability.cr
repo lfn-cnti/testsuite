@@ -79,115 +79,44 @@ desc "Does the CNF emit prometheus traffic"
 scored_task "prometheus_traffic",
   type: CNFManager::TestType::Bonus,
   emoji: "📶☠️" do |t, args|
-  task_response = CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-
-    do_this_on_each_retry = ->(ex : Exception, attempt : Int32, elapsed_time : Time::Span, next_interval : Time::Span) do
-      Log.info { "#{ex.class}: '#{ex.message}' - #{attempt} attempt in #{elapsed_time} seconds and #{next_interval} seconds until the next try."}
-    end
-
-    matching_processes = KernelIntrospection::K8s.find_matching_processes(CloudNativeIntrospection::PROMETHEUS_PROCESS)
-    Log.for("prometheus_traffic:process_search").info { "Found #{matching_processes.size} matching processes for prometheus" }
-
-    prom_json : JSON::Any | Nil = nil
-    matching_processes.map do |process_info|
-      Log.for("prometheus_traffic:service_for_pod").info { "Checking process: #{process_info[:pid]}"}
-      service = KubectlClient::Get.service_by_pod(process_info[:pod])
-      next if service.nil?
-      service_name = service.dig("metadata", "name")
-      service_namespace = "default"
-      if service.dig?("metadata", "namespace")
-        service_namespace = service.dig("metadata", "namespace")
-      end
-
-      Log.for("prometheus_traffic:service_url").info { "Checking ports on service_name: #{service_name}"}
-      service_ports = service.dig("spec", "ports")
-      port_result = service_ports.as_a.map do |service_port|
-        port = service_port.dig("port")
-        protocol = service_port.dig("protocol")
-        next if protocol != "TCP"
-        protocol = port == 443 ? "https" : "http"
-        service_url = "#{protocol}://#{service_name}.#{service_namespace}.svc.cluster.local:#{port}"
-        begin
-          prom_api_resp = ClusterTools.exec("curl #{service_url}/api/v1/targets?state=active")
-          Log.debug { "prom_api_resp: #{prom_api_resp}"}
-          prom_json = JSON.parse(prom_api_resp[:output])
-          Log.for("prometheus_traffic:service_url_pass").info { "Prometheus service_url: #{service_url}" }
-          break
-        rescue ex
-          Log.for("prometheus_traffic:service_url_fail").info { "Failed prometheus service_url: #{service_url}" }
-        end
-      end
-    end
-
-    if !prom_json.nil?
-      matched_target = false
-      active_targets = prom_json.dig("data", "activeTargets")
-      Log.debug { "active_targets: #{active_targets}"}
-      prom_target_urls = active_targets.as_a.reduce([] of String) do |acc, target|
-        acc << target.dig("scrapeUrl").as_s
-        acc << target.dig("globalUrl").as_s
-      end
-      Log.info { "prom_target_urls: #{prom_target_urls}"}
-      prom_cnf_match = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource_name, _, _|
-        ip_match = false
-        resource = KubectlClient::Get.resource(resource_name[:kind], resource_name[:name], resource_name[:namespace])
-        pods = KubectlClient::Get.pods_by_resource_labels(resource, resource_name[:namespace])
-        pods.each do |pod|
-          pod_ips = pod.dig("status", "podIPs")
-          Log.info { "pod_ips: #{pod_ips}"}
-          pod_ips.as_a.each do |ip|
-            prom_target_urls.each do |url|
-              Log.info { "checking: #{url} against #{ip.dig("ip").as_s}"}
-              if url.includes?(ip.dig("ip").as_s)
-                msg = Prometheus.open_metric_validator(url)
-                # Immutable config maps are only supported in Kubernetes 1.19+
-                immutable_configmap = true
-
-                if version_less_than(KubectlClient.server_version, "1.19.0")
-                  immutable_configmap = false
-                end
-                if msg[:status].success?
-                  metrics_config_map = Prometheus::OpenMetricConfigMapTemplate.new(
-                    "cnti-testsuite-open-metrics",
-                    true,
-                    "",
-                    immutable_configmap
-                  ).to_s
-                else
-                  Log.info { "Openmetrics failure reason: #{msg[:output]}"}
-                  metrics_config_map = Prometheus::OpenMetricConfigMapTemplate.new(
-                    "cnti-testsuite-open-metrics",
-                    false,
-                    msg[:output],
-                    immutable_configmap
-                  ).to_s
-                end
-
-                Log.debug { "metrics_config_map : #{metrics_config_map}" }
-                configmap_path = "#{CNF_TEMP_FILES_DIR}/metrics_configmap.yml"
-                File.write(configmap_path, "#{metrics_config_map}")
-                KubectlClient::Delete.file(configmap_path)
-                KubectlClient::Apply.file(configmap_path)
-                ip_match = true
-              end
-            end
-          end
-        end
-        ip_match 
-      end
-
-      # todo 1) check if scrape_url is ip address that directly matches cnf
-      # todo 2) check if scrape_url is ip address that maps to service
-      #  -- get ip address for the service
-      #  -- match ip address to cnf ip addresses
-      # todo check if scrape_url is not an ip, assume it is a service, then do task (2)
-      if prom_cnf_match
-        result.passed("Your cnf is sending prometheus traffic")
-      else
-        result.failed("Your cnf is not sending prometheus traffic")
-      end
-    else
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    server = Prometheus.find_server
+    if server.nil? || server[:url].nil?
+      result.append_description(Prometheus.describe_missing(server))
       result.skipped("Prometheus server not found")
+      next
+    end
+    result.append_description(Prometheus.describe(server))
+    targets = server[:targets]
+
+    # A workload sends Prometheus traffic when one of the active targets
+    # scrapes one of its pods; each one no target scrapes is a finding.
+    unscraped = 0
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
+      live = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+      ips = Prometheus.pod_ips(KubectlClient::Get.pods_by_resource_labels(live, resource[:namespace]))
+      label = "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}"
+      matched = Prometheus.targets_for_ips(ips, targets)
+      if matched.empty?
+        unscraped += 1
+        where = ips.empty? ? "its pods have no IP yet" : "pod IPs #{ips.join(", ")}"
+        result.add_impacted_resource(resource[:kind], resource[:name], resource[:namespace],
+          reason: "none of Prometheus's #{targets.size} active targets scrapes its pods (#{where})")
+        false
+      else
+        matched.each do |target|
+          error = target[:last_error].empty? ? "" : ", last error: #{target[:last_error]}"
+          result.append_description("#{label}: scraped at #{target[:scrape_url]} (health #{target[:health]}#{error})")
+        end
+        true
+      end
+    end
+
+    if task_response
+      result.passed("Your cnf is sending prometheus traffic")
+    else
+      result.append_remediation("Expose a /metrics endpoint on each workload and register it with Prometheus: annotate the pods (prometheus.io/scrape, prometheus.io/port, prometheus.io/path) for annotation-based discovery, or add a ServiceMonitor/PodMonitor for the Prometheus Operator.")
+      result.failed("Your cnf is not sending prometheus traffic: #{unscraped} workload(s) not scraped")
     end
   end
 end
@@ -195,26 +124,54 @@ end
 desc "Does the CNF emit prometheus open metric compatible traffic"
 scored_task "open_metrics",
   type: CNFManager::TestType::Bonus,
-  deps: ["prometheus_traffic"],
   emoji: "📶☠️" do |t, args|
-  task_response = CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    begin
-      configmap = KubectlClient::Get.resource("configmap", "cnti-testsuite-open-metrics")
-    rescue KubectlClient::ShellCMD::NotFoundError
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # The endpoints Prometheus scrapes on the CNF's pods are fetched and run
+    # through the OpenMetrics validator, each one reported by URL; nothing is
+    # passed on through a ConfigMap from prometheus_traffic any more.
+    server = Prometheus.find_server
+    if server.nil? || server[:url].nil?
+      result.append_description(Prometheus.describe_missing(server))
+      result.skipped("Prometheus server not found")
+      next
+    end
+    result.append_description(Prometheus.describe(server))
+
+    validated = 0
+    invalid = 0
+    CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
+      live = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+      ips = Prometheus.pod_ips(KubectlClient::Get.pods_by_resource_labels(live, resource[:namespace]))
+      label = "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}"
+      matched = Prometheus.targets_for_ips(ips, server[:targets])
+      if matched.empty?
+        result.append_description("#{label}: no Prometheus target scrapes its pods, nothing to validate")
+        next true
+      end
+      matched.all? do |target|
+        validated += 1
+        resp = Prometheus.open_metric_validator(target[:scrape_url])
+        response = "#{resp[:output]}\n#{resp[:error]}".strip
+        if resp[:status].success?
+          result.append_description("#{label}: #{target[:scrape_url]} is OpenMetrics compatible")
+          true
+        else
+          invalid += 1
+          result.append_description("#{label}: #{target[:scrape_url]} failed validation: #{response}")
+          result.add_impacted_resource(resource[:kind], resource[:name], resource[:namespace],
+            reason: "metrics at #{target[:scrape_url]} are not OpenMetrics compatible: #{response.lines.first?.to_s.strip}")
+          false
+        end
+      end
     end
 
-    if !configmap.nil? && configmap != EMPTY_JSON
-      open_metrics_validated = configmap["data"].as_h["open_metrics_validated"].as_s
-
-      if open_metrics_validated == "true"
-        result.passed("Your cnf's metrics traffic is OpenMetrics compatible")
-      else
-        open_metrics_response = configmap["data"].as_h["open_metrics_response"].as_s
-        result.append_description("OpenMetrics Failed: #{open_metrics_response}")
-        result.failed("Your cnf's metrics traffic is not OpenMetrics compatible")
-      end
+    if validated == 0
+      result.skipped("No metrics endpoint of the CNF is scraped by Prometheus, nothing to validate")
+    elsif invalid == 0
+      result.passed("Your cnf's metrics traffic is OpenMetrics compatible")
     else
-      result.skipped("Prometheus traffic not configured")
+      result.append_remediation("Serve the metrics in the OpenMetrics text format (https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md): content type application/openmetrics-text, one TYPE and HELP per family, a final # EOF line; the validator's message names the first violation.")
+      result.failed("Your cnf's metrics traffic is not OpenMetrics compatible")
     end
   end
 end
@@ -276,6 +233,7 @@ scored_task "tracing",
 
     untraced = [] of NamedTuple(kind: String, name: String, namespace: String)
     traced_any = false
+    uninspected = 0
     CNFManager.cnf_workload_resources(args, config) do |resource|
       kind = resource.dig?("kind").try(&.as_s?)
       name = resource.dig?("metadata", "name").try(&.as_s?)
@@ -295,13 +253,18 @@ scored_task "tracing",
           result.append_description("#{kind}/#{name}: traces in Jaeger from #{pod_name} (service #{services_by_hostname[pod_name].join(", ")})")
         end
       end
+    rescue ex : KubectlClient::ShellCMD::NetworkError
+      raise ex
     rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
-      Log.for(t.name).warn { "Could not inspect #{kind}/#{name}: #{ex.message}" }
-      untraced << {kind: kind.to_s, name: name.to_s, namespace: CLUSTER_DEFAULT_NAMESPACE}
+      # A resource that cannot be inspected is reported, not judged.
+      uninspected += 1
+      result.append_description("#{kind}/#{name}: could not be inspected: #{ex.message.to_s.lines.first?.to_s.strip}")
     end
 
     if traced_any
       result.passed("Tracing used")
+    elsif untraced.empty? && uninspected > 0
+      result.skipped("Tracing not checked: no workload could be inspected")
     else
       untraced.each do |info|
         result.add_impacted_resource(info[:kind], info[:name], info[:namespace], reason: "no traces in Jaeger from any of its pods")
