@@ -724,6 +724,7 @@ Ensure that your CNF is resilient to heavy memory usage and can maintain some le
 The [pod-io stress](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-io-stress/) experiment the disk with continuous and heavy IO to cause degradation in reads/writes by other microservices that use this shared disk.
 Measurement: LitmusChaos experiment [pod-io-stress](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-io-stress/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when pod io stress occurs
+The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) from the nodes and probes the usual socket locations on a node, and `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path. The test is not applicable when the runtime is unsupported or no socket is found. A workload that owns no pod is listed in the details and left out.
 Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
 A workload whose containers all mount a read-only root file system cannot be stressed at all, which is the property this experiment probes, so it passes without the fault being injected; the reason is recorded in the test details. In a workload that mixes read-only and writable containers, the fault is injected into a writable one.
 

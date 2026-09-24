@@ -37,8 +37,9 @@ module LitmusManager
   # the tested deployment. When several selector labels exist, the first pair
   # whose value is carried by exactly the resource's own pods (owner-ref match)
   # wins. Falls back to the first selector label pair -- the historical
-  # behavior -- when no pair resolves uniquely or when there is a single one.
-  def self.resource_target_label(resource : NamedTuple(kind: String, name: String, namespace: String)) : {String, String}
+  # behavior -- when no pair resolves uniquely or when there is a single one,
+  # and returns nil when the resource owns no pod at all.
+  def self.resource_target_label(resource : NamedTuple(kind: String, name: String, namespace: String)) : {String, String}?
     logger = Log.for("LitmusManager.resource_target_label")
     selector_labels = KubectlClient::Get.resource_spec_labels(resource[:kind], resource[:name], resource[:namespace])
     labels = selector_labels.as_h?
@@ -70,15 +71,21 @@ module LitmusManager
       pod_uid && owned_pod_uids.includes?(pod_uid)
     end
 
+    # A workload that owns no pod (scaled to zero, or a backend that never
+    # came up) has nothing to target: a broad fallback selector would stress
+    # a random pod of the release instead.
+    if owned_size == 0
+      logger.warn { "#{resource[:kind]}/#{resource[:name]} owns no pod; nothing to target" }
+      return nil
+    end
+
     ordered.each do |key, value|
       key_s = key.to_s
       value_s = value.as_s
       matching = items.count do |pod|
         pod.dig?("metadata", "labels", key_s).try(&.as_s?) == value_s
       end
-      # Require a strictly positive population so a scaled-to-zero workload (or
-      # an unresolved backend) never "uniquely selects" a label no pod carries.
-      if owned_size > 0 && matching == owned_size
+      if matching == owned_size
         logger.info { "Targeting #{resource[:kind]}/#{resource[:name]} with #{key_s}=#{value_s} (#{matching} pod(s))" }
         return {key_s, value_s}
       end
@@ -225,38 +232,70 @@ module LitmusManager
     nil
   end
 
-  # Runtime name and socket path the litmus chaos helpers need to exec into a
-  # target container, derived from a node's containerRuntimeVersion (e.g.
-  # "containerd://2.0.2"). Returns nil when the runtime is not one the helpers
-  # understand, in which case the caller should skip rather than ship the
-  # default containerd values into an incompatible cluster.
-  def self.runtime_socket_for(container_runtime : String) : {String, String}?
-    name = container_runtime.split("://", 2).first.strip.downcase
-    case name
-    when "docker"
-      {"docker", "/var/run/docker.sock"}
-    when "containerd"
-      {"containerd", "/run/containerd/containerd.sock"}
-    when "crio", "cri-o"
-      {"crio", "/var/run/crio/crio.sock"}
-    else
-      nil
+  # Host socket paths through which the litmus chaos helpers reach a container
+  # runtime, most common first. Distributions move the containerd socket: k3s
+  # and RKE2 keep it under /run/k3s, microk8s under its snap directory.
+  RUNTIME_SOCKET_CANDIDATES = {
+    "docker"     => ["/var/run/docker.sock"],
+    "containerd" => ["/run/containerd/containerd.sock", "/run/k3s/containerd/containerd.sock", "/var/snap/microk8s/common/run/containerd.sock"],
+    "crio"       => ["/var/run/crio/crio.sock"],
+  }
+
+  # Overrides the detected socket path for clusters that keep it elsewhere. A
+  # cluster property, so an environment variable and not the CNF's config.
+  RUNTIME_SOCKET_ENV = "CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET"
+
+  # Runtime name the litmus helpers understand, from a node's
+  # containerRuntimeVersion (e.g. "containerd://2.0.2"), or nil.
+  def self.runtime_name(container_runtime : String) : String?
+    case container_runtime.split("://", 2).first.strip.downcase
+    when "docker"        then "docker"
+    when "containerd"    then "containerd"
+    when "crio", "cri-o" then "crio"
     end
   end
 
-  # {runtime, socket_path} for the cluster, from the first node whose container
-  # runtime is supported, or nil when none of them is. The chaos engine must
-  # not arm the experiment with a hard-coded containerd socket on a docker or
-  # cri-o cluster: the litmus helper would be unable to reach the runtime at
-  # injection time and would report a runtime error.
-  def self.detect_runtime_socket : {String, String}?
-    runtimes = KubectlClient::Get.container_runtimes
-    runtimes.each do |runtime|
-      resolved = runtime_socket_for(runtime)
-      return resolved if resolved
+  # Runtime name and its usual socket path, or nil for a runtime the helpers
+  # do not understand; the caller should skip rather than ship containerd
+  # defaults into an incompatible cluster.
+  def self.runtime_socket_for(container_runtime : String) : {String, String}?
+    name = runtime_name(container_runtime)
+    name ? {name, RUNTIME_SOCKET_CANDIDATES[name].first} : nil
+  end
+
+  # The cluster's runtime name, from the first node whose runtime the helpers
+  # understand, or nil when none of them is.
+  def self.detect_runtime(runtimes : Array(String) = KubectlClient::Get.container_runtimes) : String?
+    name = runtimes.compact_map { |runtime| runtime_name(runtime) }.first?
+    Log.for("LitmusManager.detect_runtime").warn { "Unsupported container runtime(s) for chaos injection: #{runtimes.join(", ")}" } unless name
+    name
+  end
+
+  # Host path of the runtime's socket: the environment override when set,
+  # otherwise the first candidate that exists on a node, probed through the
+  # cluster-tools DaemonSet, which mounts the node's root file system at
+  # /host. Nil when none is found.
+  def self.detect_runtime_socket(runtime : String) : String?
+    logger = Log.for("LitmusManager.detect_runtime_socket")
+    if (override = ENV[RUNTIME_SOCKET_ENV]?) && !override.empty?
+      logger.info { "Using #{RUNTIME_SOCKET_ENV}=#{override} for #{runtime}" }
+      return override
     end
-    Log.for("LitmusManager.detect_runtime_socket").warn { "Unsupported container runtime(s) for chaos injection: #{runtimes.join(", ")}" }
-    nil
+
+    candidates = RUNTIME_SOCKET_CANDIDATES[runtime]
+    node = KubectlClient::Get.schedulable_nodes_list.first?
+    unless node
+      logger.warn { "No schedulable node to probe for the #{runtime} socket" }
+      return nil
+    end
+    probe = "sh -c 'for p in #{candidates.join(" ")}; do [ -S \"/host$p\" ] && echo \"$p\" && exit 0; done; exit 1'"
+    found = ClusterTools.exec_by_node(probe, node)[:output].strip
+    if found.empty?
+      logger.warn { "No #{runtime} socket on #{node.dig?("metadata", "name")} among #{candidates.join(", ")}; set #{RUNTIME_SOCKET_ENV}" }
+      return nil
+    end
+    logger.info { "#{runtime} socket found at #{found}" }
+    found
   end
 
   def self.chaos_manifests_path

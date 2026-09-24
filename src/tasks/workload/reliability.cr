@@ -514,15 +514,20 @@ scored_task "pod_io_stress",
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     # The litmus helper injects the IO stress through the node's container
     # runtime, so the engine must advertise the actual runtime and its socket
-    # rather than a hard-coded containerd path. Skip cleanly when the cluster
-    # runs something the helpers do not understand.
-    runtime_socket = LitmusManager.detect_runtime_socket
-    unless runtime_socket
-      runtimes = KubectlClient::Get.container_runtimes
-      result.skipped("pod_io_stress not applicable: unsupported container runtime (#{runtimes.join(", ")})")
+    # rather than a hard-coded containerd path. Both are cluster properties:
+    # when they cannot be established the test is not applicable, since the
+    # CNF is not what stops the fault from being injected.
+    runtimes = KubectlClient::Get.container_runtimes
+    container_runtime = LitmusManager.detect_runtime(runtimes)
+    unless container_runtime
+      result.na("pod_io_stress not applicable: unsupported container runtime (#{runtimes.join(", ")})")
       next
     end
-    container_runtime, socket_path = runtime_socket
+    socket_path = LitmusManager.detect_runtime_socket(container_runtime)
+    unless socket_path
+      result.na("pod_io_stress not applicable: no #{container_runtime} socket found on the node, set #{LitmusManager::RUNTIME_SOCKET_ENV}")
+      next
+    end
 
     injected = 0
     task_response, tested = chaos_resource_test(args, config, result, t.name, check_containers: false) do |resource, containers, _|
@@ -535,6 +540,18 @@ scored_task "pod_io_stress",
         pass_hardened_rootfs(result, resource, t.name)
         next true
       end
+
+      # A label that selects exactly this resource's pods; none when it owns
+      # no pod, in which case there is nothing to stress and the resource is
+      # left out rather than stressed through a random pod of the release.
+      target_label = LitmusManager.resource_target_label(resource)
+      unless target_label
+        message = "#{resource[:kind]}/#{resource[:name]} in #{app_namespace} owns no pod, nothing to stress"
+        Log.for(t.name).warn { message }
+        result.append_description(message)
+        next true
+      end
+      deployment_label, deployment_label_value = target_label
 
       injected += 1
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
@@ -554,7 +571,6 @@ scored_task "pod_io_stress",
         chaos_test_name = "#{resource["name"]}-#{Random.rand(99)}"
         chaos_result_name = "#{chaos_test_name}-#{chaos_experiment_name}"
 
-        deployment_label, deployment_label_value = LitmusManager.resource_target_label(resource)
         template = ChaosTemplates::PodIoStress.new(
           chaos_test_name,
           "#{chaos_experiment_name}",
