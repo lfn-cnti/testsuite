@@ -638,60 +638,50 @@ scored_task "operator_installed",
       next
     end
 
-    failed_subs = [] of String
-    failed_csvs = [] of String
-    unhealthy_deployments = [] of String
+    findings = [] of NamedTuple(kind: String, name: String, namespace: String, reason: String)
 
     csv_names = subscription_names.compact_map do |subscription|
       sub_name = subscription["name"].as_s
       sub_ns = subscription["namespace"].as_s
 
-      unless KubectlClient::Wait.wait_for_resource_key_value("sub", sub_name, {"status", "installedCSV"}, namespace: sub_ns)
-        failed_subs << "Subscription/#{sub_name} in #{sub_ns} never got an installedCSV"
+      # OLM resolves a Subscription to a ClusterServiceVersion in the
+      # Subscription's own namespace; a timeout is a finding, not a crash.
+      unless KubectlClient::Wait.wait_for_resource_key_value("sub", sub_name, {"status", "installedCSV"}, namespace: sub_ns, wait_count: RESOURCE_CREATION_TIMEOUT)
+        findings << {kind: "Subscription", name: sub_name, namespace: sub_ns, reason: "no installedCSV after #{RESOURCE_CREATION_TIMEOUT}s"}
         next nil
       end
 
-      installed_csv = KubectlClient::Get.resource("sub", sub_name, sub_ns).dig?("status", "installedCSV")
-      if installed_csv.nil? || installed_csv.as_s.empty?
-        failed_subs << "Subscription/#{sub_name} in #{sub_ns} never got an installedCSV"
-        next nil
-      end
-
-      { "name" => installed_csv.as_s, "namespace" => sub_ns }
+      installed_csv = KubectlClient::Get.resource("sub", sub_name, sub_ns).dig("status", "installedCSV").as_s
+      {name: installed_csv, namespace: sub_ns}
     end
 
     Log.for(t.name).info { "CSV Names: #{csv_names}" }
 
     csv_names.each do |csv|
-      csv_name = csv["name"]
-      csv_ns = csv["namespace"]
-
-      # An operator is only installed once its CSV reached InstallSucceeded and
-      # phase Succeeded; a timeout here is a finding, not a crash.
-      install_ok = KubectlClient::Wait.wait_for_resource_key_value("csv", csv_name, {"status", "reason"}, namespace: csv_ns, value: "InstallSucceeded") &&
-                   KubectlClient::Wait.wait_for_resource_key_value("csv", csv_name, {"status", "phase"}, namespace: csv_ns, value: "Succeeded")
-      unless install_ok
-        failed_csvs << "CSV/#{csv_name} in #{csv_ns} did not reach phase Succeeded"
+      # An operator is installed once its CSV reports phase Succeeded.
+      unless KubectlClient::Wait.wait_for_resource_key_value("csv", csv[:name], {"status", "phase"}, namespace: csv[:namespace], value: "Succeeded", wait_count: RESOURCE_CREATION_TIMEOUT)
+        findings << {kind: "ClusterServiceVersion", name: csv[:name], namespace: csv[:namespace], reason: "phase is not Succeeded after #{RESOURCE_CREATION_TIMEOUT}s"}
         next
       end
 
-      # A CSV in Succeeded phase can still have a broken operator Deployment;
-      # verify the Deployments its install strategy creates are actually ready.
-      operator_deployments(csv_name, csv_ns).each do |dep_name|
-        unless KubectlClient::Wait.resource_wait_for_install("deployment", dep_name, namespace: csv_ns)
-          unhealthy_deployments << "Deployment/#{dep_name} in #{csv_ns} is not ready"
+      # A CSV in phase Succeeded can still have a broken operator Deployment;
+      # the Deployments its install strategy creates must be ready.
+      operator_deployments(csv[:name], csv[:namespace]).each do |dep_name|
+        unless KubectlClient::Wait.resource_wait_for_install("deployment", dep_name, wait_count: POD_READINESS_TIMEOUT, namespace: csv[:namespace])
+          findings << {kind: "Deployment", name: dep_name, namespace: csv[:namespace], reason: "not ready after #{POD_READINESS_TIMEOUT}s"}
         end
       end
     end
 
-    if failed_subs.empty? && failed_csvs.empty? && unhealthy_deployments.empty?
-      Log.for(t.name).info { "Succeeded All True?" }
+    if findings.empty?
       result.passed("Operator is installed: 🐜")
     else
-      (failed_subs + failed_csvs + unhealthy_deployments).each do |finding|
-        result.append_description(finding)
+      findings.each do |f|
+        result.add_impacted_resource(f[:kind], f[:name], f[:namespace], reason: f[:reason])
       end
-      result.failed("Operator is not installed: #{(failed_subs + failed_csvs + unhealthy_deployments).size} issue(s)")
+      first = findings.first
+      more = findings.size > 1 ? " (+#{findings.size - 1} more)" : ""
+      result.failed("Operator is not installed: #{first[:kind]}/#{first[:name]} in #{first[:namespace]} #{first[:reason]}#{more}")
     end
   end
 end

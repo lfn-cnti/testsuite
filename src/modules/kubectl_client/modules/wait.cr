@@ -312,43 +312,41 @@ module KubectlClient
       false
     end
 
+    # Polls kind/name until dig_params exists (and equals value, when given).
+    # wait_count is in seconds. The resource is re-read in its own namespace on
+    # every poll; a read that fails because the resource is gone keeps waiting,
+    # since OLM and operators replace resources in flight.
     private def self.wait_for_key_value(resource : JSON::Any,
                                         dig_params : Tuple,
                                         value : (String?) = nil,
-                                        wait_count : Int32 = 15)
+                                        wait_count : Int32 = 15) : Bool
       logger = @@logger.for("wait_for_key_value")
+      kind = resource["kind"].as_s
+      name = resource.dig("metadata", "name").as_s
+      namespace = resource.dig?("metadata", "namespace").try(&.as_s)
+      wanted = "#{dig_params.join(".")}#{value ? " = #{value}" : ""}"
 
       second_count = 0
-      key_created = false
-      value_matched = false
-      until (key_created && value_matched) || second_count > wait_count.to_i
+      loop do
+        current = resource.dig?(*dig_params)
+        return true if current && (value.nil? || value == current.to_s)
+
+        break if second_count >= wait_count
         if second_count % RESOURCE_WAIT_LOG_INTERVAL == 0
           logger.info { "seconds elapsed while waiting: #{second_count}" }
         end
-
-        sleep 3.seconds
-        namespace = resource.dig?("metadata", "namespace")
-        if namespace
-          resource = KubectlClient::Get.resource(resource["kind"].as_s, resource.dig("metadata", "name").as_s)
-        else
-          resource = KubectlClient::Get.resource(resource["kind"].as_s, resource.dig("metadata", "name").as_s,
-            namespace: namespace)
-        end
-
-        if resource.dig?(*dig_params)
-          key_created = true
-
-          if value == nil
-            value_matched = true
-          elsif value == "#{resource.dig(*dig_params)}"
-            value_matched = true
-          end
-        end
-
+        sleep 1.seconds
         second_count += 1
+
+        begin
+          resource = KubectlClient::Get.resource(kind, name, namespace)
+        rescue KubectlClient::ShellCMD::NotFoundError
+          logger.debug { "#{kind}/#{name} not found while waiting for #{wanted}" }
+        end
       end
 
-      key_created && value_matched
+      logger.warn { "#{kind}/#{name} did not reach #{wanted} within #{wait_count}s" }
+      false
     end
 
     def self.wait_for_install_by_apply(manifest_file : String, wait_count : Int32 = 180) : Bool
