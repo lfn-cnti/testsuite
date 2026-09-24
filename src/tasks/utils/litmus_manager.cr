@@ -174,24 +174,61 @@ module LitmusManager
   end
 
   ## check_chaos_verdict will check the verdict of chaosexperiment
+  # Every run leaves one details line: the experiment, the workload it ran
+  # on, the verdict, the pods litmus targeted and how long the engine ran,
+  # so a pass is auditable and a failure names the pod (#2601).
   def self.check_chaos_verdict(chaos_result_name, chaos_experiment_name, args,
                                namespace : String = "default",
-                               result : CNFManager::TestCaseResult? = nil) : Bool
+                               result : CNFManager::TestCaseResult? = nil,
+                               target : String? = nil) : Bool
+    logger = Log.for("LitmusManager.check_chaos_verdict")
     _, verdict = get_status_info("chaosresult", chaos_result_name, "jsonpath={.status.experimentStatus.verdict}", namespace)
-    return true if verdict == "Pass"
+    passed = verdict == "Pass"
+
+    status_code, raw_chaos_result = get_status_info("chaosresult", chaos_result_name, "json", namespace)
+    raw_chaos_result = "" unless status_code == 0
+    engine_name = chaos_result_name.to_s.rchop("-#{chaos_experiment_name}")
+    status_code, raw_engine = get_status_info("chaosengine", engine_name, "json", namespace)
+    raw_engine = "" unless status_code == 0
 
     # The chaosresult knows *why*: surface its failStep and failed probes into
     # the test's details and the error log, instead of discarding them at a log
     # level no CI run has enabled. A verdict without its reason cost a full
     # afternoon of inference the one time node_drain flaked (#2445-adjacent).
-    logger = Log.for("LitmusManager.check_chaos_verdict")
-    status_code, raw_chaos_result = get_status_info("chaosresult", chaos_result_name, "json", namespace)
-    failure = status_code == 0 ? chaos_failure_summary(raw_chaos_result) : nil
-    summary = "#{chaos_experiment_name} verdict: #{verdict}#{failure ? " -- #{failure}" : ""}"
+    failure = passed ? nil : chaos_failure_summary(raw_chaos_result)
+    summary = "#{chaos_experiment_name}#{target ? " on #{target}" : ""}: verdict #{verdict}#{failure ? " -- #{failure}" : ""}; #{chaos_run_summary(raw_chaos_result, raw_engine)}"
 
-    logger.error { "#{chaos_result_name}: #{summary}" }
+    passed ? logger.info { "#{chaos_result_name}: #{summary}" } : logger.error { "#{chaos_result_name}: #{summary}" }
     result.try(&.append_description("Litmus #{summary}"))
-    false
+    passed
+  end
+
+  # What litmus reports having targeted (chaosresult status.history.targets:
+  # the app the engine was pointed at, by name and kind, with its chaos
+  # status) and how long the engine ran (its creation to the experiment's
+  # last update), as one phrase for the details line.
+  def self.chaos_run_summary(raw_chaos_result : String, raw_engine : String) : String
+    targets = [] of String
+    begin
+      JSON.parse(raw_chaos_result).dig?("status", "history", "targets").try(&.as_a?).try &.each do |t|
+        name = t["name"]?.try(&.as_s?)
+        next if name.nil? || name.empty?
+        kind = t["kind"]?.try(&.as_s?)
+        status = t["chaosStatus"]?.try(&.as_s?)
+        targets << "#{kind ? "#{kind} " : ""}#{name}#{status ? " (#{status})" : ""}"
+      end
+    rescue JSON::ParseException
+    end
+    duration = nil.as(Int64?)
+    begin
+      engine = JSON.parse(raw_engine)
+      created = engine.dig?("metadata", "creationTimestamp").try(&.as_s?)
+      finished = engine.dig?("status", "experiments").try(&.as_a?).try(&.compact_map { |e| e["lastUpdateTime"]?.try(&.as_s?) }.max?)
+      duration = (Time.parse_rfc3339(finished) - Time.parse_rfc3339(created)).total_seconds.to_i64 if created && finished
+    rescue JSON::ParseException | Time::Format::Error
+    end
+    what = targets.empty? ? "target not recorded by litmus" : "target #{targets.join(", ")}"
+    duration ? "#{what}, engine ran #{duration} s" : what
   end
 
   # Distills a chaosresult JSON into the line a human needs: the step that

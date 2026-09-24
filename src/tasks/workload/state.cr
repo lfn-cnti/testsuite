@@ -350,7 +350,7 @@ scored_task "node_drain",
             File.write(chaos_template_path, template)
             KubectlClient::Apply.file(chaos_template_path)
             LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
-            test_passed = LitmusManager.check_chaos_verdict(chaos_result_name, chaos_experiment_name, args, namespace: app_namespace, result: result)
+            test_passed = LitmusManager.check_chaos_verdict(chaos_result_name, chaos_experiment_name, args, namespace: app_namespace, result: result, target: "#{resource["kind"]}/#{resource["name"]} in #{app_namespace}")
             unless test_passed
               # The verdict says the workload did not come back; say where it stands.
               why = WorkloadDiagnostics.report(result, resource["kind"], resource["name"], app_namespace, "#{resource["kind"]}/#{resource["name"]} after draining #{app_node_name} for #{NODE_DRAIN_TOTAL_CHAOS_DURATION}s")
