@@ -31,9 +31,9 @@ module Kyverno
     end
   end
 
+  # Cluster side only: the CLI and the policies checkout stay under the
+  # suite home, versioned, until tools_purge.
   def self.uninstall
-    FileUtils.rm_rf(cli_dir)
-    delete_policies_repo
     KubectlClient::Wait.resource_wait_for_uninstall("deployment", "kyverno",  namespace: "kyverno", wait_count: 180)
   end
 

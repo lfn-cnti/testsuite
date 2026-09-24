@@ -33,6 +33,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+      - name: Cache the suite tools
+        uses: ./.github/actions/cache-suite-tools
       - name: Login to Docker Hub
         if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
         uses: docker/login-action@v3

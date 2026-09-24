@@ -15,8 +15,11 @@ module NetRetry
   ATTEMPTS_ENV = "CNTI_TESTSUITE_NETWORK_RETRY_ATTEMPTS"
   BACKOFF_ENV  = "CNTI_TESTSUITE_NETWORK_RETRY_BACKOFF"
 
-  DEFAULT_ATTEMPTS = 3
-  DEFAULT_BACKOFF  = 2
+  # Five attempts at 10 s, 20 s, 30 s and 40 s apart: about a hundred seconds
+  # in all. The earlier 3 attempts over six seconds were shorter than a typical
+  # GitHub release-asset incident, which returned 500 for minutes at a time.
+  DEFAULT_ATTEMPTS = 5
+  DEFAULT_BACKOFF  = 10
 
   # For raising a failure that is known to be worth retrying (e.g. an HTTP 5xx,
   # where the status line alone already settles the question).
@@ -52,7 +55,7 @@ module NetRetry
   end
 
   # Base delay in seconds; attempt N waits N * backoff, so the default gives
-  # 2s, 4s. Zero disables sleeping (used by specs).
+  # 10s, 20s, 30s, 40s. Zero disables sleeping (used by specs).
   def self.backoff : Int32
     value = ENV[BACKOFF_ENV]?.try(&.to_i?) || DEFAULT_BACKOFF
     value < 0 ? 0 : value

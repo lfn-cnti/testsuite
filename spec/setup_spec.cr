@@ -48,12 +48,33 @@ describe "Installation" do
 
   it "'uninstall_all' should uninstall CNF and testsuite dependencies", tags: ["cnf_installation1"] do
     begin
+      # A download the suite always makes for itself (helm may come from the
+      # host instead): the versioned kubescape binary must survive an uninstall.
+      ShellCmd.run_testsuite("setup:install_kubescape")[:status].success?.should be_true
+      File.exists?(Setup::KUBESCAPE_BINARY).should be_true
       result = ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-minimal-cnf/")
       (/CNF installation complete/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.run_testsuite("uninstall_all")
       (/All CNF deployments were uninstalled/ =~ result[:output]).should_not be_nil
       (/Testsuite helper tools uninstalled./ =~ result[:output]).should_not be_nil
+      File.exists?(Setup::KUBESCAPE_BINARY).should be_true
+    end
+  end
+
+  it "'tools_purge' should delete the suite's local downloads", tags: ["cnf_installation1"] do
+    begin
+      ShellCmd.run_testsuite("setup:install_kubescape")[:status].success?.should be_true
+      File.exists?(Setup::KUBESCAPE_BINARY).should be_true
+      result = ShellCmd.run_testsuite("tools_purge")
+      result[:status].success?.should be_true
+      (/Testsuite local tool downloads deleted./ =~ result[:output]).should_not be_nil
+      # tools_path recreates the directory when called, so check its contents.
+      File.exists?(Setup::KUBESCAPE_BINARY).should be_false
+      Dir.children(tools_path).should be_empty
+    ensure
+      # The following specs need the suite's tools again.
+      ShellCmd.run_testsuite("setup")
     end
   end
 
