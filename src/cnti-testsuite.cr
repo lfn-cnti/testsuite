@@ -1,4 +1,5 @@
 require "sam"
+require "json"
 require "./modules/release_manager"
 require "./proto/**"
 require "./tasks/**"
@@ -70,11 +71,19 @@ begin
 
   if CNFManager::Points::Results.file_exists?
     # One stable line per run for scripts to grep; the pointer is the path
-    # that does not change between runs.
+    # that does not change between runs. In JSON mode stdout_info goes to
+    # stderr, leaving stdout for the results document alone.
     stdout_info "Results: #{CNFManager::Points::Results.file} (latest: #{CNFManager::Points::Results.latest})"
     # The run is over: write the verdict into the file (it says `running` until
     # now) and exit with it.
-    case CNFManager::Points.finalize_results!
+    exit_code = CNFManager::Points.finalize_results!
+    # --output json: the finished results document is the sole thing on stdout.
+    # YAML is a JSON superset, so the file re-serializes to JSON verbatim; the
+    # exit code below is unchanged.
+    if json_output?
+      puts YAML.parse(File.read(CNFManager::Points::Results.file)).to_json
+    end
+    case exit_code
     when 1
       exit 1
     when 2
