@@ -495,3 +495,35 @@ describe "custom_resource_controller" do
     custom_resource_controller(JSON.parse(%({"metadata": {}}))).should be_nil
   end
 end
+
+describe "Deployment directory copy" do
+  it "copies a chart at the config's own directory without descending into the cnti/ workspace", tags: ["helm-dir-path"] do
+    cwd = File.tempname("chart-root")
+    FileUtils.mkdir_p(File.join(cwd, "templates"))
+    File.write(File.join(cwd, "Chart.yaml"), "apiVersion: v2\nname: x\nversion: 0.1.0\n")
+    File.write(File.join(cwd, "templates", "cm.yaml"), "kind: ConfigMap\n")
+    Dir.cd(cwd) do
+      CNFInstall.ensure_cnf_dir_structure
+      CNFInstall.copy_deployment_source(".", File.join(DEPLOYMENTS_DIR, "x"))
+      File.exists?(File.join(DEPLOYMENTS_DIR, "x", "Chart.yaml")).should be_true
+      File.exists?(File.join(DEPLOYMENTS_DIR, "x", "templates", "cm.yaml")).should be_true
+      Dir.exists?(File.join(DEPLOYMENTS_DIR, "x", CNTI_DIR)).should be_false
+    end
+  ensure
+    FileUtils.rm_rf(cwd.not_nil!)
+  end
+
+  it "copies a chart subdirectory under its own name, as before", tags: ["helm-dir-path"] do
+    cwd = File.tempname("chart-sub")
+    FileUtils.mkdir_p(File.join(cwd, "charts", "c", "templates"))
+    File.write(File.join(cwd, "charts", "c", "Chart.yaml"), "apiVersion: v2\nname: c\nversion: 0.1.0\n")
+    Dir.cd(cwd) do
+      CNFInstall.ensure_cnf_dir_structure
+      CNFInstall.copy_deployment_source("charts/c", File.join(DEPLOYMENTS_DIR, "c"))
+      File.exists?(File.join(DEPLOYMENTS_DIR, "c", "c", "Chart.yaml")).should be_true
+      Dir.exists?(File.join(DEPLOYMENTS_DIR, "c", "c", "templates")).should be_true
+    end
+  ensure
+    FileUtils.rm_rf(cwd.not_nil!)
+  end
+end

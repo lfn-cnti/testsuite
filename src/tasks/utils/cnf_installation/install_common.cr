@@ -142,14 +142,40 @@ module CNFInstall
       source_dir = CNFInstall.helm_source_path(Path[cnf_config_path].dirname.to_s, helm_directory_config.helm_directory)
       destination_dir = File.join(DEPLOYMENTS_DIR, helm_directory_config.name)
       FileUtils.mkdir_p(destination_dir)
-      FileUtils.cp_r(source_dir, destination_dir)
+      copy_deployment_source(source_dir, destination_dir)
       absolutize_local_dependencies(File.join(destination_dir, File.basename(source_dir)), source_dir)
     end
     config.deployments.manifests.each do |manifest_config|
       source_dir = File.join(Path[cnf_config_path].dirname, manifest_config.manifest_directory)
       destination_dir = File.join(DEPLOYMENTS_DIR, manifest_config.name)
       FileUtils.mkdir_p(destination_dir)
-      FileUtils.cp_r(source_dir, destination_dir)
+      copy_deployment_source(source_dir, destination_dir)
+    end
+  end
+
+  # Copies a deployment's source directory into destination_dir/<its basename>,
+  # as FileUtils.cp_r would, leaving the suite's own workspace out: with a
+  # config at a chart's root (helm_directory: "."), cnti/ lies inside the
+  # source, and copying it would descend into the copy being written until
+  # the path overflows.
+  def self.copy_deployment_source(source_dir : String, destination_dir : String)
+    FileUtils.mkdir_p(destination_dir)
+    destination = File.join(destination_dir, File.basename(source_dir))
+    copy_tree(File.expand_path(source_dir), destination, skip: File.expand_path(CNTI_DIR))
+  end
+
+  private def self.copy_tree(source : String, destination : String, skip : String)
+    if source == skip
+      Log.for("copy_deployment_source").info { "Leaving the suite workspace #{source} out of the copy" }
+      return
+    end
+    if Dir.exists?(source)
+      Dir.mkdir(destination) unless Dir.exists?(destination)
+      Dir.each_child(source) do |entry|
+        copy_tree(File.join(source, entry), File.join(destination, entry), skip)
+      end
+    else
+      FileUtils.cp(source, destination)
     end
   end
 
