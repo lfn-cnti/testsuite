@@ -190,6 +190,9 @@ scored_task "increase_decrease_capacity",
     # its operator to answer to (it reverts the change, or never configures
     # pods it did not ask for), so it is named, not held against the CNF.
     operator_owned = [] of String
+    # Workloads deployed with no replicas (arbiters, standby sets) run nothing
+    # to scale; they are named in the details, not scaled.
+    idle = [] of String
 
     begin
       CNFManager.cnf_workload_resources(args, config) do |resource|
@@ -199,8 +202,12 @@ scored_task "increase_decrease_capacity",
         namespace = resource.dig("metadata", "namespace").as_s
         ref = "#{resource["kind"].as_s}/#{name}"
 
-        owner = custom_resource_controller(KubectlClient::Get.resource(resource["kind"].as_s, name, namespace))
         replicas = deployed_replicas(resource["kind"].as_s, name, namespace)
+        if replicas == 0
+          idle << "#{ref} in #{namespace}: deployed with 0 replicas, not scaled"
+          next
+        end
+        owner = custom_resource_controller(KubectlClient::Get.resource(resource["kind"].as_s, name, namespace))
         deployed[{resource["kind"].as_s, name, namespace}] = replicas
         target = replicas + increase_by
         Log.for(t.name).info { "#{ref} in #{namespace}: deployed with #{replicas} replicas; scaling to #{target}, then back" }
@@ -232,8 +239,11 @@ scored_task "increase_decrease_capacity",
       end
     end
 
+    idle.each { |line| result.append_description(line) }
     operator_owned.each { |line| result.append_description(line) }
-    if !deployed.empty? && operator_owned.size == deployed.size
+    if deployed.empty? && !idle.empty?
+      result.na("increase_decrease_capacity not applicable: no Deployment or StatefulSet runs pods to scale")
+    elsif !deployed.empty? && operator_owned.size == deployed.size
       result.na("increase_decrease_capacity not applicable: every workload is sized by an operator's custom resource and none followed a direct scale")
     elsif deployed.empty?
       result.skipped("No Deployment or StatefulSet to scale")
