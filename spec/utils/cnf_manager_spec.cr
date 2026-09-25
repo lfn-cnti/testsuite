@@ -477,3 +477,21 @@ describe "CNFInstall.helm_source_path" do
     result.should eq("/home/cedric/Devs/CNTI/testsuite/example-cnfs/envoy/envoy")
   end
 end
+
+describe "custom_resource_controller" do
+  workload = ->(api_version : String, kind : String, name : String) do
+    JSON.parse(%({"metadata": {"ownerReferences": [{"apiVersion": "#{api_version}", "kind": "#{kind}", "name": "#{name}", "controller": true}]}}))
+  end
+
+  it "names an operator's custom resource that controls the workload", tags: ["points"] do
+    custom_resource_controller(workload.call("mongodbcommunity.mongodb.com/v1", "MongoDBCommunity", "cnti-mongodb")).should eq("MongoDBCommunity/cnti-mongodb")
+    custom_resource_controller(workload.call("gateway.networking.k8s.io/v1", "Gateway", "cnti")).should eq("Gateway/cnti")
+  end
+
+  it "does not count Kubernetes' own controllers or a workload without one", tags: ["points"] do
+    custom_resource_controller(workload.call("apps/v1", "Deployment", "web")).should be_nil
+    custom_resource_controller(workload.call("batch/v1", "CronJob", "nightly")).should be_nil
+    custom_resource_controller(workload.call("v1", "ReplicationController", "old")).should be_nil
+    custom_resource_controller(JSON.parse(%({"metadata": {}}))).should be_nil
+  end
+end
