@@ -425,7 +425,7 @@ Give each service its own database (or its own schema with no cross-service acce
 
 #### Overview
 
-This tests if containers in pods use a specialized init system as their PID 1 process: tini (including tini-static and docker-init), dumb-init, catatonit, or s6-overlay (whose PID 1 is s6-svscan). The check is on the executable's name, not on any part of its path.
+This tests if containers in pods use a specialized init system as their PID 1 process: tini (including tini-static and docker-init), dumb-init, catatonit, s6-overlay (whose PID 1 is s6-svscan), or gopherd (HAProxy's container init and supervisor). The check is on the executable's name, not on any part of its path.
 Expectation: Container images should use specialized init systems for containers.
 
 #### Rationale
@@ -436,7 +436,7 @@ Sources: [Docker, `--init` for signal handling and zombie reaping](https://docs.
 
 #### Remediation
 
-Use init systems that are purpose-built for containers like tini, dumb-init, catatonit, s6-overlay.
+Use init systems that are purpose-built for containers like tini, dumb-init, catatonit, s6-overlay, gopherd.
 
 #### Usage
 
