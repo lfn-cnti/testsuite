@@ -415,12 +415,18 @@ scored_task "single_process_type",
         # The container's own init/supervisor process (PID 1, whose host pid ==
         # container_pid_on_node) is not an application process type, regardless of
         # which init binary it uses. A specialized init system (tini/dumb-init/s6) is
-        # also excused wherever it appears in the tree. Whatever remains is the set of
-        # application process types -- more than one means the container runs multiple
-        # process types.
+        # also excused wherever it appears in the tree, and when PID 1 is one, so is
+        # the init's own supervision tree (s6-supervise and the other s6-* helpers).
+        # Whatever remains is the set of application process types -- more than one
+        # means the container runs multiple process types.
+        root_is_specialized_init = container_proctree_statuses.any? do |status|
+          status["Pid"].strip == root_pid && SPECIALIZED_INIT_SYSTEMS.includes?(status["Name"].strip)
+        end
         app_process_types = container_proctree_statuses.reject do |status|
+          process_name = status["Name"].strip
           status["Pid"].strip == root_pid ||
-            SPECIALIZED_INIT_SYSTEMS.includes?(status["Name"].strip)
+            SPECIALIZED_INIT_SYSTEMS.includes?(process_name) ||
+            (root_is_specialized_init && InitSystems.init_system_process?(process_name))
         end.map { |status| status["Name"].strip }.uniq
 
         Log.for(t.name).info { "container '#{container_name}' application process types: #{app_process_types}" }

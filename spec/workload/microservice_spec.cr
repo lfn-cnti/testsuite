@@ -117,6 +117,20 @@ describe "Microservice" do
     end
   end
 
+  it "'single_process_type' should pass if a container runs one process type under s6-overlay, whose helpers are the init", tags: ["process_check"]  do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-s6-init")
+      result = ShellCmd.run_testsuite("single_process_type")
+      result[:status].success?.should be_true
+      (/(PASSED).*(Only one process type used)/ =~ result[:output]).should_not be_nil
+      (/> Deployment\/s6-nginx container web: process type nginx/ =~ result[:output]).should_not be_nil
+      verify_task_result("single_process_type", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
   it "'single_process_type' should fail if the containers in the cnf have more than one process type", tags: ["process_check"]  do
     begin
       ShellCmd.cnf_install("--cnf-config sample-cnfs/k8s-multiple-processes")
