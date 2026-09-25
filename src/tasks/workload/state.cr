@@ -242,148 +242,126 @@ module WorkloadResource
   end
 end
 
-desc "Does the CNF crash when node-drain occurs"
+# Kinds a drain can evict and that come back on their own. A bare Pod is
+# deleted for good (drain refuses it without --force) and DaemonSet pods are
+# left in place by drain, so neither can be tested this way.
+NODE_DRAIN_KINDS = ["deployment", "statefulset", "replicaset"]
+
+desc "Does the CNF survive the loss of a node? Each node hosting its pods is drained once"
 scored_task "node_drain",
   type: CNFManager::TestType::Essential,
-  deps: ["setup:install_litmus"],
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    skip_reason : String? = nil
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, _, _|
-      test_passed = true
-      app_namespace = resource[:namespace]
-      Log.info { "Current Resource Name: #{resource["kind"]}/#{resource["name"]} Namespace: #{resource["namespace"]}" }
-      spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
+    schedulable = KubectlClient::Get.schedulable_nodes_list.compact_map { |n| n.dig?("metadata", "name").try(&.as_s?) }
+    if schedulable.size <= 1
+      result.skipped("node_drain requires at least two schedulable nodes, found #{schedulable.size}")
+      next
+    end
 
-      # Check if labels exist before proceeding
-      if spec_labels.as_h.size == 0
-        result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], reason: "no resource label found for #{t.name} test")
-        test_passed = false
-      else
-        schedulable_nodes = KubectlClient::Get.schedulable_nodes_list
-        # The whole selector: one label of a multi-label selector (every Helm
-        # chart's) also matches other releases of the same chart.
-        app_label = spec_labels.as_h.map { |key, value| "#{key}=#{value}" }.join(",")
+    # The CNF's workloads and the pods each one has scheduled (#2620): the
+    # drains are per node, and every workload with a pod on a node is
+    # judged when that node goes.
+    workloads = [] of NamedTuple(kind: String, name: String, namespace: String)
+    pods_of = {} of NamedTuple(kind: String, name: String, namespace: String) => Array(JSON::Any)
+    CNFManager.resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |ref|
+      label = "#{ref[:kind]}/#{ref[:name]} in #{ref[:namespace]}"
+      unless NODE_DRAIN_KINDS.includes?(ref[:kind].downcase)
+        result.append_description("#{label}: a #{ref[:kind]} cannot be drained and rescheduled (a bare Pod is deleted for good, DaemonSet pods stay), node_drain is not applicable to it")
+        next
+      end
+      live = KubectlClient::Get.resource(ref[:kind], ref[:name], ref[:namespace])
+      pods = KubectlClient::Get.pods_by_resource_labels(live, ref[:namespace]).reject { |pod| pod.dig?("metadata", "deletionTimestamp") }
+      workloads << ref
+      pods_of[ref] = pods
+    end
+    if workloads.empty?
+      result.na("node_drain not applicable: no Deployment, StatefulSet or ReplicaSet to reschedule")
+      next
+    end
 
-        # Declare this outside the block so that the name of the node can be used to uncordon later.
-        cordon_target_node_name = nil
+    by_node = {} of String => Array(NamedTuple(kind: String, name: String, namespace: String))
+    pods_of.each do |ref, pods|
+      pods.each do |pod|
+        node = pod.dig?("spec", "nodeName").try(&.as_s?)
+        next if node.nil?
+        (by_node[node] ||= [] of NamedTuple(kind: String, name: String, namespace: String)) << ref unless by_node[node]?.try(&.includes?(ref))
+      end
+    end
+    failed = 0
+    workloads.each do |ref|
+      next if by_node.values.any?(&.includes?(ref))
+      result.add_impacted_resource(ref[:kind], ref[:name], ref[:namespace], reason: "no scheduled pod to drain")
+      failed += 1
+    end
 
-        begin
-          # Resolve the workload's node once, up front, and use that single answer for
-          # both the cordon and the chaos experiment. Asking a second time after
-          # cordoning let the two answers disagree: pods terminating from an earlier
-          # test are still listed by kubectl, so the first answer could name a node the
-          # workload had already left, and the run would cordon one node while draining
-          # another.
-          app_node_name = LitmusManager.get_workload_node_name(app_label, namespace: app_namespace)
+    by_node.each do |node, refs|
+      unless schedulable.includes?(node)
+        result.append_description("Node #{node} hosts #{refs.size} workload(s) of the CNF but is not schedulable; it was not drained")
+        next
+      end
+      pod_count = refs.sum { |ref| pods_of[ref].count { |pod| pod.dig?("spec", "nodeName").try(&.as_s?) == node } }
+      StatusLine.push "Draining #{node} (#{pod_count} pod(s) of #{refs.size} workload(s))..."
+      started = Time.utc
+      cordoned = false
+      begin
+        KubectlClient::Utils.cordon(node)
+        cordoned = true
+        drain = KubectlClient::Utils.drain(node, GENERIC_OPERATION_TIMEOUT)
+        evicted_in = (Time.utc - started).total_seconds.round.to_i
+        unless drain[:status].success?
+          # An eviction the API refuses (a PodDisruptionBudget, most often)
+          # or a drain that ran out of time: the node's workloads did not go
+          # and cannot be judged, and the reason is kubectl's own.
+          reason = drain[:error].lines.map(&.strip).find { |l| l =~ /error|cannot|Cannot|timed out/i } || drain[:error].lines.first?.to_s.strip
+          result.append_description("Node #{node}: drain did not complete within #{GENERIC_OPERATION_TIMEOUT}s: #{reason}")
+          refs.each do |ref|
+            result.add_impacted_resource(ref[:kind], ref[:name], ref[:namespace], reason: "eviction from node #{node} did not complete: #{reason}")
+          end
+          failed += refs.size
+          next
+        end
+        result.append_description("Node #{node}: #{pod_count} pod(s) of #{refs.size} workload(s) evicted in #{evicted_in} s")
 
-          if schedulable_nodes.size <= 1
-            skip_reason = "node_drain chaos test requires the cluster to have atleast two schedulable nodes"
-          elsif app_node_name.nil?
-            skip_reason = "node_drain chaos test found no scheduled pod for #{app_label} in the #{app_namespace} namespace"
+        # Recovery is judged while the node is still cordoned: a workload
+        # that is Ready again now has come back on another node.
+        refs.each do |ref|
+          label = "#{ref[:kind]}/#{ref[:name]} in #{ref[:namespace]}"
+          since = Time.utc
+          if KubectlClient::Wait.resource_wait_for_install(kind: ref[:kind], resource_name: ref[:name], wait_count: POD_READINESS_TIMEOUT, namespace: ref[:namespace])
+            result.append_description("#{label}: Ready again on another node #{(Time.utc - since).total_seconds.round.to_i} s after eviction")
           else
-            Log.info { "Found node to cordon #{app_node_name} using selector #{app_label} in #{app_namespace} namespace." }
-
-            # Record the cordon target before cordoning, so the ensure block below
-            # releases the node even if the cordon only partly took effect.
-            cordon_target_node_name = app_node_name
-            cordon_result = KubectlClient::Utils.cordon(app_node_name)
-
-            # If cordoning fails, skip the test.
-            if cordon_result[:status].success?
-              Log.info { "Cordoned node #{app_node_name} successfully." }
-            else
-              skip_reason = "node_drain chaos test was unable to cordon node #{app_node_name}"
-            end
-          end
-
-          if skip_reason.nil? && app_node_name
-            litmus_node_name = LitmusManager.get_litmus_node_name
-            Log.info { "Workload Node Name: #{app_node_name}" }
-            Log.info { "Litmus Node Name: #{litmus_node_name}" }
-
-            if litmus_node_name == app_node_name
-              # Litmus would be drained along with the workload, so it has to move
-              # first. The workload's node is cordoned by now and is therefore already
-              # absent from the schedulable list.
-              Log.info { "Litmus and the workload are scheduled to the same node. Re-scheduling Litmus" }
-              litmus_nodes = KubectlClient::Get.schedulable_nodes_list.compact_map do |item|
-                item.dig?("metadata", "labels", LitmusManager::NODE_LABEL).try(&.as_s)
-              end.reject { |node_name| node_name == app_node_name }
-              Log.info { "Schedulable Litmus Nodes: #{litmus_nodes}" }
-
-              litmus_target_node = litmus_nodes.first?
-              if litmus_target_node.nil?
-                # Nowhere to move Litmus to. Draining this node would take the chaos
-                # operator down with the workload, so there is no test to run.
-                skip_reason = "node_drain chaos test requires a schedulable node that does not run Litmus, but #{app_node_name} is the only one left"
-              else
-                StatusLine.push "Moving the LitmusChaos operator to #{litmus_target_node} so #{app_node_name} can be drained..."
-                download_file(LitmusManager::LITMUS_OPERATOR, LitmusManager.downloaded_operator_file)
-                Log.info { "Re-Schedule Litmus" }
-                LitmusManager.add_node_selector(litmus_target_node)
-                KubectlClient::Apply.file(LitmusManager.modified_operator_file)
-                KubectlClient::Wait.resource_wait_for_install(kind: "Deployment", resource_name: "chaos-operator-ce", wait_count: 180, namespace: "litmus")
-                StatusLine.pop
-              end
-            end
-          end
-
-          if skip_reason.nil? && app_node_name
-            LitmusManager.install_fault("node-drain", app_namespace, t.name)
-
-            KubectlClient::Utils.annotate(resource["kind"], resource["name"], ["litmuschaos.io/chaos=\"true\""], namespace: app_namespace)
-
-            chaos_experiment_name = "node-drain"
-            test_name = "#{resource["name"]}-#{Random::Secure.hex(4)}"
-            chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
-
-            template = ChaosTemplates::NodeDrain.new(
-              test_name,
-              "#{chaos_experiment_name}",
-              app_namespace,
-              app_label,
-              app_node_name
-            ).to_s
-            Log.for("node_drain").info { "Chaos test name: #{test_name}; Experiment name: #{chaos_experiment_name}; Selector #{app_label}; namespace: #{app_namespace}" }
-            chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
-            File.write(chaos_template_path, template)
-            KubectlClient::Apply.file(chaos_template_path)
-            LitmusManager.wait_for_test(test_name, chaos_experiment_name, args, namespace: app_namespace)
-            test_passed = LitmusManager.check_chaos_verdict(chaos_result_name, chaos_experiment_name, args, namespace: app_namespace, result: result, target: "#{resource["kind"]}/#{resource["name"]} in #{app_namespace}")
-            unless test_passed
-              # The verdict says the workload did not come back; say where it stands.
-              why = WorkloadDiagnostics.report(result, resource["kind"], resource["name"], app_namespace, "#{resource["kind"]}/#{resource["name"]} after draining #{app_node_name} for #{NODE_DRAIN_TOTAL_CHAOS_DURATION}s")
-              result.add_impacted_resource(resource["kind"], resource["name"], app_namespace,
-                reason: "did not recover from draining node #{app_node_name}#{why.first?.try { |w| ": #{w}" }}")
-            end
-          end
-        ensure
-          # Uncordon the node whatever happened above. Without this, a test that raises
-          # leaves the cluster one schedulable node short for every test that follows.
-          if cordon_target_node_name
-            uncordon_result = KubectlClient::Utils.uncordon("#{cordon_target_node_name}")
-
-            # If uncordoning fails, log the error.
-            if uncordon_result[:status].success?
-              Log.info { "Uncordoned node #{cordon_target_node_name} successfully." }
-            else
-              Log.error { "Uncordoning node #{cordon_target_node_name} failed." }
-              skip_reason = "node_drain chaos test was unable to uncordon node #{cordon_target_node_name}"
-            end
+            why = WorkloadDiagnostics.report(result, ref[:kind], ref[:name], ref[:namespace], "#{label} after draining #{node}")
+            result.add_impacted_resource(ref[:kind], ref[:name], ref[:namespace],
+              reason: "not Ready within #{POD_READINESS_TIMEOUT}s of eviction from node #{node}#{why.first?.try { |w| ": #{w}" }}")
+            failed += 1
           end
         end
-      end
 
-      test_passed
+        # Keep the node out for the rest of the hold, so a recovery that
+        # only lasts until the node returns does not count.
+        remaining = NODE_DRAIN_TOTAL_CHAOS_DURATION - (Time.utc - started).total_seconds.to_i
+        sleep(remaining.seconds) if remaining > 0
+      ensure
+        # The node comes back whatever happened above; a raise here would
+        # leave every later test one node short.
+        if cordoned
+          begin
+            KubectlClient::Utils.uncordon(node)
+          rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+            Log.for(t.name).error { "uncordon #{node}: #{ex.message}" }
+            result.append_description("Node #{node} could not be uncordoned: #{ex.message.to_s.lines.first?.to_s.strip}")
+          end
+        end
+        StatusLine.pop
+      end
     end
-    if skip_reason
-      Log.for(t.name).warn { "#{skip_reason}. Current number of schedulable nodes: #{KubectlClient::Get.schedulable_nodes_list.size}" }
-      result.skipped(skip_reason)
-    elsif task_response
-      result.passed("node_drain chaos test passed")
+
+    drained = by_node.keys.select { |node| schedulable.includes?(node) }.size
+    if failed == 0
+      result.passed("node_drain passed: #{drained} node(s) drained, #{workloads.size} workload(s) rescheduled")
     else
-      result.failed("node_drain chaos test failed")
+      result.append_remediation("Make every workload survive the loss of the node it runs on: more than one replica spread across nodes, no node-local state, readiness that reflects the service, and PodDisruptionBudgets that leave room for an eviction.")
+      result.failed("node_drain failed: #{failed} workload(s) did not come back after a drain")
     end
   end
 end
