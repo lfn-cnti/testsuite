@@ -357,7 +357,7 @@ Move work out of the start-up path (lazy initialisation, pre-built caches, small
 This verifies that there is only one application process type within one container. This does not count against child processes of the same type, nor against the container's init/supervisor process. For example, nginx or httpd could have a parent process and then 10 child processes, but if both nginx and httpd were running, this test would fail.
 Expectation: CNF container has one application process type
 
-The container's own init/supervisor process (PID 1) is not counted as an application process type, regardless of which init system it uses. Whether that init system is a recommended, specialized one (e.g. tini, dumb-init, s6) is evaluated separately by the `specialized_init_system` test — using a home-grown init will not fail this test, but it is reported in the test output and results file.
+The container's own init/supervisor process (PID 1) is not counted as an application process type, regardless of which init system it uses. When PID 1 is a specialized init system, that init's own processes are not counted either: s6-overlay runs as a family of `s6-*` processes (s6-supervise, s6-linux-init-shutdownd, s6-ipcserverd) under s6-svscan, and they are the init, not the workload. Whether that init system is a recommended, specialized one (e.g. tini, dumb-init, s6) is evaluated separately by the `specialized_init_system` test — using a home-grown init will not fail this test, but it is reported in the test output and results file.
 
 #### Rationale
 

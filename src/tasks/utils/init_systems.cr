@@ -24,6 +24,15 @@ module InitSystems
     SPECIALIZED_INIT_SYSTEMS.includes?(File.basename(cmd))
   end
 
+  # A process that belongs to a specialized init system rather than to the
+  # workload. tini, dumb-init and catatonit are single binaries; s6 is a family
+  # of cooperating processes under s6-svscan (s6-supervise, s6-linux-init-
+  # shutdownd, s6-ipcserverd, s6-rc, s6-log, s6-fdholderd), all named s6-*.
+  def self.init_system_process?(name : String) : Bool
+    name = name.strip
+    SPECIALIZED_INIT_SYSTEMS.includes?(name) || name.starts_with?("s6-")
+  end
+
   # Every container's PID 1 with whether it is a specialized init system;
   # nil when a container could not be inspected.
   def self.scan(pod : JSON::Any) : Array(InitSystemInfo) | Nil

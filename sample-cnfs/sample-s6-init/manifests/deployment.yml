@@ -1,0 +1,31 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: s6-init
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
+# One application process type (nginx) supervised by s6-overlay v3: PID 1 is
+# s6-svscan, with s6-supervise, s6-linux-init-shutdownd and s6-ipcserverd as
+# the init's own helpers. The image needs no configuration to serve.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: s6-nginx
+  namespace: s6-init
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: s6-nginx
+  template:
+    metadata:
+      labels:
+        app: s6-nginx
+    spec:
+      containers:
+      - name: web
+        image: ghcr.io/jitsi/web:stable-11248
+        ports:
+        - containerPort: 80
