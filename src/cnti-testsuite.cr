@@ -44,7 +44,7 @@ desc "Print a shell completion script; `completion bash` (default) or `completio
 task "completion" do |_, args|
   shell = args.raw.first?.try(&.to_s) || CLICompletion::DEFAULT_SHELL
   unless CLICompletion::SHELLS.includes?(shell)
-    stdout_failure "Unknown shell '#{shell}'. Usage: #{CLIHelp::BIN_NAME} completion [#{CLICompletion::SHELLS.join("|")}]"
+    stderr_usage "Unknown shell '#{shell}'. Usage: #{CLIHelp::BIN_NAME} completion [#{CLICompletion::SHELLS.join("|")}]"
     exit USAGE_EXIT_CODE
   end
   puts CLICompletion.script(shell)
@@ -91,17 +91,16 @@ begin
     end
   end
 rescue e : CLIParser::UsageError
-  # Usage errors are raised before the invocation is recorded, so json_output?
-  # is not yet known; write to stderr unconditionally (correct in text mode too)
-  # so a caller parsing stdout in JSON mode sees an empty document, not errors.
-  e.errors.each { |error| STDERR.puts error.colorize(:red) }
+  # Every usage message goes through stderr_usage: consistent across text and
+  # JSON mode, and stdout stays an empty document in JSON mode on a usage error.
+  e.errors.each { |error| stderr_usage error }
   exit USAGE_EXIT_CODE
 rescue e : Sam::NotFound
-  stdout_failure e.message.to_s
+  stderr_usage e.message.to_s
   if suggestion = CLIHelp.suggestion_for(e.task_path)
-    stdout_failure "Did you mean '#{suggestion}'?"
+    stderr_usage "Did you mean '#{suggestion}'?"
   end
-  stdout_info "Run `#{CLIHelp::BIN_NAME} help tasks` to list every task."
+  stderr_usage "Run `#{CLIHelp::BIN_NAME} help tasks` to list every task."
   exit USAGE_EXIT_CODE
 rescue e : Helm::Binary::HelmBinaryNotFoundError
   # Not a crash: every helm shell-out funnels through Binary.get, which makes
