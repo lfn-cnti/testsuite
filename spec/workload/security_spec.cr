@@ -277,7 +277,24 @@ describe "Security" do
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-nonroot")
       result = ShellCmd.run_testsuite("non_root_containers")
       result[:status].success?.should be_true
-      (/(FAILED).*(Found containers running with root user or user with root group membership)/ =~ result[:output]).should be_nil
+      (/(PASSED).*(Containers run as non-root user and group)/ =~ result[:output]).should_not be_nil
+      verify_task_result("non_root_containers", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'non_root_containers' should pass on a cnf whose containers run as non-root without declaring it, and say what is missing", tags: ["security"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-nonroot-undeclared")
+      result = ShellCmd.run_testsuite("non_root_containers")
+      result[:status].success?.should be_true
+      (/(PASSED).*(Containers run as non-root user and group)/ =~ result[:output]).should_not be_nil
+      verify_task_result("non_root_containers", "passed")
+      results = YAML.parse(File.read(CNFManager::Points::Results.latest))
+      item = results["items"].as_a.find { |i| i["name"] == "non_root_containers" }.not_nil!
+      (item["details"].as_a.map(&.as_s).join("\n") =~ /Deployment coredns-undeclared container coredns runs as uid 65532 gid 65532 but the manifest does not say so/).should_not be_nil
+      (item["remediation"].as_a.map(&.as_s).join("\n") =~ /runAsNonRoot: true/).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -288,7 +305,11 @@ describe "Security" do
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf")
       result = ShellCmd.run_testsuite("non_root_containers")
       result[:status].exit_code.should eq(1)
-      (/(PASSED).*(Containers are running with non-root user with non-root group membership)/ =~ result[:output]).should be_nil
+      (/(FAILED).*(Found containers running as root user or with root group membership)/ =~ result[:output]).should_not be_nil
+      verify_task_result("non_root_containers", "failed")
+      results = YAML.parse(File.read(CNFManager::Points::Results.latest))
+      item = results["items"].as_a.find { |i| i["name"] == "non_root_containers" }.not_nil!
+      (item["impacted_resources"].to_yaml =~ /runs as uid 0 gid 0/).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end

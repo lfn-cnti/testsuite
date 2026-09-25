@@ -1,0 +1,33 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nonroot-undeclared
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
+# A non-root image (distroless "nonroot", uid and gid 65532) whose manifest
+# declares no runAsNonRoot, runAsUser or runAsGroup. The process never runs as
+# root; only the declaration is missing.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coredns-undeclared
+  namespace: nonroot-undeclared
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coredns-undeclared
+  template:
+    metadata:
+      labels:
+        app: coredns-undeclared
+    spec:
+      containers:
+      - name: coredns
+        image: coredns/coredns:1.14.6
+        args: ["-dns.port=1053"]
+        ports:
+        - containerPort: 1053
+          protocol: UDP
