@@ -645,28 +645,32 @@ def wait_for_processes_to_exit(pids : Array(String), node : JSON::Any, seconds :
   survivors
 end
 
-# Check if SIGTERM appears in all strace log files
-def check_sigterm_in_strace_logs(pid : String, node : JSON::Any) : Bool
-  # List all thread log files for this PID on the remote node
+# The signals that ask a process to shut down. A supervisor is free to stop a
+# service with the one it wants (SIGQUIT for nginx, SIGUSR1 for haproxy);
+# any of them delivered by PID 1 is the container's SIGTERM being acted on.
+TERMINATION_SIGNALS = ["SIGTERM", "SIGINT", "SIGQUIT", "SIGHUP", "SIGUSR1", "SIGUSR2"]
+
+# How a traced process ended, from its strace logs (one file per thread):
+# the termination signal it was sent, if any, and the signal it was killed
+# with, if it did not exit on its own ("+++ killed by SIGKILL +++").
+def strace_termination(pid : String, node : JSON::Any) : NamedTuple(signal: String?, killed_by: String?)
   result = ClusterTools.exec_by_node("ls /tmp | grep #{pid}-strace || true", node)
   files = result[:output].split("\n").reject(&.empty?).map { |f| "/tmp/#{f}" }
-
   if files.empty?
     Log.warn { "No strace log files found for PID #{pid} on node." }
-    return false
+    return {signal: nil, killed_by: nil}
   end
-
+  signal = nil
+  killed_by = nil
   begin
     files.each do |file|
       contents = ClusterTools.exec_by_node("cat #{file} || true", node)[:output]
       next if contents.empty?
-
-      if contents.includes?("SIGTERM")
-        Log.info { "SIGTERM found in #{file}" }
-        return true
-      end
+      signal ||= contents.scan(/^--- (SIG[A-Z0-9]+) /m).map(&.[1]).find { |name| TERMINATION_SIGNALS.includes?(name) }
+      killed_by ||= contents.match(/\+\+\+ killed by (SIG[A-Z0-9]+)/).try(&.[1])
     end
-    false
+    Log.info { "PID #{pid}: termination signal #{signal || "none"}, killed by #{killed_by || "nothing"}" }
+    {signal: signal, killed_by: killed_by}
   ensure
     ClusterTools.exec_by_node("rm -f /tmp/#{pid}-strace*", node)
   end
@@ -808,15 +812,24 @@ scored_task "sig_term_handled",
           # (zombie_handled) needs a running container to probe (#2576).
           KubectlClient::Wait.wait_for_resource_availability("pod", pod_name, pod_namespace, POD_READINESS_TIMEOUT)
 
-          not_delivered = traced.reject { |cpid| check_sigterm_in_strace_logs(cpid, node) }
-          logger.info { "#{pod_name}/#{c_name}: judged #{judged}, survivors after #{grace_seconds}s: #{survivors}, never received SIGTERM: #{not_delivered}" }
-
-          if survivors.empty? && not_delivered.empty?
+          # The verdict is the outcome: a process still running failed, a process
+          # killed with SIGKILL did not shut down but was ended. strace says how
+          # a process that exited was stopped: the signal it was sent, or none
+          # (a supervisor may use a control socket or a pipe instead).
+          endings = traced.to_h { |cpid| {cpid, strace_termination(cpid, node)} }
+          killed = endings.compact_map { |cpid, ending| ending[:killed_by].try { |sig| "#{cpid} (killed with #{sig})" } unless survivors.includes?(cpid) }
+          stopped = judged.reject { |cpid| survivors.includes?(cpid) || endings[cpid]?.try(&.[:killed_by]) }.map do |cpid|
+            signal = endings[cpid]?.try(&.[:signal])
+            "#{cpid} stopped #{signal ? "with #{signal}" : "without a signal in its trace"}"
+          end
+          checked_containers[-1] += ": #{stopped.join(", ")}" unless stopped.empty?
+          logger.info { "#{pod_name}/#{c_name}: judged #{judged}, survivors after #{grace_seconds}s: #{survivors}, killed: #{killed}, stopped: #{stopped}" }
+          if survivors.empty? && killed.empty?
             true
           else
             reason = [] of String
             reason << "still running #{grace_seconds}s after SIGTERM: #{survivors.join(", ")}" unless survivors.empty?
-            reason << "never received SIGTERM (not forwarded by PID 1): #{not_delivered.join(", ")}" unless not_delivered.empty?
+            reason << "killed instead of stopped: #{killed.join(", ")}" unless killed.empty?
             failed_containers << {
               namespace: pod_namespace,
               pod: pod_name,

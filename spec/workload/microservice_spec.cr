@@ -354,7 +354,7 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("sig_term_handled")
       result[:status].success?.should be_true
       (/(PASSED).*(Sig Term handled)/ =~ result[:output]).should_not be_nil
-      (/> Checked .*: PID 1 \d+.*judged pid\(s\) \d+/ =~ result[:output]).should_not be_nil
+      (/> Checked .*: PID 1 \d+.*judged pid\(s\) \d+.*: \d+ stopped with SIGTERM/ =~ result[:output]).should_not be_nil
       verify_task_result("sig_term_handled", "passed")
     ensure
       result = ShellCmd.cnf_uninstall()
