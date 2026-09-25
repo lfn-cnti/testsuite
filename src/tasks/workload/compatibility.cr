@@ -185,6 +185,11 @@ scored_task "increase_decrease_capacity",
     # tests after this one see.
     deployed = {} of Tuple(String, String, String) => Int32
     failures = [] of String
+    # Workloads an operator owns take their size from its custom resource.
+    # They are scaled like the others, and many follow; one that does not has
+    # its operator to answer to (it reverts the change, or never configures
+    # pods it did not ask for), so it is named, not held against the CNF.
+    operator_owned = [] of String
 
     begin
       CNFManager.cnf_workload_resources(args, config) do |resource|
@@ -194,12 +199,17 @@ scored_task "increase_decrease_capacity",
         namespace = resource.dig("metadata", "namespace").as_s
         ref = "#{resource["kind"].as_s}/#{name}"
 
+        owner = custom_resource_controller(KubectlClient::Get.resource(resource["kind"].as_s, name, namespace))
         replicas = deployed_replicas(resource["kind"].as_s, name, namespace)
         deployed[{resource["kind"].as_s, name, namespace}] = replicas
         target = replicas + increase_by
         Log.for(t.name).info { "#{ref} in #{namespace}: deployed with #{replicas} replicas; scaling to #{target}, then back" }
 
         ready = scale_and_wait(resource, target, args)
+        if ready != target.to_s && owner
+          operator_owned << "#{ref} in #{namespace}: owned by #{owner}, which sets its replica count; a direct scale to #{target} did not take (#{ready} ready), so it is not counted"
+          next
+        end
         if ready != target.to_s
           failures << "#{ref} in #{namespace}: increase from #{replicas} to #{target} replicas did not complete (#{ready} ready)"
           why = WorkloadDiagnostics.report(result, resource["kind"].as_s, name, namespace, "#{ref} while scaling to #{target}")
@@ -222,10 +232,13 @@ scored_task "increase_decrease_capacity",
       end
     end
 
-    if deployed.empty?
+    operator_owned.each { |line| result.append_description(line) }
+    if !deployed.empty? && operator_owned.size == deployed.size
+      result.na("increase_decrease_capacity not applicable: every workload is sized by an operator's custom resource and none followed a direct scale")
+    elsif deployed.empty?
       result.skipped("No Deployment or StatefulSet to scale")
     elsif failures.empty?
-      result.passed("Replicas increased to deployed count + #{increase_by} and decreased back for #{deployed.size} resource(s)")
+      result.passed("Replicas increased to deployed count + #{increase_by} and decreased back for #{deployed.size - operator_owned.size} resource(s)")
     else
       failures.each { |failure| result.append_description(failure) }
       result.append_remediation(increase_decrease_remedy_msg())
@@ -307,6 +320,18 @@ end
 
 # The replica count a resource was deployed with: its live spec, defaulting
 # to Kubernetes' own default of 1 when the field is unset.
+# The workload's controller owner, as "Kind/name", when it is a custom
+# resource (an API group other than the core, apps and batch ones): an
+# operator's object, not a Kubernetes controller. Nil otherwise.
+def custom_resource_controller(workload : JSON::Any) : String?
+  controller = workload.dig?("metadata", "ownerReferences").try(&.as_a?).try &.find { |ref| ref["controller"]?.try(&.as_bool?) }
+  return nil unless controller
+  api_version = controller["apiVersion"]?.try(&.as_s?) || ""
+  group = api_version.includes?('/') ? api_version.split('/').first : ""
+  return nil if ["", "apps", "batch"].includes?(group)
+  "#{controller["kind"]?.try(&.as_s?)}/#{controller["name"]?.try(&.as_s?)}"
+end
+
 def deployed_replicas(kind : String, name : String, namespace : String) : Int32
   KubectlClient::Get.resource(kind, name, namespace).dig?("spec", "replicas").try(&.as_i) || 1
 end
