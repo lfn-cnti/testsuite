@@ -40,6 +40,7 @@ module CLIOptions
     Option.new("cnf-config", Kind::Value, "a cnti-testsuite.yaml, or the directory holding one", value_label: "PATH", file: true, retired: "cnf-config"),
     Option.new("timeout", Kind::Value, "how long to wait for install and uninstall operations", value_label: "SECONDS", numeric: true, retired: "timeout"),
     Option.new("results-dir", Kind::Value, "where results files go (default: ./cnti/results, or $CNTI_TESTSUITE_RESULTS_DIR)", value_label: "PATH", retired: "results-dir"),
+    Option.new("output", Kind::Value, "stdout format: text (default) or json (results document as JSON; logs and progress go to stderr)", value_label: "FORMAT"),
     Option.new("kubeconfig", Kind::Value, "the kubeconfig to use (default: $KUBECONFIG)", value_label: "PATH", file: true),
     Option.new("skip", Kind::Multi, "skip a task within a suite; repeatable", value_label: "TASK", retired: "exclude"),
     Option.new("input-config", Kind::Value, "update_config: the cnti-testsuite.yaml to convert", value_label: "PATH", file: true, retired: "input-config"),
