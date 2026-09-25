@@ -901,6 +901,7 @@ scored_task "specialized_init_system",
     error_occurred    = false
     resources_checked = false
     checked_inits     = [] of String
+    not_inspected     = [] of String
 
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
       Log.for(t.name).info { "Checking #{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}" }
@@ -931,10 +932,13 @@ scored_task "specialized_init_system",
           next false
         end
 
+        results.reject(&.inspected).each do |info|
+          not_inspected << "#{info.kind}/#{info.name} container #{info.container}: PID 1's command line could not be read"
+        end
         results.select(&.specialized).each do |info|
           checked_inits << "#{info.kind}/#{info.name} container #{info.container}: init '#{info.init_cmd}'"
         end
-        failed = results.reject(&.specialized)
+        failed = results.select(&.inspected).reject(&.specialized)
 
         # No failures => this pod passes
         if failed.empty?
@@ -951,8 +955,11 @@ scored_task "specialized_init_system",
       end.all?(true)
     end
 
+    not_inspected.each { |line| result.append_description(line) }
     if error_occurred
       result.skipped("An error occurred during container inspection")
+    elsif checked_inits.empty? && task_response && !not_inspected.empty?
+      result.skipped("No container's init process could be read")
     elsif !resources_checked
       result.skipped("Container checks not executed")
     elsif !task_response
