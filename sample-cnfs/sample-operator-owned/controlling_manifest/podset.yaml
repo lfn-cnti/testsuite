@@ -1,0 +1,10 @@
+---
+apiVersion: demo.example.com/v1
+kind: PodSet
+metadata:
+  name: demo-owned
+  namespace: cnti-default
+spec:
+  replicas: 2
+  image: nginx
+  podNamePrefix: "demo-owned"

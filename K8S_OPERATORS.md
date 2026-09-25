@@ -13,7 +13,8 @@ Operators are Kubernetes controllers that manage custom resources and automate a
 
 2. **OwnerReference-based Identification**
    - Many operators create workload resources (e.g., Deployments, Pods, ReplicaSets) with `ownerReferences` pointing to custom resources (CRDs) managed by the operator.
-   - The test suite scans for resources owned by custom resources, using the `ownerReferences` field in Kubernetes metadata.
+   - The test suite scans for resources owned by custom resources, using the `ownerReferences` field in Kubernetes metadata, whether or not label selectors are configured.
+   - An operator acts only after its custom resources exist, so the suite waits for owned workloads to appear (up to `CNTI_TESTSUITE_OWNED_RESOURCE_DISCOVERY_TIMEOUT`, 60 seconds by default), then for each to become ready and for the set to settle, the same way it waits for label-identified workloads. A CNF whose custom resources own no workload moves on once that window has passed.
    - These owned resources are also appended to the composite manifest, ensuring that all relevant resources are tracked for testing.
 
 ## Example: Operator Deployment
@@ -39,7 +40,7 @@ Suppose an operator creates Deployments for a custom resource (for example, `Pod
 - **Label Selectors:**
   - Define label selectors in `cnti-testsuite.yaml` under `workload_resource_labels`.
 - **Timeouts:**
-  - Use the `timeout` CLI argument or `CNTI_TESTSUITE_LABEL_RESOURCE_SLEEP` environment variable to control waiting behavior for resource identification.
+  - Use the `timeout` CLI argument or the `CNTI_TESTSUITE_LABEL_RESOURCE_SLEEP` and `CNTI_TESTSUITE_OWNED_RESOURCE_DISCOVERY_TIMEOUT` environment variables to control waiting behavior for resource identification.
 
 ## Best Practices
 

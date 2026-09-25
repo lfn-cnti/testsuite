@@ -182,6 +182,21 @@ describe "Security" do
     end
   end
 
+  it "'cpu_limits' should include resources owned by the CNF's custom resources, found without labels once the operator has created them", tags: ["labels"] do
+    begin
+      install = ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-operator-owned/cnti-testsuite.yaml")
+      (/Added 1 resources via ownerReferences to composite manifest/ =~ install[:output]).should_not be_nil
+      result = ShellCmd.run_testsuite("cpu_limits")
+      result[:status].exit_code.should eq(1)
+      expected = /impacted: Deployment\/demo-owned in cnti-default \(container .+\): spec\.template\.spec\.containers\[\d+\]\.resources\.limits\.cpu is not set/
+      unless expected =~ result[:output]
+        fail "no finding for the owned Deployment/demo-owned; impacted lines were:\n#{result[:output].lines.select(&.includes?("impacted:")).join}"
+      end
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'memory_limits' should pass on a cnf that has containers with memory limits set", tags: ["security"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf")
