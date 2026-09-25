@@ -570,6 +570,7 @@ scored_task "pod_io_stress",
         target_pod_name = ""
         chaos_test_name = "#{resource["name"]}-#{Random.rand(99)}"
         chaos_result_name = "#{chaos_test_name}-#{chaos_experiment_name}"
+        filesystem_utilization_bytes = LitmusManager.filesystem_utilization_bytes_for(containers, target_container)
 
         template = ChaosTemplates::PodIoStress.new(
           chaos_test_name,
@@ -581,7 +582,8 @@ scored_task "pod_io_stress",
           target_pod_name,
           container_runtime: container_runtime,
           socket_path: socket_path,
-          target_container: target_container
+          target_container: target_container,
+          filesystem_utilization_bytes: filesystem_utilization_bytes || ""
         ).to_s
 
         chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")

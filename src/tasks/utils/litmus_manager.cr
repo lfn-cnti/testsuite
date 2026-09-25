@@ -245,6 +245,8 @@ module LitmusManager
   # cluster property, so an environment variable and not the CNF's config.
   RUNTIME_SOCKET_ENV = "CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET"
 
+  POD_IO_STRESS_MEMORY_BUDGET_FRACTION = ENV["CNTI_TESTSUITE_POD_IO_STRESS_MEMORY_BUDGET_FRACTION"]?.try(&.to_f64?) || 0.5_f64
+
   # Runtime name the litmus helpers understand, from a node's
   # containerRuntimeVersion (e.g. "containerd://2.0.2"), or nil.
   def self.runtime_name(container_runtime : String) : String?
@@ -331,5 +333,44 @@ module LitmusManager
     download_file(url, filepath)
 
     filepath
+  end
+
+  def self.container_memory_limit_bytes(containers : JSON::Any, container_name : String) : Int64?
+    containers.as_a.each do |container|
+      next unless container["name"]?.try(&.as_s?) == container_name
+      limit = container.dig?("resources", "limits", "memory").try(&.as_s?)
+      return memory_quantity_bytes(limit) if limit
+    end
+    nil
+  end
+
+  def self.memory_quantity_bytes(quantity : String) : Int64?
+    match = quantity.strip.match(/\A(\d+)\s*(Ki|Mi|Gi|Ti|Pi|Ei|K|M|G|T|P|E)?\z/i)
+    return nil unless match
+    factor = case match[2]?.try(&.downcase)
+             when nil     then 1_i64
+             when "ki"    then 1024_i64
+             when "mi"    then 1024_i64 ** 2
+             when "gi"    then 1024_i64 ** 3
+             when "ti"    then 1024_i64 ** 4
+             when "pi"    then 1024_i64 ** 5
+             when "ei"    then 1024_i64 ** 6
+             when "k"     then 1000_i64
+             when "m"     then 1000_i64 ** 2
+             when "g"     then 1000_i64 ** 3
+             when "t"     then 1000_i64 ** 4
+             when "p"     then 1000_i64 ** 5
+             when "e"     then 1000_i64 ** 6
+             else              1_i64
+             end
+    match[1].to_i64 * factor
+  end
+
+  def self.filesystem_utilization_bytes_for(containers : JSON::Any, container_name : String) : String?
+    limit = container_memory_limit_bytes(containers, container_name)
+    return nil unless limit
+    bytes = (limit.to_f64 * POD_IO_STRESS_MEMORY_BUDGET_FRACTION).to_i64
+    Log.for("LitmusManager.filesystem_utilization_bytes_for").info { "#{container_name} memory limit #{limit // 1024 // 1024} MiB, bounding the io stress file to #{bytes // 1024 // 1024} MiB" }
+    bytes.to_s
   end
 end
