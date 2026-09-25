@@ -363,28 +363,17 @@ module CNFInstall
         stdout_failure "It is recommended to investigate the resource in the cluster, " +
                        "run cnf_uninstall, and then attempt to reinstall the CNF."
 
-        # --- DEBUG INFO ---
-        # Log deployment status, pod status, and pod logs at info level
-        logger = Log.for("deployment_timeout_debug")
-        if resource_info[:kind].downcase == "deployment"
-          ns = resource_info[:namespace] || "default"
-          deployment_status = `kubectl get deployment #{resource_info[:name]} -n #{ns} -o yaml 2>&1`
-          logger.info { "--- Deployment status ---\n#{deployment_status}" }
-
-          pods = `kubectl get pods -n #{ns} -l app=#{resource_info[:name]} -o name 2>&1`.split("\n")
-          pods.each do |pod|
-            pod_name = pod.split("/").last
-            pod_status = `kubectl get pod #{pod_name} -n #{ns} -o yaml 2>&1`
-            logger.info { "--- Pod status for #{pod_name} ---\n#{pod_status}" }
-          end
-
-          pods.each do |pod|
-            pod_name = pod.split("/").last
-            pod_logs = `kubectl logs #{pod_name} -n #{ns} --tail=40 2>&1`
-            logger.info { "--- Logs for pod #{pod_name} ---\n#{pod_logs}" }
-          end
+        # Why the workload is not ready, found through its selector whatever
+        # its kind: pod state and Warning events for everyone, container log
+        # tails (with the previous run of a restarted container) in the log.
+        ns = resource_info[:namespace] || CLUSTER_DEFAULT_NAMESPACE
+        WorkloadDiagnostics.problems(resource_info[:kind], resource_info[:name], ns).each do |line|
+          stdout_failure "  #{line}"
         end
-        # --- END DEBUG INFO ---
+        logger = Log.for("deployment_timeout_debug")
+        WorkloadDiagnostics.log_tails(resource_info[:kind], resource_info[:name], ns).each do |section|
+          logger.info { section }
+        end
         exit 1
       end
       current_resource_number += 1

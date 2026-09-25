@@ -1,0 +1,9 @@
+---
+# A Deployment whose container prints a marker and exits, so it never becomes
+# ready: cnf_install times out and must say why. Labelled the way Helm charts
+# label pods (app.kubernetes.io/name), not with a bare `app` label.
+config_version: v2
+deployments:
+  manifests:
+  - name: crash-looper
+    manifest_directory: manifests

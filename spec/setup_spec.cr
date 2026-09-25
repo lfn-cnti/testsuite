@@ -259,6 +259,20 @@ describe "Installation" do
     end
   end
 
+  it "'cnf_install' should say why a workload did not become ready, with the crashed container's log", tags: ["cnf_installation1"] do
+    begin
+      result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-crashloop/cnti-testsuite.yaml", timeout: 60, cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=info", expect_failure: true)
+      (/\[Deployment\] crash-looper is not ready after 60 seconds/ =~ result[:output]).should_not be_nil
+      # The pod is found through the Deployment's selector (no bare `app` label).
+      (/pod crash-looper-\S+: \w+/ =~ result[:output]).should_not be_nil
+      # The run before the current one says why the container exits.
+      (/previous log of pod crash-looper-\S+ container app ---\n.*cnti-crash-marker: configuration missing/m =~ result[:output]).should_not be_nil
+      result[:output].should_not contain("error: expected 'logs")
+    ensure
+      ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'cnf_install/cnf_uninstall' should handle partial deployment failures gracefully", tags: ["cnf_installation1"] do
     begin
       result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-partial-deployment-failure/cnti-testsuite.yaml", expect_failure: true)
