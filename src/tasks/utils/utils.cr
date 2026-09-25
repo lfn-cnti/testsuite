@@ -379,7 +379,9 @@ def stdout_colored(msg, color, same_line = false)
     msg = "#{"\e[1A\e[K"}#{msg}"
   end
   # In JSON mode the human trail goes to stderr as plain text; color codes are
-  # noise in captured logs.
+  # noise in captured logs. (Note: Colorize.enabled is decided by STDOUT.tty?,
+  # so with `--output json 1>results.json` on a terminal the stderr trail is
+  # colourless anyway; forcing plain here keeps it consistent regardless.)
   io.puts(json_output? ? msg : msg.colorize(color))
   StatusLine.interrupted
 end
