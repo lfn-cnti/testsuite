@@ -10,7 +10,10 @@ USAGE_EXIT_CODE = 64
 # visible from the command line alone -- a missing or unknown argument, a
 # malformed value, a path that names no file -- before anything has run.
 def usage_error!(message : String) : NoReturn
-  stdout_failure message
+  # Usage errors always go to stderr, in text and JSON mode alike: they are
+  # raised before the invocation is recorded (so json_output? is not yet known),
+  # and a caller parsing stdout should see an empty document, not an error line.
+  STDERR.puts message.colorize(:red)
   exit USAGE_EXIT_CODE
 end
 
