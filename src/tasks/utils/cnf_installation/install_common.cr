@@ -119,6 +119,20 @@ module CNFInstall
     FileUtils.mkdir_p(CNF_TEMP_FILES_DIR)
   end
 
+  # A copied chart's `file://` dependencies point relative to where the chart
+  # came from (an umbrella chart's `file://../sibling`); in the copy they are
+  # made absolute, so its dependencies can be built without touching the
+  # user's checkout.
+  def self.absolutize_local_dependencies(chart_copy : String, source_dir : String)
+    ["Chart.yaml", "requirements.yaml"].each do |file|
+      path = File.join(chart_copy, file)
+      next unless File.exists?(path)
+      text = File.read(path)
+      rewritten = text.gsub(/file:\/\/(?!\/)([^\s"']+)/) { "file://#{File.expand_path($~[1], source_dir)}" }
+      File.write(path, rewritten) unless rewritten == text
+    end
+  end
+
   def self.prepare_deployment_directories(config, cnf_config_path)
     # Deployment names are expected to be unique (ensured in config)
     config.deployments.helm_charts.each do |helm_chart_config|
@@ -129,6 +143,7 @@ module CNFInstall
       destination_dir = File.join(DEPLOYMENTS_DIR, helm_directory_config.name)
       FileUtils.mkdir_p(destination_dir)
       FileUtils.cp_r(source_dir, destination_dir)
+      absolutize_local_dependencies(File.join(destination_dir, File.basename(source_dir)), source_dir)
     end
     config.deployments.manifests.each do |manifest_config|
       source_dir = File.join(Path[cnf_config_path].dirname, manifest_config.manifest_directory)

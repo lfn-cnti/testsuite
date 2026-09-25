@@ -246,6 +246,19 @@ describe "Installation" do
     end
   end
 
+  it "'cnf_install' should build a helm_dirs chart's missing dependencies, including file:// siblings, before installing it", tags: ["cnf_installation1"] do
+    begin
+      result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-helm-dependencies/cnti-testsuite.yaml")
+      (/Building 1 missing dependency of chart "umbrella": settings 0.1.0/ =~ result[:output]).should_not be_nil
+      (/CNF installation complete/ =~ result[:output]).should_not be_nil
+      KubectlClient::Get.resource("configmap", "settings-from-dependency", "helm-dependencies").dig?("metadata", "name").should eq("settings-from-dependency")
+      # The dependency is built in the installed copy, never in the source chart.
+      Dir.exists?("sample-cnfs/sample-helm-dependencies/charts/umbrella/charts").should be_false
+    ensure
+      ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'cnf_install/cnf_uninstall' should handle partial deployment failures gracefully", tags: ["cnf_installation1"] do
     begin
       result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-partial-deployment-failure/cnti-testsuite.yaml", expect_failure: true)
