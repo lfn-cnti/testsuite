@@ -1,0 +1,11 @@
+---
+# An umbrella chart whose dependency is a sibling chart referenced with
+# file://../settings, the way umbrella charts in a repository usually are,
+# and whose charts/ directory is not vendored: cnf_install has to build the
+# dependency before it can install the chart.
+config_version: v2
+deployments:
+  helm_dirs:
+  - name: umbrella
+    helm_directory: charts/umbrella
+    namespace: helm-dependencies

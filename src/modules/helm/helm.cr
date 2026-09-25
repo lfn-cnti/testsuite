@@ -1,3 +1,4 @@
+require "digest/sha256"
 require "../kubectl_client"
 require "../net_retry"
 require "./utils.cr"
@@ -439,6 +440,46 @@ module Helm
   end
 
   # Create a new chart directory
+  alias ChartDependency = NamedTuple(name: String, version: String, repository: String)
+
+  # The dependencies a chart declares: Chart.yaml's `dependencies` (apiVersion
+  # v2), or requirements.yaml for an apiVersion v1 chart.
+  def self.chart_dependencies(chart_dir : String) : Array(ChartDependency)
+    source = [File.join(chart_dir, "Chart.yaml"), File.join(chart_dir, "requirements.yaml")].find { |f| File.exists?(f) && File.read(f).includes?("dependencies:") }
+    return [] of ChartDependency unless source
+    deps = YAML.parse(File.read(source)).dig?("dependencies").try(&.as_a?) || [] of YAML::Any
+    deps.map do |dep|
+      {name: dep["name"]?.try(&.as_s?) || "", version: dep["version"]?.try(&.to_s) || "", repository: dep["repository"]?.try(&.as_s?) || ""}
+    end.reject(&.[:name].empty?)
+  end
+
+  # The declared dependencies not present in the chart's charts/ directory,
+  # neither unpacked (charts/<name>) nor packaged (charts/<name>-<version>.tgz).
+  def self.missing_dependencies(chart_dir : String) : Array(ChartDependency)
+    charts = File.join(chart_dir, "charts")
+    chart_dependencies(chart_dir).reject do |dep|
+      Dir.exists?(File.join(charts, dep[:name])) ||
+        (Dir.exists?(charts) && Dir.children(charts).any? { |f| f.ends_with?(".tgz") && f.matches?(/^#{Regex.escape(dep[:name])}-\d/) })
+    end
+  end
+
+  # Fetches a chart's missing dependencies into its charts/ directory: adds the
+  # HTTP repositories they come from under generated names (OCI and file://
+  # dependencies need none), then `helm dependency build` when a lock file
+  # pins them, `helm dependency update` otherwise.
+  def self.build_dependencies(chart_dir : String) : CMDResult
+    logger = Log.for("build_dependencies")
+    chart_dependencies(chart_dir).map(&.[:repository]).uniq.each do |repo|
+      next unless repo.starts_with?("http://") || repo.starts_with?("https://")
+      helm_repo_add("cnti-dep-#{Digest::SHA256.hexdigest(repo)[0, 10]}", repo)
+    end
+    locked = File.exists?(File.join(chart_dir, "Chart.lock")) || File.exists?(File.join(chart_dir, "requirements.lock"))
+    cmd = "#{Binary.get} dependency #{locked ? "build" : "update"} #{chart_dir}"
+    NetRetry.with_retries("helm dependency #{locked ? "build" : "update"} #{chart_dir}", logger) do
+      ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+    end
+  end
+
   def self.create_chart(path : String) : CMDResult
     logger = Log.for("create_chart")
 

@@ -221,6 +221,17 @@ module CNFInstall
 
     def install()
       chart_path = File.join(DEPLOYMENTS_DIR, @deployment_name, File.basename(@helm_directory_config.helm_directory))
+      missing = Helm.missing_dependencies(chart_path)
+      unless missing.empty?
+        stdout_info "Building #{missing.size} missing dependenc#{missing.size == 1 ? "y" : "ies"} of chart \"#{@deployment_name}\": #{missing.map { |d| "#{d[:name]} #{d[:version]}" }.join(", ")}"
+        begin
+          Helm.build_dependencies(chart_path)
+        rescue e : Helm::ShellCMD::HelmCMDException
+          stdout_failure "Could not build the dependencies of chart \"#{@deployment_name}\":"
+          stdout_failure "\t#{e.message.to_s.lines.first?.to_s.strip}"
+          return false
+        end
+      end
       install_from_folder(chart_path, get_deployment_namespace(), @helm_directory_config.helm_values)
     end
 
