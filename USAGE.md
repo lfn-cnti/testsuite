@@ -113,6 +113,11 @@ The default is `--output text`.
 ./cnti-testsuite all --output json 1>results.json 2>run.log
 ```
 
+Commands that write no results file — `cnf_install`, `setup` and the other lifecycle
+commands — print **nothing** to stdout in JSON mode; their exit code is the only signal, so a
+caller should not wait for a document that never comes. Usage errors (exit `64`) are reported on
+**stderr** as well, so a caller parsing stdout sees an empty document rather than an error object.
+
 ##### Structure
 
 ```yaml
