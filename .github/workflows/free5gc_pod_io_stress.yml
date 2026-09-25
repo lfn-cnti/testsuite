@@ -91,9 +91,10 @@ jobs:
         run: |
           kubectl get pods -A -o wide
           for p in $(kubectl get pods -A -o name | grep -E '(pod-io-stress|chaos-engine|chaos-runner|-runner)' | grep -v control-plane || true); do
-            echo "=== $p ==="
-            kubectl logs $p --all-containers --tail=200 --prefix 2>&1 || true
-            kubectl describe $p 2>&1 | tail -60 || true
+            ns=$(kubectl get $p -o jsonpath='{.metadata.namespace}' 2>/dev/null || true)
+            echo "=== $p (ns=$ns) ==="
+            kubectl -n "$ns" logs $p --all-containers --tail=200 --prefix 2>&1 || true
+            kubectl -n "$ns" describe $p 2>&1 | tail -60 || true
           done
           kubectl get events -A --sort-by=.lastTimestamp | head -4000
       - name: Delete Kind Cluster

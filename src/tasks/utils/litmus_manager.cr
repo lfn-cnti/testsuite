@@ -247,6 +247,12 @@ module LitmusManager
 
   POD_IO_STRESS_MEMORY_BUDGET_FRACTION = ENV["CNTI_TESTSUITE_POD_IO_STRESS_MEMORY_BUDGET_FRACTION"]?.try(&.to_f64?) || 0.5_f64
 
+  # Where pod_io_stress writes its file inside the target container. The
+  # percentage bound is computed from the free space of this exact path (see
+  # filesystem_utilization_percentage), so a mismatch would make the bound
+  # meaningless.
+  POD_IO_STRESS_VOLUME_MOUNT_PATH = ENV["CNTI_TESTSUITE_POD_IO_STRESS_VOLUME_MOUNT_PATH"]?.presence || "/tmp"
+
   # Runtime name the litmus helpers understand, from a node's
   # containerRuntimeVersion (e.g. "containerd://2.0.2"), or nil.
   def self.runtime_name(container_runtime : String) : String?
@@ -366,11 +372,87 @@ module LitmusManager
     match[1].to_i64 * factor
   end
 
-  def self.filesystem_utilization_bytes_for(containers : JSON::Any, container_name : String) : String?
-    limit = container_memory_limit_bytes(containers, container_name)
-    return nil unless limit
-    bytes = (limit.to_f64 * POD_IO_STRESS_MEMORY_BUDGET_FRACTION).to_i64
-    Log.for("LitmusManager.filesystem_utilization_bytes_for").info { "#{container_name} memory limit #{limit // 1024 // 1024} MiB, bounding the io stress file to #{bytes // 1024 // 1024} MiB" }
-    bytes.to_s
+  # A percentage a stress-ng "--hdd-bytes" accepts that yields a 1 MiB file
+  # (stress-ng floors fractional percentages and then clamps to its 1.0 MB
+  # MIN_HDD_BYTES). Emitted whenever the budget needs less than a full percent
+  # of the free space, since stress-ng has no way to size a file between 0 and
+  # 1% of the filesystem.
+  def self.min_percentage
+    "0.5"
+  end
+
+  # Free space, in bytes, of the write path as the target container sees it.
+  # The litmus pod_io_stress helper runs stress-ng inside the target container
+  # and stress-ng sizes its file as a percentage of the free space of the
+  # --temp-path filesystem (f_bavail * f_bsize via statvfs). The bound is only
+  # trustworthy if it is computed from that same path and filesystem, so it is
+  # probed through the cluster-tools DaemonSet: /proc/<pid>/root resolves the
+  # path into the target container's root, bypassing the container's own
+  # binaries which a minimal image may lack.
+  def self.filesystem_free_space_bytes(
+    container_pid_on_node : String,
+    node : JSON::Any,
+    volume_mount_path : String = POD_IO_STRESS_VOLUME_MOUNT_PATH
+  ) : Int64?
+    result = ClusterTools.exec_by_node("stat -f -c '%S %a' /proc/#{container_pid_on_node}/root#{volume_mount_path}", node)
+    return nil unless result && result[:status].success?
+    block_size, free_blocks = result[:output].strip.split
+    block_size.to_i64? && free_blocks.to_i64? ? block_size.to_i64 * free_blocks.to_i64 : nil
+  rescue error : Exception
+    Log.for("LitmusManager.filesystem_free_space_bytes").error { "probe of #{volume_mount_path} in container #{container_pid_on_node} on node #{node.dig?("metadata", "name")} failed: #{error.message}" }
+    nil
+  end
+
+  # The id of the container named container_name on its node, from the
+  # cluster-tools DaemonSet (which already tracks every container's node pid).
+  def self.target_container_pid_on_node(resource, namespace : String, container_name : String) : {String, JSON::Any}?
+    found : {String, JSON::Any}? = nil
+    ClusterTools.all_containers_by_resource?(resource, namespace, include_proctree: false) do |_, container_pid_on_node, node, _, container_status, _|
+      next unless container_status.dig?("name").try(&.as_s?) == container_name
+      found = {container_pid_on_node, node}
+      break
+    end
+    found
+  end
+
+  # Percentage of the --temp-path free space that keeps the pod_io_stress file
+  # under the container's memory budget (quota times
+  # POD_IO_STRESS_MEMORY_BUDGET_FRACTION). stress-ng computes
+  # "N% of free space" as N * free / 100, so the floor of
+  # budget * 100 / free keeps the file at or under the budget. A sub-1%
+  # budget maps to MIN_HDD_BYTES (1 MiB), below every memory quota. Nil when
+  # the container has no memory limit (nothing to protect); on a probe failure
+  # it degrades to the smallest percentage rather than returning an unbounded
+  # one, which would reintroduce the OOM race this bound exists to prevent.
+  def self.filesystem_utilization_percentage(containers : JSON::Any, resource, namespace : String, container_name : String) : String?
+    budget = container_memory_limit_bytes(containers, container_name)
+    return nil unless budget
+    logger = Log.for("LitmusManager.filesystem_utilization_percentage")
+    budget_bytes = (budget.to_f64 * POD_IO_STRESS_MEMORY_BUDGET_FRACTION).to_i64
+
+    found = target_container_pid_on_node(resource, namespace, container_name)
+    unless found
+      logger.warn { "target container #{container_name} not found on any node, degrading the io stress file to #{min_percentage}%" }
+      return min_percentage
+    end
+    pid_on_node, node = found
+
+    free_space_bytes = filesystem_free_space_bytes(pid_on_node, node, POD_IO_STRESS_VOLUME_MOUNT_PATH)
+    unless free_space_bytes && free_space_bytes > 0
+      logger.warn { "cannot read free space of #{POD_IO_STRESS_VOLUME_MOUNT_PATH} in #{container_name}, degrading the io stress file to #{min_percentage}%" }
+      return min_percentage
+    end
+
+    # Floor, not ceil: a percentage above budget * 100 / free would write a
+    # file above the budget and bring the OOM race back (e.g. 1% of a 7.5 GiB
+    # root fs is 77 MiB, larger than dbpython's 64 MiB budget).
+    integer_percentage = (budget_bytes * 100) // free_space_bytes
+    percentage = if integer_percentage < 1
+                   min_percentage
+                 else
+                   {integer_percentage, 90}.min
+                 end
+    logger.info { "#{container_name}: memory budget ~#{budget_bytes // 1024 // 1024} MiB over #{free_space_bytes // 1024 // 1024} MiB free at #{POD_IO_STRESS_VOLUME_MOUNT_PATH}, io stress file set to #{percentage}%" }
+    percentage.to_s
   end
 end
