@@ -118,6 +118,10 @@ module CLIParser
       else
         errors << "Invalid value for '--kubeconfig': '#{value}' is not a file."
       end
+    elsif option.name == "output"
+      unless value == "text" || value == "json"
+        errors << "Invalid value for '--output': '#{value}' (expected 'text' or 'json')."
+      end
     end
     named[option.internal_name] = value
   end
