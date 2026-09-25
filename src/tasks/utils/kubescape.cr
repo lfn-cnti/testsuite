@@ -5,6 +5,13 @@ module Kubescape
 
   # Scan output lives with the tool, not in the working directory.
   RESULTS_FILE = "#{tools_path}/kubescape/kubescape_results.json"
+  # The allcontrols framework of the pinned regolibrary release, downloaded
+  # at setup: every control with its rules embedded.
+  CONTROLS_FILE = "#{tools_path}/kubescape/allcontrols.json"
+
+  # The scan did not produce a report: kubescape failed, or the report it
+  # was to write is missing. The message carries kubescape's own reason.
+  class ScanError < Exception; end
 
   #kubescape scan framework nsa --exclude-namespaces kube-system,kube-public
   def self.scan(cli : String? = nil, control_id : String? = nil, namespace : String? = nil)
@@ -17,10 +24,13 @@ module Kubescape
     namespace_option = "--include-namespaces #{namespace}" if namespace
 
     if control_id != nil
-      cli = "control #{control_id} --output #{control_results_file(control_id)} #{default_options} #{namespace_option}"
+      output_file = control_results_file(control_id)
+      cli = "control #{control_id} --use-from #{control_policy_file(control_id.to_s)} --output #{output_file} #{default_options} #{namespace_option}"
     elsif cli == nil
       cli = "framework nsa --use-from #{tools_path}/kubescape/nsa.json --output #{output_file} #{default_options} #{namespace_option}"
     end
+    # A report left by an earlier run must not pass for this one.
+    File.delete?(output_file)
     cmd = "#{Setup::KUBESCAPE_BINARY} scan #{cli}"
     Log.info { "scan command: #{cmd}" }
     status = Process.run(
@@ -32,11 +42,38 @@ module Kubescape
     Log.info { "output: #{output.to_s}" }
     Log.info { "stderr: #{stderr.to_s}" }
     StatusLine.pop
+    unless status.success? && File.exists?(output_file) && File.size(output_file) > 0
+      reason = stderr.to_s.lines.map(&.strip).find(&.starts_with?("Error:")) || "exit #{status.exit_code}, no report written to #{output_file}"
+      raise ScanError.new("kubescape scan #{cli.to_s.split(" --").first}: #{reason}")
+    end
     {status: status, output: output.to_s, error: stderr.to_s}
+  rescue ex : ScanError
+    StatusLine.pop
+    raise ex
+  end
+
+  # One control's policy as kubescape's --use-from wants it: kubescape takes
+  # a single control object, not a framework, so the control is extracted
+  # from the allcontrols framework next to it, rules included. Raises when
+  # the framework is missing (setup did not run) or does not know the control.
+  def self.control_policy_file(control_id : String) : String
+    path = "#{tools_path}/kubescape/#{control_id}.json"
+    return path if File.exists?(path) && File.size(path) > 0
+    unless File.exists?(CONTROLS_FILE)
+      raise ScanError.new("#{CONTROLS_FILE} is missing: run setup to download the kubescape controls")
+    end
+    framework = File.open(CONTROLS_FILE) { |f| JSON.parse(f) }
+    control = (framework["controls"]?.try(&.as_a?) || [] of JSON::Any).find { |c| c["controlID"]? == control_id }
+    raise ScanError.new("control #{control_id} is not in the kubescape allcontrols framework #{CONTROLS_FILE}") if control.nil?
+    File.write(path, control.to_json)
+    path
   end
 
   def self.parse(results_file = RESULTS_FILE)
     Log.info { "kubescape parse" }
+    unless File.exists?(results_file) && File.size(results_file) > 0
+      raise ScanError.new("no kubescape report at #{results_file}: the scan did not run or failed")
+    end
     results_json = File.open(results_file) do |f| 
       JSON.parse(f)
     end
