@@ -91,7 +91,10 @@ begin
     end
   end
 rescue e : CLIParser::UsageError
-  e.errors.each { |error| stdout_failure error }
+  # Usage errors are raised before the invocation is recorded, so json_output?
+  # is not yet known; write to stderr unconditionally (correct in text mode too)
+  # so a caller parsing stdout in JSON mode sees an empty document, not errors.
+  e.errors.each { |error| STDERR.puts error.colorize(:red) }
   exit USAGE_EXIT_CODE
 rescue e : Sam::NotFound
   stdout_failure e.message.to_s
@@ -109,7 +112,9 @@ rescue e : Helm::Binary::HelmBinaryNotFoundError
   exit 1
 rescue e
   # An exception nothing caught: the suite itself broke, the same verdict as
-  # a test that errored.
-  puts e.backtrace.join("\n"), e
+  # a test that errored. The backtrace goes to stderr so that in JSON mode
+  # stdout is never a backtrace in place of a results document.
+  STDERR.puts e.backtrace.join("\n")
+  STDERR.puts e
   exit CNFManager::Task::CRITICAL_FAILURE_CODE
 end
