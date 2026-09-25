@@ -1662,7 +1662,7 @@ Review all Helm Charts & Kubernetes Manifest files for the CNF and remove all oc
 
 #### Overview
 
-The hardcoded ip address test will scan all of the CNF's workload resources and check for any static, hardcoded ip addresses being used in the configuration. CIDR notation is allowed and will not cause the test to fail. IP addresses that are justified by application logic are possible to be included in `hardcoded_ip_exceptions` in the [CNF configuration](https://github.com/lfn-cnti/testsuite/blob/main/CNTI_TESTSUITE_YAML_USAGE.md) and will be excluded from violation reports.
+The hardcoded ip address test will scan all of the CNF's workload resources and check for any static, hardcoded ip addresses being used in the configuration. CIDR notation is allowed and will not cause the test to fail. IP addresses that are justified by application logic are possible to be included in `hardcoded_ip_exceptions` in the [CNF configuration](https://github.com/lfn-cnti/testsuite/blob/main/CNTI_TESTSUITE_YAML_USAGE.md) and will be excluded from violation reports. CustomResourceDefinitions are not scanned: they are schemas whose descriptions carry RFC section numbers and OIDs, not configuration. Four dot-separated numbers count as an address only when each is an octet (0 to 255).
 Expectation: That no hardcoded IP addresses are found in the Kubernetes workload resources for the CNF unless they are in CIDR format or explicitly listed in `hardcoded_ip_exceptions`.
 
 #### Rationale

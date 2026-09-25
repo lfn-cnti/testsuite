@@ -1,0 +1,29 @@
+---
+# A CRD whose schema descriptions carry RFC section numbers and an OID, the
+# way cert-manager's and the Gateway API's do. None of it is configuration.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: widgets.cnti.example
+spec:
+  group: cnti.example
+  scope: Namespaced
+  names:
+    plural: widgets
+    singular: widget
+    kind: Widget
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: "Key usage as in https://tools.ietf.org/html/rfc5280#section-4.2.1.12"
+          properties:
+            spec:
+              type: object
+              properties:
+                oid:
+                  type: string
+                  description: "Most commonly the UPN OID 1.3.6.1.4.1.311.20.2.3"

@@ -259,6 +259,18 @@ describe CntiTestSuite do
     end
   end
 
+  it "'hardcoded_ip_addresses_in_k8s_runtime_configuration' should not read CRD descriptions or non-octet numbers as addresses", tags: ["ip_addresses"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-crd-descriptions/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("hardcoded_ip_addresses_in_k8s_runtime_configuration")
+      result[:status].success?.should be_true
+      (/(PASSED).*(No hard-coded IP addresses found in the runtime K8s configuration)/ =~ result[:output]).should_not be_nil
+      verify_task_result("hardcoded_ip_addresses_in_k8s_runtime_configuration", "passed")
+    ensure
+      ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'hardcoded_ip_addresses_in_k8s_runtime_configuration' should pass when no ip addresses are found in the K8s configuration", tags: ["ip_addresses"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnti-testsuite.yaml --skip-wait-for-install")
