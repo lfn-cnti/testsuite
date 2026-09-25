@@ -19,17 +19,6 @@ module LitmusManager
 
 
 
-  def self.add_node_selector(node_name)
-    file = File.read(downloaded_operator_file)
-    deploy_index = file.index("kind: Deployment") || 0 
-    spec_literal = "spec:"
-    template = "\n      nodeSelector:\n        kubernetes.io/hostname: #{node_name}"
-    spec1_index = file.index(spec_literal, deploy_index + 1)  || 0
-    spec2_index = file.index(spec_literal, spec1_index + 1) || 0
-    output_file = file.insert(spec2_index + spec_literal.size, template) unless spec2_index == 0
-    File.write(modified_operator_file, output_file) unless output_file == nil
-  end
-
   # Label pair that selects exactly the pods of `resource`, so a chaos engine
   # appinfo targets this workload and not every pod sharing a broad selector.
   # A selector like app.kubernetes.io/instance=<release> matches a whole Helm
@@ -100,11 +89,6 @@ module LitmusManager
   # Node of the workload matching `selector` (a `k=v[,k=v...]` label selector).
   def self.get_workload_node_name(selector : String, namespace) : String?
     scheduled_pod_node_name(namespace, selector)
-  end
-
-  # Node the Litmus operator sits on, or nil when it is not scheduled anywhere.
-  def self.get_litmus_node_name : String?
-    scheduled_pod_node_name(LITMUS_NAMESPACE, "app.kubernetes.io/name=litmus")
   end
 
   # Node of the pod matching `selector`, or nil when none is scheduled.

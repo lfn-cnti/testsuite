@@ -1,4 +1,3 @@
-NODE_DRAIN_TOTAL_CHAOS_DURATION = ENV.has_key?("CNTI_TESTSUITE_NODE_DRAIN_TOTAL_CHAOS_DURATION") ? ENV["CNTI_TESTSUITE_NODE_DRAIN_TOTAL_CHAOS_DURATION"].to_i : 90
 
 class ChaosTemplates
   class PodIoStress
@@ -116,19 +115,6 @@ class ChaosTemplates
     )
     end
     ECR.def_to_s("src/templates/chaos_templates/pod_memory_hog.yml.ecr")
-  end
-
-  class NodeDrain
-    def initialize(
-      @test_name : String,
-      @chaos_experiment_name : String,
-      @app_namespace : String,
-      @app_label : String,
-      @app_nodename : String,
-      @total_chaos_duration : String = "#{NODE_DRAIN_TOTAL_CHAOS_DURATION}"
-    )
-    end
-    ECR.def_to_s("src/templates/chaos_templates/node_drain.yml.ecr")
   end
 
   class PodDnsError

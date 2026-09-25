@@ -509,8 +509,8 @@ All state: `./cnti-testsuite state`
 
 #### Overview
 
-A node is drained and workload resources rescheduled to another node, passing with a liveness and readiness check. This will skip when the cluster has fewer than two schedulable nodes, when the workload has no scheduled pod, or when no schedulable node is left to move the chaos operator onto.
-Measurement: LitmusChaos experiment [node-drain](https://litmuschaos.github.io/litmus/experiments/categories/nodes/node-drain/); the Litmus version is in the results file's `tools`.
+Every node that hosts a pod of the CNF is cordoned and drained once, one node at a time, and every Deployment, StatefulSet or ReplicaSet that had a pod there must be Ready again on another node while the drained node is still cordoned. The details record, per node, how many pods were evicted and how long it took, and per workload how long it took to be Ready again; a workload that does not come back, or whose eviction the API refuses (a PodDisruptionBudget, usually), is a finding with the reason. Bare Pods and DaemonSets are reported as not applicable: a drain deletes the former for good and leaves the latter in place. Skipped when the cluster has fewer than two schedulable nodes.
+Measurement: `kubectl drain` of each node hosting the CNF's pods, with DaemonSet pods ignored and emptyDir data deleted, and the recovery read from the workloads' own status; no chaos tool is involved. The node stays cordoned for `CNTI_TESTSUITE_NODE_DRAIN_TOTAL_CHAOS_DURATION` seconds (30 by default) after the drain.
 Expectation: All workload resources are successfully rescheduled onto other available node(s).
 
 #### Rationale

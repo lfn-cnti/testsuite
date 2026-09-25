@@ -248,6 +248,19 @@ module KubectlClient
       ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
     end
 
+    # Evicts every evictable pod from the node, as an operator would before
+    # maintenance: DaemonSet pods stay, emptyDir data goes with the pod. The
+    # result is returned rather than raised, since a drain that stops on a
+    # PodDisruptionBudget or the timeout is a finding the caller reports.
+    def self.drain(node_name : String, timeout_seconds : Int32) : CMDResult
+      logger = @@logger.for("drain")
+      logger.info { "Drain node #{node_name} (timeout #{timeout_seconds}s)" }
+
+      cmd = "kubectl drain #{node_name} --ignore-daemonsets --delete-emptydir-data --timeout=#{timeout_seconds}s"
+
+      ShellCMD.run(cmd, logger)
+    end
+
     def self.set_image(
       resource_kind : String,
       resource_name : String,

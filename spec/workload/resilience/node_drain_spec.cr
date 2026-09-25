@@ -4,7 +4,7 @@ require "../../../src/tasks/utils/utils.cr"
 require "file_utils"
 require "sam"
 
-describe "Resilience Node Drain Chaos" do
+describe "Resilience Node Drain" do
   before_all do
     result = ShellCmd.run_testsuite("setup")
     result[:status].success?.should be_true
@@ -17,16 +17,16 @@ describe "Resilience Node Drain Chaos" do
       result = ShellCmd.run_testsuite("node_drain")
       result[:status].success?.should be_true
       if KubectlClient::Get.schedulable_nodes_list.size > 1
-        (/(PASSED).*(node_drain chaos test passed)/ =~ result[:output]).should_not be_nil
+        (/(PASSED).*(node_drain passed: 1 node\(s\) drained, 1 workload\(s\) rescheduled)/ =~ result[:output]).should_not be_nil
+        (/> Node \S+: 1 pod\(s\) of 1 workload\(s\) evicted in \d+ s/ =~ result[:output]).should_not be_nil
+        (/> Deployment\/coredns-coredns in cnti-default: Ready again on another node \d+ s after eviction/ =~ result[:output]).should_not be_nil
         verify_task_result("node_drain", "passed")
       else
-        (/(SKIPPED).*(node_drain chaos test requires the cluster to have atleast two)/ =~ result[:output]).should_not be_nil
+        (/(SKIPPED).*(node_drain requires at least two schedulable nodes)/ =~ result[:output]).should_not be_nil
         verify_task_result("node_drain", "skipped")
       end
     ensure
       result = ShellCmd.cnf_uninstall()
-      result[:status].success?.should be_true
-      result = ShellCmd.run_testsuite("setup:uninstall_litmus")
       result[:status].success?.should be_true
     end
   end

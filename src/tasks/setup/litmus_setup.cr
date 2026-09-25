@@ -5,7 +5,7 @@ require "../utils/utils.cr"
 # (rafal-lal) TODO: couple of TODOs found here before refactoring: saving for now
 # todo in resilience node_drain task
 # todo get node name
-# todo download litmus file then modify it with add_node_selector
+# The operator manifest is applied as downloaded.
 # todo apply modified litmus file
 
 namespace "setup" do
