@@ -478,6 +478,33 @@ scored_task "host_pid_ipc_privileges",
   end
 end
 
+# The effective uid and gid of each running container's first process, by
+# container name, read from /proc on the node through cluster-tools. A
+# container that is not running is absent.
+def observed_container_owners(kind : String, name : String, namespace : String?) : Hash(String, NamedTuple(uid: Int64, gid: Int64))
+  owners = {} of String => NamedTuple(uid: Int64, gid: Int64)
+  return owners unless namespace
+  resource = {kind: kind, name: name, namespace: namespace}
+  begin
+    ClusterTools.all_containers_by_resource?(resource, namespace, include_proctree: false) do |_, pid, node, _, container_status, _|
+      container = container_status["name"].as_s
+      status = ClusterTools.exec_by_node("cat /proc/#{pid}/status", node)
+      next unless status[:status].success?
+      fields = KernelIntrospection.parse_status(status[:output])
+      next unless fields
+      # Uid/Gid lines: real, effective, saved, filesystem.
+      uid = fields["Uid"]?.try(&.split[1]?).try(&.to_i64?)
+      gid = fields["Gid"]?.try(&.split[1]?).try(&.to_i64?)
+      next unless uid && gid
+      Log.for("observed_container_owners").info { "#{kind} #{name} container #{container} runs as uid #{uid} gid #{gid}" }
+      owners[container] = {uid: uid, gid: gid}
+    end
+  rescue ex
+    Log.for("observed_container_owners").warn { "Could not read the process owners of #{kind} #{name}: #{ex.message}" }
+  end
+  owners
+end
+
 desc "Check if the containers are running with non-root user with non-root group membership"
 scored_task "non_root_containers",
   type: CNFManager::TestType::Essential,
@@ -490,12 +517,41 @@ scored_task "non_root_containers",
     resource_keys = CNFManager.workload_resource_keys(args, config)
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
-    if test_report.failed_resources.size == 0
-      result.passed("Containers are running with non-root user with non-root group membership")
-    else
-      Kubescape.report_failed_resources(test_report, result)
+    # Kubescape reads the manifest: a container that declares no user "may run
+    # as root". Only the running process shows whether it does, so every
+    # flagged container is checked on its node before it counts as a failure.
+    root_found = false
+    undeclared = [] of String
+    test_report.failed_resources.each do |r|
+      owners = observed_container_owners(r.kind, r.name, r.namespace)
+      paths_by_container = r.paths.group_by { |path| r.container_for(path) }
+      paths_by_container.each do |container, paths|
+        owner = container ? owners[container]? : nil
+        if owner && owner[:uid] != 0 && owner[:gid] != 0
+          undeclared << "#{r.kind} #{r.name} container #{container} runs as uid #{owner[:uid]} gid #{owner[:gid]} but the manifest does not say so: #{paths.map { |path| r.reason_for(path) }.join(", ")}"
+          next
+        end
+        root_found = true
+        paths.each do |path|
+          reason = owner ? "runs as uid #{owner[:uid]} gid #{owner[:gid]}; #{r.reason_for(path)}" : r.reason_for(path)
+          result.add_impacted_resource(r.kind, r.name, r.namespace, container: container, reason: reason)
+        end
+      end
+      if r.paths.empty?
+        root_found = true
+        result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message)
+      end
+    end
+
+    unless undeclared.empty?
+      result.append_description("Observed as non-root but not declared:\n#{undeclared.join("\n")}")
+      result.append_remediation("Declare it: set runAsNonRoot: true and runAsGroup under the securityContext, so the kubelet refuses the container if a later image runs as root.")
+    end
+    if root_found
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
-      result.failed("Found containers running with root user or user with root group membership")
+      result.failed("Found containers running as root user or with root group membership")
+    else
+      result.passed("Containers run as non-root user and group")
     end
   end
 end

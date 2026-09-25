@@ -1311,10 +1311,10 @@ Remove all insecure capabilities which aren’t necessary for the container.
 
 #### Overview
 
-Checks, through Kubescape control C-0013 (Non-root containers), that no container of the CNF runs as root or can become root: `runAsNonRoot` is true, or `runAsUser`/`runAsGroup` are set to non-root IDs, at the pod or container level. Whether privilege escalation is allowed is checked separately by the `privilege_escalation` test.
+Checks that no container of the CNF runs as root. Kubescape control C-0013 (Non-root containers) first finds every container whose manifest does not rule root out: `runAsNonRoot` is not true, or `runAsUser`/`runAsGroup` are unset or 0, at the pod or container level. Each flagged container is then observed on its node: the effective user and group of its first process are read from `/proc`. A container observed running as a non-root user and group passes, and the missing declaration is reported as remediation; a container observed as uid 0 or gid 0, or one that cannot be observed, fails. Whether privilege escalation is allowed is checked separately by the `privilege_escalation` test.
 Read more at [ARMO-C0013](https://bit.ly/2Zzlts3)
-Measurement: Kubescape control [C-0013](https://hub.armosec.io/docs/c-0013) (Non-root containers) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
-Expectation: Containers should run with non-root user and allowPrivilegeEscalation should be set to false.
+Measurement: Kubescape control [C-0013](https://hub.armosec.io/docs/c-0013) (Non-root containers) of the NSA framework selects the containers to observe; the scanner and regolibrary versions are in the results file's `tools`. The observation reads `/proc/<pid>/status` of the container's first process on its node through cluster-tools.
+Expectation: Containers should run with non-root user and group, and should declare it so the kubelet enforces it.
 
 #### Rationale
 
@@ -1324,7 +1324,7 @@ Sources: [CNTi CBPP-0002, non-root containers](https://github.com/lfn-cnti/bestp
 
 #### Remediation
 
-If your application does not need root privileges, set `runAsNonRoot: true`, or set `runAsUser` and `runAsGroup` to IDs of 1000 or higher, under the pod or container securityContext.
+If your application does not need root privileges, build the image to run as a non-root user and declare it in the manifest: set `runAsNonRoot: true` and `runAsGroup`, or set `runAsUser` and `runAsGroup` to IDs of 1000 or higher, under the pod or container securityContext. The declaration makes the kubelet refuse the container if a later image runs as root.
 
 #### Usage
 
