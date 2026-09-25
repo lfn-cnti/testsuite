@@ -1,0 +1,54 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: commented-ips
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
+# One file as a block scalar, one as a double-quoted string with escaped
+# newlines: the two forms a ConfigMap's files take in the composite manifest.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: commented-ips
+  namespace: commented-ips
+data:
+  app.yaml: |
+    sbi:
+      server:
+        - address: localhost
+    #      advertise:
+    #        - 127.0.0.99
+    #  client:
+    #    nrf:
+    #      - uri: http://127.0.0.10:7777
+  app.conf: "listen localhost\n# upstream 10.9.8.7:53\n   # peer 192.0.2.1\n"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: commented-ips
+  namespace: commented-ips
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: commented-ips
+  template:
+    metadata:
+      labels:
+        app: commented-ips
+    spec:
+      containers:
+      - name: app
+        image: bitnamilegacy/nginx:1.20
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: config
+          mountPath: /config
+      volumes:
+      - name: config
+        configMap:
+          name: commented-ips
