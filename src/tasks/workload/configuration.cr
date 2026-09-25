@@ -242,13 +242,25 @@ scored_task "hardcoded_ip_addresses_in_k8s_runtime_configuration",
     # manifest's line numbers alone mean nothing to the CNF's author.
     lines = File.read_lines(COMMON_MANIFEST_FILE_PATH)
     documents = manifest_documents(lines)
+    # A CustomResourceDefinition is a schema, not configuration: it is in the
+    # manifest so the suite knows the CNF's custom resource kinds, and its
+    # description strings carry RFC section numbers and OIDs that look like
+    # addresses. Its lines are not scanned.
+    unscanned_lines = Set(Int32).new
+    documents.each do |doc|
+      next unless doc[:kind] == "CustomResourceDefinition"
+      (doc[:first_line]..doc[:last_line]).each { |line_number| unscanned_lines << line_number }
+    end
     ip_adress_regex = /((?:\d{1,3}\.){3}\d{1,3})(?:\/(\d{1,2}))?/
     found_violations = [] of NamedTuple(line_number: Int32, line: String, ip: String)
     lines.each_with_index do |line, index|
       break if line.matches?(/NOTES:/)
+      next if unscanned_lines.includes?(index + 1)
       line.scan(ip_adress_regex).each do |match|
         ip = match[1]
         cidr_suffix = match[2]?
+        # Four dot-separated numbers are an address only when each is an octet.
+        next unless ip.split(".").all? { |octet| octet.to_i <= 255 }
         next if allowed_ip_addresses.includes?(ip) || hardcoded_ip_exceptions.any? { |e| e.ip == ip } || cidr_suffix
         found_violations << {line_number: index + 1, line: line.strip, ip: ip}
       end
