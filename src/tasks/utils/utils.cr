@@ -336,25 +336,37 @@ module StatusLine
   end
 
   private def self.render(msg : String)
-    print "\e[1A\e[K" if STDOUT.tty? && @@on_screen
-    puts msg
-    @@on_screen = STDOUT.tty?
+    io = json_output? ? STDERR : STDOUT
+    io.print "\e[1A\e[K" if io.tty? && @@on_screen
+    io.puts msg
+    @@on_screen = io.tty?
   end
 
   private def self.erase
-    if STDOUT.tty? && @@on_screen
-      print "\e[1A\e[K"
-      STDOUT.flush
+    io = json_output? ? STDERR : STDOUT
+    if io.tty? && @@on_screen
+      io.print "\e[1A\e[K"
+      io.flush
     end
     @@on_screen = false
   end
 end
 
+# True when `--output json` was requested. In JSON mode stdout is reserved for
+# the single results document (emitted at the end of the run); every decorative
+# line, score and progress message is redirected to stderr so it never pollutes
+# the machine-readable payload. Reads the invocation parsed by CLIParser; before
+# parsing (e.g. -h/--version) it is false, so those paths are unaffected.
+def json_output?
+  CLIInvocation.option("output") == "json"
+end
+
 def stdout_info(msg, same_line = false)
-  if same_line && STDOUT.tty?
+  io = json_output? ? STDERR : STDOUT
+  if same_line && io.tty?
     msg = "#{"\e[1A\e[K"}#{msg}"
   end
-  puts msg
+  io.puts msg
   StatusLine.interrupted
 end
 
@@ -362,10 +374,13 @@ end
 # its beginning. Like color, it is only emitted on a TTY - in piped/captured
 # output the rewritten lines are simply printed one after another.
 def stdout_colored(msg, color, same_line = false)
-  if same_line && STDOUT.tty?
+  io = json_output? ? STDERR : STDOUT
+  if same_line && io.tty?
     msg = "#{"\e[1A\e[K"}#{msg}"
   end
-  puts msg.colorize(color)
+  # In JSON mode the human trail goes to stderr as plain text; color codes are
+  # noise in captured logs.
+  io.puts(json_output? ? msg : msg.colorize(color))
   StatusLine.interrupted
 end
 
