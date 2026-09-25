@@ -199,13 +199,14 @@ end
 
 # The YAML documents of a multi-document manifest with the line range each
 # occupies (1-based, inclusive) and its kind/name/namespace when parseable.
-def manifest_documents(lines : Array(String)) : Array(NamedTuple(first_line: Int32, last_line: Int32, kind: String?, name: String?, namespace: String?))
-  documents = [] of NamedTuple(first_line: Int32, last_line: Int32, kind: String?, name: String?, namespace: String?)
+def manifest_documents(lines : Array(String)) : Array(NamedTuple(first_line: Int32, last_line: Int32, kind: String?, name: String?, namespace: String?, parsed: YAML::Any?))
+  documents = [] of NamedTuple(first_line: Int32, last_line: Int32, kind: String?, name: String?, namespace: String?, parsed: YAML::Any?)
   start = 0
   flush = ->(last : Int32) do
     chunk = lines[start..last]
     unless chunk.all?(&.strip.empty?)
       kind = name = namespace = nil
+      parsed = nil
       begin
         parsed = YAML.parse(chunk.join("\n"))
         kind = parsed.dig?("kind").try(&.as_s?)
@@ -214,7 +215,7 @@ def manifest_documents(lines : Array(String)) : Array(NamedTuple(first_line: Int
       rescue
         # a document that does not parse still gets its line range
       end
-      documents << {first_line: start + 1, last_line: last + 1, kind: kind, name: name, namespace: namespace}
+      documents << {first_line: start + 1, last_line: last + 1, kind: kind, name: name, namespace: namespace, parsed: parsed}
     end
   end
   lines.each_with_index do |line, index|
@@ -225,6 +226,14 @@ def manifest_documents(lines : Array(String)) : Array(NamedTuple(first_line: Int
   end
   flush.call(lines.size - 1) if start < lines.size
   documents
+end
+
+# The lines of a configuration file that are configuration rather than
+# comment: a line whose first non-blank character is # is a comment, and the
+# example addresses in the commented-out defaults of a config file are not
+# runtime configuration.
+def configuration_file_lines(content : String) : Array(String)
+  content.lines.reject { |file_line| file_line.lstrip.starts_with?("#") }
 end
 
 desc "Does the CNF have hardcoded IPs in the K8s resource configuration"
@@ -253,17 +262,39 @@ scored_task "hardcoded_ip_addresses_in_k8s_runtime_configuration",
     end
     ip_adress_regex = /((?:\d{1,3}\.){3}\d{1,3})(?:\/(\d{1,2}))?/
     found_violations = [] of NamedTuple(line_number: Int32, line: String, ip: String)
-    lines.each_with_index do |line, index|
-      break if line.matches?(/NOTES:/)
-      next if unscanned_lines.includes?(index + 1)
-      line.scan(ip_adress_regex).each do |match|
+    record = ->(line_number : Int32, text : String) do
+      text.scan(ip_adress_regex).each do |match|
         ip = match[1]
         cidr_suffix = match[2]?
         # Four dot-separated numbers are an address only when each is an octet.
         next unless ip.split(".").all? { |octet| octet.to_i <= 255 }
         next if allowed_ip_addresses.includes?(ip) || hardcoded_ip_exceptions.any? { |e| e.ip == ip } || cidr_suffix
-        found_violations << {line_number: index + 1, line: line.strip, ip: ip}
+        found_violations << {line_number: line_number, line: text.strip, ip: ip}
       end
+    end
+
+    # A ConfigMap's files are read from the parsed document, one file line at
+    # a time, so their comment lines can be told apart: in the composite
+    # manifest the YAML emitter wraps long quoted strings across physical
+    # lines, and a comment's # then sits on a different line than its address.
+    # The ConfigMap's physical lines are left out of the line scan below.
+    file_lines = Set(Int32).new
+    documents.each do |doc|
+      parsed = doc[:parsed]
+      next unless doc[:kind] == "ConfigMap" && parsed
+      (doc[:first_line]..doc[:last_line]).each { |line_number| file_lines << line_number }
+      parsed.dig?("data").try(&.as_h?).try &.each do |key, value|
+        next unless content = value.as_s?
+        configuration_file_lines(content).each do |file_line|
+          record.call(doc[:first_line], "#{key}: #{file_line.strip}")
+        end
+      end
+    end
+
+    lines.each_with_index do |line, index|
+      break if line.matches?(/NOTES:/)
+      next if file_lines.includes?(index + 1) || unscanned_lines.includes?(index + 1)
+      record.call(index + 1, line)
     end
 
     if found_violations.empty?

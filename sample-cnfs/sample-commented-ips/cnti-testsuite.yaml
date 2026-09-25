@@ -1,0 +1,9 @@
+---
+# A ConfigMap whose files carry IP addresses only in comment lines, as the
+# commented-out defaults of Open5GS's config files do: not configuration,
+# so hardcoded_ip_addresses_in_k8s_runtime_configuration must pass.
+config_version: v2
+deployments:
+  manifests:
+  - name: commented-ips
+    manifest_directory: manifests
