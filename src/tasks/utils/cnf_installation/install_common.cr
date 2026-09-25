@@ -209,6 +209,7 @@ module CNFInstall
     # After all deployments are installed, fetch and add label-identified resources to the composite manifest
     if !parsed_args[:skip_wait_for_install]
       add_label_resources_to_manifest(config, parsed_args[:timeout])
+      add_owned_resources_to_manifest(parsed_args[:timeout])
       add_crds_for_custom_resources_to_manifest
     end
 
@@ -502,40 +503,57 @@ module CNFInstall
       logger.info { "Added #{label_resource_ymls.size} label-identified resources to composite manifest" }
       StatusLine.update "Added #{label_resource_ymls.size} label-identified resources to composite manifest."
     end
-    
-    # Fetch resources owned by CUSTOM resources only (not standard k8s resources)
-    # Only go one level deep - don't recurse further
+  end
+
+  # Workloads an operator creates for the CNF's custom resources, found
+  # through their ownerReferences. The operator acts only after the resources
+  # exist, so the scan waits the way label discovery does: for owned workloads
+  # to appear, then for each to be ready, then for the set to hold still for
+  # the settle time. A CNF whose custom resources own no workload moves on
+  # once OWNED_RESOURCE_DISCOVERY_TIMEOUT has passed with nothing found.
+  private def self.add_owned_resources_to_manifest(timeout : Int32)
+    logger = Log.for("add_owned_resources_to_manifest")
     all_manifest_resources = Manifest.manifest_path_to_ymls(COMMON_MANIFEST_FILE_PATH)
-    
-    # Build a set of existing resource UIDs to avoid duplicates
-    existing_uids = all_manifest_resources.map do |resource|
-      uid = resource.dig?("metadata", "uid")
-      uid ? uid.as_s : nil
-    end.compact.to_set
-    
-    # Filter to only custom resources (those with custom apiVersions)
-    custom_resources = all_manifest_resources.select do |resource|
-      is_custom_resource?(resource)
+    existing_uids = all_manifest_resources.compact_map { |resource| resource.dig?("metadata", "uid").try(&.as_s) }.to_set
+    custom_resources = all_manifest_resources.select { |resource| is_custom_resource?(resource) }
+    return if custom_resources.empty?
+
+    settle_seconds = ENV.has_key?("CNTI_TESTSUITE_LABEL_RESOURCE_SLEEP") ? ENV["CNTI_TESTSUITE_LABEL_RESOURCE_SLEEP"].to_i : 5
+    StatusLine.update "Waiting for workloads owned by the CNF's custom resources..."
+    start = Time.utc
+    owned_resource_ymls = [] of YAML::Any
+    ready_uids = Set(String).new
+    last_change = Time.utc
+    settled = repeat_with_timeout(timeout: OWNED_RESOURCE_DISCOVERY_TIMEOUT, errormsg: "No workload owned by the CNF's custom resources appeared within #{OWNED_RESOURCE_DISCOVERY_TIMEOUT}s", delay: 2) do
+      owned_resource_ymls = fetch_owned_resources_from_custom_resources(custom_resources, default_namespace: CLUSTER_DEFAULT_NAMESPACE)
+      owned_resource_ymls.each do |resource|
+        uid = resource.dig?("metadata", "uid").try(&.as_s) || next
+        next if ready_uids.includes?(uid)
+        kind = resource.dig("kind").as_s
+        name = resource.dig("metadata", "name").as_s
+        namespace = resource.dig?("metadata", "namespace").try(&.as_s) || CLUSTER_DEFAULT_NAMESPACE
+        remaining = timeout - (Time.utc - start).total_seconds.to_i
+        if remaining <= 0 || !KubectlClient::Wait.resource_wait_for_install(kind, name, remaining, namespace)
+          stdout_failure "Owned resource #{kind}/#{name} in #{namespace} did not become ready within #{timeout} seconds."
+          exit 1
+        end
+        logger.info { "#{kind}/#{name} in #{namespace}, owned by a custom resource of the CNF, is ready" }
+        ready_uids.add(uid)
+        last_change = Time.utc
+      end
+      !ready_uids.empty? && (Time.utc - last_change).total_seconds >= settle_seconds
     end
-    
-    owned_resource_ymls = fetch_owned_resources_from_custom_resources(custom_resources, default_namespace: CLUSTER_DEFAULT_NAMESPACE)
-    
-    # Filter out resources that are already in the manifest
+    logger.info { "No workload owned by the CNF's custom resources appeared within #{OWNED_RESOURCE_DISCOVERY_TIMEOUT}s" } if !settled && ready_uids.empty?
+
     new_owned_resources = owned_resource_ymls.reject do |resource|
       uid = resource.dig?("metadata", "uid")
       uid && existing_uids.includes?(uid.as_s)
     end
-    
-    unless new_owned_resources.empty?
-      # Build owner map (not actually needed since we include owner info in the YAML itself)
-      owner_map = {} of String => String
-      
-      owned_manifest = Manifest.combine_ymls_with_owner_source(new_owned_resources, owner_map)
-      Manifest.add_manifest_to_file("owner-reference-resources", owned_manifest, COMMON_MANIFEST_FILE_PATH)
-      logger.info { "Added #{new_owned_resources.size} owner-reference resources to composite manifest" }
-      StatusLine.update "Added #{new_owned_resources.size} resources via ownerReferences to composite manifest."
-    end
-
+    return if new_owned_resources.empty?
+    owned_manifest = Manifest.combine_ymls_with_owner_source(new_owned_resources, {} of String => String)
+    Manifest.add_manifest_to_file("owner-reference-resources", owned_manifest, COMMON_MANIFEST_FILE_PATH)
+    logger.info { "Added #{new_owned_resources.size} owner-reference resources to composite manifest" }
+    StatusLine.update "Added #{new_owned_resources.size} resources via ownerReferences to composite manifest."
   end
 
   # CRDs behind the CNF's custom resources are part of the CNF's API surface

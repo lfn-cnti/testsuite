@@ -1,0 +1,15 @@
+---
+# The sample operator with a PodSet whose Deployment carries only an
+# ownerReference to it, and no workload_resource_labels: the owned
+# Deployment must be found through ownership alone, after the operator
+# has created it.
+config_version: v2
+deployments:
+  helm_dirs:
+  - name: simple-pod-operator
+    helm_directory: ../sample-operator/simple_pod_operator
+    priority: 1
+  manifests:
+  - name: controlling_manifest
+    manifest_directory: controlling_manifest
+    priority: 2
