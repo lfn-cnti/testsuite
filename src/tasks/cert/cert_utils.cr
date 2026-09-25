@@ -13,7 +13,12 @@ end
 # tests (honoring --skip and --essential), and the section score. The
 # results-file path is printed once per run by the entrypoint.
 def run_cert_category(t, args, category : String, heading : String, score_name : String? = nil)
-  puts heading.colorize(Colorize::ColorRGB.new(0, 255, 255))
+  # In JSON mode the heading is decorative; keep it off stdout (see json_output?).
+  if json_output?
+    STDERR.puts heading
+  else
+    puts heading.colorize(Colorize::ColorRGB.new(0, 255, 255))
+  end
 
   tags = [category, "cert"]
   tags << "essential" if args.raw.includes?("essential")
