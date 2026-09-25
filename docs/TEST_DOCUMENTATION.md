@@ -448,7 +448,7 @@ Use init systems that are purpose-built for containers like tini, dumb-init, cat
 
 #### Overview
 
-This tests if the PID 1 process of containers handles SIGTERM. SIGTERM is sent to each container's PID 1 and the process must terminate within the pod's `terminationGracePeriodSeconds` (default 30 s). When PID 1 supervises child processes, the children are judged instead: they must receive the forwarded signal and terminate. Containers that cannot be traced are reported as skipped and do not fail the test.
+This tests if the PID 1 process of containers handles SIGTERM. SIGTERM is sent to each container's PID 1 and the process must terminate within the pod's `terminationGracePeriodSeconds` (default 30 s). When PID 1 supervises child processes, the children are judged instead: each must be stopped, with whatever shutdown signal the supervisor uses for it (SIGTERM, SIGINT, SIGQUIT, SIGHUP, SIGUSR1 or SIGUSR2), and terminate within the grace period. A child still running afterwards, or one killed with SIGKILL rather than stopped, fails the container; the details say which signal stopped each process. Containers that cannot be traced are reported as skipped and do not fail the test.
 Expectation: Sigterm is handled by PID 1 process of containers.
 
 #### Rationale
