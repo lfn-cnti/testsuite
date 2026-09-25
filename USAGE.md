@@ -89,7 +89,7 @@ To consume results without reading a file, pass `--output json`. The results doc
 printed to **stdout** as JSON — the same shape as the results file, so the schema above applies
 verbatim (YAML is a JSON superset). In this mode every decorative line, score and progress
 message goes to **stderr**, leaving stdout as a single JSON document, and the exit code is
-unchanged (`0` objective met, `1` a test failed, `2` the suite errored, `64` a usage error).
+unchanged (`0` the run met its objective, `1` it did not, `2` the suite errored, `64` a usage error).
 The default is `--output text`.
 
 ```
