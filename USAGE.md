@@ -102,6 +102,17 @@ a kill, a CI timeout — and its `summary` shows only what had run by then.
 A machine-readable [JSON Schema](docs/cnti-testsuite-results.schema.json) describes the file
 (matching the current `schema_version`); use it to validate output or generate types.
 
+To consume results without reading a file, pass `--output json`. The results document is
+printed to **stdout** as JSON — the same shape as the results file, so the schema above applies
+verbatim (YAML is a JSON superset). In this mode every decorative line, score and progress
+message goes to **stderr**, leaving stdout as a single JSON document, and the exit code is
+unchanged (`0` objective met, `1` a test failed, `2` the suite errored, `64` a usage error).
+The default is `--output text`.
+
+```
+./cnti-testsuite all --output json 1>results.json 2>run.log
+```
+
 ##### Structure
 
 ```yaml
