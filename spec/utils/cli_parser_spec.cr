@@ -90,4 +90,20 @@ describe "CLI parser" do
       original ? (ENV["KUBECONFIG"] = original) : ENV.delete("KUBECONFIG")
     end
   end
+
+  it "accepts --output text and --output json", tags: ["points"] do
+    parse("all", "--output", "json")
+    CLIInvocation.option("output").should eq("json")
+    parse("all", "--output=text")
+    CLIInvocation.option("output").should eq("text")
+  end
+
+  it "rejects an --output value that is not text or json", tags: ["points"] do
+    usage_error("all", "--output", "yaml").join.should contain("Invalid value for '--output': 'yaml' (expected 'text' or 'json').")
+  end
+
+  it "leaves output unset when --output is absent (text is the default)", tags: ["points"] do
+    parse("all")
+    CLIInvocation.option("output").should be_nil
+  end
 end
