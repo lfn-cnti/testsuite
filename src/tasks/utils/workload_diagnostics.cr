@@ -65,6 +65,35 @@ module WorkloadDiagnostics
     end.first(EVENT_LIMIT)
   end
 
+  # The last lines each container of the workload's pods logged, and for a
+  # container that has restarted, the last lines of its previous run: the
+  # reason a crash-looping container died is in the run before the current one.
+  def self.log_tails(kind : String, name : String, namespace : String, tail : Int32 = 40) : Array(String)
+    sections = [] of String
+    begin
+      resource = KubectlClient::Get.resource(kind, name, namespace)
+      KubectlClient::Get.pods_by_resource_labels(resource, namespace).each do |pod|
+        pod_name = pod.dig("metadata", "name").as_s
+        (pod.dig?("status", "containerStatuses").try(&.as_a?) || [] of JSON::Any).each do |cs|
+          container = cs.dig("name").as_s
+          runs = [{"current", ""}]
+          runs << {"previous", " --previous"} if (cs.dig?("restartCount").try(&.as_i?) || 0) > 0
+          runs.each do |(which, flag)|
+            begin
+              output = KubectlClient::Utils.logs(pod_name, container, namespace, "--tail=#{tail}#{flag}")[:output].to_s.strip
+              sections << "--- #{which} log of pod #{pod_name} container #{container} ---\n#{output.empty? ? "(empty)" : output}"
+            rescue ex
+              sections << "--- #{which} log of pod #{pod_name} container #{container}: not available (#{ex.message.to_s.lines.first?.to_s.strip}) ---"
+            end
+          end
+        end
+      end
+    rescue ex
+      Log.for("WorkloadDiagnostics").warn { "could not collect logs for #{kind}/#{name} in #{namespace}: #{ex.message}" }
+    end
+    sections
+  end
+
   # Appends the collected lines to the result's details, under a heading.
   def self.report(result, kind : String, name : String, namespace : String, heading : String) : Array(String)
     lines = problems(kind, name, namespace)
