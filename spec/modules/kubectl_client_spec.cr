@@ -235,3 +235,26 @@ describe "KubectlClient" do
     KubectlClient::Delete.file("../fixtures/coredns_manifest.yml")
   end
 end
+
+describe "KubectlClient::Get.pod_controlled_by?" do
+  pod = ->(kind : String, name : String) do
+    JSON.parse(%({"metadata": {"ownerReferences": [{"kind": "#{kind}", "name": "#{name}", "controller": true}]}}))
+  end
+
+  it "attributes a pod only to the workload that controls it", tags: ["points"] do
+    data = pod.call("StatefulSet", "cnti-mongodb")
+    KubectlClient::Get.pod_controlled_by?(data, "StatefulSet", "cnti-mongodb").should be_true
+    KubectlClient::Get.pod_controlled_by?(data, "StatefulSet", "cnti-mongodb-arb").should be_false
+    web = pod.call("ReplicaSet", "web-5d8f7c9b6")
+    KubectlClient::Get.pod_controlled_by?(web, "Deployment", "web").should be_true
+    KubectlClient::Get.pod_controlled_by?(web, "Deployment", "web-admin").should be_false
+    admin = pod.call("ReplicaSet", "web-admin-7c9d4b8f5")
+    KubectlClient::Get.pod_controlled_by?(admin, "Deployment", "web-admin").should be_true
+    KubectlClient::Get.pod_controlled_by?(admin, "Deployment", "web").should be_false
+    KubectlClient::Get.pod_controlled_by?(pod.call("DaemonSet", "agent"), "DaemonSet", "agent").should be_true
+  end
+
+  it "leaves a pod without a controller to the label match", tags: ["points"] do
+    KubectlClient::Get.pod_controlled_by?(JSON.parse(%({"metadata": {}})), "StatefulSet", "any").should be_true
+  end
+end

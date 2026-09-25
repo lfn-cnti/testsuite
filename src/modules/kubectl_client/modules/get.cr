@@ -264,8 +264,30 @@ module KubectlClient
       end
 
       filtered_pods = pods_by_labels(pods, labels)
+      # Labels can be shared: two workloads with overlapping selectors each own
+      # only their own pods, and the controller reference decides which.
+      filtered_pods.select { |pod| pod_controlled_by?(pod, kind.as_s, name.as_s) }
+    end
 
-      filtered_pods
+    # Whether `pod` belongs to the workload `kind`/`name` by its controller
+    # reference: a StatefulSet, DaemonSet, ReplicaSet or Job owns its pods
+    # directly, a Deployment through a ReplicaSet named after it plus the
+    # pod-template hash (which has no dash, so "web-admin-7c9d" is not "web"'s).
+    # A pod with no controller, or a workload of another kind, is left to the
+    # label match.
+    def self.pod_controlled_by?(pod : JSON::Any, kind : String, name : String) : Bool
+      controller = pod.dig?("metadata", "ownerReferences").try(&.as_a?).try &.find { |ref| ref["controller"]?.try(&.as_bool?) }
+      return true unless controller
+      owner_kind = controller["kind"]?.try(&.as_s?) || ""
+      owner_name = controller["name"]?.try(&.as_s?) || ""
+      case kind.downcase
+      when "deployment"
+        owner_kind == "ReplicaSet" && owner_name.starts_with?("#{name}-") && !owner_name[(name.size + 1)..].includes?('-')
+      when "statefulset", "daemonset", "replicaset", "job"
+        owner_kind.downcase == kind.downcase && owner_name == name
+      else
+        true
+      end
     end
 
     def self.pods_by_labels(pods_json : Array(JSON::Any), labels : Hash(String, JSON::Any))
