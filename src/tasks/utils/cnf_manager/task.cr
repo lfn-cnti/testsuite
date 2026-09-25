@@ -89,6 +89,10 @@ module CNFManager
         # One clear verdict per test, not a failure about the test's subject.
         logger.warn { "#{result.testcase}: #{ex.message}" }
         result.na("#{result.testcase} not applicable: #{ex.message}")
+      rescue ex : Kubescape::ScanError
+        # The scanner did not deliver: say so with its reason, not a trace.
+        logger.error { "#{result.testcase}: #{ex.message}" }
+        result.error("Kubescape scan failed: #{ex.message}")
       rescue ex
         result.error("Unexpected error occurred")
         logger.error { ex.message }

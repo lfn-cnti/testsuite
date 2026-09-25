@@ -39,6 +39,12 @@ module Setup
   KUBESCAPE_BINARY   = "#{KUBESCAPE_DIR}/kubescape"
   KUBESCAPE_FRAMEWORK_URL = "https://github.com/kubescape/regolibrary/releases/download/" +
                              "v#{KUBESCAPE_FRAMEWORK_VERSION}/nsa"
+  # The "allcontrols" framework of the same regolibrary release: every control
+  # with its rules embedded, for the tests that scan a single control outside
+  # the NSA framework (hostpath_mounts, C-0048). The release's "controls"
+  # bundle lists the controls without their rules and scans nothing.
+  KUBESCAPE_CONTROLS_URL  = "https://github.com/kubescape/regolibrary/releases/download/" +
+                             "v#{KUBESCAPE_FRAMEWORK_VERSION}/allcontrols"
 
 
 

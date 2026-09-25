@@ -54,12 +54,42 @@ namespace "setup" do
       logger.info { "Kubescape framework json has been downloaded" }
       true
     end
+
+    # The single-control scans used to let kubescape fetch the control from
+    # the internet on every run; a failed fetch left an empty results file
+    # and an errored test. The allcontrols framework (every control with its
+    # rules) is downloaded once, with the NSA framework's version, and a
+    # single-control scan takes its control from it.
+    ToolInstall.ensure("kubescape allcontrols framework", Setup::KUBESCAPE_FRAMEWORK_VERSION, Kubescape::CONTROLS_FILE) do
+      begin
+        if ENV.has_key?("GITHUB_TOKEN")
+          download_file(Setup::KUBESCAPE_CONTROLS_URL, Kubescape::CONTROLS_FILE,
+            headers: HTTP::Headers{"Authorization" => "Bearer #{ENV["GITHUB_TOKEN"]}"})
+        else
+          download_file(Setup::KUBESCAPE_CONTROLS_URL, Kubescape::CONTROLS_FILE)
+        end
+      rescue ex : Exception
+        logger.error { "Error while downloading kubescape allcontrols framework: #{ex.message}" }
+        stdout_failure(failed_msg)
+        exit(1)
+      end
+      logger.info { "Kubescape allcontrols framework json has been downloaded" }
+      true
+    end
   end
 
   desc "Kubescape Scan"
   task "kubescape_scan", ["setup:install_kubescape"] do |_, args|
-    logger = SLOG.for("kubescape_scan").info { "Perform Kubescape cluster scan" }
-    Kubescape.scan
+    logger = SLOG.for("kubescape_scan")
+    logger.info { "Perform Kubescape cluster scan" }
+    begin
+      Kubescape.scan
+    rescue ex : Kubescape::ScanError
+      # The tests that depend on this scan find no results file and report
+      # the same reason as an error, one per test, instead of a stack trace.
+      logger.error { ex.message }
+      stdout_failure("Kubescape scan failed: #{ex.message}")
+    end
   end
 
   desc "Uninstall Kubescape"
