@@ -5,6 +5,41 @@ module CNFInstall
 
   alias ResourceInfo  = NamedTuple(kind: String, name: String, namespace: String?)
 
+  # Where install records the directory of the cnti-testsuite.yaml it was given:
+  # the copy in CNF_DIR no longer says, and relative paths in the config are
+  # meant against that directory.
+  INSTALLED_CONFIG_DIR_FILE = File.join(CNF_DIR, "config_dir")
+
+  def self.installed_config_dir : String
+    File.exists?(INSTALLED_CONFIG_DIR_FILE) ? File.read(INSTALLED_CONFIG_DIR_FILE).strip : "."
+  end
+
+  HELM_VALUES_FILE_FLAG = /(?<flag>(?:^|\s)(?:-f|--values)(?:=|\s+))(?<paths>[^\s]+)/
+  HELM_SET_FILE_FLAG = /(?<flag>(?:^|\s)--set-file(?:=|\s+))(?<pairs>[^\s]+)/
+
+  # helm_values with every relative values file (`-f`, `--values`, and the
+  # files of `--set-file key=path`) resolved against the config's directory,
+  # like helm_directory is. A path is only rewritten when the file exists
+  # there; otherwise it is left as written, so configs that name files
+  # relative to the working directory keep working.
+  def self.resolve_helm_values(helm_values : String, config_dir : String) : String
+    helm_values
+      .gsub(HELM_VALUES_FILE_FLAG) { "#{$~["flag"]}#{$~["paths"].split(',').map { |p| resolve_values_path(p, config_dir) }.join(',')}" }
+      .gsub(HELM_SET_FILE_FLAG) do
+        pairs = $~["pairs"].split(',').map do |pair|
+          key, sep, path = pair.partition('=')
+          sep.empty? ? pair : "#{key}=#{resolve_values_path(path, config_dir)}"
+        end
+        "#{$~["flag"]}#{pairs.join(',')}"
+      end
+  end
+
+  private def self.resolve_values_path(path : String, config_dir : String) : String
+    return path if path.empty? || Path.new(path).absolute? || path.includes?("://")
+    candidate = File.join(config_dir, path)
+    File.file?(candidate) ? File.expand_path(candidate) : path
+  end
+
   def self.helm_source_path(config_dir : String, helm_directory : String) : String
     if Path.new(helm_directory).absolute?
       helm_directory
@@ -23,6 +58,7 @@ module CNFInstall
     config = Config.parse_cnf_config_from_file(cnf_config_path)
     ensure_cnf_dir_structure()
     FileUtils.cp(cnf_config_path, File.join(CNF_DIR, CONFIG_FILE))
+    File.write(INSTALLED_CONFIG_DIR_FILE, File.expand_path(Path[cnf_config_path].dirname.to_s))
 
     prepare_deployment_directories(config, cnf_config_path)
 

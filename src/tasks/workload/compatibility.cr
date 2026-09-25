@@ -492,7 +492,7 @@ scored_task "helm_chart_valid",
     # finding with its first error as the reason (#2598).
     failing = 0
     chart_info.each do |chart_dir, deployment_name, helm_values|
-      f_flags = extract_f_flags(helm_values)
+      f_flags = extract_f_flags(helm_values.try { |v| CNFInstall.resolve_helm_values(v, CNFInstall.installed_config_dir) })
       helm_lint_cmd = f_flags ? "#{helm} lint #{chart_dir} #{f_flags}" : "#{helm} lint #{chart_dir}"
       Log.for(t.name).info { "Helm lint command: #{helm_lint_cmd}" }
       status = Process.run(helm_lint_cmd, shell: true, output: stdout = IO::Memory.new, error: stderr = IO::Memory.new)

@@ -288,7 +288,7 @@ deployments:
 
       # Optional keys
       chart_version: 10.2.1
-      helm_values: --set myvalue=42                 # Additional values that would be used for helm installation
+      helm_values: --set myvalue=42                 # Additional values that would be used for helm installation; files named with -f/--values/--set-file are looked up next to this config first
       namespace: cnti-default                        # Defaults to cnti-default
       skip_tls_verify: false                        # Disable TLS verification
       pass_credentials: false                       # Pass creds on redirects
