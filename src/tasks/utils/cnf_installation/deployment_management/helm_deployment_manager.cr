@@ -22,7 +22,8 @@ module CNFInstall
     def install_from_folder(chart_path, helm_namespace, helm_values)
       begin
         CNFManager.ensure_namespace_exists!(helm_namespace)
-        response = Helm.install(@deployment_name, chart_path, namespace: helm_namespace, values: helm_values)
+        values = helm_values ? CNFInstall.resolve_helm_values(helm_values, CNFInstall.installed_config_dir) : helm_values
+        response = Helm.install(@deployment_name, chart_path, namespace: helm_namespace, values: values)
         # Save the stderr from installation command for usage in other tests.
         unless response[:output].empty?
           File.open(CNF_INSTALL_LOG_FILE, "a") { |file| file.puts("#{response[:error]}\n") }
