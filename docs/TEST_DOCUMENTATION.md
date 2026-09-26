@@ -774,6 +774,8 @@ Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod, Rep
 Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 A workload whose containers all mount a read-only root file system cannot be stressed at all, which is the property this experiment probes, so it passes without the fault being injected; the reason is recorded in the test details. In a workload that mixes read-only and writable containers, the fault is injected into a writable one.
 
+Litmus writes the stress file to the target container's root filesystem. On a memory-backed `tmpfs` root, for example containerd's root on a kind node's `tmpfs`, there is no disk I/O to stress: the file is charged to the container's memory limit as `shmem`, so a bounded write would stress memory and a pass would say nothing about I/O. The test is therefore not applicable to a workload whose root filesystem is memory backed, and the reason is recorded in the details. A disk-backed root keeps the default size; when the filesystem type cannot be probed, the fault is injected as before and the failed probe is recorded in the details.
+
 #### Rationale
 
 Stressing the disk with continuous and heavy IO can cause degradation in reads/writes by other microservices that use this

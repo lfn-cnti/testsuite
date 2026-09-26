@@ -490,4 +490,76 @@ module LitmusManager
 
     filepath
   end
+
+  # The node-side pid of the container named container_name that runs the
+  # workload resource, paired with the node it runs on, or nil when no ready
+  # pod of that resource has that container.
+  def self.target_container_on_node(resource, namespace : String, container_name : String) : {String, JSON::Any}?
+    found : {String, JSON::Any}? = nil
+    ClusterTools.all_containers_by_resource?(resource, namespace, include_proctree: false) do |_, container_pid_on_node, node, _, container_status, _|
+      next unless container_status.dig?("name").try(&.as_s?) == container_name
+      found = {container_pid_on_node, node}
+      break
+    end
+    found
+  end
+
+  # Type of the filesystem stress-ng writes to inside the target container,
+  # which is the container's own root filesystem unless the engine is given a
+  # VOLUME_MOUNT_PATH. /proc/<pid>/root resolves the path into the target
+  # container's mount namespace, bypassing the container's own binaries, which
+  # a minimal image may not have. Nil when the probe fails.
+  def self.container_root_filesystem(container_pid_on_node : String, node : JSON::Any) : String?
+    stat = ClusterTools.exec_by_node("stat -f -c '%T' /proc/#{container_pid_on_node}/root", node)
+    return nil unless stat[:status].success?
+    fs_type = stat[:output].strip
+    fs_type.empty? ? nil : fs_type
+  rescue error : Exception
+    logger = Log.for("LitmusManager.container_root_filesystem")
+    logger.warn { "filesystem probe of container #{container_pid_on_node} on node #{node.dig?("metadata", "name")} failed: #{error.message}" }
+    nil
+  end
+
+  # Why pod_io_stress cannot judge a container whose root filesystem is of this
+  # type, or nil when it can. On a memory-backed tmpfs root there is no disk
+  # I/O to stress: the file is charged to the container's memory limit as
+  # shmem, so a bounded write would stress memory and a pass would say nothing
+  # about the property the test is named for.
+  def self.pod_io_stress_memory_backed_reason(container_name : String, fs_type : String) : String?
+    return nil unless fs_type == "tmpfs"
+    "#{container_name} root filesystem is memory backed (tmpfs), so the io stress file would be charged to its memory limit instead of stressing I/O"
+  end
+
+  # Whether pod_io_stress can judge one workload resource, and why not when it
+  # cannot. The probe only guards the memory-backed case, so a probe that
+  # cannot establish the filesystem type is permissive: the fault is injected
+  # as before and the reason is recorded, rather than losing a disk-backed
+  # cluster to a failed `stat`.
+  record PodIoStressTarget, applicable : Bool, reason : String?
+
+  def self.pod_io_stress_target(resource, namespace : String, container_name : String) : PodIoStressTarget
+    logger = Log.for("LitmusManager.pod_io_stress_target")
+
+    target = target_container_on_node(resource, namespace, container_name)
+    unless target
+      reason = "#{container_name} has no ready pod to probe, so its root filesystem type is unknown; the io stress is injected as before"
+      logger.warn { reason }
+      return PodIoStressTarget.new(true, reason)
+    end
+    pid_on_node, node = target
+
+    fs_type = container_root_filesystem(pid_on_node, node)
+    unless fs_type
+      reason = "#{container_name} root filesystem could not be read on #{node.dig?("metadata", "name")}; the io stress is injected as before"
+      logger.warn { reason }
+      return PodIoStressTarget.new(true, reason)
+    end
+
+    if reason = pod_io_stress_memory_backed_reason(container_name, fs_type)
+      logger.warn { reason }
+      return PodIoStressTarget.new(false, reason)
+    end
+
+    PodIoStressTarget.new(true, nil)
+  end
 end

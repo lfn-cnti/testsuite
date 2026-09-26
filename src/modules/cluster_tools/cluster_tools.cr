@@ -112,13 +112,20 @@ module ClusterTools
     exec
   end
 
-  # todo make compatible with other runtimes
+  # Container ID without its runtime prefix, e.g. "containerd://" or
+  # "cri-o://". crictl takes the bare ID; leaving the prefix on makes the node
+  # PID lookup fail on every runtime but containerd.
+  def self.strip_runtime_prefix(container_id : String) : String
+    container_id.split("://", 2).last
+  end
+
   def self.parse_container_id(container_id : String)
     Log.debug { "parse_container_id container_id: #{container_id}" }
+    bare_id = strip_runtime_prefix(container_id)
     if container_id =~ /containerd/
-      container_id.gsub("containerd://", "")[0..13] 
+      bare_id[0..13]
     else
-      container_id
+      bare_id
     end
   end
 
@@ -198,7 +205,7 @@ module ClusterTools
 							Log.debug { "no containerID yet, skipping: #{container_name} in #{pod_name}" }
 							next
 						end
-						container_id = prefix_container_id.gsub("containerd://", "")
+						container_id = strip_runtime_prefix(prefix_container_id)
 						Log.debug { "before ready containerStatuses container_id #{container_id}" }
 						ready = container_status.dig("ready").as_bool
 						if !ready
