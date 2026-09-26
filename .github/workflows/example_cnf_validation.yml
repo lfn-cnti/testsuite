@@ -3,13 +3,23 @@
 # do the same on a fresh cluster for the workload suite. Each caller (one per
 # CNF) only owns its schedule, its concurrency group and its time budget, so a
 # fix here reaches every example CNF at once.
+#
+# The jobs run on GitHub-hosted runners unless the caller says otherwise. The
+# self-hosted runners keep containerd's root on tmpfs for speed, which puts
+# every container's root file system in memory: the file pod_io_stress writes
+# is then charged to the target's memory limit and OOM-kills it, something no
+# disk-backed cluster does. A hosted runner's /tmp is on its SSD, so the same
+# kind config below behaves as a real cluster, and the runner starts clean, so
+# the suite tools are cached and free5GC's kernel module is built on the spot.
+# A CNF whose sizing needs more than a hosted runner's 4 vCPUs (OCUDU's gNB)
+# passes the self-hosted label in `runs_on` instead.
 name: Example CNF validation
 
 on:
   workflow_call:
     inputs:
       cnf:
-        description: "Directory under example-cnfs/ and prefix of the spec tags (<cnf>_cert, <cnf>_workload)"
+        description: "Directory under example-cnfs/ and prefix of the spec tags (<cnf>_<suite>)"
         required: true
         type: string
       display_name:
@@ -17,39 +27,73 @@ on:
         required: true
         type: string
       timeout_minutes:
-        description: "Job time budget; a hung run holds a shared runner for this long"
+        description: "Job time budget; GitHub-hosted jobs are cut off at 360 regardless"
         required: false
         type: number
         default: 360
+      gtp5g:
+        description: "Build and load the gtp5g kernel module on the runner (free5GC's UPF forwards through it)"
+        required: false
+        type: boolean
+        default: false
+      suites:
+        description: "JSON list of the suites to run, one job each; every one needs a spec tagged <cnf>_<suite>"
+        required: false
+        type: string
+        default: '["cert", "workload"]'
+      runs_on:
+        description: "Runner label; the default is a GitHub-hosted runner, a caller whose CNF needs more CPU passes the self-hosted label"
+        required: false
+        type: string
+        default: ubuntu-24.04
 
 jobs:
   validation:
     name: ${{ inputs.display_name }} ${{ matrix.suite }}
-    runs-on: [v1.0.0]
+    runs-on: ${{ inputs.runs_on }}
     timeout-minutes: ${{ inputs.timeout_minutes }}
     strategy:
       fail-fast: false
-      # The caller's concurrency group serialises runs, not the jobs inside
-      # one run: cert and workload would otherwise each build a three-node kind
-      # cluster and install the CNF on the same runner pool at the same time.
-      max-parallel: 1
+      # Every job builds its own three-node kind cluster and installs the CNF.
+      # On GitHub-hosted runners each job has a machine of its own, so they
+      # run side by side; on the self-hosted pool they would share one
+      # machine, so there they run one after the other.
+      max-parallel: ${{ startsWith(inputs.runs_on, 'ubuntu') && 8 || 1 }}
       matrix:
-        suite: [cert, workload]
+        suite: ${{ fromJson(inputs.suites) }}
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
-      KIND_CLUSTER_NAME: ${{ inputs.cnf }}-${{ matrix.suite }}-${{ github.run_id }}
     steps:
+      - name: Name the kind cluster
+        # kind accepts lower-case letters, digits, dots and dashes; a suite
+        # name may carry an underscore.
+        run: echo "KIND_CLUSTER_NAME=$(echo '${{ inputs.cnf }}-${{ matrix.suite }}-${{ github.run_id }}' | tr '_' '-')" >> "$GITHUB_ENV"
       - name: Checkout Code & Submodules
         uses: actions/checkout@v7
         with:
           submodules: recursive
+      - name: Cache the suite tools
+        uses: ./.github/actions/cache-suite-tools
       - name: Login to Docker Hub
         if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
         uses: docker/login-action@v4
         with:
           username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ env.DOCKERHUB_PASSWORD }}
+      # kind nodes share the host kernel, so building the out-of-tree module on
+      # the runner is enough for the UPF pods to load it.
+      - name: Build and load the gtp5g kernel module
+        if: ${{ inputs.gtp5g }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential "linux-headers-$(uname -r)"
+          git clone --depth 1 https://github.com/free5gc/gtp5g.git "$RUNNER_TEMP/gtp5g"
+          make -C "$RUNNER_TEMP/gtp5g" -j"$(nproc)"
+          sudo make -C "$RUNNER_TEMP/gtp5g" install
+          sudo modprobe gtp5g
+          lsmod | grep -q '^gtp5g' && echo "gtp5g loaded on kernel $(uname -r)"
       - name: Install kind
         uses: ./.github/actions/install-kind
       - name: Setup Kind Cluster
