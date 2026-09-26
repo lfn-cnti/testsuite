@@ -20,7 +20,8 @@ fi
 
 RUNNER_COUNT=0
 for node in "${!RUNNERS[@]}"; do
-    export RUNNER_IMAGE="conformance/github-runner:v2.336.0" # don't forget the v
+    # renovate: datasource=docker depName=myoung34/github-runner
+    export RUNNER_IMAGE="myoung34/github-runner:2.337.0-ubuntu-noble"
     ssh root@${RUNNERS[$node]} "docker pull $RUNNER_IMAGE"
     RUNNERS_PER_NODE=4
     until [ $RUNNERS_PER_NODE -eq 0 ]; do
@@ -34,4 +35,3 @@ for node in "${!RUNNERS[@]}"; do
     # ssh root@${RUNNERS[$node]} "sudo apt update && sudo apt install -y bridge-utils"
    # ssh root@${RUNNERS[$node]} "sudo brctl addif kindbridge bond0"
 done
-
