@@ -731,6 +731,14 @@ The fault is injected through the node's container runtime: the suite detects th
 Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
 A workload whose containers all mount a read-only root file system cannot be stressed at all, which is the property this experiment probes, so it passes without the fault being injected; the reason is recorded in the test details. In a workload that mixes read-only and writable containers, the fault is injected into a writable one.
 
+##### Sizing the stress file
+
+Litmus sizes the stress file as a percentage of the free space of the target's root filesystem, which is where `stress-ng` writes it when no volume is named. That default of 50% is left untouched on a node whose root filesystem is on disk: the file is then reclaimable page cache and cannot exhaust the CNF's memory limit.
+
+It is not left untouched when the root filesystem is a memory-backed `tmpfs`, which is the case on the reference cluster, where containerd's root sits on the kind node's `tmpfs` for speed. The stress file is then charged to the CNF's memory limit as `shmem`, so an unbounded file OOM-kills the CNF instead of stressing its I/O. On that path the suite bounds the file to what the container has left of its memory limit (the limit minus what it is already using) and records the outcome, the budget and the free space in the test details.
+
+Two things can make the bound unmeasurable, in which case the fault is not injected and the test is reported as not applicable rather than passing a fault that stressed nothing: a container with no ready pod to probe, and a `tmpfs` whose free space or cgroup accounting cannot be read. The same applies when the target declares no memory limit, except that there is nothing to bound against and the default size is used.
+
 #### Rationale
 
 Stressing the disk with continuous and heavy IO can cause degradation in reads/writes by other microservices that use this

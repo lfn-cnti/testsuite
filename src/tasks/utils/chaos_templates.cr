@@ -13,8 +13,7 @@ class ChaosTemplates
       @container_runtime : String = "containerd",
       @socket_path : String = "/run/containerd/containerd.sock",
       @target_container : String = "",
-      @filesystem_utilization_percentage : String = "",
-      @volume_mount_path : String = ""
+      @filesystem_utilization_percentage : String = ""
     )
     end
     ECR.def_to_s("src/templates/chaos_templates/pod_io_stress.yml.ecr")

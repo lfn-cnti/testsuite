@@ -19,19 +19,22 @@ spec:
             - name: TOTAL_CHAOS_DURATION
               value: '<%= @total_chaos_duration %>'
 
-            ## specify the stress file size as a percentage of the free space
-            ## of --temp-path, computed to stay under the target container's
-            ## memory limit. The percentage is always non-empty (litmus maps
-            ## the literal "0" to its own 10% default) and FILESYSTEM_UTILIZATION_BYTES
-            ## stays '0' so litmus never appends the raw bytes as "NG".
+            ## specify the size as percentage of free space on the file system
             - name: FILESYSTEM_UTILIZATION_PERCENTAGE
-              value: '<%= @filesystem_utilization_percentage.empty? ? "50" : @filesystem_utilization_percentage %>'
+<% if @filesystem_utilization_percentage.empty? %>
+              ## The target's root filesystem is not memory backed, so the
+              ## default size cannot OOM the CNF and is left to litmus.
+              value: '50'
+<% else %>
+              ## Bounded to what the target has left of its memory limit,
+              ## because its root filesystem is a tmpfs and the file is
+              ## charged to that limit as shmem.
+              value: '<%= @filesystem_utilization_percentage %>'
+              ## Empty, not "0": litmus maps FILESYSTEM_UTILIZATION_BYTES to
+              ## "NG", whole GiB only, and rejects a sub-GiB value.
             - name: FILESYSTEM_UTILIZATION_BYTES
-              value: '0'
-            <% unless @volume_mount_path.empty? %>
-            - name: VOLUME_MOUNT_PATH
-              value: '<%= @volume_mount_path %>'
-            <% end %>
+              value: ''
+<% end %>
             - name: TARGET_PODS
               value: '<%= @target_pod_name %>'
             # empty means the pod's first container, which may be read-only
