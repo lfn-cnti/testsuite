@@ -21,4 +21,8 @@ jobs:
       display_name: OCUDU
       # The cert leg takes about 10 minutes and the workload leg about 30.
       timeout_minutes: 90
+      # The gNB's sizing (one CPU per replica, three replicas for the capacity
+      # test) needs the self-hosted cluster's two 4-vCPU workers; on a hosted
+      # runner's 4 vCPUs the third replica never becomes Ready.
+      runs_on: v1.0.0
     secrets: inherit
