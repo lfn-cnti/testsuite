@@ -18,13 +18,18 @@ describe "Helm chart dependencies" do
         - name: etcd
           version: 12.0.18
           repository: oci://registry.example.com/charts
+        - name: mongodb
+          condition: deployMongoDb
       YAML
     )
     File.write(File.join(dir, "charts", "foo-bar-0.3.0.tgz"), "")
     Dir.mkdir(File.join(dir, "charts", "etcd"))
+    # A vendored subchart with the version in its directory name and no version
+    # constraint in Chart.yaml, the way free5gc ships MongoDB.
+    Dir.mkdir(File.join(dir, "charts", "mongodb-15.6.0"))
 
-    Helm.chart_dependencies(dir).map(&.[:name]).should eq(["foo", "foo-bar", "etcd"])
-    # foo-bar-0.3.0.tgz is foo-bar's package, not foo's.
+    Helm.chart_dependencies(dir).map(&.[:name]).should eq(["foo", "foo-bar", "etcd", "mongodb"])
+    # foo-bar-0.3.0.tgz is foo-bar's package, not foo's; mongodb-15.6.0/ is mongodb.
     Helm.missing_dependencies(dir).map(&.[:name]).should eq(["foo"])
   ensure
     FileUtils.rm_rf(dir.not_nil!)

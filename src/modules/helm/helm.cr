@@ -453,13 +453,15 @@ module Helm
     end.reject(&.[:name].empty?)
   end
 
-  # The declared dependencies not present in the chart's charts/ directory,
-  # neither unpacked (charts/<name>) nor packaged (charts/<name>-<version>.tgz).
+  # The declared dependencies not present in the chart's charts/ directory:
+  # unpacked as charts/<name> or charts/<name>-<version> (a vendored subchart
+  # often keeps the version in its directory name, as free5gc's mongodb-15.6.0
+  # does), or packaged as charts/<name>-<version>.tgz.
   def self.missing_dependencies(chart_dir : String) : Array(ChartDependency)
     charts = File.join(chart_dir, "charts")
+    entries = Dir.exists?(charts) ? Dir.children(charts) : [] of String
     chart_dependencies(chart_dir).reject do |dep|
-      Dir.exists?(File.join(charts, dep[:name])) ||
-        (Dir.exists?(charts) && Dir.children(charts).any? { |f| f.ends_with?(".tgz") && f.matches?(/^#{Regex.escape(dep[:name])}-\d/) })
+      entries.any? { |entry| entry == dep[:name] || entry.matches?(/^#{Regex.escape(dep[:name])}-\d/) }
     end
   end
 

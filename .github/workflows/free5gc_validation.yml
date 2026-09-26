@@ -20,7 +20,8 @@ jobs:
     with:
       cnf: free5gc
       display_name: free5GC
-      # A full workload run installs several heavy CNFs and can exceed the
-      # default 360-minute job timeout, so give it twice that.
-      timeout_minutes: 720
+      # The workload run took under five hours on the self-hosted runners and
+      # a hosted runner is faster; 360 is also the hosted job cut-off.
+      timeout_minutes: 360
+      gtp5g: true
     secrets: inherit
