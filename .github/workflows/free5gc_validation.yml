@@ -20,7 +20,12 @@ jobs:
     with:
       cnf: free5gc
       display_name: free5GC
-      # A full workload run installs several heavy CNFs and can exceed the
-      # default 360-minute job timeout, so give it twice that.
-      timeout_minutes: 720
+      # In one job the workload suite would take about four and a quarter
+      # hours on a hosted runner, with little room under the six a hosted job
+      # may run. Three chaos tests run in a job of their own (see
+      # spec/free5gc_spec.cr): about three hours and an hour and a half.
+      # 360 is the hosted cut-off.
+      timeout_minutes: 360
+      suites: '["cert", "workload", "long_chaos"]'
+      gtp5g: true
     secrets: inherit
