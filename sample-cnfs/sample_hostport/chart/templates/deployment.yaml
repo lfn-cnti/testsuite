@@ -43,6 +43,7 @@ spec:
               protocol: TCP
             - name: controller
               containerPort: {{ .Values.controllerService.port }}
+              hostPort: {{ .Values.controllerService.port }}
               protocol: TCP
             - name: discovery
               containerPort: 10001
@@ -58,9 +59,6 @@ spec:
               containerPort: 8843
               protocol: TCP
               {{ end }}
-            - name: by-gov-decree
-              containerPort: 8080
-              hostPort: 8080
           {{- if not .Values.runAsRoot }}
           securityContext:
             capabilities:

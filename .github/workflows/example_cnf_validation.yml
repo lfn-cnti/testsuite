@@ -100,11 +100,12 @@ jobs:
               hostPath: $HOME/.docker/config.json
           EOF
           kind create cluster --name "$KIND_CLUSTER_NAME" --config kind_setup.yaml --wait 5m
-      - name: Install Crystal
-        uses: crystal-lang/install-crystal@v1
-        with:
-          # renovate: datasource=github-releases depName=crystal-lang/crystal
-          crystal: 1.19.1
+      - name: Install the CNTi toolchain
+        # Provisions the Crystal, kubectl and helm the suite needs with no
+        # baked tooling, so the job runs identically on GitHub-hosted runners
+        # and on a plain upstream self-hosted runner image. install-crystal@v1
+        # requires a runner agent that speaks node24 (>= 2.327.1).
+        uses: ./.github/actions/install-cnti-toolchain
       - name: Build CNTi Test Suite
         run: |
           shards install

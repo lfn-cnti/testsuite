@@ -474,7 +474,7 @@ describe "Installation" do
       )[:status].success?.should be_true
 
       # Push chart to the registry
-      Helm.registry_login("localhost:#{local_registry_port}", username: "dummy", password: "secret", insecure: true).should be_true
+      Helm.registry_login("localhost:#{local_registry_port}", username: "dummy", password: "secret", insecure: true, plain_http: true).should be_true
       Helm.push_oci(tgz, "oci://localhost:#{local_registry_port}/helm", plain_http: true)
 
       # Logout before install

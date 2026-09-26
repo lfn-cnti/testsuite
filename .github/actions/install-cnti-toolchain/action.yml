@@ -1,0 +1,74 @@
+name: "Install the CNTi toolchain"
+description: >-
+  Provision the tools the suite shells out to (Crystal, kubectl, helm) so a job
+  runs identically on GitHub-hosted runners and on a plain upstream self-hosted
+  runner image. This is the single source of truth for bootstrapping the toolbox
+  now that the runner image bakes nothing.
+inputs:
+  crystal:
+    description: "Crystal version to install"
+    required: false
+    # renovate: datasource=github-releases depName=crystal-lang/crystal
+    default: "1.19.1"
+  kubectl:
+    description: "kubectl version to install"
+    required: false
+    # renovate: datasource=github-releases depName=kubernetes/kubernetes
+    default: "1.37.1"
+  helm:
+    description: "Helm version to install"
+    required: false
+    # renovate: datasource=github-releases depName=helm/helm
+    default: "4.2.4"
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        arch="$(uname -m)"
+        case "$arch" in
+          x86_64|amd64) arch=amd64 ;;
+          aarch64|arm64) arch=arm64 ;;
+          *) echo "::error::Unsupported architecture: $arch"; exit 1 ;;
+        esac
+        # Stage the downloads outside the workspace: in the reusable workflows
+        # the checkout is also the suite's working directory.
+        staging="$RUNNER_TEMP/cnti-toolchain"
+        mkdir -p "$staging"
+        if ! command -v kubectl >/dev/null 2>&1; then
+          curl -fsSL -o "$staging/kubectl" \
+            "https://dl.k8s.io/release/v${{ inputs.kubectl }}/bin/linux/$arch/kubectl"
+          sudo install -o root -g root -m 0755 "$staging/kubectl" /usr/local/bin/kubectl
+        fi
+        if ! command -v helm >/dev/null 2>&1; then
+          # Keep in sync with HELM_VERSION in src/tasks/setup/constants.cr.
+          curl -fsSL -o "$staging/helm.tar.gz" \
+            "https://get.helm.sh/helm-v${{ inputs.helm }}-linux-$arch.tar.gz"
+          tar -xzf "$staging/helm.tar.gz" -C "$staging"
+          sudo install -o root -g root -m 0755 "$staging/linux-$arch/helm" /usr/local/bin/helm
+        fi
+    - shell: bash
+      run: |
+        set -euo pipefail
+        # The prebuilt Crystal binaries link against these. GitHub-hosted
+        # runners already ship them, plain runner images do not necessarily,
+        # and a green hosted run would not catch a missing one.
+        missing=""
+        for lib in libssl.so libxml2.so libyaml-0.so libgmp.so libevent-2.1.so \
+                   libpcre2-8.so libz.so; do
+          if ! ldconfig -p | grep -q "$lib"; then
+            missing="${missing}${missing:+ }${lib%%.so*}"
+          fi
+        done
+        if [ -n "$missing" ]; then
+          echo "::group::Installing Crystal runtime libraries: $missing"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libssl3t64 libxml2 libyaml-0-2 libgmp10 libevent-2.1-7t64 \
+            libpcre2-8-0 zlib1g
+          echo "::endgroup::"
+        fi
+    - uses: crystal-lang/install-crystal@v1
+      with:
+        crystal: ${{ inputs.crystal }}
