@@ -234,7 +234,8 @@ module Helm
     ca_file : String? = nil,
     cert_file : String? = nil,
     key_file : String? = nil,
-    insecure : Bool = false
+    insecure : Bool = false,
+    plain_http : Bool = false
   ) : Bool
     logger = Log.for("registry_login")
 
@@ -250,7 +251,8 @@ module Helm
 
     f_tls = tls_flags(ca_file, cert_file, key_file)
     cmd = "#{cmd} #{f_tls}" unless f_tls.empty?
-    cmd = "#{cmd} --insecure" if insecure
+    cmd = "#{cmd} --insecure"    if insecure
+    cmd = "#{cmd} --plain-http" if plain_http
 
     resp = nil
     begin

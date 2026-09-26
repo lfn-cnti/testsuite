@@ -122,7 +122,8 @@ module CNFInstall
         registry_host,
         username: username, password: password,
         ca_file: ca_file, cert_file: cert_file, key_file: key_file,
-        insecure: skip_tls_verify
+        insecure: skip_tls_verify,
+        plain_http: @helm_chart_config.plain_http
       )
 
       begin
