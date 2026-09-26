@@ -567,6 +567,7 @@ scored_task "pod_io_stress",
     container_runtime, socket_path = runtime
 
     injected = 0
+    memory_backed = 0
     task_response, tested = chaos_resource_test(args, config, result, t.name, check_containers: false) do |resource, containers, _, target_label|
       app_namespace = resource[:namespace]
 
@@ -579,6 +580,19 @@ scored_task "pod_io_stress",
       end
 
       deployment_label, deployment_label_value = target_label
+
+      # On a memory-backed root the file is charged to the CNF's memory limit,
+      # so the fault would stress memory, not I/O: report that instead of
+      # passing a test that judged the wrong property. A probe that cannot tell
+      # is permissive and records why, so a disk-backed cluster keeps the test.
+      probe = LitmusManager.pod_io_stress_target(resource, app_namespace, target_container)
+      if reason = probe.reason
+        result.append_description(reason)
+      end
+      unless probe.applicable
+        memory_backed += 1
+        next true
+      end
 
       injected += 1
       test_passed = true
@@ -613,6 +627,10 @@ scored_task "pod_io_stress",
       end
 
       test_passed
+    end
+    if injected == 0 && memory_backed > 0
+      result.na("pod_io_stress not applicable: the root filesystem is memory backed, so the io stress file would stress memory instead of I/O; see the details")
+      next
     end
     hardened_only = injected == 0 ? "pod_io_stress chaos test passed: every container has a read-only root file system" : nil
     chaos_verdict(result, t.name, task_response, tested, hardened_only)
