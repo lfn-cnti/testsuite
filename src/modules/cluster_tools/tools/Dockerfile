@@ -1,3 +1,7 @@
+# cluster-tools: the privileged per-node toolbox the suite runs its node-level
+# introspection through (see ClusterTools.exec_by_node). Bump VERSION when
+# changing this file; the images workflow publishes ghcr.io/lfn-cnti/cluster-tools.
+
 FROM golang:1.24 AS validator
 
 ENV METRICS_VERSION="main"
@@ -5,47 +9,39 @@ RUN git clone -b $METRICS_VERSION https://github.com/prometheus/OpenMetrics.git 
 WORKDIR /validator/src
 RUN make openmetricsvalidator
 
-FROM debian:stable-slim AS wireshark_build
-
-RUN apt update && apt-get install -y build-essential git cmake bison flex libgtk-3-dev libpcap-dev libssl-dev \
-    libncurses5-dev qtbase5-dev qttools5-dev-tools qttools5-dev libqt5svg5-dev libtool libgcrypt20-dev libc-ares-dev
-
-RUN git clone https://gitlab.com/wireshark/wireshark.git /wireshark
-RUN cd /wireshark && \
-    git checkout tags/wireshark-4.0.8 && \
-    mkdir build && \
-    cd build && \
-    cmake ../ && \
-    make -j`nproc` && \
-    make install
-
 FROM debian:stable-slim
 
-ENV CRI_VERSION="v1.32.0"
-ENV RUNC_VERSION="v1.2.6"
-ENV NCTL_VERSION="2.0.4"
-ENV CTR_VERSION="2.0.4"
+# renovate: datasource=github-releases depName=kubernetes-sigs/cri-tools
+ARG CRI_VERSION=v1.32.0
+# renovate: datasource=github-releases depName=opencontainers/runc
+ARG RUNC_VERSION=v1.2.6
+# renovate: datasource=github-releases depName=containerd/nerdctl
+ARG NCTL_VERSION=2.0.4
+# renovate: datasource=github-releases depName=containerd/containerd
+ARG CTR_VERSION=2.0.4
+ARG TARGETARCH
+
+LABEL org.opencontainers.image.source="https://github.com/lfn-cnti/testsuite" \
+      org.opencontainers.image.description="CNTi Test Suite cluster-tools: per-node toolbox (crictl, nerdctl, ctr, skopeo, tshark, lsof, strace, OpenMetrics validator)" \
+      org.opencontainers.image.licenses="Apache-2.0"
 
 COPY ./sleep /sleep
 COPY ./zombie /zombie
-
-COPY --from=wireshark_build /usr/local /usr/local
 COPY --from=validator /validator/bin/openmetricsvalidator /usr/local/bin/
-RUN apt update && apt install -y curl sysbench skopeo net-tools strace libpcap-dev libssl-dev libc-ares-dev libqt5printsupport5 lsof
 
-RUN curl -L https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRI_VERSION}/crictl-${CRI_VERSION}-linux-amd64.tar.gz --output crictl-${CRI_VERSION}-linux-amd64.tar.gz && \
-    tar zxvf crictl-$CRI_VERSION-linux-amd64.tar.gz -C /usr/local/bin && \
-    rm -f crictl-$CRI_VERSION-linux-amd64.tar.gz
+# tshark from Debian instead of a from-source wireshark build: same dissectors
+# (NGAP, GTP, PFCP, HTTP/2) for the 5G captures, minutes instead of an hour.
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      ca-certificates curl tshark skopeo sysbench net-tools strace lsof procps && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN curl -L https://github.com/opencontainers/runc/releases/download/${RUNC_VERSION}/runc.amd64 --output /usr/local/bin/runc && \
-    chmod +x /usr/local/bin/runc
-
-RUN curl -L https://github.com/containerd/nerdctl/releases/download/v${NCTL_VERSION}/nerdctl-${NCTL_VERSION}-linux-amd64.tar.gz --output nerdctl.tar.gz && \
-    tar zxvf nerdctl.tar.gz -C /tmp/ && \
-    mv /tmp/nerdctl /usr/local/bin/ && \
-    rm -f  nerdctl.tar.gz
-
-RUN curl -L https://github.com/containerd/containerd/releases/download/v${CTR_VERSION}/containerd-${CTR_VERSION}-linux-amd64.tar.gz --output containerd-${CTR_VERSION}-linux-amd64.tar.gz && \
-    tar zxvf containerd-${CTR_VERSION}-linux-amd64.tar.gz -C /tmp/ && \
-    mv /tmp/bin/ctr /usr/local/bin && \
-    rm -f containerd-${CTR_VERSION}-linux-amd64.tar.gz
+RUN curl -fsSL "https://github.com/kubernetes-sigs/cri-tools/releases/download/${CRI_VERSION}/crictl-${CRI_VERSION}-linux-${TARGETARCH}.tar.gz" \
+      | tar -xz -C /usr/local/bin crictl && \
+    curl -fsSL -o /usr/local/bin/runc "https://github.com/opencontainers/runc/releases/download/${RUNC_VERSION}/runc.${TARGETARCH}" && \
+    chmod +x /usr/local/bin/runc && \
+    curl -fsSL "https://github.com/containerd/nerdctl/releases/download/v${NCTL_VERSION}/nerdctl-${NCTL_VERSION}-linux-${TARGETARCH}.tar.gz" \
+      | tar -xz -C /usr/local/bin nerdctl && \
+    curl -fsSL "https://github.com/containerd/containerd/releases/download/v${CTR_VERSION}/containerd-${CTR_VERSION}-linux-${TARGETARCH}.tar.gz" \
+      | tar -xz -C /tmp bin/ctr && \
+    mv /tmp/bin/ctr /usr/local/bin/ctr && rmdir /tmp/bin
