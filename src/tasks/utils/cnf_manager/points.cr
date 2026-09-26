@@ -33,6 +33,7 @@ module CNFManager
     property end_time : Time
     property result_remediation : Array(String)
     property result_impacted_resources : Array(Hash(String, String))
+    property result_excepted : Array(Hash(String, String))
 
     def initialize(@testcase : String = "",
                    @status : CNFManager::ResultStatus = CNFManager::ResultStatus::Skipped,
@@ -41,7 +42,8 @@ module CNFManager
                    @start_time : Time = Time.utc,
                    @end_time : Time = Time.utc,
                    @result_remediation : Array(String) = [] of String,
-                   @result_impacted_resources : Array(Hash(String, String)) = [] of Hash(String, String))
+                   @result_impacted_resources : Array(Hash(String, String)) = [] of Hash(String, String),
+                   @result_excepted : Array(Hash(String, String)) = [] of Hash(String, String))
     end
 
     # Backward-compatible constructor for old code that passes (status, message)
@@ -98,6 +100,16 @@ module CNFManager
       entry["pod"] = pod if pod
       entry["reason"] = reason if reason
       @result_impacted_resources << entry
+    end
+
+    # A finding the CNF's config declares an exception for (CBPP-0003): what
+    # was found, on which resource, and the documented reason it is allowed.
+    def add_excepted(kind : String, name : String, namespace : String? = nil,
+                     container : String? = nil, finding : String = "", reason : String = "")
+      entry = {"kind" => kind, "name" => name, "finding" => finding, "reason" => reason}
+      entry["namespace"] = namespace if namespace
+      entry["container"] = container if container
+      @result_excepted << entry
     end
 
     def set_start_time()
@@ -568,6 +580,9 @@ module CNFManager
       end
       unless result.result_impacted_resources.empty?
         item_node[YAML::Any.new("impacted_resources")] = YAML.parse(result.result_impacted_resources.to_yaml)
+      end
+      unless result.result_excepted.empty?
+        item_node[YAML::Any.new("excepted")] = YAML.parse(result.result_excepted.to_yaml)
       end
       result_items << YAML::Any.new(item_node)
 

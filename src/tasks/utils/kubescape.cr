@@ -265,6 +265,20 @@ module Kubescape
       end
     end
 
+    # The value at `path` in the live object, e.g. the capability at
+    # ...securityContext.capabilities.add[2]; nil when it is not a string or
+    # the object cannot be read.
+    def value_for(path : String) : String?
+      node : JSON::Any? = KubectlClient::Get.resource(kind, name, namespace)
+      path.scan(/([^.\[\]]+)|\[(\d+)\]/) do |m|
+        break if node.nil?
+        node = m[2]? ? node.as_a?.try(&.[m[2].to_i]?) : node.as_h?.try(&.[m[1]]?)
+      end
+      node.try(&.as_s?)
+    rescue
+      nil
+    end
+
     # The container a path like spec.template.spec.containers[1].x refers to,
     # by name, looked up in the live object; nil when the path is not
     # container-scoped or the object cannot be read.

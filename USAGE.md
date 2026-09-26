@@ -298,8 +298,10 @@ Certification: PASSED (17 of 19 essential tests passed, threshold 15)
 | `details` | *(optional)* Free-form reason/evidence strings; omitted when empty. |
 | `remediation` | *(optional)* Guidance on how to fix the failure; omitted when empty. A failed test that provides none of its own carries the *Remediation* section of its entry in [TEST_DOCUMENTATION](docs/TEST_DOCUMENTATION.md). |
 | `impacted_resources` | *(optional)* Structured list of offending resources; omitted when empty. |
+| `excepted` | *(optional)* Findings covered by a documented exception in the CNF's config (see `exceptions` in [CNTI_TESTSUITE_YAML_USAGE](CNTI_TESTSUITE_YAML_USAGE.md)); omitted when empty. |
 
 Each `impacted_resources` entry has `kind` and `name`, plus optional `namespace`, `container`, `pod`, and `reason` (present only when known).
+Each `excepted` entry has `kind`, `name`, `finding` (what was found) and `reason` (the documented justification), plus optional `namespace` and `container`. A test passes only when every finding is excepted; excepted findings do not fail it.
 
 ---
 

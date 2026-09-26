@@ -302,6 +302,15 @@ describe "Installation" do
     end
   end
 
+  it "'cnf_install' should reject an exception for a test that takes none", tags: ["cnf_installation1"] do
+    begin
+      result = ShellCmd.cnf_install("--cnf-config spec/fixtures/sample-invalid-exception.yml", expect_failure: true)
+      (/exceptions\[0\]: unknown test "liveness"; exceptions exist for insecure_capabilities, sysctls, host_network, privileged_containers/ =~ result[:output]).should_not be_nil
+    ensure
+      ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'cnf_install' should correctly handle deployment priority", tags: ["cnf_installation_priority"] do
     # (kosstennbl) ELK stack requires to be installed with specific order, otherwise it would give errors
     begin
