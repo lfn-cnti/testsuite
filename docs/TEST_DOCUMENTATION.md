@@ -582,8 +582,10 @@ Claim the storage from a storage class whose volumes can follow the workload to 
 
 #### Overview
 
-This checks if elastic volumes and stateful sets are used for MySQL databases. If no MySQL database is found, the test is skipped.
-Expectation: Elastic volumes and or statefulsets should be used for databases to maintain a minimum resilience level in K8s clusters.
+This checks if the databases of the CNF keep their data on persistent storage. A database is recognised as in [Shared database](#shared-database): MariaDB/MySQL, PostgreSQL, MongoDB, Redis, Cassandra and etcd, by image name or port.
+A database passes when its workload claims persistent storage, through a PersistentVolumeClaim or a volumeClaimTemplate, whatever the kind of the workload. It fails without one. The provisioner behind the claim is the cluster's choice and is not judged here; see [Elastic volumes](#elastic-volumes).
+A Redis, or its fork Valkey, without a persistent volume may be a cache: it is listed in the test details and not judged. The test is not applicable when no database is found, or when nothing could be judged.
+Expectation: Databases should keep their data on persistent volumes, so that it survives the rescheduling of their pods.
 
 #### Rationale
 
@@ -595,7 +597,7 @@ Sources: [Kubernetes persistent volumes](https://kubernetes.io/docs/concepts/sto
 
 #### Remediation
 
-Select a database configuration that uses statefulsets and elastic storage volumes.
+Give the database a persistent volume: a volumeClaimTemplate in a StatefulSet, or a PersistentVolumeClaim.
 
 #### Usage
 
