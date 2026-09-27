@@ -282,9 +282,20 @@ module Kubescape
   # Records every failed resource of a report into `result`: one entry per
   # failed field when kubescape names the fields (with the container, when
   # the field is a container's), otherwise one entry with the alert message.
-  def self.report_failed_resources(test_report : TestReport, result)
+  #
+  # Some controls fail on a condition that no single field expresses, and the
+  # fields kubescape names are then only its suggested fix (#2660). Such a
+  # test passes `finding`, the condition in words: it is recorded once per
+  # container instead of the fields.
+  def self.report_failed_resources(test_report : TestReport, result, finding : String? = nil)
     test_report.failed_resources.each do |r|
-      if r.paths.empty?
+      if finding
+        containers = r.paths.map { |path| r.container_for(path) }.uniq
+        containers = [nil] if containers.empty?
+        containers.each do |container|
+          result.add_impacted_resource(r.kind, r.name, r.namespace, container: container, reason: finding)
+        end
+      elsif r.paths.empty?
         result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message)
       else
         r.paths.each do |path|

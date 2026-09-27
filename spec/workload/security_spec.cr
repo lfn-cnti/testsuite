@@ -497,7 +497,7 @@ describe "Security" do
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_sysctls")
       result = ShellCmd.run_testsuite("sysctls")
       result[:status].exit_code.should eq(1)
-      (/(FAILED).*(Restricted values for are being used for sysctls)/ =~ result[:output]).should_not be_nil
+      (/(FAILED).*(Found resources that set sysctls outside the safe set)/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end

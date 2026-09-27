@@ -29,6 +29,17 @@ category_task "security", [
     "application_credentials"
   ]
 
+# Names of the sysctls a resource sets in its pod security context; empty
+# when it sets none or cannot be read.
+def pod_sysctl_names(kind : String, name : String, namespace : String?) : Array(String)
+  resource = KubectlClient::Get.resource(kind, name, namespace)
+  pod_spec = resource.dig?("spec", "template", "spec") || resource.dig?("spec")
+  sysctls = pod_spec.try(&.dig?("securityContext", "sysctls")).try(&.as_a?) || [] of JSON::Any
+  sysctls.compact_map(&.dig?("name").try(&.as_s?))
+rescue
+  [] of String
+end
+
 desc "Check if pods in the CNF use sysctls with restricted values"
 scored_task "sysctls",
   emoji: "🔓🔑" do |t, args|
@@ -44,10 +55,12 @@ scored_task "sysctls",
     else
       failures.each do |failure|
         failure.resources.each do |resource|
-          result.add_impacted_resource(resource.kind, resource.name, resource.namespace, reason: failure.message)
+          names = pod_sysctl_names(resource.kind, resource.name, resource.namespace)
+          reason = names.empty? ? failure.message : "sets sysctls #{names.join(", ")}. #{failure.message}"
+          result.add_impacted_resource(resource.kind, resource.name, resource.namespace, reason: reason)
         end
       end
-      result.failed("Restricted values for are being used for sysctls")
+      result.failed("Found resources that set sysctls outside the safe set")
     end
   end
 end
@@ -218,7 +231,7 @@ scored_task "privilege_escalation",
     if test_report.failed_resources.size == 0
       result.passed("No containers that allow privilege escalation were found")
     else
-      Kubescape.report_failed_resources(test_report, result)
+      Kubescape.report_failed_resources(test_report, result, finding: "securityContext.allowPrivilegeEscalation is not set to false")
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found containers that allow privilege escalation")
     end
@@ -363,7 +376,7 @@ scored_task "linux_hardening",
     if test_report.failed_resources.size == 0
       result.passed("Security services are being used to harden applications")
     else
-      Kubescape.report_failed_resources(test_report, result)
+      Kubescape.report_failed_resources(test_report, result, finding: "none of AppArmor, seccomp, SELinux or Linux capabilities is defined")
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found resources that do not use security services")
     end
