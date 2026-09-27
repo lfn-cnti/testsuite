@@ -88,7 +88,7 @@ module NetRetry
         end
         delay = backoff * attempt
         logger.warn { "#{what}: attempt #{attempt}/#{attempts} failed (#{ex.message.to_s[0, 300]}); retrying in #{delay}s" }
-        sleep(delay) if delay > 0
+        sleep(delay.seconds) if delay > 0
       end
     end
   end
