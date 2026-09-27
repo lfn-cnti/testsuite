@@ -7,11 +7,12 @@ require "sam"
 
 describe "State" do
 
-  it "'elastic_volumes' should pass if all persistent volumes are elastic even when non-persistent volumes are present", tags: ["elastic_volume"]  do
+  it "'elastic_volumes' should not judge volumes of the cluster's default storage class, nor non-persistent volumes", tags: ["elastic_volume"]  do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-elastic-volume/cnti-testsuite.yaml", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
       result = ShellCmd.run_testsuite("elastic_volumes", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
-      (/(PASSED).*(All used volumes are elastic)/ =~ result[:output]).should_not be_nil
+      (/(N\/A).*(The cluster's default storage class provisions volumes tied to a node)/ =~ result[:output]).should_not be_nil
+      (/the cluster's default; not judged/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -54,22 +55,24 @@ describe "State" do
     end
   end
 
-  it "'elastic_volumes' should pass if the cnf uses elastic persistent volumes", tags: ["elastic_volume"]  do
+  it "'elastic_volumes' should not judge a claim served by the cluster's default storage class", tags: ["elastic_volume"]  do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-elastic-pvc/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("elastic_volumes", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
-      (/(PASSED).*(All used volumes are elastic)/ =~ result[:output]).should_not be_nil
+      (/(N\/A).*(The cluster's default storage class provisions volumes tied to a node)/ =~ result[:output]).should_not be_nil
+      (/the cluster's default; not judged/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
     end
   end
 
-  it "'elastic_volumes' should pass for a statefulset with volumeClaimTemplates", tags: ["elastic_volume"]  do
+  it "'elastic_volumes' should find the claims of a statefulset with volumeClaimTemplates", tags: ["elastic_volume"]  do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-elastic-vct/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("elastic_volumes", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
-      (/(PASSED).*(All used volumes are elastic)/ =~ result[:output]).should_not be_nil
+      (/(N\/A).*(The cluster's default storage class provisions volumes tied to a node)/ =~ result[:output]).should_not be_nil
+      (/the cluster's default; not judged/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true
@@ -80,6 +83,7 @@ describe "State" do
     with_sample_local_storage do
       result = ShellCmd.run_testsuite("elastic_volumes", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
       (/(FAILED).*(Some of the used volumes are not elastic)/ =~ result[:output]).should_not be_nil
+      (/a local volume at/ =~ result[:output]).should_not be_nil
     end
   end
 

@@ -557,9 +557,10 @@ Ensure that your CNF isn't using any persistent volumes that use a ["local"] mou
 
 #### Overview
 
-This checks for elastic persistent volumes in use by the CNF.
-If no persistent volumes are found, the test is skipped.
-Expectation: Elastic persistent volumes should be configured for statefulness.
+This checks whether the persistent volumes of the CNF are elastic: not tied to one node, so that a workload can be rescheduled together with its data.
+Measurement: the PersistentVolume each claim of the CNF is bound to, including the claims made from a StatefulSet's volumeClaimTemplates. A volume is tied to a node when it is a `local` or `hostPath` volume, or when its node affinity names a host. A node affinity on a zone or a region, as cloud disks carry, does not tie it. The name of the provisioner is not judged.
+A volume tied to a node that the cluster's default storage class provisioned is the cluster's choice: it is listed in the test details and not judged. The test is not applicable when no persistent volumes are used, or when all of them are such volumes. It is skipped when no claim is bound to a volume.
+Expectation: Persistent volumes should be able to follow the workload to another node.
 
 #### Rationale
 
@@ -569,7 +570,7 @@ Sources: [Kubernetes persistent volumes](https://kubernetes.io/docs/concepts/sto
 
 #### Remediation
 
-Setup and use elastic persistent volumes instead of local storage.
+Claim the storage from a storage class whose volumes can follow the workload to another node, and do not bind the claim to a local or hostPath PersistentVolume.
 
 #### Usage
 
