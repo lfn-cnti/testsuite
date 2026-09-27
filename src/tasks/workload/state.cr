@@ -5,6 +5,7 @@ require "colorize"
 require "totem"
 require "../utils/utils.cr"
 require "../../modules/kubectl_client"
+require "../utils/volume_elasticity.cr"
 
 desc "The CNF test suite checks if state is stored in a custom resource definition or a separate database (e.g. etcd) rather than requiring local storage.  It also checks to see if state is resilient to node failure"
 category_task "state", ["no_local_volume_configuration", "elastic_volumes", "database_persistence", "node_drain"]
@@ -371,52 +372,71 @@ scored_task "elastic_volumes",
   type: CNFManager::TestType::Bonus,
   emoji: "🧫" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    volumes_used = false
+    # The volume each claim is bound to is judged, not the name of its
+    # provisioner (#2665): a volume tied to one node is not elastic. One
+    # that the cluster's default storage class provisioned is the cluster's
+    # choice and is listed, not held against the CNF.
+    claims = 0
+    elastic = 0
+    node_bound = 0
+    cluster_choice = 0
+    unbound = 0
+    all_volumes = KubectlClient::Get.resource("pv")["items"].as_a
 
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, volumes|
-      Log.for("elastic_volumes:test_resource").debug { resource.inspect }
-      Log.for("elastic_volumes:volumes").debug { volumes.inspect }
+    CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
+      namespace = resource["namespace"]
+      label = "#{resource["kind"]}/#{resource["name"]} in #{namespace}"
+      full_resource = KubectlClient::Get.resource(resource["kind"], resource["name"], namespace)
 
-      # Only persistent (PVC-backed) volumes are evaluated for elasticity. ConfigMap,
-      # Secret and emptyDir volumes are not persistent storage and have nothing to check.
-      # StatefulSets with volumeClaimTemplates are always evaluated via the VCT path.
-      pvc_volumes = Volume.pvc_volumes(volumes.as_a)
-      full_resource = KubectlClient::Get.resource(resource["kind"], resource["name"], resource["namespace"])
-      next true if pvc_volumes.empty? && !VolumeClaimTemplate.vct_resource?(full_resource)
-      volumes_used = true
+      VolumeElasticity.claim_names(full_resource).each do |claim|
+        claims += 1
+        pv = all_volumes.find do |volume|
+          volume.dig?("spec", "claimRef", "name").try(&.as_s?) == claim &&
+            volume.dig?("spec", "claimRef", "namespace").try(&.as_s?) == namespace
+        end
+        unless pv
+          result.append_description("#{label}: claim #{claim} is not bound to a PersistentVolume, elasticity undetermined")
+          unbound += 1
+          next
+        end
 
-      elastic_result = WorkloadResource.elastic?(full_resource, pvc_volumes, resource["namespace"])
-      Log.for("#{t.name}:elastic_result").info {elastic_result}
-      unless elastic_result[:elastic]
-        reason = if elastic_result[:missing_classes].any?
-                   "uses non-elastic volumes (missing storage class(es): #{elastic_result[:missing_classes].join(", ")}): #{pvc_volumes.map(&.dig("name")).join(", ")}"
-                 else
-                   "uses non-elastic volumes: #{pvc_volumes.map(&.dig("name")).join(", ")}"
-                 end
-        result.add_impacted_resource(resource["kind"], resource["name"], resource["namespace"], reason: reason)
+        class_name = pv.dig?("spec", "storageClassName").try(&.as_s?)
+        storage_class = begin
+          KubectlClient::Get.resource("storageclasses", class_name) if class_name && !class_name.empty?
+        rescue KubectlClient::ShellCMD::NotFoundError
+          nil
+        end
+        judgement = VolumeElasticity.judge(pv, storage_class)
+        line = "claim #{claim}, PersistentVolume #{pv.dig?("metadata", "name")}: #{judgement[:reason]}"
+        case judgement[:verdict]
+        in .elastic?
+          elastic += 1
+          result.append_description("#{label}: #{line}")
+        in .cluster_choice?
+          cluster_choice += 1
+          result.append_description("#{label}: #{line}; not judged")
+        in .node_bound?
+          node_bound += 1
+          result.add_impacted_resource(resource["kind"], resource["name"], namespace, reason: line)
+        end
       end
-    
-      elastic_result[:elastic]
+      true
     end
 
-    Log.for("elastic_volumes:result").info { "Volumes used: #{volumes_used}; Elastic?: #{task_response}" }
-    if !volumes_used
+    Log.for(t.name).info { "claims: #{claims}, elastic: #{elastic}, node-bound: #{node_bound}, cluster's choice: #{cluster_choice}, unbound: #{unbound}" }
+    if claims == 0
       result.na("No persistent volumes are used")
-    elsif task_response
-      result.passed("All used volumes are elastic")
-    else
+    elsif node_bound > 0
+      result.append_remediation("Claim the storage from a storage class whose volumes can follow the workload to another node, and do not bind the claim to a local or hostPath PersistentVolume.")
       result.failed("Some of the used volumes are not elastic")
+    elsif elastic > 0
+      result.passed("All used volumes are elastic")
+    elsif cluster_choice > 0
+      result.na("The cluster's default storage class provisions volumes tied to a node, elasticity is not the CNF's choice here")
+    else
+      result.skipped("#{unbound} persistent volume claim(s) not bound to a PersistentVolume: elasticity could not be determined")
     end
   end
-
-  # TODO When using a default StorageClass, the storageclass name will be populated in the persistent volumes claim post-creation.
-  # TODO Inspect the workload resource and search for any "Persistent Volume Claims" --> https://loft.sh/blog/kubernetes-persistent-volumes-examples-and-best-practices/#what-are-persistent-volume-claims-pvcs 
-  # TODO Inspect the Persistent Volumes Claim and determine if a Storage Class is use. If a Storage Class is defined, dynamic provisioning is in use. If no storge class is defined, static provisioningis in use -> https://v1-20.docs.kubernetes.io/docs/concepts/storage/persistent-volumes/#lifecycle-of-a-volume-and-claim
-
-  # TODO If using dynamic provisioning, find the and inspect the associated storageClass and find the provisioning driver being used -> https://kubernetes.io/docs/concepts/storage/storage-classes/#the-storageclass-resource
-  # TODO Match and check if the provisioning driver used is of an elastic volume type.
-  # TODO If using static provisioning, find the and inspect the associated Persistent Volume and determine the provisioning driver being used -> 
-  # TODO Match and check if the provisioning driver used is of an elastic volume type.
 end
 
 desc "Does the CNF use a database which uses perisistence in a cloud native way"
