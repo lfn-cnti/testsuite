@@ -509,6 +509,7 @@ scored_task "pod_io_stress",
     end
 
     injected = 0
+    unsizable = 0
     task_response, tested = chaos_resource_test(args, config, result, t.name, check_containers: false) do |resource, containers, _|
       app_namespace = resource[:namespace]
 
@@ -531,6 +532,19 @@ scored_task "pod_io_stress",
         next true
       end
       deployment_label, deployment_label_value = target_label
+
+      # A nil percentage leaves litmus to size the file as it always has, which
+      # is what a disk backed root filesystem needs: the bound only applies
+      # where the write path is memory backed. See pod_io_stress_sizing.
+      sizing = LitmusManager.pod_io_stress_sizing(containers, resource, app_namespace, target_container)
+      result.append_description(sizing.reason)
+      unless sizing.applicable
+        # Injecting anyway would size the file blind, and on a memory backed
+        # root that is what OOM-killed the CNF. Report it instead of passing a
+        # fault that stressed nothing.
+        unsizable += 1
+        next true
+      end
 
       injected += 1
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
@@ -555,17 +569,22 @@ scored_task "pod_io_stress",
           target_pod_name,
           container_runtime: container_runtime,
           socket_path: socket_path,
-          target_container: target_container
+          target_container: target_container,
+          filesystem_utilization_percentage: sizing.percentage || ""
         ).to_s
 
         chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
         File.write(chaos_template_path, template)
         KubectlClient::Apply.file(chaos_template_path)
         LitmusManager.wait_for_test(chaos_test_name, chaos_experiment_name, args, namespace: app_namespace)
-        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name,chaos_experiment_name,args, namespace: app_namespace, result: result, target: "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}")
+        test_passed = LitmusManager.check_chaos_verdict(chaos_result_name, chaos_experiment_name, args, namespace: app_namespace, result: result, target: "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}")
       end
 
       test_passed
+    end
+    if injected == 0 && unsizable > 0
+      result.na("pod_io_stress not applicable: the io stress file size could not be determined for any target, see the details")
+      next
     end
     hardened_only = injected == 0 ? "pod_io_stress chaos test passed: every container has a read-only root file system" : nil
     chaos_verdict(result, t.name, task_response, tested, hardened_only)

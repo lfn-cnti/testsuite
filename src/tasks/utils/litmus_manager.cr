@@ -266,6 +266,24 @@ module LitmusManager
   # cluster property, so an environment variable and not the CNF's config.
   RUNTIME_SOCKET_ENV = "CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET"
 
+  # The smallest file stress-ng creates, and therefore the smallest io stress
+  # that FILESYSTEM_UTILIZATION_PERCENTAGE can express: a budget needing less
+  # than a whole percent of the free space cannot be honoured at all.
+  MIN_STRESS_NG_FILE_BYTES = 1024_i64 * 1024
+
+  # A percentage that leaves the file to stress-ng's own minimum. It is
+  # deliberately fractional and deliberately not "0": stress-ng keeps
+  # percentages as whole numbers, so 0.5% is floored to 0 and the file is
+  # clamped up to MIN_STRESS_NG_FILE_BYTES, which is the smallest real stress
+  # the fault can express. litmus reads a literal "0" as unset and falls back
+  # to its own 10% default, which is the opposite of a floor, so "0" must never
+  # be sent here.
+  MIN_FILESYSTEM_UTILIZATION_PERCENTAGE = "0.5"
+
+  # Ceiling on the bound, so the stress never aims at filling the whole
+  # filesystem it is meant to degrade.
+  MAX_FILESYSTEM_UTILIZATION_PERCENTAGE = 90
+
   # Runtime name the litmus helpers understand, from a node's
   # containerRuntimeVersion (e.g. "containerd://2.0.2"), or nil.
   def self.runtime_name(container_runtime : String) : String?
@@ -352,5 +370,196 @@ module LitmusManager
     download_file(url, filepath)
 
     filepath
+  end
+
+  # The memory limit of the container named container_name, in bytes, or nil
+  # when it declares none.
+  def self.container_memory_limit_bytes(containers : JSON::Any, container_name : String) : Int64?
+    containers.as_a.each do |container|
+      next unless container["name"]?.try(&.as_s?) == container_name
+      limit = container.dig?("resources", "limits", "memory").try(&.as_s?)
+      return memory_quantity_bytes(limit) if limit
+    end
+    nil
+  end
+
+  # A Kubernetes resource.Quantity in bytes, or nil when it cannot be parsed.
+  # Handles the decimal form Kubernetes allows on a memory limit ("1.5Gi",
+  # "0.5Gi", "500M"), which a plain integer match would reject and silently
+  # leave the io stress file unbounded.
+  def self.memory_quantity_bytes(quantity : String) : Int64?
+    match = quantity.strip.match(/\A(\d+(?:\.\d+)?)\s*(Ki|Mi|Gi|Ti|Pi|Ei|K|M|G|T|P|E)?\z/i)
+    return nil unless match
+    value = match[1].to_f64
+    factor = case match[2]?.try(&.downcase)
+             when nil  then 1.0
+             when "ki" then 1024.0 ** 1
+             when "mi" then 1024.0 ** 2
+             when "gi" then 1024.0 ** 3
+             when "ti" then 1024.0 ** 4
+             when "pi" then 1024.0 ** 5
+             when "ei" then 1024.0 ** 6
+             when "k"  then 1000.0 ** 1
+             when "m"  then 1000.0 ** 2
+             when "g"  then 1000.0 ** 3
+             when "t"  then 1000.0 ** 4
+             when "p"  then 1000.0 ** 5
+             when "e"  then 1000.0 ** 6
+             else           1.0
+             end
+    (value * factor).to_i64
+  end
+
+  # The node-side pid of the container named container_name that runs the
+  # workload resource, paired with the node it runs on, or nil when no ready
+  # pod of that resource has that container.
+  def self.target_container_on_node(resource, namespace : String, container_name : String) : {String, JSON::Any}?
+    found : {String, JSON::Any}? = nil
+    ClusterTools.all_containers_by_resource?(resource, namespace, include_proctree: false) do |_, container_pid_on_node, node, _, container_status, _|
+      next unless container_status.dig?("name").try(&.as_s?) == container_name
+      found = {container_pid_on_node, node}
+      break
+    end
+    found
+  end
+
+  # Filesystem facts about the path stress-ng writes to inside the target
+  # container, which is the container's own root filesystem unless the engine
+  # is given a VOLUME_MOUNT_PATH. /proc/<pid>/root resolves the path into the
+  # target container's mount namespace, bypassing the container's own binaries,
+  # which a minimal image may not have. One `stat -f` reports all three facts
+  # (fs type, block size, free blocks) that a bound needs, so a resource costs
+  # a single cluster-tools call instead of one per probe.
+  #
+  # Returns nil when the target cannot be reached, so the caller can report the
+  # test as not applicable rather than stress it blind.
+  def self.container_root_filesystem(container_pid_on_node : String, node : JSON::Any) : {String, Int64}?
+    stat = ClusterTools.exec_by_node("stat -f -c '%T %s %a' /proc/#{container_pid_on_node}/root", node)
+    return nil unless stat[:status].success?
+    fs_type, block_size, free_blocks = stat[:output].strip.split
+    return nil unless fs_type && block_size.to_i64? && free_blocks.to_i64?
+    {fs_type, block_size.to_i64 * free_blocks.to_i64}
+  rescue error : Exception
+    logger = Log.for("LitmusManager.container_root_filesystem")
+    logger.warn { "filesystem probe of container #{container_pid_on_node} on node #{node.dig?("metadata", "name")} failed: #{error.message}" }
+    nil
+  end
+
+  # Memory the container is already charged, in bytes, read from the cgroup the
+  # kernel accounts it in (memory.current on cgroup v2, memory.usage_in_bytes on
+  # v1). Returns nil when the cgroup cannot be read.
+  def self.container_memory_usage_bytes(container_pid_on_node : String, node : JSON::Any) : Int64?
+    command = <<-SH
+      pid=#{container_pid_on_node}
+      for f in /host/sys/fs/cgroup$(awk -F: '$1=="0"{print $3}' /proc/$pid/cgroup 2>/dev/null)/memory.current \
+               /host/sys/fs/cgroup/memory$(awk -F: '$2=="memory"{print $3}' /proc/$pid/cgroup 2>/dev/null)/memory.usage_in_bytes; do
+        [ -r "$f" ] && { cat "$f"; exit 0; }
+      done
+      exit 1
+    SH
+    result = ClusterTools.exec_by_node(command, node)
+    return nil unless result[:status].success?
+    result[:output].strip.to_i64?
+  rescue error : Exception
+    logger = Log.for("LitmusManager.container_memory_usage_bytes")
+    logger.warn { "cgroup probe of container #{container_pid_on_node} on node #{node.dig?("metadata", "name")} failed: #{error.message}" }
+    nil
+  end
+
+  # What the pod_io_stress file size should be for one workload resource.
+  #   percentage  - the FILESYSTEM_UTILIZATION_PERCENTAGE to send, or nil to
+  #                leave litmus to size the file as it always has
+  #   applicable  - false when the fault could not be sized at all, which makes
+  #                the test a silent no-op and has to be reported as such
+  #   reason      - why, recorded in the test details
+  record PodIoStressSizing, percentage : String?, applicable : Bool, reason : String
+
+  # The FILESYSTEM_UTILIZATION_PERCENTAGE that keeps a stress-ng file of
+  # budget_bytes over free_space_bytes at or under the budget, or nil when the
+  # budget is too small for stress-ng to express any file at all.
+  #
+  # stress-ng computes "N% of free space" as N * free / 100 and keeps the
+  # percentage as a whole number, so the percentage is floored: anything above
+  # budget * 100 / free writes a file above the budget and brings the OOM race
+  # back. A budget that needs less than a whole percent falls to
+  # MIN_FILESYSTEM_UTILIZATION_PERCENTAGE, which stress-ng turns into its own
+  # minimum file. The ceiling keeps the fault from aiming at filling the whole
+  # filesystem it is meant to degrade.
+  def self.pod_io_stress_percentage(budget_bytes : Int64, free_space_bytes : Int64) : String?
+    return nil if budget_bytes < MIN_STRESS_NG_FILE_BYTES
+    percentage = (budget_bytes * 100) // free_space_bytes
+    return MIN_FILESYSTEM_UTILIZATION_PERCENTAGE if percentage < 1
+    {percentage, MAX_FILESYSTEM_UTILIZATION_PERCENTAGE}.min.to_s
+  end
+
+  # Sizes the pod_io_stress file for one workload resource.
+  #
+  # The bound only applies where the file is charged to the CNF's memory limit.
+  # That is the case when the container's root filesystem is a tmpfs, which is
+  # what the reference cluster does: containerd's root there sits on the kind
+  # node's tmpfs for speed, so every container's writable layer is memory
+  # backed and the stress file is charged to the CNF as shmem. On a node whose
+  # root is on disk the file is reclaimable page cache, it cannot OOM the CNF,
+  # and litmus sizes it as it always has. So the write path is left exactly
+  # where stress-ng puts it, and only the size is bounded, and only there.
+  #
+  # The budget is the limit minus what the container already uses, not a
+  # fraction of the limit: the CNF's working set is charged to the same cgroup,
+  # so a fraction of the limit would be spent twice.
+  def self.pod_io_stress_sizing(containers : JSON::Any, resource, namespace : String, container_name : String) : PodIoStressSizing
+    logger = Log.for("LitmusManager.pod_io_stress_sizing")
+
+    limit = container_memory_limit_bytes(containers, container_name)
+    unless limit
+      reason = "#{container_name} declares no memory limit, nothing to bound the io stress file against"
+      logger.info { reason }
+      return PodIoStressSizing.new(nil, true, reason)
+    end
+
+    target = target_container_on_node(resource, namespace, container_name)
+    unless target
+      reason = "#{container_name} has no ready pod to probe, pod_io_stress cannot size its stress file"
+      logger.warn { reason }
+      return PodIoStressSizing.new(nil, false, reason)
+    end
+    pid_on_node, node = target
+
+    filesystem = container_root_filesystem(pid_on_node, node)
+    unless filesystem
+      reason = "#{container_name} root filesystem could not be read on #{node.dig?("metadata", "name")}, pod_io_stress cannot size its stress file"
+      logger.warn { reason }
+      return PodIoStressSizing.new(nil, false, reason)
+    end
+    fs_type, free_space_bytes = filesystem
+
+    unless fs_type == "tmpfs"
+      reason = "#{container_name} root filesystem is #{fs_type}, not memory backed, the io stress file cannot exhaust the CNF memory limit"
+      logger.info { reason }
+      return PodIoStressSizing.new(nil, true, reason)
+    end
+
+    unless free_space_bytes > 0
+      reason = "#{container_name} root tmpfs reports no free space, pod_io_stress cannot size its stress file"
+      logger.warn { reason }
+      return PodIoStressSizing.new(nil, false, reason)
+    end
+
+    usage = container_memory_usage_bytes(pid_on_node, node)
+    if usage.nil?
+      reason = "#{container_name} memory usage could not be read from its cgroup, pod_io_stress cannot size its stress file"
+      logger.warn { reason }
+      return PodIoStressSizing.new(nil, false, reason)
+    end
+    budget_bytes = (limit - usage).clamp(0_i64, limit)
+    percentage = pod_io_stress_percentage(budget_bytes, free_space_bytes)
+    if percentage.nil?
+      reason = "#{container_name} has #{budget_bytes} B of #{limit} B left after #{usage} B in use, less than the #{MIN_STRESS_NG_FILE_BYTES} B file stress-ng always creates, pod_io_stress cannot size its stress file"
+      logger.warn { reason }
+      return PodIoStressSizing.new(nil, false, reason)
+    end
+
+    reason = "#{container_name} root tmpfs is memory backed: io stress file set to #{percentage}% of #{free_space_bytes} B free, under the #{budget_bytes} B of #{limit} B left after #{usage} B in use"
+    logger.info { reason }
+    PodIoStressSizing.new(percentage, true, reason)
   end
 end
