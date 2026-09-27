@@ -68,4 +68,45 @@ describe "Kubescape report parsing" do
     ])
     result.result_impacted_resources.map { |e| e["name"] }.should eq(["web", "web", "tool"])
   end
+
+  it "names the variables that hold a credential and leaves out plain switches", tags: ["points"] do
+    object = JSON.parse(<<-JSON)
+    {
+      "spec": {"template": {"spec": {"containers": [{
+        "name": "mongodb",
+        "env": [
+          {"name": "BITNAMI_DEBUG", "value": "false"},
+          {"name": "ALLOW_EMPTY_PASSWORD", "value": "yes"},
+          {"name": "MONGODB_ROOT_PASSWORD", "value": "hunter2"}
+        ]
+      }]}}}
+    }
+    JSON
+    paths = [
+      "spec.template.spec.containers[0].env[1].name",
+      "spec.template.spec.containers[0].env[1].value",
+      "spec.template.spec.containers[0].env[2].name",
+      "spec.template.spec.containers[0].env[2].value",
+    ]
+    credentials = Kubescape.credential_findings(object, paths)
+    credentials[:switches].should eq(["environment variable ALLOW_EMPTY_PASSWORD of container mongodb"])
+    credentials[:findings].should eq([
+      {container: "mongodb", reason: "environment variable MONGODB_ROOT_PASSWORD holds a value (spec.template.spec.containers[0].env[2])"},
+    ])
+    credentials[:findings].none? { |f| f[:reason].includes?("hunter2") }.should be_true
+  end
+
+  it "keeps a variable the scanner names when the object does not have it", tags: ["points"] do
+    object = JSON.parse(%({"spec": {"template": {"spec": {"containers": [{"name": "app", "env": []}]}}}}))
+    paths = ["spec.template.spec.containers[0].env[3].name", "spec.template.spec.containers[0].env[3].value"]
+    Kubescape.credential_findings(object, paths)[:findings].map { |f| f[:reason] }.should eq(paths)
+  end
+
+  it "reads ConfigMap keys and keeps a path it cannot resolve", tags: ["points"] do
+    object = JSON.parse(%({"data": {"db_password": "hunter2", "use_password": "true"}}))
+    credentials = Kubescape.credential_findings(object, ["data[db_password]", "data[use_password]", "data[gone]"])
+    credentials[:switches].should eq(["key use_password"])
+    credentials[:findings].map { |f| f[:reason] }.should eq(["key db_password holds a value (data[db_password])", "data[gone]"])
+    Kubescape.credential_findings(nil, ["spec.containers[0].env[0].name"])[:findings].map { |f| f[:reason] }.should eq(["spec.containers[0].env[0].name"])
+  end
 end

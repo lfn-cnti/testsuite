@@ -305,4 +305,60 @@ module Kubescape
     end
   end
 
+  # Values that switch a behaviour on or off. A variable like
+  # ALLOW_EMPTY_PASSWORD=yes matches the scanner's list of sensitive names,
+  # but it stores no credential (#2659).
+  SWITCH_VALUES = ["", "yes", "no", "true", "false", "on", "off"]
+
+  # What the credentials control (C-0012) found in `object`, by the paths it
+  # names: `findings` are the variables and ConfigMap keys that hold a value,
+  # by name and never with the value; `switches` are those the scanner
+  # matched by name whose value is only a switch. A path that cannot be
+  # resolved in the object stays a finding as it is.
+  def self.credential_findings(object : JSON::Any?, paths : Array(String))
+    findings = [] of NamedTuple(container: String?, reason: String)
+    switches = [] of String
+    seen = Set(String).new
+    paths.each do |path|
+      if object && (match = path.match(/^((.*(?:containers|initContainers|ephemeralContainers)\[\d+\])\.env\[\d+\])/))
+        variable = dig_path(object, match[1])
+        name = variable.try(&.dig?("name")).try(&.as_s?)
+        if variable && name
+          # the scanner names a variable twice, by its name and by its value
+          next unless seen.add?(match[1])
+          container = dig_path(object, match[2]).try(&.dig?("name")).try(&.as_s?)
+          value = variable.dig?("value").try(&.as_s?) || ""
+          if SWITCH_VALUES.includes?(value.downcase)
+            switches << "environment variable #{name}#{container ? " of container #{container}" : ""}"
+          else
+            findings << {container: container, reason: "environment variable #{name} holds a value (#{match[1]})"}
+          end
+          next
+        end
+      elsif object && (match = path.match(/^data\[(.+)\]$/) || path.match(/^data\.(.+)$/))
+        key = match[1]
+        if value = object.dig?("data", key).try(&.as_s?)
+          next unless seen.add?(path)
+          if SWITCH_VALUES.includes?(value.downcase)
+            switches << "key #{key}"
+          else
+            findings << {container: nil, reason: "key #{key} holds a value (#{path})"}
+          end
+          next
+        end
+      end
+      findings << {container: nil, reason: path} if seen.add?(path)
+    end
+    {findings: findings, switches: switches}
+  end
+
+  # Value at a kubescape path like spec.template.spec.containers[0].env[1].
+  def self.dig_path(object : JSON::Any, path : String) : JSON::Any?
+    current : JSON::Any? = object
+    path.scan(/([^.\[\]]+)|\[(\d+)\]/) do |token|
+      break unless current
+      current = token[1]? ? current.dig?(token[1]) : current.as_a?.try(&.[token[2].to_i]?)
+    end
+    current
+  end
 end

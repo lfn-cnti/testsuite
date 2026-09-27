@@ -1204,6 +1204,7 @@ To mitigate this vulnerability without upgrading kubelet, you can disable the Vo
 Checks the CNF for sensitive information in environment variables, by using list of known sensitive key names. Also checks for configmaps with sensitive information.
 Measurement: Kubescape control [C-0012](https://hub.armosec.io/docs/c-0012) (Applications credentials in configuration files) of the NSA framework; the scanner and regolibrary versions are in the results file's `tools`.
 Expectation: Application credentials should not be found in the CNFs configuration files
+The scanner matches variables and keys by name. The details name each one found, never its value. One whose value is only a switch (`yes`, `no`, `true`, `false`, `on`, `off` or empty), such as `ALLOW_EMPTY_PASSWORD=yes`, stores no credential: it is listed in the details and does not fail the test.
 
 #### Rationale
 
