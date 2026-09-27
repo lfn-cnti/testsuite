@@ -47,6 +47,15 @@ describe "Kubescape report parsing" do
     tool.alert_message.should eq("hostPath volume is mounted")
   end
 
+  it "records the finding once per container when the test names it", tags: ["points"] do
+    report = Kubescape.parse_test_report(JSON.parse(RESPONSE))
+    result = CNFManager::TestCaseResult.empty
+    Kubescape.report_failed_resources(report, result, finding: "no hardening is defined")
+    result.result_impacted_resources.map { |e| e["reason"] }.uniq.should eq(["no hardening is defined"])
+    result.result_impacted_resources.map { |e| e["name"] }.uniq.should eq(["web", "tool"])
+    result.result_impacted_resources.none? { |e| e["reason"].to_s.includes?("spec.") }.should be_true
+  end
+
   it "records one impacted entry per failed field", tags: ["points"] do
     report = Kubescape.parse_test_report(JSON.parse(RESPONSE))
     result = CNFManager::TestCaseResult.empty
