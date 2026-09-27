@@ -15,11 +15,11 @@ jobs:
     steps:
       - name: Login to Docker Hub
         if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ env.DOCKERHUB_PASSWORD }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Cache the suite tools
         uses: ./.github/actions/cache-suite-tools
       - name: Install kind
@@ -51,6 +51,10 @@ jobs:
           curl -fsSLO --retry 5 --retry-delay 10 "https://dl.k8s.io/release/$(curl -fsSL --retry 5 --retry-delay 10 https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl"
           sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
           curl -fsSL --retry 5 --retry-delay 10 -o get-helm-4.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 && bash get-helm-4.sh
+      # The suite does not pass on arm64 yet (see 503aee60), so a non-zero exit
+      # is the expected outcome of this port check, not a broken runner: the step
+      # is deliberately non-blocking and only reports the failure as an
+      # annotation. Tighten it once arm64 reaches the same verdict as amd64.
       - run: |
           shards install
           crystal build src/cnti-testsuite.cr
@@ -62,18 +66,18 @@ jobs:
       - run: |
           kind delete cluster --name arm64
   qemu-arm64:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
     steps:
       - name: Login to Docker Hub
         if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ env.DOCKERHUB_PASSWORD }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install kind
         uses: ./.github/actions/install-kind
       - run: |
@@ -96,6 +100,9 @@ jobs:
           EOF
           kind create cluster --name qemu-arm64 --config=/tmp/cluster.yml
           rm /tmp/cluster.yml
+      # Same non-blocking arm64 port check as the job above: the suite does not
+      # pass on arm64 yet, so a non-zero exit is reported as an annotation and
+      # does not fail the job.
       - run: |
             sudo apt -o Acquire::Retries=3 update && sudo DEBIAN_FRONTEND=noninteractive apt -o Acquire::Retries=3 install qemu-user-static -y
             DOCKER_DEFAULT_PLATFORM=linux/arm64 docker run --network host --name debian-arm64 \

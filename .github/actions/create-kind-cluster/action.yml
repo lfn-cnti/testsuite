@@ -32,7 +32,10 @@ runs:
           kind create cluster --name "${{ inputs.name }}" --config="${{ inputs.config }}" \
             --kubeconfig "${{ inputs.kubeconfig }}" --wait "${{ inputs.wait }}" && break
           if [ "$attempt" = 2 ]; then echo "::error::kind create cluster failed twice"; exit 1; fi
-          echo "::warning::kind create cluster failed (attempt $attempt); retrying in 60 s"
+          # The retry is transparent when it works, so this is a notice and not
+          # a warning: a warning here is reported as an annotation on the run
+          # and reads as a problem that reached the job's verdict.
+          echo "::notice::kind create cluster failed (attempt $attempt); retrying in 60 s"
           sleep 60
         done
         KUBECONFIG="${{ inputs.kubeconfig }}" kubectl get nodes

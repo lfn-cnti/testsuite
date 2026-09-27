@@ -31,7 +31,7 @@ module KubectlClient
         if result[:output].match(/([\s+]Terminating)/)
           found_terminating = true
           second_count = second_count + 1
-          sleep(1)
+          sleep(1.seconds)
         else
           found_terminating = false
           return true
