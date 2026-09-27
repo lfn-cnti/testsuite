@@ -270,10 +270,34 @@ scored_task "application_credentials",
     resource_keys = CNFManager.workload_resource_keys(args, config)
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
-    if test_report.failed_resources.size == 0
+    # The scanner matches variables by name; what it names is resolved in
+    # the object, so the details say which variable is meant and a plain
+    # switch such as ALLOW_EMPTY_PASSWORD=yes is not taken for a credential.
+    found = 0
+    test_report.failed_resources.each do |r|
+      if r.paths.empty?
+        found += 1
+        result.add_impacted_resource(r.kind, r.name, r.namespace, reason: r.alert_message)
+        next
+      end
+      object = begin
+        KubectlClient::Get.resource(r.kind, r.name, r.namespace)
+      rescue
+        nil
+      end
+      credentials = Kubescape.credential_findings(object, r.paths)
+      credentials[:switches].each do |switch|
+        result.append_description("#{r.kind}/#{r.name} in #{r.namespace}: #{switch} is an on/off switch, not a stored credential")
+      end
+      credentials[:findings].each do |finding|
+        found += 1
+        result.add_impacted_resource(r.kind, r.name, r.namespace, container: finding[:container], reason: finding[:reason])
+      end
+    end
+
+    if found == 0
       result.passed("No applications credentials in configuration files")
     else
-      Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found applications credentials in configuration files")
     end

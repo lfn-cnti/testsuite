@@ -125,6 +125,9 @@ describe "Security" do
       result = ShellCmd.run_testsuite("application_credentials")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Found applications credentials in configuration files)/ =~ result[:output]).should_not be_nil
+      (/environment variable aws_access_key_id holds a value/ =~ result[:output]).should_not be_nil
+      # the value may be in the debug log of the manifests, never in the result
+      (/impacted:.*ZivooGoob7pee2o/ =~ result[:output]).should be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end
