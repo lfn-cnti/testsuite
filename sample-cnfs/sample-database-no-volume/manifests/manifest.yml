@@ -1,0 +1,38 @@
+# A MongoDB that keeps its data on an emptyDir: the data is gone when the pod
+# is rescheduled. database_persistence must fail it, although it is a
+# Deployment and no MySQL. The image starts as root, so the fixture brings a
+# namespace that admits it.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: database-no-volume
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+  namespace: database-no-volume
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mongodb
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:7.0
+        ports:
+        - containerPort: 27017
+        volumeMounts:
+        - name: data
+          mountPath: /data/db
+      volumes:
+      - name: data
+        emptyDir: {}

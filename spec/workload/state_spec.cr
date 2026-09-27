@@ -30,17 +30,54 @@ describe "State" do
     end
   end
 
-  it "'database_persistence' should pass if the cnf uses a database that uses an elastic volume with a stateful set", tags: ["elastic_volume"]  do
+  it "'database_persistence' should pass if the cnf uses a database that claims persistent storage", tags: ["elastic_volume"]  do
     begin
       Log.debug { "Installing Mysql " }
       # todo make helm directories work with parameters
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-mysql/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("database_persistence", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
       (/(PASSED).*(CNF uses database with cloud-native persistence)/ =~ result[:output]).should_not be_nil
+      (/runs MariaDB\/MySQL on persistent storage/ =~ result[:output]).should_not be_nil
     ensure
       #todo fix cleanup for helm directory with parameters
       ShellCmd.cnf_uninstall()
       ShellCmd.run("kubectl delete pvc data-mysql-0", "delete_pvc")
+    end
+  end
+
+  it "'database_persistence' should be N/A and say what was looked for when the cnf has no database", tags: ["elastic_volume"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("database_persistence")
+      (/(N\/A).*(No database workload found in the CNF \(looked for MariaDB\/MySQL, PostgreSQL, MongoDB, Redis, Cassandra, etcd\))/ =~ result[:output]).should_not be_nil
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'database_persistence' should fail if a database has no persistent volume", tags: ["elastic_volume"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-database-no-volume/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("database_persistence")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(CNF uses database without cloud-native persistence)/ =~ result[:output]).should_not be_nil
+      (/Deployment\/mongodb.*runs MongoDB without a persistent volume/ =~ result[:output]).should_not be_nil
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'database_persistence' should not judge a Redis without a persistent volume", tags: ["elastic_volume"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-nginx-redis/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("database_persistence")
+      (/(N\/A).*(The CNF's only database is a Redis without a persistent volume, persistence was not judged)/ =~ result[:output]).should_not be_nil
+      (/runs Redis without a persistent volume; it may be a cache/ =~ result[:output]).should_not be_nil
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
     end
   end
 

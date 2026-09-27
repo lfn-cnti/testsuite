@@ -6,242 +6,10 @@ require "totem"
 require "../utils/utils.cr"
 require "../../modules/kubectl_client"
 require "../utils/volume_elasticity.cr"
+require "../../modules/k8s_netstat"
 
 desc "The CNF test suite checks if state is stored in a custom resource definition or a separate database (e.g. etcd) rather than requiring local storage.  It also checks to see if state is resilient to node failure"
 category_task "state", ["no_local_volume_configuration", "elastic_volumes", "database_persistence", "node_drain"]
-
-ELASTIC_PROVISIONING_DRIVERS_REGEX = /kubernetes.io\/aws-ebs|kubernetes.io\/azure-file|kubernetes.io\/azure-disk|kubernetes.io\/cinder|kubernetes.io\/gce-pd|kubernetes.io\/glusterfs|kubernetes.io\/quobyte|kubernetes.io\/rbd|kubernetes.io\/vsphere-volume|kubernetes.io\/portworx-volume|kubernetes.io\/scaleio|kubernetes.io\/storageos|rook-ceph.rbd.csi.ceph.com/
-
-
-ELASTIC_PROVISIONING_DRIVERS_REGEX_SPEC = /kubernetes.io\/aws-ebs|kubernetes.io\/azure-file|kubernetes.io\/azure-disk|kubernetes.io\/cinder|kubernetes.io\/gce-pd|kubernetes.io\/glusterfs|kubernetes.io\/quobyte|kubernetes.io\/rbd|kubernetes.io\/vsphere-volume|kubernetes.io\/portworx-volume|kubernetes.io\/scaleio|kubernetes.io\/storageos|rook-ceph.rbd.csi.ceph.com|rancher.io\/local-path/
-
-module Volume
-  def self.pvc_volumes(volumes : Array(JSON::Any)) : Array(JSON::Any)
-    volumes.select { |v| v.dig?("persistentVolumeClaim", "claimName") }
-  end
-
-  def self.elastic_by_volumes?(volumes : Array(JSON::Any), namespace : String? = nil) : {elastic: Bool, missing_classes: Array(String)}
-    Log.info {"Volume.elastic_by_volumes"}
-    storage_class_names = storage_class_by_volumes(volumes, namespace)
-    result = StorageClass.elastic_by_storage_class?(storage_class_names, namespace)
-    Log.info {"Volume.elastic_by_volumes elastic: #{result[:elastic]}"}
-    result
-  end
-  # def self.elastic?(volumes, namespace : String? = nil)
-  #   Log.info {"elastic? overload"}
-  #   elastic?(volumes, namespace) {}
-  # end
-  # def self.elastic?(volumes, namespace : String? = nil, &block : -> JSON::Any | Nil)
-  #   Log.info {"storge_class_by_volumes? "}
-  #   Log.info {"storge_class_by_volumes? volumes: #{volumes}"}
-  #   elastic = false
-  #   #### default
-  #   volume_claims = volumes.as_a.select{ |x| x.dig?("persistentVolumeClaim", "claimName") } 
-  #   Log.info {"volume_claims #{volume_claims}"}
-  #   dynamic_claims = volume_claims.reduce( [] of Hash(String, JSON::Any)) do |acc, claim| 
-  #     resource = KubectlClient::Get.resource("pvc", claim.dig?("persistentVolumeClaim", "claimName"), namespace)
-  #     Log.info {"pvc resource #{resource}"}
-  #     # todo determine whether if resource uses a volume claim or a volume claim template
-  #     # todo if no pvc
-  #     # todo check for volumeClaimTemplate
-  #     # todo  get metadata name field
-  #     # todo  combine name <metatdataname>-<workloadresourcename>-0
-  #     if block
-  #       resource = yield unless resource
-  #       Log.info {"block resource #{resource}"}
-  #     else
-  #       Log.info {"block is nil"}
-  #     end
-  #
-  #     if resource && resource.dig?("spec", "storageClassName")
-  #       Log.info {"StorageClass: #{resource.dig?("spec", "storageClassName")}"}
-  #       acc << { "claim_name" =>  claim.dig("persistentVolumeClaim", "claimName"), "class_name" => resource.dig("spec", "storageClassName") }
-  #     else
-  #       acc
-  #     end
-  #   end
-  #   Log.info {"Dynamic Claims: #{dynamic_claims}"}
-  #   #todo elastic_by_storage_class?
-  #   provisoners = dynamic_claims.reduce( [] of String) do |acc, claim| 
-  #     resource = KubectlClient::Get.resource("storageclasses", claim.dig?("class_name"), namespace)
-  #     if resource.dig?("provisioner")
-  #       acc << resource.dig("provisioner").as_s 
-  #     else
-  #       acc
-  #     end
-  #   end
-  #   Log.info {"Provisoners: #{provisoners}"}
-  #   provisoners.each do |provisoner|
-  #     if ENV["CNTI_TESTSUITE_ENV"]? == "TEST"
-  #       if (provisoner =~ ELASTIC_PROVISIONING_DRIVERS_REGEX_SPEC) 
-  #         Log.info {"provisioner test mode"}
-  #         Log.info {"Provisoners: #{provisoners}"}
-  #         elastic = true
-  #       end
-  #     else
-  #       if (provisoner =~ ELASTIC_PROVISIONING_DRIVERS_REGEX) 
-  #         Log.info {"provisioner production mode"}
-  #         Log.info {"Provisoners: #{provisoners}"}
-  #         elastic = true
-  #       end
-  #     end
-  #   end
-  #   Log.info {"elastic? #{elastic}"}
-  #   elastic
-  # end
-
-  def self.storage_class_by_volumes(volumes, namespace : String? = nil)
-    Log.info {"storage_class_by_volumes? "}
-    Log.info {"storage_class_by_volumes? volumes: #{volumes}"}
-    volume_claims = Volume.pvc_volumes(volumes)
-    Log.info {"volume_claims #{volume_claims}"}
-    storage_class_names = volume_claims.reduce( [] of Hash(String, JSON::Any)) do |acc, claim| 
-      resource = begin
-        KubectlClient::Get.resource("pvc", claim.dig?("persistentVolumeClaim", "claimName").to_s, namespace)
-      rescue ex : KubectlClient::ShellCMD::NotFoundError
-        Log.info { "PVC #{claim.dig?("persistentVolumeClaim", "claimName")} not found" }
-        nil
-      end
-      Log.info {"pvc resource #{resource}"}
-
-      if resource && resource.dig?("spec", "storageClassName")
-        Log.info {"StorageClass: #{resource.dig?("spec", "storageClassName")}"}
-        acc << { "claim_name" =>  claim.dig("persistentVolumeClaim", "claimName"), "class_name" => resource.dig("spec", "storageClassName") }
-      else
-        acc
-      end
-    end
-    Log.info {"storage_class_names: #{storage_class_names}"}
-    storage_class_names
-  end
-end
-module StorageClass
-  def self.elastic_by_storage_class?(storage_class_names : Array(Hash(String, JSON::Any)), 
-                                     namespace : String? = nil) : {elastic: Bool, missing_classes: Array(String)}
-    Log.info {"StorageClass.elastic_by_storage_class"}
-    Log.for("elastic_volumes:storage_class_names").info { storage_class_names }
-
-    #todo elastic_by_storage_class?
-    elastic = false
-    missing_classes = [] of String
-    provisioners = storage_class_names.reduce( [] of String) do |acc, storage_class|
-      resource = begin
-        KubectlClient::Get.resource("storageclasses", storage_class.dig?("class_name").to_s, namespace)
-      rescue ex : KubectlClient::ShellCMD::NotFoundError
-        Log.info { "StorageClass #{storage_class.dig?("class_name")} not found, volume is not elastic" }
-        missing_classes << storage_class.dig?("class_name").to_s
-        nil
-      end
-      if resource && resource.dig?("provisioner")
-        acc << resource.dig("provisioner").as_s 
-      else
-        acc
-      end
-    end
-
-    Log.for("elastic_volumes:provisioners").info { provisioners }
-
-    Log.info {"Provisioners: #{provisioners}"}
-    provisioners.each do |provisioner|
-      if ENV["CNTI_TESTSUITE_ENV"]? == "TEST"
-        if (provisioner =~ ELASTIC_PROVISIONING_DRIVERS_REGEX_SPEC)
-          Log.info {"provisioner test mode"}
-          Log.info {"Elastic provisioner: #{provisioner}"}
-          elastic = true
-        end
-      else
-        if (provisioner =~ ELASTIC_PROVISIONING_DRIVERS_REGEX)
-          Log.info {"provisioner production mode"}
-          Log.info {"Elastic provisioner: #{provisioner}"}
-          elastic = true
-        end
-      end
-    end
-    # A PVC whose StorageClass does not exist can never bind, so a missing
-    # class always makes the workload non-elastic regardless of other PVCs.
-    if missing_classes.any?
-      Log.info {"StorageClass(es) #{missing_classes.join(", ")} not found, workload is not elastic"}
-      elastic = false
-    end
-    Log.info {"elastic? #{elastic}"}
-    {elastic: elastic, missing_classes: missing_classes}
-  end
-end
-
-module VolumeClaimTemplate
-  def self.pvc_name_by_vct_resource(resource) : String | Nil
-    Log.info {"VolumeClaimTemplate.pvc_name_by_vct_resource"}
-    resource_name = resource.dig("metadata", "name")
-    vct = resource.dig?("spec", "volumeClaimTemplates")
-    if vct && vct.size > 0
-      #K8s only supports one volume claim template per resource
-      vct_name = vct[0].dig?("metadata", "name")
-      name = "#{vct_name}-#{resource_name}-0"
-    end
-    Log.for("VolumeClaimTemplate.pvc_name_by_vct_resource").info {"name: #{name}"}
-    name
-  end
-
-  def self.vct_resource?(resource)
-    Log.info {" vct_resource??"}
-    Log.info {" vct_resource? resource: #{resource}"}
-    vct = resource.dig?("spec", "volumeClaimTemplates")
-    Log.info {" vct_resource? vct: #{vct}"}
-    if vct && vct.size > 0
-      true
-    else
-      false
-    end
-  end
-
-  def self.storage_class_by_vct_resource(resource, namespace)
-    Log.info {"storage_class_by_vct_resource"}
-    pvc_name = VolumeClaimTemplate.pvc_name_by_vct_resource(resource)
-    resource = begin
-      KubectlClient::Get.resource("pvc", pvc_name.to_s, namespace)
-    rescue ex : KubectlClient::ShellCMD::NotFoundError
-      Log.info { "PVC #{pvc_name} not found" }
-      nil
-    end
-
-    Log.info {"pvc resource #{resource}"}
-    storage_class = nil
-
-    if resource && resource.dig?("spec", "storageClassName")
-      Log.info {"StorageClass: #{resource.dig?("spec", "storageClassName")}"}
-      # { "claim_name" =>  claim.dig("persistentVolumeClaim", "claimName"), "class_name" => resource.dig("spec", "storageClassName") }
-      storage_class = { "class_name" => resource.dig("spec", "storageClassName") }
-    end
-    Log.info {"storage_class: #{storage_class}"}
-    storage_class
-  end 
-end
-
-module WorkloadResource 
-  include Volume
-  include VolumeClaimTemplate
-
-  def self.elastic?(resource, volumes, namespace : String? = nil) : {elastic: Bool, missing_classes: Array(String)}
-    Log.info {"workloadresource elastic?"}
-    missing_classes = [] of String
-    if VolumeClaimTemplate.vct_resource?(resource)
-      storage_class = VolumeClaimTemplate.storage_class_by_vct_resource(resource, namespace)
-      if storage_class
-        result = StorageClass.elastic_by_storage_class?([storage_class], namespace)
-        elastic = result[:elastic]
-        missing_classes = result[:missing_classes]
-      else
-        elastic = false
-      end
-    else
-      result = Volume.elastic_by_volumes?(volumes, namespace)
-      elastic = result[:elastic]
-      missing_classes = result[:missing_classes]
-    end
-    Log.info {"workloadresource elastic?: #{elastic}"}
-    {elastic: elastic, missing_classes: missing_classes}
-  end
-end
 
 # Kinds a drain can evict and that come back on their own. A bare Pod is
 # deleted for good (drain refuses it without --force) and DaemonSet pods are
@@ -444,52 +212,55 @@ scored_task "database_persistence",
   emoji: "🧫",
   fail: -1 do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    # Log.debug { "database_persistence" }
-    # todo K8s Database persistence test: if a mysql (or any popular database) image is installed:
-    non_elastic_database_statefulset_found = false
-    match = Mysql.match
-    Log.info {"database_persistence mysql: #{match}"}
-
-    unless match && match[:found]
-      result.na("CNF does not use database")
-      next
-    end
-
+    # Databases among the CNF's workloads, recognised as shared_database
+    # does: MariaDB/MySQL, PostgreSQL, MongoDB, Redis, Cassandra and etcd, by
+    # image name or port (#2658).
+    #
+    # What is judged is what the CNF decides: whether the database claims
+    # persistent storage, through a PersistentVolumeClaim or a
+    # volumeClaimTemplate, whatever the kind of its workload. Which
+    # provisioner backs the claim is the cluster's choice, and its
+    # elasticity is the subject of elastic_volumes.
+    found = 0
+    judged = 0
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, volumes|
-      # Skip resources that do not have containers with mysql image
-      images = containers.as_a.map {|container| container["image"]}
-      next true unless images.any? do |image| 
-        Mysql::MYSQL_IMAGES.any? do |mysql_image|
-          image.as_s.includes?(mysql_image) 
-        end
-      end
-      # Skip non-statefulset resources
-      next true if resource["kind"].downcase != "statefulset"
-
+      database = containers.as_a.compact_map { |container| Netstat::Database.detect(container) }.first?
+      next true unless database
+      found += 1
       namespace = resource["namespace"]
-      Log.info {"database_persistence namespace: #{namespace}"}
-      Log.info {"database_persistence resource: #{resource}"}
-      Log.info {"database_persistence volumes: #{volumes}"}
-      full_resource = KubectlClient::Get.resource(resource["kind"], resource["name"], namespace)
-      pvc_volumes = Volume.pvc_volumes(volumes.as_a)
-      elastic_result = WorkloadResource.elastic?(full_resource, pvc_volumes, namespace)
-      Log.info {"database_persistence elastic_volume: #{elastic_result[:elastic]}"}
+      label = "#{resource["kind"]}/#{resource["name"]} in #{namespace}"
 
-      unless elastic_result[:elastic]
-        reason = if elastic_result[:missing_classes].any?
-                   "uses non-elastic volumes (missing storage class(es): #{elastic_result[:missing_classes].join(", ")}): #{pvc_volumes.map(&.dig("name")).join(", ")}"
-                 else
-                   "uses non-elastic volumes: #{pvc_volumes.map(&.dig("name")).join(", ")}"
-                 end
-        result.add_impacted_resource("StatefulSet", resource["name"], resource["namespace"], reason: reason)
+      full_resource = KubectlClient::Get.resource(resource["kind"], resource["name"], namespace)
+      claims = VolumeElasticity.claim_names(full_resource)
+
+      unless claims.empty?
+        judged += 1
+        result.append_description("#{label} runs #{database[:name]} on persistent storage: #{claims.join(", ")}")
+        next true
       end
 
-      elastic_result[:elastic]
+      # Redis (Valkey is recognised under the same name) is often a cache
+      # that keeps nothing on purpose, and a cache
+      # cannot be told from a data store from the outside.
+      if database[:name] == "Redis"
+        result.append_description("#{label} runs Redis without a persistent volume; it may be a cache, its persistence was not judged")
+        next true
+      end
+
+      judged += 1
+      result.add_impacted_resource(resource["kind"], resource["name"], namespace, reason: "runs #{database[:name]} without a persistent volume")
+      false
     end
 
-    if task_response
+    known = Netstat::Database::KNOWN.map(&.[:name]).join(", ")
+    if found == 0
+      result.na("No database workload found in the CNF (looked for #{known})")
+    elsif judged == 0
+      result.na("The CNF's only database is a Redis without a persistent volume, persistence was not judged")
+    elsif task_response
       result.passed("CNF uses database with cloud-native persistence")
     else
+      result.append_remediation("Give the database a persistent volume: a volumeClaimTemplate in a StatefulSet, or a PersistentVolumeClaim.")
       result.failed("CNF uses database without cloud-native persistence (ভ_ভ) ރ 💾")
     end
   end
