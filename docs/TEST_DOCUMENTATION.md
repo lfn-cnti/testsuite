@@ -624,6 +624,7 @@ The applications may stall or get corrupted while they wait endlessly for a pack
 Measurement: LitmusChaos experiment [pod-network-latency](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-latency/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when network latency occurs
 Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
+Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 
 #### Rationale
 
@@ -652,6 +653,7 @@ A mitigation strategy (in this case keep the timeout i.e., access latency low) c
 Measurement: LitmusChaos experiment [disk-fill](https://litmuschaos.github.io/litmus/experiments/categories/pods/disk-fill/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when disk fill occurs and pods should not be evicted to another node.
 Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
+Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 A workload whose containers all mount a read-only root file system cannot be filled at all, which is the property this experiment probes, so it passes without the fault being injected; the reason is recorded in the test details. In a workload that mixes read-only and writable containers, the fault is injected into a writable one.
 
 #### Rationale
@@ -678,6 +680,7 @@ Ensure that your CNF is resilient and doesn't stall when heavy IO causes a degra
 Measurement: LitmusChaos experiment [pod-delete](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-delete/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when pod delete occurs
 Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
+Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 
 #### Rationale
 
@@ -703,6 +706,7 @@ The [pod-memory hog](https://litmuschaos.github.io/litmus/experiments/categories
 Measurement: LitmusChaos experiment [pod-memory-hog](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-memory-hog/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when pod memory hog occurs
 Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
+Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 
 #### Rationale
 
@@ -727,8 +731,9 @@ Ensure that your CNF is resilient to heavy memory usage and can maintain some le
 The [pod-io stress](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-io-stress/) experiment the disk with continuous and heavy IO to cause degradation in reads/writes by other microservices that use this shared disk.
 Measurement: LitmusChaos experiment [pod-io-stress](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-io-stress/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when pod io stress occurs
-The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) from the nodes and probes the usual socket locations on a node, and `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path. The test is not applicable when the runtime is unsupported or no socket is found. A workload that owns no pod is listed in the details and left out.
+The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) from the nodes and probes the usual socket locations on a node, and `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path. The test is not applicable when the runtime is unsupported or no socket is found.
 Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
+Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 A workload whose containers all mount a read-only root file system cannot be stressed at all, which is the property this experiment probes, so it passes without the fault being injected; the reason is recorded in the test details. In a workload that mixes read-only and writable containers, the fault is injected into a writable one.
 
 #### Rationale
@@ -757,6 +762,7 @@ The [pod-network corruption](https://litmuschaos.github.io/litmus/experiments/ca
 Measurement: LitmusChaos experiment [pod-network-corruption](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-corruption/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should be resilient to a lossy/flaky network and should continue to provide some level of availability.
 Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
+Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 
 #### Rationale
 
@@ -783,6 +789,7 @@ The [pod-network duplication](https://litmuschaos.github.io/litmus/experiments/c
 Measurement: LitmusChaos experiment [pod-network-duplication](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-duplication/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function and be resilient to a duplicate network.
 Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
+Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 
 #### Rationale
 
@@ -810,6 +817,7 @@ Measurement: LitmusChaos experiment [pod-dns-error](https://litmuschaos.github.i
 Expectation: That the CNF doesn't crash is resilient to DNS resolution failures.
 The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) and its socket the same way `pod_io_stress` does, and the test is not applicable when the runtime is unsupported or no socket is found.
 Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
+Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 
 #### Rationale
 
