@@ -81,10 +81,11 @@ end
 LITMUS_APPKINDS = ["deployment", "statefulset", "daemonset"]
 
 # Runs a chaos test over the CNF's workload resources, yielding only those
-# litmus can target. Returns {passed, tested}: tested counts the targets the
-# block saw, so the caller reports not applicable when it is zero.
+# litmus can target, with the label pair the engine has to select them by.
+# Returns {passed, tested}: tested counts the targets litmus could address, so
+# the caller reports not applicable when it is zero.
 def chaos_resource_test(args, config, result, task_name : String, check_containers = true,
-                        &block : (NamedTuple(kind: String, name: String, namespace: String), JSON::Any, JSON::Any) -> Bool) : {Bool, Int32}
+                        &block : (NamedTuple(kind: String, name: String, namespace: String), JSON::Any, JSON::Any, {String, String}) -> Bool) : {Bool, Int32}
   tested = 0
   passed = CNFManager.workload_resource_test(args, config, check_containers) do |resource, target, volumes|
     unless LITMUS_APPKINDS.includes?(resource[:kind].downcase)
@@ -103,7 +104,18 @@ def chaos_resource_test(args, config, result, task_name : String, check_containe
       next false
     end
     tested += 1
-    block.call(resource, target, volumes)
+    # The label has to select the pods of this resource only. The first
+    # selector label is often shared by a whole Helm release, and litmus then
+    # picks a random pod of the release for every resource (#2657). A resource
+    # that owns no pod has nothing to inject into and is left out.
+    target_label = LitmusManager.resource_target_label(resource)
+    unless target_label
+      message = "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]} owns no pod, #{task_name} has nothing to target"
+      Log.for(task_name).warn { message }
+      result.append_description(message)
+      next true
+    end
+    block.call(resource, target, volumes, target_label)
   end
   {passed, tested}
 end
@@ -128,7 +140,7 @@ scored_task "pod_network_latency",
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     #todo if args has list of labels to perform test on, go into pod specific mode
     #TODO tests should fail if cnf not installed
-    task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _|
+    task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _, target_label|
       Log.info { "Current Resource Name: #{resource["name"]} Type: #{resource["kind"]}" }
       app_namespace = resource[:namespace]
 
@@ -170,7 +182,6 @@ scored_task "pod_network_latency",
         test_name = "#{resource["name"]}-#{Random::Secure.hex(4)}"
         chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
 
-        #spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"]).as_h
         if args.named["pod-labels"]?
             template = ChaosTemplates::PodNetworkLatency.new(
               test_name,
@@ -186,8 +197,8 @@ scored_task "pod_network_latency",
             "#{chaos_experiment_name}",
             app_namespace,
             "#{resource["kind"].downcase}",
-            "#{spec_labels.as_h.first_key}",
-            "#{spec_labels.as_h.first_value}"
+            target_label[0],
+            target_label[1]
           ).to_s
         end
         chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
@@ -214,10 +225,9 @@ scored_task "pod_network_corruption",
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     #TODO tests should fail if cnf not installed
-    task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _|
+    task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _, target_label|
       Log.info {"Current Resource Name: #{resource["name"]} Type: #{resource["kind"]}"}
       app_namespace = resource[:namespace]
-      spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
       test_passed = true
       if test_passed
         LitmusManager.install_fault("pod-network-corruption", app_namespace, t.name)
@@ -228,14 +238,13 @@ scored_task "pod_network_corruption",
         test_name = "#{resource["name"]}-#{Random.rand(99)}"
         chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
 
-        spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"]).as_h
         template = ChaosTemplates::PodNetworkCorruption.new(
           test_name,
           "#{chaos_experiment_name}",
           app_namespace,
           "#{resource["kind"].downcase}",
-          "#{spec_labels.first_key}",
-          "#{spec_labels.first_value}"
+          target_label[0],
+          target_label[1]
         ).to_s
         chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
         File.write(chaos_template_path, template)
@@ -257,10 +266,9 @@ scored_task "pod_network_duplication",
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     #TODO tests should fail if cnf not installed
-    task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _|
+    task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _, target_label|
       app_namespace = resource[:namespace]
       Log.info{ "Current Resource Name: #{resource["name"]} Type: #{resource["kind"]} Namespace: #{resource["namespace"]}"}
-      spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
       test_passed = true
       if test_passed
         LitmusManager.install_fault("pod-network-duplication", app_namespace, t.name)
@@ -271,14 +279,13 @@ scored_task "pod_network_duplication",
         test_name = "#{resource["name"]}-#{Random.rand(99)}"
         chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
 
-        spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"]).as_h
         template = ChaosTemplates::PodNetworkDuplication.new(
           test_name,
           "#{chaos_experiment_name}",
           app_namespace,
           "#{resource["kind"].downcase}",
-          "#{spec_labels.first_key}",
-          "#{spec_labels.first_value}"
+          target_label[0],
+          target_label[1]
         ).to_s
         chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
         File.write(chaos_template_path, template)
@@ -309,7 +316,7 @@ scored_task "disk_fill",
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     injected = 0
-    task_response, tested = chaos_resource_test(args, config, result, t.name, check_containers: false) do |resource, containers, _|
+    task_response, tested = chaos_resource_test(args, config, result, t.name, check_containers: false) do |resource, containers, _, target_label|
       app_namespace = resource[:namespace]
 
       # The fault is injected once per resource, into a container that can be
@@ -321,7 +328,6 @@ scored_task "disk_fill",
       end
 
       injected += 1
-      spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
       test_passed = true
       if test_passed
         LitmusManager.install_fault("disk-fill", app_namespace, t.name)
@@ -332,16 +338,13 @@ scored_task "disk_fill",
         test_name = "#{resource["name"]}-#{Random.rand(99)}"
         chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
 
-        spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"]).as_h
-        Log.for("#{test_name}:spec_labels").info { "Spec labels for chaos template. Key: #{spec_labels.first_key}; Value: #{spec_labels.first_value}" }
-        # todo change to use all labels instead of first label
         template = ChaosTemplates::DiskFill.new(
           test_name,
           "#{chaos_experiment_name}",
           app_namespace,
           "#{resource["kind"].downcase}",
-          "#{spec_labels.first_key}",
-          "#{spec_labels.first_value}",
+          target_label[0],
+          target_label[1],
           target_container: target_container
         ).to_s
         chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
@@ -364,7 +367,7 @@ scored_task "pod_delete",
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     #todo clear all annotations
-    task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _|
+    task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _, target_label|
       app_namespace = resource[:namespace]
       spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
       test_passed = true
@@ -405,7 +408,6 @@ scored_task "pod_delete",
         test_name = "#{resource["name"]}-#{Random.rand(99)}" 
         chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
 
-        # spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"]).as_h
       if args.named["pod-labels"]?
         template = ChaosTemplates::PodDelete.new(
           test_name,
@@ -422,8 +424,8 @@ scored_task "pod_delete",
           "#{chaos_experiment_name}",
           app_namespace,
           "#{resource["kind"].downcase}",
-          "#{spec_labels.as_h.first_key}",
-          "#{spec_labels.as_h.first_value}",
+          target_label[0],
+          target_label[1],
           target_pod_name
         ).to_s
       end
@@ -448,9 +450,8 @@ scored_task "pod_memory_hog",
   deps: ["setup:install_litmus"],
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _|
+    task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _, target_label|
       app_namespace = resource[:namespace]
-      spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
       test_passed = true
       if test_passed
         LitmusManager.install_fault("pod-memory-hog", app_namespace, t.name)
@@ -462,14 +463,13 @@ scored_task "pod_memory_hog",
         test_name = "#{resource["name"]}-#{Random.rand(99)}" 
         chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
 
-        spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"]).as_h
         template = ChaosTemplates::PodMemoryHog.new(
           test_name,
           "#{chaos_experiment_name}",
           app_namespace,
           "#{resource["kind"].downcase}",
-          "#{spec_labels.first_key}",
-          "#{spec_labels.first_value}",
+          target_label[0],
+          target_label[1],
           target_pod_name
         ).to_s
 
@@ -509,7 +509,7 @@ scored_task "pod_io_stress",
     end
 
     injected = 0
-    task_response, tested = chaos_resource_test(args, config, result, t.name, check_containers: false) do |resource, containers, _|
+    task_response, tested = chaos_resource_test(args, config, result, t.name, check_containers: false) do |resource, containers, _, target_label|
       app_namespace = resource[:namespace]
 
       # The fault is injected once per resource, into a container that can be
@@ -520,20 +520,9 @@ scored_task "pod_io_stress",
         next true
       end
 
-      # A label that selects exactly this resource's pods; none when it owns
-      # no pod, in which case there is nothing to stress and the resource is
-      # left out rather than stressed through a random pod of the release.
-      target_label = LitmusManager.resource_target_label(resource)
-      unless target_label
-        message = "#{resource[:kind]}/#{resource[:name]} in #{app_namespace} owns no pod, nothing to stress"
-        Log.for(t.name).warn { message }
-        result.append_description(message)
-        next true
-      end
       deployment_label, deployment_label_value = target_label
 
       injected += 1
-      spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
       test_passed = true
       if test_passed
         LitmusManager.install_fault("pod-io-stress", app_namespace, t.name)
@@ -603,9 +592,8 @@ scored_task "pod_dns_error",
     end
 
     begin
-      task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _|
+      task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _, target_label|
         app_namespace = resource[:namespace]
-        spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"])
         test_passed = true
         if test_passed
           LitmusManager.install_fault("pod-dns-error", app_namespace, t.name)
@@ -617,14 +605,13 @@ scored_task "pod_dns_error",
           test_name = "#{resource["name"]}-#{Random.rand(99)}" 
           chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
 
-          spec_labels = KubectlClient::Get.resource_spec_labels(resource["kind"], resource["name"], resource["namespace"]).as_h
           template = ChaosTemplates::PodDnsError.new(
             test_name,
             "#{chaos_experiment_name}",
             app_namespace,
             "#{resource["kind"].downcase}",
-            "#{spec_labels.first_key}",
-            "#{spec_labels.first_value}",
+            target_label[0],
+            target_label[1],
             container_runtime: container_runtime,
             socket_path: socket_path
           ).to_s
