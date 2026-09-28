@@ -24,11 +24,11 @@
 
 * [**Category: Security Tests**](#category-security-tests)
 
-   [[Container socket mounts]](#container-socket-mounts) | [[Privileged Containers]](#privileged-containers) | [[External IPs]](#external-ips) | [[SELinux Options]](#selinux-options) | [[Sysctls]](#sysctls) | [[Privilege escalation]](#privilege-escalation) | [[Seccomp profile]](#seccomp-profile) | [[Symlink file system]](#symlink-file-system) | [[Application credentials]](#application-credentials) | [[Host network]](#host-network) | [[Service account mapping]](#service-account-mapping) | [[Ingress and Egress blocked]](#ingress-and-egress-blocked) | [[Insecure capabilities]](#insecure-capabilities) | [[Non-root containers]](#non-root-containers) | [[Host PID/IPC privileges]](#host-pidipc-privileges) | [[Linux hardening]](#linux-hardening) | [[CPU limits]](#cpu-limits) | [[Memory limits]](#memory-limits) | [[Well-formed hugepages]](#well-formed-hugepages) | [[Immutable File Systems]](#immutable-file-systems) | [[HostPath Mounts]](#hostpath-mounts)
+   [[Container socket mounts]](#container-socket-mounts) | [[Privileged Containers]](#privileged-containers) | [[External IPs]](#external-ips) | [[SELinux Options]](#selinux-options) | [[Sysctls]](#sysctls) | [[Privilege escalation]](#privilege-escalation) | [[Seccomp profile]](#seccomp-profile) | [[Symlink file system]](#symlink-file-system) | [[Application credentials]](#application-credentials) | [[Host network]](#host-network) | [[Service account mapping]](#service-account-mapping) | [[Ingress and Egress blocked]](#ingress-and-egress-blocked) | [[Insecure capabilities]](#insecure-capabilities) | [[Non-root containers]](#non-root-containers) | [[Host PID/IPC privileges]](#host-pidipc-privileges) | [[Linux hardening]](#linux-hardening) | [[CPU limits]](#cpu-limits) | [[Memory limits]](#memory-limits) | [[Immutable File Systems]](#immutable-file-systems) | [[HostPath Mounts]](#hostpath-mounts)
 
 * [**Category: Configuration Tests**](#category-configuration-tests)
 
-   [[Default namespaces]](#default-namespaces) | [[Latest tag]](#latest-tag) | [[Require labels]](#require-labels) | [[Versioned tag]](#versioned-tag) | [[NodePort not used]](#nodeport-not-used) | [[HostPort not used]](#hostport-not-used) | [[Hardcoded IP addresses in K8s runtime configuration]](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | [[Secrets used]](#secrets-used) | [[Immutable configmap]](#immutable-configmap) | [[Kubernetes Alpha APIs]](#kubernetes-alpha-apis) | [[Operator installed]](#operator-installed)
+   [[Default namespaces]](#default-namespaces) | [[Latest tag]](#latest-tag) | [[Require labels]](#require-labels) | [[Versioned tag]](#versioned-tag) | [[NodePort not used]](#nodeport-not-used) | [[HostPort not used]](#hostport-not-used) | [[Hardcoded IP addresses in K8s runtime configuration]](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | [[Secrets used]](#secrets-used) | [[Immutable configmap]](#immutable-configmap) | [[Kubernetes Alpha APIs]](#kubernetes-alpha-apis) | [[Operator installed]](#operator-installed) | [[Hugepages volumes]](#hugepages-volumes)
 
 ----------
 
@@ -1471,27 +1471,6 @@ Define LimitRange and ResourceQuota policies to limit memory usage for namespace
 
 ----------
 
-### Well-formed hugepages
-
-#### Overview
-
-Statically lints the CNF's rendered manifest so that any container requesting a `hugepages-*` resource declares it correctly. Because a misdeclared hugepages workload is rejected by the Kubernetes API server at apply time (and by the kubelet at schedule time), the value of the check is catching the mistake in the manifest first, with a clear message rather than an opaque failure.
-Expectation: for every hugepages consumer, requests equal limits for each hugepages resource, a cpu or memory request is also set, and any mounted hugepages volume is an `emptyDir` whose medium matches a requested page size. A CNF that requests no hugepages is reported as N/A.
-
-#### Rationale
-
-DPDK-style and other latency-sensitive network functions consume hugepages, and misdeclared hugepages fail at schedule or run time in ways that are hard to diagnose. The Kubernetes [HugePages documentation](https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/) requires a container's hugepages requests and limits to be equal, requires a hugepages consumer to also set a cpu or memory request, and surfaces hugepages to the workload through an `emptyDir` volume with a `HugePages` medium. This test statically catches those mistakes from the CNF manifests before deployment.
-
-#### Remediation
-
-For every `hugepages-<size>` resource set requests == limits, add a cpu or memory request, and back any hugepages mount with an `emptyDir` whose medium matches the requested page size.
-
-#### Usage
-
-`./cnti-testsuite well_formed_hugepages`
-
-----------
-
 ### Immutable File Systems
 
 #### Overview
@@ -1554,6 +1533,29 @@ Declarative APIs for an immutable infrastructure are anything that configures th
 ### Usage
 
 All configuration: `./cnti-testsuite configuration`
+
+----------
+
+### Hugepages volumes
+
+#### Overview
+
+Checks that every hugepages `emptyDir` volume declared by the CNF is backed by a matching hugepages request in the same pod. A `HugePages-<size>` medium needs a container or init container that requests `hugepages-<size>`; a size-less `HugePages` medium needs the pod to request hugepages in exactly one page size. A CNF that declares no hugepages volume is reported as N/A.
+Measurement: the CNF's rendered workload manifests are read and, for each pod that declares a hugepages `emptyDir` volume, the volume's medium is compared against the hugepages page sizes requested across all of the pod's containers and init containers (from requests and limits).
+
+#### Rationale
+
+DPDK-style and other latency-sensitive network functions surface hugepages to the workload through an `emptyDir` volume with a `HugePages` medium. The API server accepts a hugepages volume that no request in the pod backs, but the kubelet then refuses to mount it: the pod stays in `ContainerCreating` with a `FailedMount ... there is no resource request for huge pages` event, which is hard to diagnose. This test catches the mismatch in the manifest first.
+
+Sources: [Manage HugePages](https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/); [emptyDir volumes](https://kubernetes.io/docs/concepts/storage/volumes/#emptydir).
+
+#### Remediation
+
+Back each hugepages `emptyDir` volume with a hugepages request in the pod: a `HugePages-<size>` medium needs a container (or init container) requesting `hugepages-<size>`, and a size-less `HugePages` medium needs the pod to request hugepages in a single page size.
+
+#### Usage
+
+`./cnti-testsuite hugepages_volumes`
 
 ----------
 

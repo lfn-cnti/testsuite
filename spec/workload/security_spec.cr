@@ -249,33 +249,6 @@ describe "Security" do
     end
   end
 
-  it "'well_formed_hugepages' should be N/A on a cnf that requests no hugepages", tags: ["security"] do
-    begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf")
-      result = ShellCmd.run_testsuite("well_formed_hugepages")
-      result[:status].success?.should be_true
-      (/(N\/A).*(No containers request hugepages resources)/ =~ result[:output]).should_not be_nil
-    ensure
-      result = ShellCmd.cnf_uninstall()
-    end
-  end
-
-  it "'well_formed_hugepages' should pass on a cnf with well-formed hugepages requests", tags: ["security"] do
-    begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_hugepages --skip-wait-for-install")
-      result = ShellCmd.run_testsuite("well_formed_hugepages")
-      result[:status].success?.should be_true
-      (/(PASSED).*(Hugepages requests are well-formed)/ =~ result[:output]).should_not be_nil
-    ensure
-      result = ShellCmd.cnf_uninstall()
-    end
-  end
-
-  # The failing case is proven as a pure unit spec (spec/workload/hugepages_lint_spec.cr):
-  # a malformed hugepages manifest is rejected by the Kubernetes API server at
-  # apply time, so it cannot be installed to a live cluster — the static lint is
-  # exercised directly against the rendered manifest instead.
-
   it "'ingress_egress_blocked' should not pass on a cnf that has no ingress and egress traffic policy", tags: ["security"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf")

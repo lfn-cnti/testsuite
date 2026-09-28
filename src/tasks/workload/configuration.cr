@@ -6,6 +6,7 @@ require "totem"
 require "json"
 require "../utils/utils.cr"
 require "../utils/image_tag.cr"
+require "../utils/hugepages_volumes.cr"
 
 rolling_version_change_test_names = ["rolling_update", "rolling_downgrade", "rolling_version_change"]
 
@@ -22,7 +23,8 @@ category_task "configuration", [
     "latest_tag",
     "default_namespace",
     "operator_installed",
-    "versioned_tag"
+    "versioned_tag",
+    "hugepages_volumes"
   ]
 
 desc "Check if the CNF is running containers with labels configured?"
@@ -687,5 +689,40 @@ def operator_deployments(csv_name : String, namespace : String) : Array(String)
     deployments.as_a.compact_map { |d| d.dig?("name").try(&.as_s) }
   else
     [] of String
+  end
+end
+
+desc "Check that hugepages emptyDir volumes are backed by a matching hugepages request"
+scored_task "hugepages_volumes",
+  type: CNFManager::TestType::Normal,
+  emoji: "📄🧠" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # An emptyDir volume with a HugePages medium must be backed by a hugepages
+    # request in the pod, or the pod never starts (it stays in ContainerCreating
+    # with a FailedMount event). The API server accepts the manifest, so this
+    # lints the CNF's rendered workloads for the backing the kubelet requires:
+    # a `HugePages-<size>` medium needs a container or init container asking for
+    # `hugepages-<size>`, and a size-less `HugePages` medium needs the pod to ask
+    # for hugepages in exactly one page size. A CNF with no hugepages volume is
+    # not applicable.
+    resources = [] of YAML::Any
+    CNFManager.cnf_workload_resources(args, config) do |resource|
+      resources << resource
+      resource
+    end
+    lint = HugepagesVolumes.check(resources)
+
+    if lint[:pods_with_hugepages_volume] == 0
+      result.na("No pod declares a hugepages emptyDir volume")
+    elsif lint[:violations].empty?
+      result.passed("Every hugepages volume is backed by a matching hugepages request")
+    else
+      lint[:violations].each do |v|
+        result.append_description("#{v.kind}/#{v.name} (volume #{v.volume}): #{v.reason}")
+        result.add_impacted_resource(v.kind, v.name, v.namespace, reason: v.reason)
+      end
+      result.append_remediation("Back each hugepages emptyDir volume with a hugepages request in the pod: a HugePages-<size> medium needs a container (or init container) requesting hugepages-<size>, and a size-less HugePages medium needs the pod to request hugepages in a single page size.")
+      result.failed("Found #{lint[:violations].size} hugepages volume(s) without a matching request")
+    end
   end
 end

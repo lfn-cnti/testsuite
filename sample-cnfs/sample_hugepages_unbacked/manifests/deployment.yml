@@ -1,0 +1,35 @@
+---
+# A hugepages emptyDir volume with no hugepages request anywhere in the pod. The
+# API server accepts this; the kubelet rejects it on the node (the pod stays in
+# ContainerCreating with a FailedMount event), so it installs but never starts.
+# The hugepages_volumes test should fail against it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hugepages-unbacked
+  labels:
+    app: hugepages-unbacked
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hugepages-unbacked
+  template:
+    metadata:
+      labels:
+        app: hugepages-unbacked
+    spec:
+      containers:
+      - name: app
+        image: nginx:1.21.0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+        volumeMounts:
+        - name: hugepage
+          mountPath: /hugepages
+      volumes:
+      - name: hugepage
+        emptyDir:
+          medium: HugePages-2Mi
