@@ -539,13 +539,15 @@ Expectation: Local storage should not be used or configured.
 
 #### Rationale
 
-A CNF should refrain from using the [local storage class](https://kubernetes.io/docs/concepts/storage/storage-classes/#local)
+A [local volume](https://kubernetes.io/docs/concepts/storage/volumes/#local) is a disk or a directory of one node. A pod that uses it can only run on that node: Kubernetes schedules it there through the volume's node affinity and cannot move it elsewhere.
+When the node fails or is drained, the workload stays down until the node is back, and when the node or its disk is lost, the data is lost with it. Kubernetes does not replicate or move a local volume; an application that uses one has to tolerate that itself.
+A CNF that keeps its state on storage that is reachable from any node, a network or cloud volume claimed through a StorageClass, can be rescheduled with its data.
 
-Sources: [Kubernetes persistent volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/); [Anuket Reference Architecture for Kubernetes (RA2)](https://cntt.readthedocs.io/projects/ra2/en/latest/).
+Sources: [Kubernetes local volumes](https://kubernetes.io/docs/concepts/storage/volumes/#local); [Kubernetes persistent volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/); [Anuket Reference Architecture for Kubernetes (RA2)](https://cntt.readthedocs.io/projects/ra2/en/latest/).
 
 #### Remediation
 
-Ensure that your CNF isn't using any persistent volumes that use a ["local"] mount point.
+Back each persistent volume claim with a network or cloud volume, claimed through a StorageClass, instead of a PersistentVolume of type `local`.
 
 #### Usage
 
