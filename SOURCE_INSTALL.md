@@ -66,9 +66,7 @@ cd tools/ && git clone https://github.com/crosscloudci/k8s-infra.git
 
 ### Installation
 
-We can assume you have access to a working kubernetes cluster. We recommend only running the cnti-testsuite on dev or test clusters. The source install steps have been verified on most Linux distributions (Ubuntu, Debian and CentOS), Mac OS X and WSL as long as crystal-lang >=v1.19.0 is installed.
-
-_NOTE: Currently Mac OS X users will need to ensure helm 3.8.2 or greater is installed locally._
+We can assume you have access to a working kubernetes cluster. We recommend only running the cnti-testsuite on dev or test clusters. Building from source is tested on Ubuntu 24.04 and on Debian; see [Supported platforms](INSTALL.md#supported-platforms). crystal-lang >=v1.19.0 is needed.
 
 - Verify your KUBECONFIG points to your correct k8s cluster:
   ```

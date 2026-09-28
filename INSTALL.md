@@ -31,6 +31,33 @@ This will detail the required minimum requirements needed in order to support cn
 ---
 
 
+#### Supported platforms
+
+What "supported" means here: the platform is built and tested by the project's CI on every pull request. Everything else is listed as expected to work or as known not to work yet.
+
+##### Where the suite runs (the machine that runs `cnti-testsuite`)
+
+| Platform | Status | How it is covered |
+|---|---|---|
+| Linux, amd64, release binary | supported | The release is one static binary, built on Alpine. It does not depend on the distribution. |
+| Ubuntu 24.04, amd64, built from source | supported | The spec suite runs here on every pull request. |
+| Debian bookworm, trixie, forky and sid, amd64, built from source | supported | Built on every pull request; `cert` is run against the CoreDNS example. |
+| Linux, arm64 (Ubuntu 24.04, Debian) | not passing yet | Built on every pull request, natively and under QEMU, and `cert` is run against CoreDNS. The run does not pass yet, and the check does not block. No arm64 binary is released. |
+| RHEL, Fedora, Rocky Linux and other distributions | expected to work with the release binary | Not tested in CI. |
+| macOS, Windows (WSL) | not tested | No build and no test in CI. |
+
+##### What the suite runs against (the cluster of the CNF under test)
+
+| Cluster | Status | How it is covered |
+|---|---|---|
+| [kind](https://kind.sigs.k8s.io/), three nodes, containerd | supported | Every CI job creates one. The kind version is pinned in `.github/actions/install-kind`; the Kubernetes version is the one that kind release brings. |
+| Other Kubernetes clusters with containerd and at least two schedulable nodes | expected to work | Not tested in CI. |
+| Clusters with CRI-O or docker as container runtime, OpenShift among them | not tested | The suite has not been examined on them, and containerd is listed as a requirement. |
+
+The suite changes the cluster it runs against and should be used on development and test clusters only.
+
+If you run the suite on a platform that is not listed as supported, please tell us how it went in the [issues](https://github.com/lfn-cnti/testsuite/issues).
+
 #### Details on supported K8s clusters and installation:
 <details><summary>Click here to drop down details</summary>
 
