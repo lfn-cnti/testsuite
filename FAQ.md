@@ -37,7 +37,7 @@
 <details> <summary>If I found a bug or I think it's a bug, how do I report it?</summary>
 <p>
 
-- If you would like to report a bug, please create a [new issue](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=bug&template=bug-report.md&title=%5BBUG%5D) (using the **Bug Report** Template).
+- If you would like to report a bug, please create a [new issue](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=bug&template=1-bug-report.md&title=%5BBUG%5D) (using the **Bug Report** Template).
 
 </p>
 </details>
@@ -45,7 +45,7 @@
 <details> <summary>How do I request a new feature?</summary>
 <p>
 
-- If you would like to request an enhancement, please create a [new issue](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=enhancement&template=feature-request.md&title=%5BFeature%5D) (using the **Feature Request** Template).
+- If you would like to request an enhancement, please create a [new issue](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=enhancement&template=4-feature-request.md&title=%5BFeature%5D) (using the **Feature Request** Template).
 
 </p>
 </details>
@@ -53,7 +53,7 @@
 <details> <summary>Can I request a new workload or platform test for the CNTi Test Suite?</summary>
 <p>
 
-- Yes. If you would like to request a new workload test, please create a [new issue](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=workload&template=new-workload-test.md&title=%5BWorkload%5D) (using the **New Workload Test** Template) or create a [new issue](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=platform&template=new-platform-test.md&title=%5BPlatform%5D) (using the **New Platform Test** Template).
+- Yes. If you would like to request a new workload test, please create a [new issue](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=workload&template=2-new-workload.md&title=%5BWorkload%5D) (using the **New Workload Test** Template).
 
 </p>
 </details>

@@ -21,7 +21,7 @@ This INSTALL guide will detail the minimum requirements needed for cnti-testsuit
 - **curl**
 - **helm 3.8.2** _or newer_ (helm 4 supported; cnti-testsuite installs helm 4 if not found locally)
 - **git** _(used to check out code from github)_
-- **crystal-lang** version >=1.6.0 _(to compile the source and build the binary, see [crystal installation](https://crystal-lang.org/install/)) for more information._
+- **crystal-lang** version >=1.19.0 _(to compile the source and build the binary, see [crystal installation](https://crystal-lang.org/install/)) for more information._
 - **shards** ([dependency manager](https://github.com/crystal-lang/shards) for crystal-lang)
 
 ##### Optional Requirement
@@ -66,7 +66,7 @@ cd tools/ && git clone https://github.com/crosscloudci/k8s-infra.git
 
 ### Installation
 
-We can assume you have access to a working kubernetes cluster. We recommend only running the cnti-testsuite on dev or test clusters. The source install steps have been verified on most Linux distributions (Ubuntu, Debian and CentOS), Mac OS X and WSL as long as crystal-lang >=v1.6.0 is installed.
+We can assume you have access to a working kubernetes cluster. We recommend only running the cnti-testsuite on dev or test clusters. The source install steps have been verified on most Linux distributions (Ubuntu, Debian and CentOS), Mac OS X and WSL as long as crystal-lang >=v1.19.0 is installed.
 
 _NOTE: Currently Mac OS X users will need to ensure helm 3.8.2 or greater is installed locally._
 
@@ -82,7 +82,7 @@ _NOTE: Currently Mac OS X users will need to ensure helm 3.8.2 or greater is ins
   ```
   kubectl cluster-info
   ```
-- You'll need crystal-lang >=v1.6.0 installed with [shards](https://github.com/crystal-lang/shards). You can follow their [install instructions](https://crystal-lang.org/install/) for their different install methods.
+- You'll need crystal-lang >=v1.19.0 installed with [shards](https://github.com/crystal-lang/shards). You can follow their [install instructions](https://crystal-lang.org/install/) for their different install methods.
 - cnti-testsuite needs helm 3.8.2 or greater (helm 4 supported) but it is optional as the prerequisite checks will install if not found. You can install helm by checking their [installation methods](https://helm.sh/docs/helm/helm_install/).
 - Checkout the source code with git:
   ```
@@ -219,7 +219,7 @@ You can also run via `crystal` by replacing the `./cnti-testsuite` with `crystal
 # These assume you've already run the cnf_install pointing at a cnti-testsuite.yaml config above. You can always specify your config at the end of each command as well, eg:
 ./cnti-testsuite all --cnf-config <path to your config yml>/cnti-testsuite.yaml
 
-# Runs all ga tests (generally available workload and platform tests)
+# Runs all ga tests (generally available workload tests)
 ./cnti-testsuite all
 
 # Runs all alpha, beta and ga tests

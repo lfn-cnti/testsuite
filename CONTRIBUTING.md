@@ -26,10 +26,10 @@ GitHub Issues are used as the primary method for tracking items for the CNTI Tes
 ### Issue Templates
 
 **1. New Features:**
-To request an enhancement, please create a new issue using the [**Feature Request**](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=enhancement&template=feature-request.md&title=%5BFeature%5D) Template
+To request an enhancement, please create a new issue using the [**Feature Request**](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=enhancement&template=4-feature-request.md&title=%5BFeature%5D) Template
 
 **2. Report Bugs:**
-To report a bug, please create a new issue using the [**Bug Report**](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=bug&template=bug-report.md&title=%5BBUG%5D) Template. Check out [How to Report Bugs Effectively](https://www.chiark.greenend.org.uk/~sgtatham/bugs.html.).
+To report a bug, please create a new issue using the [**Bug Report**](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=bug&template=1-bug-report.md&title=%5BBUG%5D) Template. Check out [How to Report Bugs Effectively](https://www.chiark.greenend.org.uk/~sgtatham/bugs.html.).
 
 >NOTE: To help with debugging, you can enable higher logging level output via the command line or ENV variable. Available log levels are: `trace`, `debug`, `info`, `notice`, `warn`, `error` and `fatal`.
 
@@ -48,8 +48,7 @@ Check [usage documentation](USAGE.md) for more info about invoking commands and 
 
 **3. New CNTI Test Suite Tests:**
 
-- To request a new workload test, please create a new issue using the [**New Workload Test**](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=workload&template=new-workload-test.md&title=%5BWorkload%5D) Template
-- To request a new platform test, please create a new issue using the [**New Platform Test**](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=platform&template=new-platform-test.md&title=%5BPlatform%5D) Template
+- To request a new workload test, please create a new issue using the [**New Workload Test**](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=workload&template=2-new-workload.md&title=%5BWorkload%5D) Template
 
 **4. New CNF Example:**
 To suggest a new CNF, please create a GitHub issue using the [New Example CNF template](https://github.com/lfn-cnti/testsuite/issues/new?assignees=&labels=example+CNF&template=new-example-cnf.md&title=%5BCNF%5D).
