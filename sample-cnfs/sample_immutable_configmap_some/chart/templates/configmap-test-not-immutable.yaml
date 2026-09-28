@@ -1,7 +1,0 @@
----             
-apiVersion: v1   
-data:      
-  api.server: "https://example.com"
-kind: ConfigMap
-metadata:                                                                                                                                                               
-  name: myapp
