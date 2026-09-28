@@ -140,6 +140,13 @@ module LitmusManager
     end
   end
 
+  # Name of the chaos engine of one experiment on one workload. The suffix
+  # is random and long enough to be unique: a number below 99 repeated within
+  # a run, and the second test then reused the engine of the first (#2670).
+  def self.engine_name(workload_name : String) : String
+    "#{workload_name}-#{Random::Secure.hex(4)}"
+  end
+
   ## wait_for_test will wait for the completion of litmus test
   def self.wait_for_test(test_name, chaos_experiment_name, args, namespace : String = "default")
     chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
@@ -184,7 +191,16 @@ module LitmusManager
 
     passed ? logger.info { "#{chaos_result_name}: #{summary}" } : logger.error { "#{chaos_result_name}: #{summary}" }
     result.try(&.append_description("Litmus #{summary}"))
+    delete_engine(engine_name, namespace)
     passed
+  end
+
+  # The engine has done its work once the verdict is read. Left behind, the
+  # engines of a run pile up in the CNF's namespace, with their runner pods.
+  def self.delete_engine(engine_name : String, namespace : String)
+    KubectlClient::Delete.resource("chaosengine.#{LITMUS_K8S_DOMAIN}", engine_name, namespace)
+  rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+    Log.for("LitmusManager.delete_engine").warn { "chaosengine #{engine_name} in #{namespace} not deleted: #{ex.message.to_s.lines.first?}" }
   end
 
   # What litmus reports having targeted (chaosresult status.history.targets:
@@ -224,6 +240,23 @@ module LitmusManager
 
     fail_step = json.dig?("status", "experimentStatus", "failStep").try(&.as_s?)
     parts << "failStep: #{fail_step}" if fail_step && !fail_step.empty? && fail_step != "N/A"
+
+    # An experiment that could not run says why in errorOutput; its reason is
+    # the helper's own report, as JSON in a string.
+    if error = json.dig?("status", "experimentStatus", "errorOutput")
+      code = error.dig?("errorCode").try(&.as_s?)
+      reason = error.dig?("reason").try(&.as_s?)
+      if reason
+        begin
+          helper = JSON.parse(reason)
+          phase = helper.dig?("phase").try(&.as_s?)
+          why = helper.dig?("reason").try(&.as_s?)
+          reason = "#{why}#{phase ? " (#{phase})" : ""}" if why
+        rescue JSON::ParseException
+        end
+      end
+      parts << "error #{[code, reason].compact.reject(&.empty?).join(": ")}" if code || reason
+    end
 
     json.dig?("status", "probeStatuses").try(&.as_a?).try &.each do |probe|
       probe_verdict = probe.dig?("status", "verdict").try(&.as_s?)

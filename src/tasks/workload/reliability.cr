@@ -179,7 +179,7 @@ scored_task "pod_network_latency",
         KubectlClient::Utils.annotate(resource["kind"], resource["name"], ["litmuschaos.io/chaos=\"true\""], namespace: app_namespace)
 
         chaos_experiment_name = "pod-network-latency"
-        test_name = "#{resource["name"]}-#{Random::Secure.hex(4)}"
+        test_name = LitmusManager.engine_name(resource["name"])
         chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
 
         if args.named["pod-labels"]?
@@ -235,7 +235,7 @@ scored_task "pod_network_corruption",
         KubectlClient::Utils.annotate(resource["kind"], resource["name"], ["litmuschaos.io/chaos=\"true\""], namespace: app_namespace)
 
         chaos_experiment_name = "pod-network-corruption"
-        test_name = "#{resource["name"]}-#{Random.rand(99)}"
+        test_name = LitmusManager.engine_name(resource["name"])
         chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
 
         template = ChaosTemplates::PodNetworkCorruption.new(
@@ -276,7 +276,7 @@ scored_task "pod_network_duplication",
         KubectlClient::Utils.annotate(resource["kind"], resource["name"], ["litmuschaos.io/chaos=\"true\""], namespace: app_namespace)
 
         chaos_experiment_name = "pod-network-duplication"
-        test_name = "#{resource["name"]}-#{Random.rand(99)}"
+        test_name = LitmusManager.engine_name(resource["name"])
         chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
 
         template = ChaosTemplates::PodNetworkDuplication.new(
@@ -335,7 +335,7 @@ scored_task "disk_fill",
         KubectlClient::Utils.annotate(resource["kind"], resource["name"], ["litmuschaos.io/chaos=\"true\""], namespace: app_namespace)
 
         chaos_experiment_name = "disk-fill"
-        test_name = "#{resource["name"]}-#{Random.rand(99)}"
+        test_name = LitmusManager.engine_name(resource["name"])
         chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
 
         template = ChaosTemplates::DiskFill.new(
@@ -405,7 +405,7 @@ scored_task "pod_delete",
 
         chaos_experiment_name = "pod-delete"
         target_pod_name = ""
-        test_name = "#{resource["name"]}-#{Random.rand(99)}" 
+        test_name = LitmusManager.engine_name(resource["name"])
         chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
 
       if args.named["pod-labels"]?
@@ -460,7 +460,7 @@ scored_task "pod_memory_hog",
 
         chaos_experiment_name = "pod-memory-hog"
         target_pod_name = ""
-        test_name = "#{resource["name"]}-#{Random.rand(99)}" 
+        test_name = LitmusManager.engine_name(resource["name"])
         chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
 
         template = ChaosTemplates::PodMemoryHog.new(
@@ -531,7 +531,7 @@ scored_task "pod_io_stress",
 
         chaos_experiment_name = "pod-io-stress"
         target_pod_name = ""
-        chaos_test_name = "#{resource["name"]}-#{Random.rand(99)}"
+        chaos_test_name = LitmusManager.engine_name(resource["name"])
         chaos_result_name = "#{chaos_test_name}-#{chaos_experiment_name}"
 
         template = ChaosTemplates::PodIoStress.new(
@@ -602,7 +602,7 @@ scored_task "pod_dns_error",
 
           chaos_experiment_name = "pod-dns-error"
           target_pod_name = ""
-          test_name = "#{resource["name"]}-#{Random.rand(99)}" 
+          test_name = LitmusManager.engine_name(resource["name"])
           chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
 
           template = ChaosTemplates::PodDnsError.new(
