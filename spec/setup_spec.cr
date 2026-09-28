@@ -265,8 +265,11 @@ describe "Installation" do
       (/\[Deployment\] crash-looper is not ready after 60 seconds/ =~ result[:output]).should_not be_nil
       # The pod is found through the Deployment's selector (no bare `app` label).
       (/pod crash-looper-\S+: \w+/ =~ result[:output]).should_not be_nil
-      # The run before the current one says why the container exits.
-      (/previous log of pod crash-looper-\S+ container app ---\n.*cnti-crash-marker: configuration missing/m =~ result[:output]).should_not be_nil
+      # The container's own words say why it exits. They are in the log of the
+      # current run or of the one before it: the kubelet removes the log of
+      # an earlier run at its own pace, and kubectl then answers "unable to
+      # retrieve container logs" for it.
+      (/(current|previous) log of pod crash-looper-\S+ container app ---\ncnti-crash-marker: configuration missing/ =~ result[:output]).should_not be_nil
       result[:output].should_not contain("error: expected 'logs")
     ensure
       ShellCmd.cnf_uninstall()
