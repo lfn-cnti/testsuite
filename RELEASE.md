@@ -28,8 +28,6 @@ See https://help.github.com/en/github/administering-a-repository/managing-releas
 - new test is marked as GA :heavy_check_mark:
 - tag with new patch version vMAJOR.MINOR.PATCH_VERSION, eg. v0.4.2
 
-_Note: this covers both workload (ie. application) and platform tests_
-
 **Releases for PoC and Beta tests**
 
 - No tagged releases for PoC and beta level tests
@@ -43,8 +41,6 @@ _Note: this covers both workload (ie. application) and platform tests_
 - all new tests have working usage documentation
 - new test is marked as GA :heavy_check_mark:
 - tag with new minor version vMAJOR.MINOR_VERSION.PATCH, eg. v0.4.0
-
-_Note: this covers both workload (ie. application) and platform tests_
 
 **[MINOR] Releases for new, non-breaking environment feature (eg. adding Kind support)**
 
@@ -60,8 +56,6 @@ _Note: this covers both workload (ie. application) and platform tests_
 - All automated integration/spec coverage passes
 - Change is fully documented for anything affected
 - Tag with new major version vMAJOR_VERSION.MINOR.PATCH, eg. v2.0.0
-
-_Note: this covers both workload (ie. application) and platform tests_
 
 **[Manually create builds]**
 based on [SOURCE_INSTALL.md#optional-build-binary](SOURCE_INSTALL.md#installation) and [Minimal instructions to run the tests from source (as of 2020-06-23)](https://hackmd.io/hcHoJEKaRWuyf_fZ7ITxLw)

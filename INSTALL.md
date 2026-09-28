@@ -19,12 +19,11 @@ This will detail the required minimum requirements needed in order to support cn
 * **kubectl** *(run commands against K8s clusters, see [installing kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more details.)*
 * **curl**
 * **helm 3.8.2** *or newer* (helm 4 supported; cnti-testsuite installs helm 4 if not found locally)
-* **docker**  *(needed for the cni_compatibility test)*
 
 #### Requirements for source installation
 *Everything detailed in the [minimum requirements](https://hackmd.io/6h7NXdHnR4qUYgnnQPy5UA#Required) and the following:*
 * **git** *(used to check out code from github)*
-* **crystal-lang** version >=1.6.0 *(to compile the source and build the binary, see [crystal installation](https://crystal-lang.org/install/))*
+* **crystal-lang** version >=1.19.0 *(to compile the source and build the binary, see [crystal installation](https://crystal-lang.org/install/))*
 * **shards** ([dependency manager](https://github.com/crystal-lang/shards) for crystal-lang)
 
 
@@ -237,11 +236,6 @@ cnti-testsuite all
 The following will run only workload tests:
 ```
 cnti-testsuite workload 
-```
-
-The following would run only the platform tests:
-```
-cnti-testsuite platform 
 ```
 
 #### Checking Results
