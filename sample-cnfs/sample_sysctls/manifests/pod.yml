@@ -18,11 +18,8 @@ spec:
       - name: kernel.msgmax
         value: "60000"
   containers:
-  - image: bitnamilegacy/nginx:latest
+  - image: nginxinc/nginx-unprivileged:latest
     name: nginx
-    command:
-      - /opt/bitnami/scripts/nginx/entrypoint.sh
-      - /opt/bitnami/scripts/nginx/run.sh
     livenessProbe:
       tcpSocket:
         port: 8080
