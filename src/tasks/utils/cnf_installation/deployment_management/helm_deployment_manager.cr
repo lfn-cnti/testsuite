@@ -23,6 +23,7 @@ module CNFInstall
       begin
         CNFManager.ensure_namespace_exists!(helm_namespace)
         values = helm_values ? CNFInstall.resolve_helm_values(helm_values, CNFInstall.installed_config_dir) : helm_values
+        @cluster_touched = true
         response = Helm.install(@deployment_name, chart_path, namespace: helm_namespace, values: values)
         # Save the stderr from installation command for usage in other tests.
         unless response[:output].empty?

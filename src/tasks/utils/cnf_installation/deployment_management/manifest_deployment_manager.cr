@@ -20,6 +20,7 @@ module CNFInstall
       end
 
       begin
+        @cluster_touched = true
         response = KubectlClient::Apply.file(@manifest_directory_path)
         # Save the stderr from installation command for usage in other tests.
         unless response[:output].empty?
