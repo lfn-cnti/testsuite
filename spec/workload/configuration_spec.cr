@@ -105,16 +105,7 @@ describe CntiTestSuite do
   it "'rolling_downgrade' should pass when valid version is given", tags: ["rolling_downgrade"]  do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling/cnti-testsuite.yaml --skip-wait-for-install")
-      retry_limit = 5 
-      retries = 1
       result = ShellCmd.run_testsuite("rolling_downgrade")
-      until (/Passed/ =~ result[:output]) || retries > retry_limit
-        Log.info { "rolling_downgrade retry: #{retries}" }
-        sleep 1.seconds
-        result = ShellCmd.run_testsuite("rolling_downgrade")
-        retries = retries + 1
-      end
-      Log.info { result[:output] }
       result[:status].success?.should be_true
       (/Passed/ =~ result[:output]).should_not be_nil
     ensure
