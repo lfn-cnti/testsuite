@@ -626,6 +626,7 @@ All resilience: `./cnti-testsuite resilience`
 The applications may stall or get corrupted while they wait endlessly for a packet. The experiment limits the impact (blast radius) to only the traffic you want to test by specifying IP addresses or application information. This experiment will help to improve the resilience of your services over time.
 Measurement: LitmusChaos experiment [pod-network-latency](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-latency/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when network latency occurs
+The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) from the nodes and probes the usual socket locations on a node, and `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path. The test is not applicable when the runtime is unsupported or no socket is found.
 Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
 Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 
@@ -708,6 +709,7 @@ Ensure that your CNF is resilient and doesn't fail on a forced/graceful pod fail
 The [pod-memory hog](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-memory-hog/) experiment launches a stress process within the target container - which can cause either the primary process in the container to be resource constrained in cases where the limits are enforced OR eat up available system memory on the node in cases where the limits are not specified.
 Measurement: LitmusChaos experiment [pod-memory-hog](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-memory-hog/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when pod memory hog occurs
+The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) from the nodes and probes the usual socket locations on a node, and `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path. The test is not applicable when the runtime is unsupported or no socket is found.
 Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
 Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 
@@ -764,6 +766,7 @@ Ensure that your CNF is resilient to continuous and heavy disk IO load and can m
 The [pod-network corruption](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-corruption/) experiment injects packet corruption on the CNF by starting a traffic control (tc) process with netem rules to add egress packet corruption.
 Measurement: LitmusChaos experiment [pod-network-corruption](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-corruption/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should be resilient to a lossy/flaky network and should continue to provide some level of availability.
+The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) from the nodes and probes the usual socket locations on a node, and `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path. The test is not applicable when the runtime is unsupported or no socket is found.
 Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
 Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 
@@ -791,6 +794,7 @@ Ensure that your CNF is resilient to a lossy/flaky network and can maintain a le
 The [pod-network duplication](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-duplication/) experiment injects network duplication into the CNF by starting a traffic control (tc) process with netem rules to add egress delays.
 Measurement: LitmusChaos experiment [pod-network-duplication](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-duplication/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function and be resilient to a duplicate network.
+The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) from the nodes and probes the usual socket locations on a node, and `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path. The test is not applicable when the runtime is unsupported or no socket is found.
 Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
 Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 

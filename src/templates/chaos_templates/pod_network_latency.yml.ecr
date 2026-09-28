@@ -28,10 +28,9 @@ spec:
               value: '<%= @total_chaos_duration %>'
             # provide the name of container runtime
             # it supports docker, containerd, crio
-            # default to docker
             - name: CONTAINER_RUNTIME
-              value: 'containerd'
+              value: '<%= @container_runtime %>'
             # provide the socket file path
             # applicable only for containerd and crio runtime
             - name: SOCKET_PATH
-              value: '/run/containerd/containerd.sock'
+              value: '<%= @socket_path %>'

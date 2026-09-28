@@ -120,6 +120,26 @@ def chaos_resource_test(args, config, result, task_name : String, check_containe
   {passed, tested}
 end
 
+# The container runtime of the cluster and its socket on the nodes, which
+# the litmus helpers need to reach the target container. Both are cluster
+# properties: when they cannot be established the test is not applicable,
+# since the CNF is not what stops the fault from being injected. Reports
+# that and returns nil in that case.
+def chaos_container_runtime(result, task_name : String) : {String, String}?
+  runtimes = KubectlClient::Get.container_runtimes
+  container_runtime = LitmusManager.detect_runtime(runtimes)
+  unless container_runtime
+    result.na("#{task_name} not applicable: unsupported container runtime (#{runtimes.join(", ")})")
+    return nil
+  end
+  socket_path = LitmusManager.detect_runtime_socket(container_runtime)
+  unless socket_path
+    result.na("#{task_name} not applicable: no #{container_runtime} socket found on the node, set #{LitmusManager::RUNTIME_SOCKET_ENV}")
+    return nil
+  end
+  {container_runtime, socket_path}
+end
+
 # Verdict shared by the chaos tests: not applicable when litmus could target
 # nothing, otherwise pass or fail on the experiments.
 def chaos_verdict(result, task_name : String, passed : Bool, tested : Int32, passed_message : String? = nil)
@@ -138,6 +158,12 @@ scored_task "pod_network_latency",
   deps: ["setup:install_litmus"],
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # The litmus helper reaches the target through the node's container
+    # runtime; the engine names the runtime and socket the cluster has (#2103).
+    runtime = chaos_container_runtime(result, t.name)
+    next unless runtime
+    container_runtime, socket_path = runtime
+
     #todo if args has list of labels to perform test on, go into pod specific mode
     #TODO tests should fail if cnf not installed
     task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _, target_label|
@@ -189,7 +215,9 @@ scored_task "pod_network_latency",
               app_namespace,
               "#{resource["kind"].downcase}",
               "#{current_pod_key}",
-              "#{current_pod_value}"
+              "#{current_pod_value}",
+              container_runtime: container_runtime,
+              socket_path: socket_path
         ).to_s
         else
           template = ChaosTemplates::PodNetworkLatency.new(
@@ -198,7 +226,9 @@ scored_task "pod_network_latency",
             app_namespace,
             "#{resource["kind"].downcase}",
             target_label[0],
-            target_label[1]
+            target_label[1],
+            container_runtime: container_runtime,
+            socket_path: socket_path
           ).to_s
         end
         chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
@@ -224,6 +254,12 @@ scored_task "pod_network_corruption",
   deps: ["setup:install_litmus"],
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # The litmus helper reaches the target through the node's container
+    # runtime; the engine names the runtime and socket the cluster has (#2103).
+    runtime = chaos_container_runtime(result, t.name)
+    next unless runtime
+    container_runtime, socket_path = runtime
+
     #TODO tests should fail if cnf not installed
     task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _, target_label|
       Log.info {"Current Resource Name: #{resource["name"]} Type: #{resource["kind"]}"}
@@ -244,7 +280,9 @@ scored_task "pod_network_corruption",
           app_namespace,
           "#{resource["kind"].downcase}",
           target_label[0],
-          target_label[1]
+          target_label[1],
+          container_runtime: container_runtime,
+          socket_path: socket_path
         ).to_s
         chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
         File.write(chaos_template_path, template)
@@ -265,6 +303,12 @@ scored_task "pod_network_duplication",
   deps: ["setup:install_litmus"],
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # The litmus helper reaches the target through the node's container
+    # runtime; the engine names the runtime and socket the cluster has (#2103).
+    runtime = chaos_container_runtime(result, t.name)
+    next unless runtime
+    container_runtime, socket_path = runtime
+
     #TODO tests should fail if cnf not installed
     task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _, target_label|
       app_namespace = resource[:namespace]
@@ -285,7 +329,9 @@ scored_task "pod_network_duplication",
           app_namespace,
           "#{resource["kind"].downcase}",
           target_label[0],
-          target_label[1]
+          target_label[1],
+          container_runtime: container_runtime,
+          socket_path: socket_path
         ).to_s
         chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
         File.write(chaos_template_path, template)
@@ -450,6 +496,12 @@ scored_task "pod_memory_hog",
   deps: ["setup:install_litmus"],
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # The litmus helper reaches the target through the node's container
+    # runtime; the engine names the runtime and socket the cluster has (#2103).
+    runtime = chaos_container_runtime(result, t.name)
+    next unless runtime
+    container_runtime, socket_path = runtime
+
     task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _, target_label|
       app_namespace = resource[:namespace]
       test_passed = true
@@ -470,7 +522,9 @@ scored_task "pod_memory_hog",
           "#{resource["kind"].downcase}",
           target_label[0],
           target_label[1],
-          target_pod_name
+          target_pod_name,
+          container_runtime: container_runtime,
+          socket_path: socket_path
         ).to_s
 
         chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
@@ -496,17 +550,9 @@ scored_task "pod_io_stress",
     # rather than a hard-coded containerd path. Both are cluster properties:
     # when they cannot be established the test is not applicable, since the
     # CNF is not what stops the fault from being injected.
-    runtimes = KubectlClient::Get.container_runtimes
-    container_runtime = LitmusManager.detect_runtime(runtimes)
-    unless container_runtime
-      result.na("pod_io_stress not applicable: unsupported container runtime (#{runtimes.join(", ")})")
-      next
-    end
-    socket_path = LitmusManager.detect_runtime_socket(container_runtime)
-    unless socket_path
-      result.na("pod_io_stress not applicable: no #{container_runtime} socket found on the node, set #{LitmusManager::RUNTIME_SOCKET_ENV}")
-      next
-    end
+    runtime = chaos_container_runtime(result, t.name)
+    next unless runtime
+    container_runtime, socket_path = runtime
 
     injected = 0
     task_response, tested = chaos_resource_test(args, config, result, t.name, check_containers: false) do |resource, containers, _, target_label|
@@ -579,17 +625,9 @@ scored_task "pod_dns_error",
     # container runtime, like pod-io-stress: detect the runtime and its socket
     # and hand both to the engine. The test used to run only on a Docker
     # runtime and was skipped on every containerd or CRI-O cluster (#2579).
-    runtimes = KubectlClient::Get.container_runtimes
-    container_runtime = LitmusManager.detect_runtime(runtimes)
-    unless container_runtime
-      result.na("pod_dns_error not applicable: unsupported container runtime (#{runtimes.join(", ")})")
-      next
-    end
-    socket_path = LitmusManager.detect_runtime_socket(container_runtime)
-    unless socket_path
-      result.na("pod_dns_error not applicable: no #{container_runtime} socket found on the node, set #{LitmusManager::RUNTIME_SOCKET_ENV}")
-      next
-    end
+    runtime = chaos_container_runtime(result, t.name)
+    next unless runtime
+    container_runtime, socket_path = runtime
 
     begin
       task_response, tested = chaos_resource_test(args, config, result, t.name) do |resource, _, _, target_label|

@@ -27,6 +27,6 @@ spec:
             - name: TOTAL_CHAOS_DURATION
               value: '<%= @total_chaos_duration %>'
             - name: CONTAINER_RUNTIME
-              value: 'containerd'
+              value: '<%= @container_runtime %>'
             - name: SOCKET_PATH
-              value: '/run/containerd/containerd.sock'
+              value: '<%= @socket_path %>'
