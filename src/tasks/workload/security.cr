@@ -4,7 +4,6 @@ require "file_utils"
 require "colorize"
 require "totem"
 require "../utils/utils.cr"
-require "../utils/hugepages_lint.cr"
 
 desc "CNF containers should be isolated from one another and the host.  The CNF Test suite uses tools like Sysdig Inspect and gVisor"
 category_task "security", [
@@ -14,7 +13,6 @@ category_task "security", [
     "insecure_capabilities",
     "memory_limits",
     "cpu_limits",
-    "well_formed_hugepages",
     "linux_hardening",
     "ingress_egress_blocked",
     "host_pid_ipc_privileges",
@@ -411,43 +409,6 @@ scored_task "cpu_limits",
       Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found containers without CPU limits set")
-    end
-  end
-end
-
-desc "Check that hugepages requests are well-formed for DPDK-style workloads"
-scored_task "well_formed_hugepages",
-  type: CNFManager::TestType::Normal,
-  emoji: "📄🧠" do |t, args|
-  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    # Misdeclared hugepages are rejected by the API server at apply time (and by
-    # the kubelet at schedule time) in ways that are hard to diagnose. This is a
-    # static lint of the CNF's *rendered* manifest — read before any judgement of
-    # the live cluster — so the misdeclaration is caught with a clear message
-    # rather than an opaque admission/scheduling failure. For every container
-    # requesting a `hugepages-*` resource it checks: (a) requests == limits for
-    # every hugepages resource; (b) a cpu or memory request is also present; and
-    # (c) any emptyDir volume advertising a HugePages medium names a page size the
-    # container actually requested. A CNF with no hugepages consumers is `na`.
-    unless File.exists?(COMMON_MANIFEST_FILE_PATH)
-      result.skipped("CNF manifest not found: #{COMMON_MANIFEST_FILE_PATH}; run cnf_install first")
-      next
-    end
-
-    resources = CNFInstall::Manifest.manifest_path_to_ymls(COMMON_MANIFEST_FILE_PATH)
-    lint = HugepagesLint.check(resources)
-
-    if lint[:hugepage_containers] == 0
-      result.na("No containers request hugepages resources")
-    elsif lint[:violations].empty?
-      result.passed("Hugepages requests are well-formed")
-    else
-      lint[:violations].each do |v|
-        result.append_description("#{v.kind}/#{v.name}/#{v.container}: #{v.reason}")
-        result.add_impacted_resource(v.kind, v.name, v.namespace, container: v.container, reason: v.reason)
-      end
-      result.append_remediation("For every hugepages-<size> resource set requests == limits, add a cpu or memory request, and back any hugepages mount with an emptyDir whose medium matches the requested page size.")
-      result.failed("Found #{lint[:violations].size} malformed hugepages declaration(s)")
     end
   end
 end

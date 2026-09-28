@@ -518,4 +518,43 @@ describe CntiTestSuite do
       result[:status].success?.should be_true
     end
   end
+
+  it "'hugepages_volumes' should be N/A on a cnf with no hugepages volume", tags: ["hugepages_volumes"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf")
+      result = ShellCmd.run_testsuite("hugepages_volumes")
+      result[:status].success?.should be_true
+      (/(N\/A).*(No pod declares a hugepages emptyDir volume)/ =~ result[:output]).should_not be_nil
+      verify_task_result("hugepages_volumes", "na")
+    ensure
+      result = ShellCmd.cnf_uninstall
+    end
+  end
+
+  it "'hugepages_volumes' should pass when the volume is backed by a matching request", tags: ["hugepages_volumes"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_hugepages --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("hugepages_volumes")
+      result[:status].success?.should be_true
+      (/(PASSED).*(Every hugepages volume is backed by a matching hugepages request)/ =~ result[:output]).should_not be_nil
+      verify_task_result("hugepages_volumes", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+    end
+  end
+
+  it "'hugepages_volumes' should fail when a hugepages volume has no backing request", tags: ["hugepages_volumes"] do
+    begin
+      # The manifest is accepted by the API server (the pod fails only on the
+      # node), so it installs with --skip-wait-for-install and the test runs.
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_hugepages_unbacked --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("hugepages_volumes")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(hugepages volume\(s\) without a matching request)/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/hugepages-unbacked.*is not backed by/ =~ result[:output]).should_not be_nil
+      verify_task_result("hugepages_volumes", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+    end
+  end
 end
