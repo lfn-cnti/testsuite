@@ -42,7 +42,7 @@ spec:
     spec:
       containers:
       - name: app
-        image: bitnamilegacy/nginx:1.20
+        image: nginxinc/nginx-unprivileged:1.29
         ports:
         - containerPort: 8080
         volumeMounts:

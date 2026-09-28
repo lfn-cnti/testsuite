@@ -52,11 +52,8 @@ metadata:
   namespace: cnfspace
 spec:
   containers:
-  - image: bitnamilegacy/nginx:1.20
+  - image: nginxinc/nginx-unprivileged:1.29
     name: nginx
-    command:
-      - /opt/bitnami/scripts/nginx/entrypoint.sh
-      - /opt/bitnami/scripts/nginx/run.sh
     livenessProbe:
       tcpSocket:
         port: 8080

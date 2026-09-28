@@ -425,7 +425,7 @@ describe CntiTestSuite do
       result = ShellCmd.run_testsuite("latest_tag")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Container images are using the latest tag)/ =~ result[:output]).should_not be_nil
-      (/impacted: Pod\/nginx in .* \(container nginx\): image bitnamilegacy\/nginx:latest uses the latest tag/ =~ result[:output]).should_not be_nil
+      (/impacted: Pod\/nginx in .* \(container nginx\): image nginxinc\/nginx-unprivileged:latest uses the latest tag/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -462,7 +462,7 @@ describe CntiTestSuite do
       result = ShellCmd.run_testsuite("versioned_tag")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(1 container image\(s\) do not use versioned tags)/ =~ result[:output]).should_not be_nil
-      (/impacted: Pod\/nginx in nginx-stuff \(container nginx\): image bitnamilegacy\/nginx:latest uses the latest tag/ =~ result[:output]).should_not be_nil
+      (/impacted: Pod\/nginx in nginx-stuff \(container nginx\): image nginxinc\/nginx-unprivileged:latest uses the latest tag/ =~ result[:output]).should_not be_nil
       verify_task_result("versioned_tag", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -474,8 +474,8 @@ describe CntiTestSuite do
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-unversioned-tags")
       result = ShellCmd.run_testsuite("versioned_tag")
       result[:status].exit_code.should eq(1)
-      (/impacted: Deployment\/unversioned in unversioned \(container untagged\): image bitnamilegacy\/nginx has no tag \(implicitly latest\)/ =~ result[:output]).should_not be_nil
-      (/> Deployment\/unversioned in unversioned container versioned: bitnamilegacy\/nginx:1.20 is versioned/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/unversioned in unversioned \(container untagged\): image nginxinc\/nginx-unprivileged has no tag \(implicitly latest\)/ =~ result[:output]).should_not be_nil
+      (/> Deployment\/unversioned in unversioned container versioned: nginxinc\/nginx-unprivileged:1.29 is versioned/ =~ result[:output]).should_not be_nil
       verify_task_result("versioned_tag", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()

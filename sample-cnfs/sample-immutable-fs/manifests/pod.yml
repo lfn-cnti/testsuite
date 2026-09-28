@@ -16,15 +16,12 @@ spec:
   volumes:
   - name: root-tmp
     emptyDir: {}
-  - name: bitnami-tmp
+  - name: nginx-cache
     emptyDir: {}
 
   containers:
-  - image: bitnamilegacy/nginx:1.20
+  - image: nginxinc/nginx-unprivileged:1.29
     name: nginx
-    command:
-      - /opt/bitnami/scripts/nginx/entrypoint.sh
-      - /opt/bitnami/scripts/nginx/run.sh
     securityContext:
       readOnlyRootFilesystem: true
     livenessProbe:
@@ -40,6 +37,6 @@ spec:
     volumeMounts:
     - name: root-tmp
       mountPath: /tmp
-    - name: bitnami-tmp
-      mountPath: /opt/bitnami/nginx/tmp
+    - name: nginx-cache
+      mountPath: /var/cache/nginx
   dnsPolicy: Default

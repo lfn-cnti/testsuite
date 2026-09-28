@@ -31,10 +31,7 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: bitnamilegacy/nginx:1.20
-        command:
-          - /opt/bitnami/scripts/nginx/entrypoint.sh
-          - /opt/bitnami/scripts/nginx/run.sh
+        image: nginxinc/nginx-unprivileged:1.29
         ports:
         - containerPort: 8080
           name: web
