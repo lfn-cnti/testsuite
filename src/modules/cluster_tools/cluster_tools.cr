@@ -366,34 +366,6 @@ module ClusterTools
     match
   end
 
-  def self.local_match_by_image_name_with_retries(image_names : Array(String), retries : Int32 = 10, wait : Int32 = 3)
-    image_names.map{|x| local_match_by_image_name_with_retries(x)}.flatten.find{|m|m[:found]==true}
-  end
-
-  def self.local_match_by_image_name_with_retries(image_name, retries : Int32 = 10, wait : Int32 = 3)
-    Log.info { "local_match_by_image_names_with_retries image_name: #{image_name}" }
-    nodes = KubectlClient::Get.nodes["items"].as_a
-    local_match_by_image_name_with_retries(image_name)
-  end
-
-  def self.local_match_by_image_name_with_retries(image_name, retries : Int32 = 10, wait : Int32 = 3)
-    # Retry up to 60 seconds because kubectl get nodes -o json can return
-    # the image digest with a delay.
-    # See https://github.com/lfn-cnti/testsuite/issues/2337
-    match = Hash{:found => false, :digest => "", :release_name => ""}
-    retries.times do |i|
-      match = local_match_by_image_name(image_name)
-      if match[:found]
-        Log.info { "sha256 for #{image_name} found on node after #{i*5}s" }
-        return match
-      end
-      Log.debug { "Waiting for sha256 of #{image_name} (attempt #{i+1})..." }
-      sleep(Time::Span.new(seconds: wait))
-    end
-    Log.warn { "sha256 for #{image_name} not found after waiting." }
-    match
-  end
-
   def self.pod_name()
     KubectlClient::Get.match_pods_by_prefix("cluster-tools", namespace: self.namespace!).first?
   end

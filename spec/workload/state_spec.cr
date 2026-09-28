@@ -1,7 +1,6 @@
 require "../spec_helper"
 require "colorize"
 require "../../src/tasks/utils/utils.cr"
-require "../../src/tasks/utils/mysql.cr"
 require "file_utils"
 require "sam"
 
@@ -32,7 +31,6 @@ describe "State" do
 
   it "'database_persistence' should pass if the cnf uses a database that claims persistent storage", tags: ["elastic_volume"]  do
     begin
-      Log.debug { "Installing Mysql " }
       # todo make helm directories work with parameters
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-mysql/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("database_persistence", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=debug")
