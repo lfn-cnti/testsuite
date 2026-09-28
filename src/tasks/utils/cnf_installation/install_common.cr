@@ -194,13 +194,16 @@ module CNFInstall
   end
 
   def self.install_deployments(parsed_args, deployment_managers, config)
+    cluster_touched = false
     deployment_managers.each do |deployment_manager|
       deployment_name = deployment_manager.deployment_name
 
       StatusLine.update "Installing deployment \"#{deployment_name}\"."
       result = deployment_manager.install
+      cluster_touched ||= deployment_manager.cluster_touched?
       if !result
         stdout_failure "Deployment of \"#{deployment_name}\" failed during CNF installation."
+        clean_up_failed_install(cluster_touched)
         exit 1
       end
 
@@ -244,6 +247,36 @@ module CNFInstall
     unless CNFManager.workload_resources?
       stdout_warning "The CNF manifest has no workload resources (Deployment, StatefulSet, DaemonSet, ReplicaSet or Pod): tests that examine workloads will be reported as not applicable. Check the config points at the right chart or manifests, or set workload_resource_labels for workloads an operator creates."
     end
+  end
+
+  # Written into the workspace by an install that failed before anything
+  # reached the cluster.
+  FAILED_INSTALL_MARKER = File.join(CNF_DIR, "install_failed_before_cluster")
+
+  # What a failed install leaves behind decides what the user has to do next.
+  # When part of the CNF is on the cluster, the workspace is what
+  # cnf_uninstall needs to remove it. When nothing reached the cluster, the
+  # workspace is all there is: it is marked, and the next cnf_install replaces
+  # it without asking for a cnf_uninstall first (#2332). It is not removed
+  # here, because tests of the chart itself, helm_chart_published for one,
+  # can still be run against it.
+  def self.clean_up_failed_install(cluster_touched : Bool)
+    if cluster_touched
+      stdout_failure "Part of the CNF may be on the cluster. Run cnf_uninstall to remove it, then install again."
+    else
+      File.write(FAILED_INSTALL_MARKER, Time.utc.to_rfc3339)
+      stdout_warning "Nothing was installed on the cluster. cnf_install can be run again, no cnf_uninstall is needed."
+    end
+  end
+
+  # True when the workspace holds only what such an install left.
+  def self.failed_install_without_cluster_changes? : Bool
+    File.exists?(FAILED_INSTALL_MARKER)
+  end
+
+  # Removes that workspace, so that an install can start from nothing.
+  def self.discard_failed_install
+    FileUtils.rm_rf(CNF_DIR)
   end
 
   def self.uninstall_cnf(cli_args)

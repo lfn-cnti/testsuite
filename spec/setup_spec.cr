@@ -273,6 +273,38 @@ describe "Installation" do
     end
   end
 
+  it "'cnf_install' can be run again after an install that failed before it reached the cluster", tags: ["cnf_installation1"] do
+    begin
+      result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-bad-helm-repo/cnti-testsuite.yaml", expect_failure: true)
+      (/Deployment of "coredns" failed during CNF installation/ =~ result[:output]).should_not be_nil
+      (/Nothing was installed on the cluster. cnf_install can be run again/ =~ result[:output]).should_not be_nil
+
+      # No cnf_uninstall in between (#2332).
+      result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-minimal-cnf/cnti-testsuite.yaml")
+      (/An earlier cnf_install failed before it installed anything on the cluster/ =~ result[:output]).should_not be_nil
+      (/A CNF is already installed/ =~ result[:output]).should be_nil
+      (/CNF installation complete/ =~ result[:output]).should_not be_nil
+    ensure
+      ShellCmd.run("#{Helm::Binary.get} repo remove badrepo")
+      result = ShellCmd.cnf_uninstall()
+      (/All CNF deployments were uninstalled/ =~ result[:output]).should_not be_nil
+    end
+  end
+
+  it "'cnf_install' asks for cnf_uninstall after an install that failed with part of the CNF on the cluster", tags: ["cnf_installation1"] do
+    begin
+      result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-partial-deployment-failure/cnti-testsuite.yaml", expect_failure: true)
+      (/Part of the CNF may be on the cluster. Run cnf_uninstall to remove it/ =~ result[:output]).should_not be_nil
+
+      result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-minimal-cnf/cnti-testsuite.yaml", expect_failure: true)
+      (/A CNF is already installed/ =~ result[:output]).should_not be_nil
+    ensure
+      ShellCmd.run("#{Helm::Binary.get} repo remove badrepo")
+      result = ShellCmd.cnf_uninstall()
+      (/All "nginx" resources are gone/ =~ result[:output]).should_not be_nil
+    end
+  end
+
   it "'cnf_install/cnf_uninstall' should handle partial deployment failures gracefully", tags: ["cnf_installation1"] do
     begin
       result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-partial-deployment-failure/cnti-testsuite.yaml", expect_failure: true)

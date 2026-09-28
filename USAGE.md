@@ -382,6 +382,15 @@ crystal build src/cnti-testsuite.cr
 ./cnti-testsuite cnf_install --cnf-config ./cnti-testsuite.yaml --skip-wait-for-install
 ```
 
+##### When an installation fails
+
+One CNF is installed at a time, so what a failed `cnf_install` leaves decides the next step:
+
+- Nothing reached the cluster (a chart could not be pulled, a manifest directory is missing): run `cnf_install` again. What the failed run left in `cnti/installed-cnf/` is replaced.
+- Part of the CNF is on the cluster (a later deployment failed, a workload did not become ready): run `cnf_uninstall` first, then install again.
+
+`cnf_install` says which of the two applies.
+
 #### Uninstalling a cnf:
 ```
 ./cnti-testsuite cnf_uninstall

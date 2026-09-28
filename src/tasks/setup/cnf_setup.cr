@@ -10,9 +10,15 @@ task "cnf_install", ["setup:install_local_helm", "setup:create_namespace"] do |_
   # deployed, not after.
   CNFInstall.parse_install_cli_args(args)
 
+  if CNFInstall.failed_install_without_cluster_changes?
+    stdout_warning "An earlier cnf_install failed before it installed anything on the cluster; what it left in #{CNF_DIR} is replaced."
+    CNFInstall.discard_failed_install
+  end
+
   if CNFManager.cnf_installed?
     stdout_failure "A CNF is already installed. Installation of multiple CNFs is not allowed."
     stdout_failure "To install a new CNF, uninstall the existing one by running: cnf_uninstall"
+    stdout_failure "The same applies when an earlier cnf_install did not finish: cnf_uninstall removes what it left."
     exit 1
   end
 
