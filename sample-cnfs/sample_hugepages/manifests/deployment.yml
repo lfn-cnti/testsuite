@@ -1,0 +1,38 @@
+---
+# A well-formed hugepages consumer: hugepages-2Mi requests == limits, a memory
+# request is also present, and the mounted hugepages volume is an emptyDir whose
+# medium matches the requested page size.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hugepages-app
+  labels:
+    app: hugepages-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hugepages-app
+  template:
+    metadata:
+      labels:
+        app: hugepages-app
+    spec:
+      containers:
+      - name: app
+        image: nginx:1.21.0
+        resources:
+          requests:
+            cpu: 250m
+            memory: 128Mi
+            hugepages-2Mi: 100Mi
+          limits:
+            memory: 128Mi
+            hugepages-2Mi: 100Mi
+        volumeMounts:
+        - name: hugepage
+          mountPath: /hugepages
+      volumes:
+      - name: hugepage
+        emptyDir:
+          medium: HugePages-2Mi

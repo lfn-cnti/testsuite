@@ -24,7 +24,7 @@
 
 * [**Category: Security Tests**](#category-security-tests)
 
-   [[Container socket mounts]](#container-socket-mounts) | [[Privileged Containers]](#privileged-containers) | [[External IPs]](#external-ips) | [[SELinux Options]](#selinux-options) | [[Sysctls]](#sysctls) | [[Privilege escalation]](#privilege-escalation) | [[Seccomp profile]](#seccomp-profile) | [[Symlink file system]](#symlink-file-system) | [[Application credentials]](#application-credentials) | [[Host network]](#host-network) | [[Service account mapping]](#service-account-mapping) | [[Ingress and Egress blocked]](#ingress-and-egress-blocked) | [[Insecure capabilities]](#insecure-capabilities) | [[Non-root containers]](#non-root-containers) | [[Host PID/IPC privileges]](#host-pidipc-privileges) | [[Linux hardening]](#linux-hardening) | [[CPU limits]](#cpu-limits) | [[Memory limits]](#memory-limits) | [[Immutable File Systems]](#immutable-file-systems) | [[HostPath Mounts]](#hostpath-mounts)
+   [[Container socket mounts]](#container-socket-mounts) | [[Privileged Containers]](#privileged-containers) | [[External IPs]](#external-ips) | [[SELinux Options]](#selinux-options) | [[Sysctls]](#sysctls) | [[Privilege escalation]](#privilege-escalation) | [[Seccomp profile]](#seccomp-profile) | [[Symlink file system]](#symlink-file-system) | [[Application credentials]](#application-credentials) | [[Host network]](#host-network) | [[Service account mapping]](#service-account-mapping) | [[Ingress and Egress blocked]](#ingress-and-egress-blocked) | [[Insecure capabilities]](#insecure-capabilities) | [[Non-root containers]](#non-root-containers) | [[Host PID/IPC privileges]](#host-pidipc-privileges) | [[Linux hardening]](#linux-hardening) | [[CPU limits]](#cpu-limits) | [[Memory limits]](#memory-limits) | [[Well-formed hugepages]](#well-formed-hugepages) | [[Immutable File Systems]](#immutable-file-systems) | [[HostPath Mounts]](#hostpath-mounts)
 
 * [**Category: Configuration Tests**](#category-configuration-tests)
 
@@ -1458,6 +1458,27 @@ Define LimitRange and ResourceQuota policies to limit memory usage for namespace
 #### Usage
 
 `./cnti-testsuite memory_limits`
+
+----------
+
+### Well-formed hugepages
+
+#### Overview
+
+Statically lints the CNF's rendered manifest so that any container requesting a `hugepages-*` resource declares it correctly. Because a misdeclared hugepages workload is rejected by the Kubernetes API server at apply time (and by the kubelet at schedule time), the value of the check is catching the mistake in the manifest first, with a clear message rather than an opaque failure.
+Expectation: for every hugepages consumer, requests equal limits for each hugepages resource, a cpu or memory request is also set, and any mounted hugepages volume is an `emptyDir` whose medium matches a requested page size. A CNF that requests no hugepages is reported as N/A.
+
+#### Rationale
+
+DPDK-style and other latency-sensitive network functions consume hugepages, and misdeclared hugepages fail at schedule or run time in ways that are hard to diagnose. The Kubernetes [HugePages documentation](https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/) requires a container's hugepages requests and limits to be equal, requires a hugepages consumer to also set a cpu or memory request, and surfaces hugepages to the workload through an `emptyDir` volume with a `HugePages` medium. This test statically catches those mistakes from the CNF manifests before deployment.
+
+#### Remediation
+
+For every `hugepages-<size>` resource set requests == limits, add a cpu or memory request, and back any hugepages mount with an `emptyDir` whose medium matches the requested page size.
+
+#### Usage
+
+`./cnti-testsuite well_formed_hugepages`
 
 ----------
 
