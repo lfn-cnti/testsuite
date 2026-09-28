@@ -29,6 +29,21 @@ category_task "security", [
     "application_credentials"
   ]
 
+# The sysctls Pod Security Standards call safe; anything else set on a pod is
+# what the kyverno policy flags.
+SAFE_SYSCTLS = ["kernel.shm_rmid_forced", "net.ipv4.ip_local_port_range", "net.ipv4.ip_unprivileged_port_start",
+                "net.ipv4.tcp_syncookies", "net.ipv4.ping_group_range", "net.ipv4.ip_local_reserved_ports"]
+
+# The sysctl names a workload sets outside the safe set, read from its live spec.
+def unsafe_sysctls_of(kind : String, name : String, namespace : String?) : Array(String)
+  live = KubectlClient::Get.resource(kind, name, namespace)
+  pod_spec = live.dig?("spec", "template", "spec") || live.dig?("spec")
+  sysctls = pod_spec.try(&.dig?("securityContext", "sysctls")).try(&.as_a?) || [] of JSON::Any
+  sysctls.compact_map { |s| s.dig?("name").try(&.as_s?) }.reject { |n| SAFE_SYSCTLS.includes?(n) }
+rescue
+  [] of String
+end
+
 desc "Check if pods in the CNF use sysctls with restricted values"
 scored_task "sysctls",
   emoji: "🔓🔑" do |t, args|
@@ -39,15 +54,28 @@ scored_task "sysctls",
     resource_keys = CNFManager.workload_resource_keys(args, config)
     failures = Kyverno.filter_failures_for_cnf_resources(resource_keys, failures)
 
-    if failures.size == 0
-      result.passed("No restricted values found for sysctls")
-    else
-      failures.each do |failure|
-        failure.resources.each do |resource|
-          result.add_impacted_resource(resource.kind, resource.name, resource.namespace, reason: failure.message)
+    # Each unsafe sysctl is a finding of its own, so a documented exception
+    # (common.exceptions) can cover exactly the sysctls a workload needs.
+    failed = false
+    failures.each do |failure|
+      failure.resources.each do |resource|
+        unsafe = unsafe_sysctls_of(resource.kind, resource.name, resource.namespace)
+        if unsafe.empty?
+          failed = true unless Exceptions.judge(result, config, t.name, resource.kind, resource.name, resource.namespace, nil, nil, failure.message)
+          next
+        end
+        unsafe.each do |sysctl|
+          failed = true unless Exceptions.judge(result, config, t.name, resource.kind, resource.name, resource.namespace, nil, sysctl, "sysctl #{sysctl} is outside the safe set")
         end
       end
+    end
+
+    if failed
       result.failed("Restricted values for are being used for sysctls")
+    elsif result.result_excepted.empty?
+      result.passed("No restricted values found for sysctls")
+    else
+      result.passed("No restricted values found for sysctls beyond the documented exceptions")
     end
   end
 end
@@ -173,7 +201,7 @@ scored_task "privileged_containers",
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     white_list_container_names = config.common.white_list_container_names
     Log.debug { "white_list_container_names #{white_list_container_names.inspect}" }
-    violation_list = [] of NamedTuple(kind: String, name: String, container: String, namespace: String, init: Bool)
+    violations = 0
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
       # The resource's own containers - init and ephemeral ones included - judged
       # by their own securityContext, never by a name shared with some privileged
@@ -184,22 +212,27 @@ scored_task "privileged_containers",
       init_names = (pod_spec.try(&.dig?("initContainers")).try(&.as_a?) || [] of JSON::Any).compact_map { |c| c.dig?("name").try(&.as_s?) }
       KubectlClient::Get.resource_all_containers(resource["kind"], resource["name"], resource["namespace"]).each do |container|
         container_name = container.dig?("name").try(&.as_s) || ""
-        next if white_list_container_names.includes?(container_name)
         next unless container.dig?("securityContext", "privileged") == true
-        violation_list << {kind: resource["kind"], name: resource["name"], container: container_name, namespace: resource["namespace"], init: init_names.includes?(container_name)}
+        finding = init_names.includes?(container_name) ? "privileged init container" : "privileged container"
+        # white_list_container_names is the older, reason-less form of an
+        # exception; common.exceptions carries the reason.
+        if white_list_container_names.includes?(container_name)
+          result.add_excepted(resource["kind"], resource["name"], resource["namespace"], container: container_name,
+            finding: finding, reason: "listed in white_list_container_names")
+          next
+        end
+        next if Exceptions.judge(result, config, t.name, resource["kind"], resource["name"], resource["namespace"], container_name, nil, finding)
+        violations += 1
         resource_passed = false
       end
       resource_passed
     end
-    Log.debug { "violator list: #{violation_list.flatten}" }
-    if task_response
+    if task_response && result.result_excepted.empty?
       result.passed("No privileged containers")
+    elsif task_response
+      result.passed("No privileged containers beyond the documented exceptions")
     else
-      violation_list.each do |violation|
-        result.add_impacted_resource(violation[:kind], violation[:name], violation[:namespace],
-          container: violation[:container], reason: violation[:init] ? "privileged init container" : "privileged container")
-      end
-      result.failed("Found #{violation_list.size} privileged containers")
+      result.failed("Found #{violations} privileged containers")
     end
   end
 end
@@ -278,12 +311,23 @@ scored_task "host_network",
     resource_keys = CNFManager.workload_resource_keys(args, config)
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
-    if test_report.failed_resources.size == 0
-      result.passed("No host network attached to pod")
-    else
-      Kubescape.report_failed_resources(test_report, result)
+    # The host network is a pod-level setting: a documented exception
+    # (common.exceptions) names the workload resource.
+    failed = false
+    test_report.failed_resources.each do |r|
+      findings = r.paths.empty? ? [r.alert_message.to_s] : r.paths.map { |path| r.reason_for(path) }
+      findings.each do |finding|
+        failed = true unless Exceptions.judge(result, config, t.name, r.kind, r.name, r.namespace, nil, nil, finding)
+      end
+    end
+
+    if failed
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found host network attached to pod")
+    elsif result.result_excepted.empty?
+      result.passed("No host network attached to pod")
+    else
+      result.passed("No host network attached to pod beyond the documented exceptions")
     end
   end
 end
@@ -381,12 +425,28 @@ scored_task "insecure_capabilities",
     resource_keys = CNFManager.workload_resource_keys(args, config)
     test_report = Kubescape.filter_cnf_resources(test_report, resource_keys)
 
-    if test_report.failed_resources.size == 0
-      result.passed("Containers with insecure capabilities were not found")
-    else
-      Kubescape.report_failed_resources(test_report, result)
+    # Each added capability is a finding of its own, so a documented exception
+    # (common.exceptions) can cover exactly the capability a container needs.
+    failed = false
+    test_report.failed_resources.each do |r|
+      if r.paths.empty?
+        failed = true unless Exceptions.judge(result, config, t.name, r.kind, r.name, r.namespace, nil, nil, r.alert_message.to_s)
+        next
+      end
+      r.paths.each do |path|
+        capability = r.value_for(path)
+        finding = capability ? "capability #{capability} added (#{path})" : r.reason_for(path)
+        failed = true unless Exceptions.judge(result, config, t.name, r.kind, r.name, r.namespace, r.container_for(path), capability, finding)
+      end
+    end
+
+    if failed
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found containers with insecure capabilities")
+    elsif result.result_excepted.empty?
+      result.passed("Containers with insecure capabilities were not found")
+    else
+      result.passed("Containers with insecure capabilities were not found beyond the documented exceptions")
     end
   end
 end

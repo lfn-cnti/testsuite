@@ -1,0 +1,13 @@
+---
+config_version: v2
+common:
+  exceptions:
+    - test: liveness
+      container: coredns
+      reason: not a test that takes exceptions
+deployments:
+  helm_charts:
+  - name: coredns
+    helm_chart_name: coredns
+    helm_repo_name: stable
+    helm_repo_url: https://cncf.gitlab.io/stable

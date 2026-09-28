@@ -139,6 +139,42 @@ common:
     - ip: 4.4.4.4
 ````
 
+##### exceptions
+
+Some practices have legitimate exceptions in telco workloads: a user-plane function needs `NET_ADMIN` and `net.ipv4.ip_forward`, a gNB with a fronthaul NIC needs the host network. Pod Security Standards foresee such exemptions for infrastructure workloads, and CNTi best practice CBPP-0003 asks that each one be documented: what is excepted, where, and why.
+
+An entry names the test, the container or the workload resource it applies to, a mandatory reason, and for the tests that have values, exactly what is allowed. A finding the entry covers is reported as **excepted**, with the reason, in the results file (`excepted`) and on stdout, instead of failing the test; the test passes only when every finding is excepted. Anything not listed is still a failure.
+
+```yaml
+config_version: v2
+common:
+  exceptions:
+    - test: insecure_capabilities
+      container: upf
+      allow: [NET_ADMIN]
+      reason: user-plane packet steering on N3/N6
+    - test: sysctls
+      resource: free5gc-upf
+      allow: [net.ipv4.ip_forward]
+      reason: user-plane forwarding between N3 and N6
+    - test: host_network
+      resource: gnb
+      reason: fronthaul NIC access through the host network
+    - test: privileged_containers
+      container: multus
+      reason: CNI plugin installer
+```
+
+| Key | Required | Meaning |
+|---|---|---|
+| `test` | yes | one of `insecure_capabilities`, `sysctls`, `host_network`, `privileged_containers` |
+| `reason` | yes | why the CNF needs it; recorded with every excepted finding |
+| `container` | one of the two | the container the exception applies to (capabilities and privilege are per container) |
+| `resource` | one of the two | the workload resource, by name (sysctls and the host network are per pod) |
+| `allow` | for `insecure_capabilities` and `sysctls` | the capabilities or sysctls the exception covers; anything else is still a finding |
+
+`white_list_container_names` remains as a shorthand for `privileged_containers` exceptions without a reason; prefer `exceptions`.
+
 ##### `docker_insecure_registries`
 
 The docker client expects the image registries to be using an HTTPS API endpoint. This option is used to configure insecure registries that the docker client should be allowed to access.

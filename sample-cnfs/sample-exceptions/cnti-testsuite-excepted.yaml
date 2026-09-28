@@ -1,0 +1,19 @@
+---
+config_version: v2
+common:
+  exceptions:
+    - test: insecure_capabilities
+      container: upf
+      allow: [NET_ADMIN]
+      reason: user-plane packet steering on N3/N6
+    - test: sysctls
+      resource: forwarder
+      allow: [net.ipv4.ip_forward]
+      reason: user-plane forwarding between N3 and N6
+    - test: host_network
+      resource: dataplane
+      reason: fronthaul NIC access through the host network
+deployments:
+  manifests:
+  - name: dataplane
+    manifest_directory: manifests

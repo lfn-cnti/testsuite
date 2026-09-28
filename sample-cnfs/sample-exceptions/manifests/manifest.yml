@@ -1,0 +1,66 @@
+# A data-plane style workload with three findings the security tests flag:
+# an added NET_ADMIN capability, an unsafe sysctl and the host network. With
+# cnti-testsuite.yaml the three tests fail; with cnti-testsuite-excepted.yaml
+# every finding is covered by a documented exception and they pass.
+# The unsafe sysctl lives on a second workload: Kubernetes rejects a pod
+# that sets sysctls on the host network. It keeps that pod from scheduling
+# on a stock kubelet, which does not matter: the tests read the spec.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: exceptions
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dataplane
+  namespace: exceptions
+  labels:
+    app: dataplane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dataplane
+  template:
+    metadata:
+      labels:
+        app: dataplane
+    spec:
+      hostNetwork: true
+      containers:
+      - name: upf
+        image: busybox:1.36
+        command: ["/bin/sleep", "2147483647"]
+        securityContext:
+          capabilities:
+            add: ["NET_ADMIN"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forwarder
+  namespace: exceptions
+  labels:
+    app: forwarder
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: forwarder
+  template:
+    metadata:
+      labels:
+        app: forwarder
+    spec:
+      securityContext:
+        sysctls:
+          - name: net.ipv4.ip_forward
+            value: "1"
+      containers:
+      - name: forwarder
+        image: busybox:1.36
+        command: ["/bin/sleep", "2147483647"]

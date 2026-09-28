@@ -241,6 +241,12 @@ def upsert_decorated_task(result : CNFManager::TestCaseResult)
     location += ": #{r["reason"]}" if r["reason"]?
     stdout_info "   > impacted: #{location}"
   end
+  result.result_excepted.each do |r|
+    location = [r["kind"]?, r["name"]?].compact.join("/")
+    location += " in #{r["namespace"]}" if r["namespace"]?
+    location += " (container #{r["container"]})" if r["container"]?
+    stdout_info "   > excepted: #{location}: #{r["finding"]?} (reason: #{r["reason"]?})"
+  end
   result.result_remediation.each do |remedy|
     stdout_info "   > remediation: #{remedy}"
   end
