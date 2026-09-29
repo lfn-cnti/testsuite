@@ -441,12 +441,28 @@ module KubectlClient
       logger = @@logger.for("replica_count")
       logger.debug { "Get replica count of #{kind}/#{resource_name}" }
 
-      resource_json = resource(kind, resource_name, namespace)
+      counts = replica_counts(kind, resource(kind, resource_name, namespace))
+      logger.trace { "replicas: current = #{counts[:current]}, desired = #{counts[:desired]}, unavailable = #{counts[:unavailable]}" }
+      counts
+    end
+
+    # The ready, desired and unavailable replica counts in a workload's status;
+    # -1 where they cannot be told yet. Kubernetes leaves zero counts out of the
+    # status: a StatefulSet scaled to zero has `replicas: 0` and no
+    # `readyReplicas`, a Deployment scaled to zero has neither. Once the
+    # controller has written a status (`observedGeneration`), a missing desired
+    # count is the spec's replica count (1 when unset) and a missing ready count
+    # is 0, so a workload scaled to zero reads 0 of 0 and is ready rather than
+    # never ready. Before any status, both stay -1.
+    def self.replica_counts(kind : String, resource_json : JSON::Any) : NamedTuple(current: Int32, desired: Int32, unavailable: Int32)
       case kind.downcase
       when "replicaset", "deployment", "statefulset"
         current_json = resource_json.dig?("status", "readyReplicas")
         desired_json = resource_json.dig?("status", "replicas")
         unavailable_json = resource_json.dig?("status", "unavailableReplicas")
+        if desired_json.nil? && resource_json.dig?("status", "observedGeneration")
+          desired_json = resource_json.dig?("spec", "replicas") || JSON::Any.new(1_i64)
+        end
       when "daemonset"
         current_json = resource_json.dig?("status", "numberAvailable")
         desired_json = resource_json.dig?("status", "desiredNumberScheduled")
@@ -454,11 +470,13 @@ module KubectlClient
       end
 
       current = desired = unavailable = -1
-      current = current_json.to_s.to_i if !current_json.nil?
       desired = desired_json.to_s.to_i if !desired_json.nil?
+      if !current_json.nil?
+        current = current_json.to_s.to_i
+      elsif desired >= 0
+        current = 0
+      end
       unavailable = unavailable_json.to_s.to_i if !unavailable_json.nil?
-
-      logger.trace { "replicas: current = #{current}, desired = #{desired}, unavailable = #{unavailable}" }
 
       {current: current, desired: desired, unavailable: unavailable}
     end
