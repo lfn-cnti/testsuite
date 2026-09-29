@@ -259,6 +259,19 @@ describe "Installation" do
     end
   end
 
+  it "'cnf_install' should count a workload scaled to zero as ready", tags: ["cnf_installation1"] do
+    begin
+      # Kubernetes leaves readyReplicas out of the status of a workload with
+      # zero replicas; the install must not wait for it until it times out (#2702).
+      result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-zero-replicas/cnti-testsuite.yaml", timeout: 60)
+      (/CNF installation complete/ =~ result[:output]).should_not be_nil
+      (/zero-replicas-scaled-down is not ready/ =~ result[:output]).should be_nil
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      (/All CNF deployments were uninstalled/ =~ result[:output]).should_not be_nil
+    end
+  end
+
   it "'cnf_install' should say why a workload did not become ready, with the crashed container's log", tags: ["cnf_installation1"] do
     begin
       result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-crashloop/cnti-testsuite.yaml", timeout: 60, cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=info", expect_failure: true)
