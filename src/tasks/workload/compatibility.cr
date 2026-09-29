@@ -8,7 +8,7 @@ require "../utils/utils.cr"
 
 
 desc "The CNF test suite checks to see if CNFs support horizontal scaling (across multiple machines) and vertical scaling (between sizes of machines) by using the native K8s kubectl"
-category_task "compatibility", ["helm_chart_valid", "helm_chart_published", "helm_deploy", "cni_compatible", "increase_decrease_capacity", "rollback", "deprecated_k8s_features"].concat(ROLLING_VERSION_CHANGE_TEST_NAMES),
+category_task "compatibility", ["helm_chart_valid", "helm_chart_published", "helm_deploy", "cni_compatible", "increase_decrease_capacity", "rollback", "deprecated_k8s_features", "dual_stack"].concat(ROLLING_VERSION_CHANGE_TEST_NAMES),
   title: "Compatibility, Installability, and Upgradeability"
 ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
   pretty_test_name = tn.split(/:|_/).join(" ")
@@ -682,5 +682,61 @@ scored_task "deprecated_k8s_features" do |t, args|
     end
     result.append_remediation("Move to the replacement named in each warning; the API server drops the deprecated version in the release the warning states.")
     result.failed("CNF uses deprecated K8s features")
+  end
+end
+
+desc "Check that the CNF's Services declare dual-stack support"
+scored_task "dual_stack",
+  type: CNFManager::TestType::Bonus,
+  emoji: "🌐" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # Checks the declaration only: that each Service opts in to dual-stack by
+    # setting spec.ipFamilyPolicy to PreferDualStack or RequireDualStack. It does
+    # NOT check that the CNF works over IPv6; that needs a dual-stack cluster and
+    # is not tested here.
+    #
+    # PreferDualStack works on IPv4-only, IPv6-only and dual-stack clusters
+    # alike — it falls back to single-stack where dual-stack is not enabled. A
+    # Service without ipFamilyPolicy works on any single-family cluster (it gets
+    # a cluster IP from the configured range), but on a dual-stack cluster it
+    # gets only the cluster's primary family. Declaring PreferDualStack closes
+    # that gap without affecting single-stack clusters.
+    dual_stack_policies = ["PreferDualStack", "RequireDualStack"]
+    violation_list = [] of NamedTuple(kind: String, name: String, namespace: String, reason: String)
+    applicable = 0
+
+    CNFManager.resource_refs(args, config, ["service"]) do |svc|
+      begin
+        live = KubectlClient::Get.resource(svc[:kind], svc[:name], svc[:namespace])
+      rescue KubectlClient::ShellCMD::NotFoundError
+        # A Service in the manifest but gone from the cluster; skip it.
+        next nil
+      end
+      # ExternalName Services map to a DNS name and have no IP families to judge.
+      unless live.dig?("spec", "type").try(&.as_s?) == "ExternalName"
+        applicable += 1
+        policy = live.dig?("spec", "ipFamilyPolicy").try(&.as_s?)
+        if policy && dual_stack_policies.includes?(policy)
+          result.append_description("Service/#{svc[:name]} in #{svc[:namespace]}: #{policy}")
+        else
+          actual = policy || "unset"
+          violation_list << {kind: svc[:kind], name: svc[:name], namespace: svc[:namespace],
+                             reason: "spec.ipFamilyPolicy is #{actual}: on a dual-stack cluster this Service receives only the cluster's primary address family"}
+        end
+      end
+      nil
+    end
+
+    if applicable == 0
+      result.na("The CNF declares no applicable Services; dual-stack declaration does not apply")
+    elsif violation_list.empty?
+      result.passed("All Services declare dual-stack (PreferDualStack or RequireDualStack)")
+    else
+      violation_list.each do |v|
+        result.add_impacted_resource(v[:kind], v[:name], v[:namespace], reason: v[:reason])
+      end
+      result.append_remediation("Set spec.ipFamilyPolicy to PreferDualStack on the CNF's Services so they are reachable over both address families on a dual-stack cluster. PreferDualStack works on single-stack clusters too — it falls back to one family without affecting behaviour.")
+      result.failed("Found #{violation_list.size} Service(s) that do not declare dual-stack")
+    end
   end
 end

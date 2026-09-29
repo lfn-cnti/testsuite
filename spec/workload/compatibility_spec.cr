@@ -112,6 +112,48 @@ describe "Compatibility" do
     end
   end
 
+  it "'dual_stack' should pass when every Service declares dual-stack support", tags: ["dual_stack"] do
+    begin
+      # dual_stack only inspects Services, so the pods need not be Ready.
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_dual_stack/cnti-testsuite.yaml --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("dual_stack")
+      result[:status].success?.should be_true
+      (/(PASSED).*(All Services declare dual-stack)/ =~ result[:output]).should_not be_nil
+      verify_task_result("dual_stack", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'dual_stack' should fail when a Service does not declare dual-stack support", tags: ["dual_stack"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_dual_stack_fail/cnti-testsuite.yaml --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("dual_stack")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(do not declare dual-stack)/ =~ result[:output]).should_not be_nil
+      # The finding names the actual policy and its consequence on a dual-stack cluster.
+      (/impacted: Service\/single-stack-app.*on a dual-stack cluster this Service receives only/ =~ result[:output]).should_not be_nil
+      verify_task_result("dual_stack", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'dual_stack' should be N/A when the CNF exposes no Service", tags: ["dual_stack"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_dual_stack_no_service/cnti-testsuite.yaml --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("dual_stack")
+      result[:status].success?.should be_true
+      (/(N\/A).*(dual-stack declaration does not apply)/ =~ result[:output]).should_not be_nil
+      verify_task_result("dual_stack", "na")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
   after_all do
     result = ShellCmd.run_testsuite("uninstall_all")
   end

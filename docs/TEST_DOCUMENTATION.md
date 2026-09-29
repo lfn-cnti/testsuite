@@ -4,7 +4,7 @@
 
 * [**Category: Compatibility, Installability and Upgradability Tests**](#category-compatibility-installability-and-upgradability-tests)
 
-   [[Increase decrease capacity]](#increase-decrease-capacity) | [[Helm chart published]](#helm-chart-published) | [[Helm chart valid]](#helm-chart-valid) | [[Helm deploy]](#helm-deploy) | [[Rollback]](#rollback) | [[Rolling version change]](#rolling-version-change) | [[Rolling update]](#rolling-update) | [[Rolling downgrade]](#rolling-downgrade) | [[CNI compatible]](#cni-compatible) | [[Deprecated K8s Features](#deprecated-k8s-features)]
+   [[Increase decrease capacity]](#increase-decrease-capacity) | [[Helm chart published]](#helm-chart-published) | [[Helm chart valid]](#helm-chart-valid) | [[Helm deploy]](#helm-deploy) | [[Rollback]](#rollback) | [[Rolling version change]](#rolling-version-change) | [[Rolling update]](#rolling-update) | [[Rolling downgrade]](#rolling-downgrade) | [[CNI compatible]](#cni-compatible) | [[Deprecated K8s Features](#deprecated-k8s-features)] | [[Dual stack]](#dual-stack)
 
 * [**Category: Microservice Tests**](#category-microservice-tests)
 
@@ -284,6 +284,29 @@ Ensure that the CNF is not using deprecated Kubernetes features. If any are dete
 #### Usage
 
 `./cnti-testsuite deprecated_k8s_features`
+
+----------
+
+### Dual stack
+
+#### Overview
+
+Checks that each of the CNF's Services declares dual-stack by setting `spec.ipFamilyPolicy` to `PreferDualStack` or `RequireDualStack`. It checks the declaration only, not that the CNF works over IPv6; that needs a dual-stack cluster and is not tested. `ExternalName` Services have no cluster IP families and are not judged; when no applicable Service exists the test is `na`. Each judged Service and its policy are listed in the test details.
+Measurement: each of the CNF's live Services is read and its `spec.ipFamilyPolicy` is checked. A Service whose policy is unset (or explicitly `SingleStack`) is reported with the reason: on a dual-stack cluster it receives only the cluster's primary address family.
+
+#### Rationale
+
+[Anuket RA2 inf.ntw.04](https://cntt.readthedocs.io/projects/ra2/en/latest/chapters/chapter02.html) requires the infrastructure architecture to support dual stack for Kubernetes workloads. For workloads to be ready for that infrastructure, their Services should declare `PreferDualStack`. A Service without `ipFamilyPolicy` works on any single-family cluster (it gets a cluster IP from the configured range, IPv4 or IPv6), but on a dual-stack cluster it receives only the cluster's primary family. `PreferDualStack` closes that gap without affecting single-stack clusters — it falls back to one family where dual-stack is not enabled.
+
+Sources: [Kubernetes dual-stack networking](https://kubernetes.io/docs/concepts/services-networking/dual-stack/); [Anuket Reference Architecture for Kubernetes (RA2) inf.ntw.04](https://cntt.readthedocs.io/projects/ra2/en/latest/chapters/chapter02.html).
+
+#### Remediation
+
+Set `spec.ipFamilyPolicy` to `PreferDualStack` on the CNF's Services so they are reachable over both address families on a dual-stack cluster. `PreferDualStack` works on single-stack clusters too — it falls back to one family without affecting behaviour.
+
+#### Usage
+
+`./cnti-testsuite dual_stack`
 
 ----------
 
