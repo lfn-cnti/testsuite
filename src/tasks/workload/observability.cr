@@ -8,7 +8,7 @@ require "../../modules/k8s_kernel_introspection"
 require "../utils/utils.cr"
 
 desc "In order to maintain, debug, and have insight into a protected environment, its infrastructure elements must have the property of being observable. This means these elements must externalize their internal states in some way that lends itself to metrics, tracing, and logging."
-category_task "observability", ["log_output", "prometheus_traffic", "open_metrics", "routed_logs", "tracing"],
+category_task "observability", ["log_output", "prometheus_traffic", "open_metrics", "routed_logs", "tracing", "termination_message_policy"],
   title: "Observability and Diagnostics"
 
 desc "Check if the CNF outputs logs to stdout or stderr"
@@ -270,6 +270,47 @@ scored_task "tracing",
         result.add_impacted_resource(info[:kind], info[:name], info[:namespace], reason: "no traces in Jaeger from any of its pods")
       end
       result.failed("Tracing not used")
+    end
+  end
+end
+
+desc "Check that every container reports its failure reason from its log (terminationMessagePolicy FallbackToLogsOnError)"
+scored_task "termination_message_policy",
+  type: CNFManager::TestType::Bonus,
+  emoji: "📶🪦" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    findings = [] of NamedTuple(kind: String, name: String, namespace: String, container: String, init: Bool, policy: String)
+    judged = 0
+
+    CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
+      live = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+      pod_spec = live.dig?("spec", "template", "spec") || live.dig?("spec")
+      # Regular and init containers are the CNF's own; ephemeral containers are
+      # added by `kubectl debug`, not by the chart, so they are not judged.
+      {"containers" => false, "initContainers" => true}.each do |list, init|
+        (pod_spec.try(&.dig?(list)).try(&.as_a?) || [] of JSON::Any).each do |container|
+          judged += 1
+          # The API server defaults an unset field to File, so the live object
+          # cannot tell the two apart; both are the same finding.
+          policy = container.dig?("terminationMessagePolicy").try(&.as_s?) || "File"
+          next if policy == "FallbackToLogsOnError"
+          findings << {kind: resource[:kind], name: resource[:name], namespace: resource[:namespace],
+                       container: container.dig?("name").try(&.as_s?) || "", init: init, policy: policy}
+        end
+      end
+      true
+    end
+
+    if findings.empty?
+      result.passed("All #{judged} container(s) set terminationMessagePolicy: FallbackToLogsOnError")
+    else
+      findings.each do |f|
+        kind_of = f[:init] ? "init container" : "container"
+        result.add_impacted_resource(f[:kind], f[:name], f[:namespace], container: f[:container],
+          reason: "#{kind_of} terminationMessagePolicy is #{f[:policy]} (File is also the default when unset): a failure reason is shown only if the container writes /dev/termination-log")
+      end
+      result.append_remediation("Set terminationMessagePolicy: FallbackToLogsOnError on each container, so that when a container exits with an error Kubernetes shows the end of its log as the termination message.")
+      result.failed("Found #{findings.size} of #{judged} container(s) without terminationMessagePolicy: FallbackToLogsOnError")
     end
   end
 end
