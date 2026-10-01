@@ -24,7 +24,8 @@ category_task "configuration", [
     "default_namespace",
     "operator_installed",
     "versioned_tag",
-    "hugepages_volumes"
+    "hugepages_volumes",
+    "exclusive_cpus"
   ]
 
 desc "Check if the CNF is running containers with labels configured?"
@@ -723,6 +724,176 @@ scored_task "hugepages_volumes",
       end
       result.append_remediation("Back each hugepages emptyDir volume with a hugepages request in the pod: a HugePages-<size> medium needs a container (or init container) requesting hugepages-<size>, and a size-less HugePages medium needs the pod to request hugepages in a single page size.")
       result.failed("Found #{lint[:violations].size} hugepages volume(s) without a matching request")
+    end
+  end
+end
+
+# A CPU request is eligible for exclusive (pinned) CPUs only when it is a whole
+# number of cores: the kubelet static CPU manager pins integer CPUs. "2" and
+# "1000m" qualify; "500m" and "1.5" do not.
+private def whole_cpu?(quantity : String) : Bool
+  cores = CNFManager::Quantity.parse(quantity)
+  !cores.nil? && cores > 0 && (cores - cores.round).abs <= 1e-9
+end
+
+# Whether a live pod container has cpu and memory requests both set and equal to
+# their limits — the per-container condition behind Guaranteed QoS. Reads the
+# live pod, whose requests the API server has already defaulted from limits, so a
+# container that set only limits is not mistaken for one with no request.
+private def exclusive_cpus_guaranteed_container?(container : JSON::Any) : Bool
+  res = container.dig?("resources")
+  cpu_req = res.try(&.dig?("requests", "cpu")).try(&.as_s?)
+  cpu_lim = res.try(&.dig?("limits", "cpu")).try(&.as_s?)
+  mem_req = res.try(&.dig?("requests", "memory")).try(&.as_s?)
+  mem_lim = res.try(&.dig?("limits", "memory")).try(&.as_s?)
+  !cpu_req.nil? && !cpu_lim.nil? && CNFManager::Quantity.equal?(cpu_req, cpu_lim) &&
+    !mem_req.nil? && !mem_lim.nil? && CNFManager::Quantity.equal?(mem_req, mem_lim)
+end
+
+desc "Check that latency-sensitive workloads are eligible for exclusive CPUs"
+scored_task "exclusive_cpus",
+  type: CNFManager::TestType::Normal,
+  emoji: "⚡🔢" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # Latency-sensitive network functions (DPDK, RAN) need pinned, exclusive
+    # CPUs. The kubelet static CPU manager grants them only when the pod is
+    # Guaranteed (decided by every container, init included) and the container
+    # requests whole (integer) CPUs — a container requesting a fraction runs on
+    # the shared pool while the pod stays Guaranteed, so only the containers that
+    # need pinning must be whole. The CNF names the sensitive workloads and their
+    # pinned containers in `latency_sensitive`; this reads the live pods (whose
+    # QoS class and defaulted requests the API server has set) and checks each
+    # named workload's pods are Guaranteed and each named container requests
+    # whole CPUs. A CNF that names none is not applicable.
+    targets = (config.deployments.manifests + config.deployments.helm_dirs + config.deployments.helm_charts)
+      .flat_map(&.latency_sensitive)
+
+    if targets.empty?
+      result.na("No workloads declared latency_sensitive")
+      next
+    end
+
+    # Index the CNF's workloads from the composite manifest so operator-created
+    # ones are covered too, keyed by kind/name.
+    workloads = {} of String => JSON::Any
+    CNFManager.cnf_workload_resources(args, config) do |resource|
+      k = resource.dig?("kind").try(&.as_s?)
+      n = resource.dig?("metadata", "name").try(&.as_s?)
+      workloads["#{k.try(&.downcase)}/#{n}"] = JSON.parse(resource.to_json) if k && n
+      resource
+    end
+
+    violations = [] of NamedTuple(kind: String, name: String, namespace: String?, container: String?, reason: String)
+    # Things the test could not measure (a name matching no workload, a workload
+    # with no pods, a pod without a QoS class yet). These are reported as skipped
+    # with a remediation rather than failed — nothing was actually judged.
+    unmeasurable = [] of NamedTuple(kind: String, name: String, namespace: String?, container: String?, reason: String)
+    pods_checked = 0
+
+    targets.each do |target|
+      manifest = workloads["#{target.kind.downcase}/#{target.name}"]?
+      unless manifest
+        unmeasurable << {kind: target.kind, name: target.name, namespace: nil, container: nil,
+          reason: "declared latency_sensitive but matches no workload of the CNF; check the kind/name"}
+        next
+      end
+      namespace = manifest.dig?("metadata", "namespace").try(&.as_s?) || CLUSTER_DEFAULT_NAMESPACE
+
+      # Read the live workload so a bare Pod carries its status.qosClass and the
+      # API server's defaulted requests (pods_by_resource_labels returns the given
+      # object unchanged for a Pod, so the manifest entry would have neither). A
+      # workload present in the manifest but gone from the cluster is unmeasurable,
+      # not an error.
+      begin
+        live = KubectlClient::Get.resource(target.kind, target.name, namespace)
+      rescue KubectlClient::ShellCMD::NotFoundError
+        unmeasurable << {kind: target.kind, name: target.name, namespace: namespace, container: nil,
+          reason: "not found in the cluster; the workload named latency_sensitive is not deployed"}
+        next
+      end
+      pods = KubectlClient::Get.pods_by_resource_labels(live, namespace)
+      # A workload with no pods (a CronJob between runs, or scaled to zero) leaves
+      # nothing to measure.
+      if pods.empty?
+        unmeasurable << {kind: target.kind, name: target.name, namespace: namespace, container: nil,
+          reason: "no pods found to measure (the workload may be scaled to zero or a CronJob between runs)"}
+        next
+      end
+
+      pods.each do |pod|
+        # A pod being deleted is on its way out; do not judge it.
+        next if pod.dig?("metadata", "deletionTimestamp")
+        pod_name = pod.dig?("metadata", "name").try(&.as_s?) || target.name
+        regular = pod.dig?("spec", "containers").try(&.as_a?) || [] of JSON::Any
+        init = pod.dig?("spec", "initContainers").try(&.as_a?) || [] of JSON::Any
+        all_containers = regular + init
+
+        # status.qosClass is authoritative (it reflects the API server's
+        # request-from-limit defaulting and any LimitRange). Absent it, the QoS
+        # cannot be determined, so the pod is unmeasurable rather than fine.
+        qos = pod.dig?("status", "qosClass").try(&.as_s?)
+        if qos.nil?
+          unmeasurable << {kind: target.kind, name: target.name, namespace: namespace, container: nil,
+            reason: "could not determine QoS for pod #{pod_name} (no status.qosClass)"}
+          next
+        end
+        pods_checked += 1
+
+        # Pod-wide: it must be Guaranteed. When it is not, name the container(s)
+        # that break it (init containers included).
+        if qos != "Guaranteed"
+          offenders = all_containers.reject { |c| exclusive_cpus_guaranteed_container?(c) }
+            .map { |c| c.dig?("name").try(&.as_s?) || "" }
+          if offenders.empty?
+            violations << {kind: target.kind, name: target.name, namespace: namespace, container: nil,
+              reason: "pod #{pod_name} QoS is #{qos}, must be Guaranteed for exclusive CPUs"}
+          else
+            offenders.each do |cn|
+              violations << {kind: target.kind, name: target.name, namespace: namespace, container: cn,
+                reason: "pod QoS is #{qos} (not Guaranteed): cpu and memory requests must be set and equal to limits"}
+            end
+          end
+        end
+
+        # Per named container: it must request a whole CPU to be pinned. With no
+        # container named, every regular container is treated as needing pinning.
+        named = target.containers.empty? ? regular.map { |c| c.dig?("name").try(&.as_s?) || "" } : target.containers
+        named.each do |cname|
+          container = all_containers.find { |c| (c.dig?("name").try(&.as_s?) || "") == cname }
+          unless container
+            # A config mistake (like a name matching no workload): nothing to
+            # measure for this container, so skip it rather than fail.
+            unmeasurable << {kind: target.kind, name: target.name, namespace: namespace, container: cname,
+              reason: "named container '#{cname}' is not in pod #{pod_name}; check the container name"}
+            next
+          end
+          cpu_req = container.dig?("resources", "requests", "cpu").try(&.as_s?)
+          if cpu_req.nil? || !whole_cpu?(cpu_req)
+            violations << {kind: target.kind, name: target.name, namespace: namespace, container: cname,
+              reason: "cpu request (#{cpu_req || "unset"}) must be a whole number of CPUs for exclusive CPUs"}
+          end
+        end
+      end
+    end
+
+    if !violations.empty?
+      violations.uniq.each do |v|
+        result.append_description("#{v[:kind]}/#{v[:name]}#{v[:container] ? "/#{v[:container]}" : ""}: #{v[:reason]}")
+        result.add_impacted_resource(v[:kind], v[:name], v[:namespace], container: v[:container], reason: v[:reason])
+      end
+      result.append_remediation("For each latency-sensitive workload make its pods Guaranteed (set cpu and memory requests equal to their limits on every container, init included) and give the pinned containers whole-CPU requests (e.g. 2 or 1000m), so the static CPU manager can assign exclusive CPUs.")
+      result.failed("Found #{violations.uniq.size} finding(s) for latency-sensitive workloads")
+    elsif !unmeasurable.empty?
+      unmeasurable.uniq.each do |u|
+        result.append_description("#{u[:kind]}/#{u[:name]}: #{u[:reason]}")
+        result.add_impacted_resource(u[:kind], u[:name], u[:namespace], reason: u[:reason])
+      end
+      result.append_remediation("Point latency_sensitive at a workload of the CNF (matching kind and name) that has running pods, and check that the named containers exist in it, so its exclusive-CPU eligibility can be measured.")
+      result.skipped("Could not measure the latency-sensitive workload(s)")
+    elsif pods_checked > 0
+      result.passed("Latency-sensitive workloads are eligible for exclusive CPUs")
+    else
+      result.na("No pods to measure for the latency-sensitive workload(s)")
     end
   end
 end

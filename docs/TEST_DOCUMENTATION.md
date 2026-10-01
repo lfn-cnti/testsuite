@@ -28,7 +28,7 @@
 
 * [**Category: Configuration Tests**](#category-configuration-tests)
 
-   [[Default namespaces]](#default-namespaces) | [[Latest tag]](#latest-tag) | [[Require labels]](#require-labels) | [[Versioned tag]](#versioned-tag) | [[NodePort not used]](#nodeport-not-used) | [[HostPort not used]](#hostport-not-used) | [[Hardcoded IP addresses in K8s runtime configuration]](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | [[Secrets used]](#secrets-used) | [[Immutable configmap]](#immutable-configmap) | [[Kubernetes Alpha APIs]](#kubernetes-alpha-apis) | [[Operator installed]](#operator-installed) | [[Hugepages volumes]](#hugepages-volumes)
+   [[Default namespaces]](#default-namespaces) | [[Latest tag]](#latest-tag) | [[Require labels]](#require-labels) | [[Versioned tag]](#versioned-tag) | [[NodePort not used]](#nodeport-not-used) | [[HostPort not used]](#hostport-not-used) | [[Hardcoded IP addresses in K8s runtime configuration]](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | [[Secrets used]](#secrets-used) | [[Immutable configmap]](#immutable-configmap) | [[Kubernetes Alpha APIs]](#kubernetes-alpha-apis) | [[Operator installed]](#operator-installed) | [[Hugepages volumes]](#hugepages-volumes) | [[Exclusive CPUs]](#exclusive-cpus)
 
 ----------
 
@@ -1867,5 +1867,38 @@ If your CNF uses an Operator, package it for the Operator Lifecycle Manager and 
 #### Usage
 
 `./cnti-testsuite operator_installed`
+
+----------
+
+### Exclusive CPUs
+
+#### Overview
+
+The CNF names its latency-sensitive workloads, and the containers within them that need pinned CPUs, under `latency_sensitive` in a deployment's `cnti-testsuite.yaml` (a deployment entry can be a whole chart with many workloads, so the sensitive ones are named individually):
+
+```yaml
+deployments:
+  helm_charts:
+    - name: free5gc
+      latency_sensitive:
+        - {kind: Deployment, name: free5gc-upf, containers: [upf]}
+```
+
+Expectation: each named workload's pods are Guaranteed QoS (so the kubelet can assign exclusive CPUs at all), and each named container requests a whole number of CPUs (e.g. `2` or `1000m`, not `500m`). Guaranteed is decided by every container, init containers included; a container that is not named may request a fraction and run on the shared pool without failing the test. A CNF that names no latency-sensitive workload is reported as N/A. When nothing can be measured — a named workload that is absent or has no pods, a pod without a QoS class yet, or a named container the pod does not have — the test is `skipped` with a remediation.
+Measurement: the test reads the named workloads' live pods and uses `status.qosClass` (which the API server sets with request-from-limit defaulting and any LimitRange applied) for the Guaranteed check, and the pods' defaulted cpu requests for the whole-CPU check.
+
+#### Rationale
+
+Latency-sensitive network functions (DPDK, RAN) depend on dedicated CPUs. The kubelet static CPU manager policy pins CPUs only for a Guaranteed-QoS pod's containers that request whole (integer) CPUs; a fractional request on a container that needs pinning, or a pod that is not Guaranteed, silently leaves the workload on shared CPUs, hurting tail latency. A misconfiguration is accepted by the API server and runs without any warning, so the test surfaces it.
+
+Sources: [CPU Management Policies (kubelet static policy)](https://kubernetes.io/docs/tasks/administer-cluster/cpu-management-policies/); [Configure Quality of Service for Pods (Guaranteed QoS)](https://kubernetes.io/docs/tasks/configure-pod-container/quality-service-pod/).
+
+#### Remediation
+
+For each latency-sensitive workload make its pods Guaranteed (set cpu and memory requests equal to their limits on every container, init included) and give the pinned containers whole-CPU requests (e.g. `2` or `1000m`), so the static CPU manager can assign exclusive CPUs.
+
+#### Usage
+
+`./cnti-testsuite exclusive_cpus`
 
 ----------

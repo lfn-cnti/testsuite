@@ -1,0 +1,60 @@
+---
+# A latency-sensitive workload eligible for exclusive CPUs. The pod is
+# Guaranteed (every container's cpu and memory requests equal their limits), and
+# the pinned container "app" requests a whole CPU. The "sidecar" container asks
+# for a fraction (200m) and is NOT named as needing exclusive CPUs, which is a
+# normal setup and must still pass. Containers run as a restricted-PSA-compliant
+# busybox so the pod is admitted and Ready on a restricted cluster.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exclusive-cpus-app
+  labels:
+    app: exclusive-cpus-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exclusive-cpus-app
+  template:
+    metadata:
+      labels:
+        app: exclusive-cpus-app
+    spec:
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["sh", "-c", "sleep 2147483647"]
+        resources:
+          requests:
+            cpu: "1"
+            memory: 256Mi
+          limits:
+            cpu: "1"
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+      - name: sidecar
+        image: busybox:1.36
+        command: ["sh", "-c", "sleep 2147483647"]
+        resources:
+          requests:
+            cpu: 200m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault

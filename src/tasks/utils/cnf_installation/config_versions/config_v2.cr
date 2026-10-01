@@ -64,7 +64,25 @@ module CNFInstall
 
     class DeploymentConfig < CNFInstall::Config::ConfigBase
       getter name : String,
-             priority = 0
+             priority = 0,
+             # Names the latency-sensitive (e.g. DPDK/RAN) workloads in this
+             # deployment and the containers within them that need exclusive
+             # (pinned) CPUs, so the exclusive_cpus test can check just those.
+             # One deployment entry can be a whole chart with many workloads, so
+             # the sensitive ones are named individually rather than a flag on
+             # the whole entry.
+             latency_sensitive = [] of LatencySensitiveWorkload
+    end
+
+    # A workload (and the containers within it) that needs exclusive CPUs. The
+    # kubelet static CPU manager pins CPUs for a container only when its pod is
+    # Guaranteed and the container requests whole CPUs, so the exclusive_cpus
+    # test requires the named workload's pods to be Guaranteed and the named
+    # containers to request whole integer CPUs.
+    class LatencySensitiveWorkload < CNFInstall::Config::ConfigBase
+      getter kind : String,
+             name : String,
+             containers = [] of String
     end
 
     class HelmDeploymentConfig < DeploymentConfig
