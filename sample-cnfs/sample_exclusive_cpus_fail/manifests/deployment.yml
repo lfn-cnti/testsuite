@@ -1,0 +1,40 @@
+---
+# A latency-sensitive workload that is NOT eligible for exclusive CPUs. The pod
+# is Guaranteed (cpu and memory requests equal their limits), but the pinned
+# container "app" requests a fractional CPU ("500m"), which the static CPU
+# manager will not pin. The test should fail and name the cpu request.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exclusive-cpus-app-fail
+  labels:
+    app: exclusive-cpus-app-fail
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exclusive-cpus-app-fail
+  template:
+    metadata:
+      labels:
+        app: exclusive-cpus-app-fail
+    spec:
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["sh", "-c", "sleep 2147483647"]
+        resources:
+          requests:
+            cpu: 500m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault

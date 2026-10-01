@@ -1,0 +1,22 @@
+---
+# A plain workload; the latency_sensitive config points at a different, absent
+# workload, so exclusive_cpus has nothing it can measure.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exclusive-cpus-present
+  labels:
+    app: exclusive-cpus-present
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exclusive-cpus-present
+  template:
+    metadata:
+      labels:
+        app: exclusive-cpus-present
+    spec:
+      containers:
+      - name: app
+        image: nginx:1.21.0

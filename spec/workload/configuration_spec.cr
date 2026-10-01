@@ -551,4 +551,89 @@ describe CntiTestSuite do
       result = ShellCmd.cnf_uninstall
     end
   end
+
+  it "'exclusive_cpus' should be N/A on a cnf that declares no latency-sensitive workload", tags: ["exclusive_cpus"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf")
+      result = ShellCmd.run_testsuite("exclusive_cpus")
+      result[:status].success?.should be_true
+      (/(N\/A).*(No workloads declared latency_sensitive)/ =~ result[:output]).should_not be_nil
+      verify_task_result("exclusive_cpus", "na")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'exclusive_cpus' should pass when the named container is whole-CPU in a Guaranteed pod (fractional sidecar allowed)", tags: ["exclusive_cpus"] do
+    begin
+      # The test reads the live pods' QoS class and defaulted requests, so the
+      # pods must exist — do not skip waiting for install.
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_exclusive_cpus")
+      result = ShellCmd.run_testsuite("exclusive_cpus")
+      result[:status].success?.should be_true
+      (/(PASSED).*(Latency-sensitive workloads are eligible for exclusive CPUs)/ =~ result[:output]).should_not be_nil
+      verify_task_result("exclusive_cpus", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'exclusive_cpus' should pass a multi-workload cnf, judging only the named workload", tags: ["exclusive_cpus"] do
+    begin
+      # Only flagged-upf is latency_sensitive; unflagged-web sets no resources and
+      # must be ignored, so the CNF passes.
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_exclusive_cpus_multi")
+      result = ShellCmd.run_testsuite("exclusive_cpus")
+      result[:status].success?.should be_true
+      (/(PASSED).*(Latency-sensitive workloads are eligible for exclusive CPUs)/ =~ result[:output]).should_not be_nil
+      verify_task_result("exclusive_cpus", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'exclusive_cpus' should fail when the named container requests a fractional cpu", tags: ["exclusive_cpus"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_exclusive_cpus_fail")
+      result = ShellCmd.run_testsuite("exclusive_cpus")
+      result[:status].exit_code.should eq(1)
+      expected = /impacted: Deployment\/exclusive-cpus-app-fail.*\(container app\):.*whole number of CPUs/
+      unless expected =~ result[:output]
+        fail "no per-container whole-CPU finding; impacted lines were:\n#{result[:output].lines.select(&.includes?("impacted:")).join}"
+      end
+      (/remediation: For each latency-sensitive workload make its pods Guaranteed/ =~ result[:output]).should_not be_nil
+      verify_task_result("exclusive_cpus", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'exclusive_cpus' includes init containers in the pod QoS check and blames the init container", tags: ["exclusive_cpus"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_exclusive_cpus_bad_init")
+      result = ShellCmd.run_testsuite("exclusive_cpus")
+      result[:status].exit_code.should eq(1)
+      # The init container makes the pod Burstable; the finding is attributed to
+      # it, not to the whole-CPU "1000m" main container.
+      (/impacted: Deployment\/exclusive-cpus-bad-init.*\(container setup\):/ =~ result[:output]).should_not be_nil
+      impacted = result[:output].lines.select(&.includes?("impacted:")).join
+      impacted.should_not contain("container app")
+      verify_task_result("exclusive_cpus", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'exclusive_cpus' should skip when a named latency-sensitive workload is absent", tags: ["exclusive_cpus"] do
+    begin
+      # The config names a workload the CNF does not deploy: nothing to measure.
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_exclusive_cpus_missing --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("exclusive_cpus")
+      (/(SKIPPED).*(Could not measure the latency-sensitive workload)/ =~ result[:output]).should_not be_nil
+      (/matches no workload of the CNF/ =~ result[:output]).should_not be_nil
+      verify_task_result("exclusive_cpus", "skipped")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
 end

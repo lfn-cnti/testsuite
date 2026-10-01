@@ -270,6 +270,24 @@ deployments:
       manifest_directory: manifests
 ```
 
+##### Deployment latency_sensitive
+
+Use `latency_sensitive` to name the workloads (for example DPDK or RAN) that need pinned, exclusive CPUs, and the containers within them that must be pinned. A single deployment entry can be a whole chart with many workloads, so the sensitive ones are named individually rather than flagging the whole entry. The `exclusive_cpus` test then checks that each named workload's pods are Guaranteed QoS and each named container requests whole-integer CPUs. It applies to any deployment kind (`manifests`, `helm_dirs`, `helm_charts`) and defaults to an empty list.
+
+Each entry has `kind`, `name` (the workload's kind and name as deployed), and `containers` (the containers that need exclusive CPUs; when omitted, every regular container of the workload is treated as needing pinning).
+
+```yaml
+---
+config_version: "v2"
+deployments:
+  helm_charts:
+    - name: free5gc
+      latency_sensitive:
+        - kind: Deployment
+          name: free5gc-upf
+          containers: [upf]
+```
+
 ##### helm_charts
 
 Deployment from either a classic Helm repository or an OCI registry.

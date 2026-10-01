@@ -1,0 +1,56 @@
+---
+# The main container is eligible for exclusive CPUs (Guaranteed-shaped, whole CPU
+# via "1000m"), but the init container is not (fractional "500m", no limits).
+# Because Guaranteed QoS is decided by ALL containers, the pod is Burstable — the
+# test should fail and attribute the finding to the init container, not the main
+# one. The init container completes so the pod becomes Ready.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exclusive-cpus-bad-init
+  labels:
+    app: exclusive-cpus-bad-init
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exclusive-cpus-bad-init
+  template:
+    metadata:
+      labels:
+        app: exclusive-cpus-bad-init
+    spec:
+      initContainers:
+      - name: setup
+        image: busybox:1.36
+        command: ["sh", "-c", "true"]
+        resources:
+          requests:
+            cpu: 500m
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["sh", "-c", "sleep 2147483647"]
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: 256Mi
+          limits:
+            cpu: "1000m"
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
