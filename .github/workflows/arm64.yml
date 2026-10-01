@@ -44,18 +44,8 @@ jobs:
           EOF
           kind create cluster --name arm64 --config=/tmp/cluster.yml
           rm /tmp/cluster.yml
-      - name: Refresh apt index
-        # Refresh the runner's apt index first: install-crystal runs apt-get
-        # install without an update, and a stale index 404s once Ubuntu
-        # replaces a package version.
-        run: sudo apt-get update -q
-      - uses: crystal-lang/install-crystal@v1
-        with:
-          crystal: 1.19.1
-      - run: |
-          curl -fsSLO --retry 5 --retry-delay 10 "https://dl.k8s.io/release/$(curl -fsSL --retry 5 --retry-delay 10 https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl"
-          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-          curl -fsSL --retry 5 --retry-delay 10 -o get-helm-4.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-4 && bash get-helm-4.sh
+      - name: Install the CNTi toolchain
+        uses: ./.github/actions/install-cnti-toolchain
       # The suite does not pass on arm64 yet (see 503aee60), so a non-zero exit
       # is the expected outcome of this port check, not a broken runner: the step
       # is deliberately non-blocking and only reports the failure as an
