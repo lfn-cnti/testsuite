@@ -517,6 +517,35 @@ describe "Security" do
     end
   end
 
+  it "'sbom_available' should fail when a container image has no discoverable SBOM", tags: ["sbom_available"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_sbom_missing/cnti-testsuite.yaml --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("sbom_available")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(without a discoverable SBOM)/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/sbom-missing-app.*no SBOM found for image/ =~ result[:output]).should_not be_nil
+      verify_task_result("sbom_available", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'sbom_available' should pass when every container image ships an SBOM", tags: ["sbom_available"] do
+    begin
+      # Depends on the pass-fixture image carrying a discoverable SBOM attestation
+      # in the registry (see PR open questions on image selection).
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_sbom_available/cnti-testsuite.yaml --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("sbom_available")
+      result[:status].success?.should be_true
+      (/(PASSED).*(An SBOM is available for every container image)/ =~ result[:output]).should_not be_nil
+      verify_task_result("sbom_available", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
   after_all do
     result = ShellCmd.run_testsuite("uninstall_all")
   end

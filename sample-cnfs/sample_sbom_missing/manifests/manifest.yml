@@ -1,0 +1,24 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sbom-missing-app
+  labels:
+    app: sbom-missing-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sbom-missing-app
+  template:
+    metadata:
+      labels:
+        app: sbom-missing-app
+    spec:
+      containers:
+      # nginx:1.21.0 (2021) predates Docker's SBOM/provenance attestations, so
+      # no SBOM is discoverable for it.
+      - name: app
+        image: nginx:1.21.0
+        ports:
+        - containerPort: 80
