@@ -118,7 +118,7 @@ describe "Compatibility" do
       ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_dual_stack/cnti-testsuite.yaml --skip-wait-for-install")
       result = ShellCmd.run_testsuite("dual_stack")
       result[:status].success?.should be_true
-      (/(PASSED).*(All Services declare dual-stack)/ =~ result[:output]).should_not be_nil
+      (/(PASSED).*(All 1 Service\(s\) found in the cluster declare dual-stack)/ =~ result[:output]).should_not be_nil
       verify_task_result("dual_stack", "passed")
     ensure
       result = ShellCmd.cnf_uninstall
