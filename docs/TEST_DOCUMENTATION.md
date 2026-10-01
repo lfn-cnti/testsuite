@@ -24,7 +24,7 @@
 
 * [**Category: Security Tests**](#category-security-tests)
 
-   [[Container socket mounts]](#container-socket-mounts) | [[Privileged Containers]](#privileged-containers) | [[External IPs]](#external-ips) | [[SELinux Options]](#selinux-options) | [[Sysctls]](#sysctls) | [[Privilege escalation]](#privilege-escalation) | [[Seccomp profile]](#seccomp-profile) | [[Symlink file system]](#symlink-file-system) | [[Application credentials]](#application-credentials) | [[Host network]](#host-network) | [[Service account mapping]](#service-account-mapping) | [[Ingress and Egress blocked]](#ingress-and-egress-blocked) | [[Insecure capabilities]](#insecure-capabilities) | [[Non-root containers]](#non-root-containers) | [[Host PID/IPC privileges]](#host-pidipc-privileges) | [[Linux hardening]](#linux-hardening) | [[CPU limits]](#cpu-limits) | [[Memory limits]](#memory-limits) | [[Immutable File Systems]](#immutable-file-systems) | [[HostPath Mounts]](#hostpath-mounts)
+   [[Container socket mounts]](#container-socket-mounts) | [[Privileged Containers]](#privileged-containers) | [[External IPs]](#external-ips) | [[SELinux Options]](#selinux-options) | [[Sysctls]](#sysctls) | [[Privilege escalation]](#privilege-escalation) | [[Seccomp profile]](#seccomp-profile) | [[Symlink file system]](#symlink-file-system) | [[Application credentials]](#application-credentials) | [[Host network]](#host-network) | [[Service account mapping]](#service-account-mapping) | [[Ingress and Egress blocked]](#ingress-and-egress-blocked) | [[Insecure capabilities]](#insecure-capabilities) | [[Non-root containers]](#non-root-containers) | [[Host PID/IPC privileges]](#host-pidipc-privileges) | [[Linux hardening]](#linux-hardening) | [[CPU limits]](#cpu-limits) | [[Memory limits]](#memory-limits) | [[Immutable File Systems]](#immutable-file-systems) | [[HostPath Mounts]](#hostpath-mounts) | [[SBOM available]](#sbom-available)
 
 * [**Category: Configuration Tests**](#category-configuration-tests)
 
@@ -1542,6 +1542,30 @@ Refrain from using a hostPath mount.
 #### Usage
 
 `./cnti-testsuite hostpath_mounts`
+
+----------
+
+### SBOM available
+
+#### Overview
+
+Checks whether each of the CNF's container images has a discoverable SBOM (Software Bill of Materials) published alongside it in the registry. For every workload container image, skopeo (in the cluster-tools pod) inspects the image and looks for an SBOM in three places, checked in order: (1) a BuildKit/OCI attestation manifest — the test opens each attestation-manifest entry in the image index and requires a layer whose `in-toto.io/predicate-type` is SPDX (`https://spdx.dev/Document`) or CycloneDX (`https://cyclonedx.org/bom`); a provenance-only attestation does not count; (2) a cosign attestation tag (`<repo>:sha256-<digest>.att`) with an SPDX or CycloneDX `predicateType` annotation; (3) the deprecated cosign `.sbom` tag as a fallback. The check reads the image published in the registry, not a source tree, so it works against the running CNF's images.
+Expectation: every container image has a discoverable SBOM. An image that cannot be inspected (private registry, network error) is reported as skipped rather than failed, since the test measured nothing for it. The results say where each SBOM was found.
+Measurement: for each distinct workload container image, `skopeo inspect --raw` reads the image's OCI index/manifest; attestation-manifest entries are opened and their layers checked for an SPDX or CycloneDX predicate; cosign `.att` and `.sbom` tags are probed by digest.
+
+#### Rationale
+
+An SBOM lets operators inventory the components inside a CNF's images and respond to newly disclosed vulnerabilities in those components. Publishing it with the image (rather than out of band) means consumers can find it from the image reference alone.
+
+Sources: [CISA Software Bill of Materials (SBOM)](https://www.cisa.gov/sbom); [NIST SP 800-190, Application Container Security Guide](https://csrc.nist.gov/pubs/sp/800/190/final).
+
+#### Remediation
+
+Publish an SBOM for each container image — attach it with `docker buildx build --sbom=true` (an OCI attestation manifest with an SPDX or CycloneDX layer) or `cosign attest --type spdxjson` (a cosign attestation). The deprecated `cosign attach sbom` / `.sbom` tag is checked as a fallback.
+
+#### Usage
+
+`./cnti-testsuite sbom_available`
 
 ----------
 

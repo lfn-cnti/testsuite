@@ -1,0 +1,25 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sbom-available-app
+  labels:
+    app: sbom-available-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sbom-available-app
+  template:
+    metadata:
+      labels:
+        app: sbom-available-app
+    spec:
+      containers:
+      # Recent Docker Official Images are built with BuildKit and ship an SBOM
+      # (and provenance) attestation manifest, which skopeo surfaces in the image
+      # index as an entry annotated `vnd.docker.reference.type: attestation-manifest`.
+      - name: app
+        image: nginx:1.27
+        ports:
+        - containerPort: 80

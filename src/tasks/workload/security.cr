@@ -4,6 +4,7 @@ require "file_utils"
 require "colorize"
 require "totem"
 require "../utils/utils.cr"
+require "../utils/sbom_detection.cr"
 
 desc "CNF containers should be isolated from one another and the host.  The CNF Test suite uses tools like Sysdig Inspect and gVisor"
 category_task "security", [
@@ -26,7 +27,8 @@ category_task "security", [
     "sysctls",
     "host_network",
     "service_account_mapping",
-    "application_credentials"
+    "application_credentials",
+    "sbom_available"
   ]
 
 # Names of the sysctls a resource sets in its pod security context; empty
@@ -653,6 +655,135 @@ scored_task "hostpath_mounts",
       Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found containers with hostPath mounts")
+    end
+  end
+end
+
+# Decides whether an SBOM is discoverable for a container image using skopeo in
+# the cluster-tools pod. Returns {found: true, source: "..."} when an SBOM is
+# found, {found: false} when the image is inspectable but has no SBOM, and
+# {found: nil, reason: "..."} when the image itself could not be inspected
+# (network/auth) so the caller can distinguish the three outcomes.
+def sbom_available_for_image?(image : String) : NamedTuple(found: Bool?, source: String?, reason: String?)
+  raw = ClusterTools.exec("skopeo inspect --raw docker://#{sbom_fetch_ref(image)}")
+  unless raw[:status].success?
+    return {found: nil, source: nil, reason: "image could not be inspected (#{raw[:error].to_s.lines.first?.to_s.strip})"}
+  end
+
+  begin
+    parsed = JSON.parse(raw[:output])
+  rescue
+    return {found: nil, source: nil, reason: "image manifest could not be parsed"}
+  end
+
+  # 1. BuildKit / OCI attestation manifest: open each attestation manifest and
+  #    require a layer whose in-toto.io/predicate-type is SPDX or CycloneDX.
+  #    A provenance-only attestation (no SBOM predicate) does not count.
+  sbom_attestation_digests(parsed).each do |att_digest|
+    att_raw = ClusterTools.exec("skopeo inspect --raw docker://#{sbom_digest_ref(image, att_digest)}")
+    next unless att_raw[:status].success?
+    begin
+      predicate = sbom_predicate_in_manifest(JSON.parse(att_raw[:output]), BUILDKIT_PREDICATE_ANNOTATION)
+    rescue JSON::ParseException
+      next
+    end
+    return {found: true, source: "attestation manifest (#{predicate})", reason: nil} if predicate
+  end
+
+  # 2. cosign attestation tag (.att): cosign attest --type spdxjson stores under
+  #    <repo>:sha256-<hex>.att with a predicateType annotation per layer. This is
+  #    the recommended path in cosign 2 (cosign attach sbom / .sbom is deprecated).
+  digest = sbom_image_repo_and_digest(image)[:digest]
+  if digest.nil?
+    inspected = ClusterTools.exec("skopeo inspect docker://#{image} --format \"{{.Digest}}\"")
+    digest = inspected[:output].strip if inspected[:status].success?
+  end
+
+  if digest && !digest.empty?
+    att = ClusterTools.exec("skopeo inspect --raw docker://#{sbom_cosign_tag(image, digest, "att")}")
+    if att[:status].success?
+      begin
+        predicate = sbom_predicate_in_manifest(JSON.parse(att[:output]), COSIGN_PREDICATE_ANNOTATION)
+        return {found: true, source: "cosign attestation .att (#{predicate})", reason: nil} if predicate
+      rescue JSON::ParseException
+        # not parseable; fall through
+      end
+    end
+
+    # 3. Fallback: deprecated cosign attach sbom / .sbom tag.
+    sbom = ClusterTools.exec("skopeo inspect --raw docker://#{sbom_cosign_tag(image, digest, "sbom")}")
+    if sbom[:status].success?
+      return {found: true, source: "cosign .sbom tag (deprecated)", reason: nil}
+    end
+  end
+
+  {found: false, source: nil, reason: nil}
+end
+
+desc "Do the CNF's container images have an SBOM (Software Bill of Materials) available?"
+scored_task "sbom_available",
+  type: CNFManager::TestType::Normal,
+  emoji: "📋🔒" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    unless ClusterTools.install
+      result.skipped("Skipping sbom_available: cluster-tools failed to install")
+      next
+    end
+
+    checked_images = {} of String => NamedTuple(found: Bool?, source: String?, reason: String?)
+    missing_sbom = [] of String
+    unverifiable = [] of NamedTuple(kind: String, name: String, namespace: String, container: String?, image: String, reason: String?)
+    inspected_targets = 0
+
+    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
+      # Only inspect pod-styled workload containers that declare an image.
+      unless WORKLOAD_RESOURCE_KIND_NAMES.includes?(resource[:kind].downcase) && container.as_h["image"]?
+        next true
+      end
+
+      image_url = container.as_h["image"].as_s
+      fqdn_image = image_fqdn(image_url, config.common.image_registry_fqdns)
+      inspected_targets += 1
+
+      # Reuse a previous decision for a duplicate image.
+      check = checked_images.fetch(fqdn_image) do
+        checked_images[fqdn_image] = sbom_available_for_image?(fqdn_image)
+      end
+
+      case check[:found]
+      when true
+        result.append_description("SBOM for #{fqdn_image}: #{check[:source]}")
+        true
+      when false
+        result.add_impacted_resource(resource[:kind], resource[:name], resource[:namespace],
+          container: container.as_h["name"]?.try(&.as_s),
+          reason: "no SBOM found for image #{fqdn_image}")
+        missing_sbom << fqdn_image unless missing_sbom.includes?(fqdn_image)
+        false
+      else # nil: could not inspect the image — not a failure, just unverifiable
+        result.append_description("#{fqdn_image}: #{check[:reason]}")
+        unless unverifiable.any? { |u| u[:image] == fqdn_image }
+          unverifiable << {kind: resource[:kind], name: resource[:name], namespace: resource[:namespace],
+            container: container.as_h["name"]?.try(&.as_s), image: fqdn_image, reason: check[:reason]}
+        end
+        true # does not count against the test
+      end
+    end
+
+    if inspected_targets == 0
+      result.na("The CNF declares no container images; SBOM availability does not apply")
+    elsif !missing_sbom.empty?
+      result.append_remediation("Publish an SBOM for each container image — attach it with `docker buildx build --sbom=true` (an OCI attestation manifest with an SPDX or CycloneDX layer) or `cosign attest --type spdxjson` (a cosign attestation). The deprecated `cosign attach sbom` / `.sbom` tag is checked as a fallback.")
+      result.failed("Found #{missing_sbom.size} container image(s) without a discoverable SBOM")
+    elsif !unverifiable.empty?
+      unverifiable.each do |u|
+        result.add_impacted_resource(u[:kind], u[:name], u[:namespace],
+          container: u[:container], reason: "image #{u[:image]}: #{u[:reason]}")
+      end
+      result.append_remediation("Ensure the registry is reachable and credentials are available so the test can inspect the images.")
+      result.skipped("Could not verify #{unverifiable.size} container image(s) (network/registry auth)")
+    else
+      result.passed("An SBOM is available for every container image")
     end
   end
 end
