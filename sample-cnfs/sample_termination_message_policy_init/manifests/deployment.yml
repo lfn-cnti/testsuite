@@ -1,0 +1,44 @@
+---
+# The regular container sets FallbackToLogsOnError; only the init container
+# does not, so the finding must name the init container.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: termination-message-init
+  labels:
+    app: termination-message-init
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: termination-message-init
+  template:
+    metadata:
+      labels:
+        app: termination-message-init
+    spec:
+      initContainers:
+      - name: init
+        image: busybox:1.36
+        command: ["sh", "-c", "true"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["sh", "-c", "sleep 2147483647"]
+        terminationMessagePolicy: FallbackToLogsOnError
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault

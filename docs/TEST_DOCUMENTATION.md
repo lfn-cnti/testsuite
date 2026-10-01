@@ -20,7 +20,7 @@
 
 * [**Category: Observability and Diagnostic Tests**](#category-observability-and-diagnostic-tests)
 
-   [[Use stdout/stderr for logs]](#use-stdoutstderr-for-logs) | [[Prometheus installed]](#prometheus-installed) | [[Routed logs]](#routed-logs) | [[OpenMetrics compatible]](#openmetrics-compatible) | [[Jaeger tracing]](#jaeger-tracing)
+   [[Use stdout/stderr for logs]](#use-stdoutstderr-for-logs) | [[Prometheus installed]](#prometheus-installed) | [[Routed logs]](#routed-logs) | [[OpenMetrics compatible]](#openmetrics-compatible) | [[Jaeger tracing]](#jaeger-tracing) | [[Termination message policy]](#termination-message-policy)
 
 * [**Category: Security Tests**](#category-security-tests)
 
@@ -1039,6 +1039,29 @@ Instrument your CNF with OpenTelemetry or Jaeger client libraries and point it a
 #### Usage
 
 `./cnti-testsuite tracing`
+
+----------
+
+### Termination message policy
+
+#### Overview
+
+Checks that each container of the CNF, init containers included, sets `terminationMessagePolicy: FallbackToLogsOnError`. Ephemeral containers are added by `kubectl debug`, not by the CNF, and are not judged.
+Measurement: the policy is read from the live workload resources. The API server defaults an unset field to `File`, so an unset policy and an explicit `File` are the same finding.
+
+#### Rationale
+
+When a container fails, Kubernetes shows the reason in the pod status only if the container writes `/dev/termination-log`, which few do. With `FallbackToLogsOnError`, Kubernetes uses the end of the container's log instead when the container exits with an error, so the reason is visible in `kubectl describe pod` without reading the logs of a container that may already be gone.
+
+Sources: [Kubernetes: Determine the Reason for Pod Failure](https://kubernetes.io/docs/tasks/debug/debug-application/determine-reason-pod-failure/#customizing-the-termination-message); [Red Hat certsuite: observability-termination-policy](https://github.com/redhat-best-practices-for-k8s/certsuite/blob/main/CATALOG.md#observability-termination-policy).
+
+#### Remediation
+
+Set `terminationMessagePolicy: FallbackToLogsOnError` on each container and init container.
+
+#### Usage
+
+`./cnti-testsuite termination_message_policy`
 
 ----------
 

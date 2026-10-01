@@ -247,6 +247,50 @@ describe "Observability" do
     end
   end
 
+  it "'termination_message_policy' should pass when every container falls back to its log", tags: ["termination_message_policy"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_termination_message_policy/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("termination_message_policy")
+      result[:status].success?.should be_true
+      # The init container counts too: two containers judged.
+      (/(PASSED).*(All 2 container\(s\) set terminationMessagePolicy: FallbackToLogsOnError)/ =~ result[:output]).should_not be_nil
+      verify_task_result("termination_message_policy", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'termination_message_policy' should fail when a container leaves the policy unset", tags: ["termination_message_policy"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_termination_message_policy_fail/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("termination_message_policy")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(Found 1 of 1 container\(s\) without terminationMessagePolicy: FallbackToLogsOnError)/ =~ result[:output]).should_not be_nil
+      # Unset is defaulted to File by the API server, and the finding says so.
+      (/impacted: Deployment\/termination-message-unset.*container app.*terminationMessagePolicy is File \(File is also the default when unset\)/ =~ result[:output]).should_not be_nil
+      verify_task_result("termination_message_policy", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'termination_message_policy' should fail on an init container without the policy", tags: ["termination_message_policy"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_termination_message_policy_init/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("termination_message_policy")
+      result[:status].exit_code.should eq(1)
+      # Only the init container is unset; the regular one must not be named.
+      (/impacted: Deployment\/termination-message-init.*container init.*init container terminationMessagePolicy is File/ =~ result[:output]).should_not be_nil
+      (/impacted: .*container app/ =~ result[:output]).should be_nil
+      verify_task_result("termination_message_policy", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
   after_all do
     result = ShellCmd.run_testsuite("uninstall_all")
   end
