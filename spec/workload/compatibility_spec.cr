@@ -112,7 +112,7 @@ describe "Compatibility" do
     end
   end
 
-  it "'dual_stack' should pass when every Service declares dual-stack support", tags: ["dual_stack"] do
+  it "'dual_stack' should pass when every Service declares dual-stack", tags: ["dual_stack"] do
     begin
       # dual_stack only inspects Services, so the pods need not be Ready.
       ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_dual_stack/cnti-testsuite.yaml --skip-wait-for-install")
@@ -126,7 +126,7 @@ describe "Compatibility" do
     end
   end
 
-  it "'dual_stack' should fail when a Service does not declare dual-stack support", tags: ["dual_stack"] do
+  it "'dual_stack' should fail when a Service does not declare dual-stack", tags: ["dual_stack"] do
     begin
       ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_dual_stack_fail/cnti-testsuite.yaml --skip-wait-for-install")
       result = ShellCmd.run_testsuite("dual_stack")
@@ -135,6 +135,20 @@ describe "Compatibility" do
       # The finding names the actual policy and its consequence on a dual-stack cluster.
       (/impacted: Service\/single-stack-app.*on a dual-stack cluster this Service receives only/ =~ result[:output]).should_not be_nil
       verify_task_result("dual_stack", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'dual_stack' should be skipped when none of the CNF's Services is in the cluster", tags: ["dual_stack"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_dual_stack/cnti-testsuite.yaml --skip-wait-for-install")
+      # The manifest still declares the Service, but the cluster no longer has it.
+      KubectlClient::Delete.resource("service", "dual-stack-app", CLUSTER_DEFAULT_NAMESPACE)
+      result = ShellCmd.run_testsuite("dual_stack")
+      (/(SKIPPED).*(None of the CNF's Services were found in the cluster)/ =~ result[:output]).should_not be_nil
+      verify_task_result("dual_stack", "skipped")
     ensure
       result = ShellCmd.cnf_uninstall
       result[:status].success?.should be_true

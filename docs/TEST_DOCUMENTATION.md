@@ -291,7 +291,7 @@ Ensure that the CNF is not using deprecated Kubernetes features. If any are dete
 
 #### Overview
 
-Checks that each of the CNF's Services declares dual-stack by setting `spec.ipFamilyPolicy` to `PreferDualStack` or `RequireDualStack`. It checks the declaration only, not that the CNF works over IPv6; that needs a dual-stack cluster and is not tested. `ExternalName` Services have no cluster IP families and are not judged; when no applicable Service exists the test is `na`. Each judged Service and its policy are listed in the test details.
+Checks that each of the CNF's Services declares dual-stack by setting `spec.ipFamilyPolicy` to `PreferDualStack` or `RequireDualStack`. It checks the declaration only, not that the CNF works over IPv6; that needs a dual-stack cluster and is not tested. `ExternalName` Services have no cluster IP families and are not judged; when no applicable Service exists the test is `na`. A Service in the manifest that is not found in the cluster is not judged and is listed in the test details; if none of the Services is found, the test is `skipped`. Each judged Service and its policy are listed in the test details.
 Measurement: each of the CNF's live Services is read and its `spec.ipFamilyPolicy` is checked. A Service whose policy is unset (or explicitly `SingleStack`) is reported with the reason: on a dual-stack cluster it receives only the cluster's primary address family.
 
 #### Rationale
