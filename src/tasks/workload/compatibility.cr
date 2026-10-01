@@ -685,7 +685,7 @@ scored_task "deprecated_k8s_features" do |t, args|
   end
 end
 
-desc "Check that the CNF's Services declare dual-stack support"
+desc "Check that the CNF's Services declare dual-stack"
 scored_task "dual_stack",
   type: CNFManager::TestType::Bonus,
   emoji: "🌐" do |t, args|
@@ -704,12 +704,14 @@ scored_task "dual_stack",
     dual_stack_policies = ["PreferDualStack", "RequireDualStack"]
     violation_list = [] of NamedTuple(kind: String, name: String, namespace: String, reason: String)
     applicable = 0
+    missing = [] of String
 
     CNFManager.resource_refs(args, config, ["service"]) do |svc|
       begin
         live = KubectlClient::Get.resource(svc[:kind], svc[:name], svc[:namespace])
       rescue KubectlClient::ShellCMD::NotFoundError
-        # A Service in the manifest but gone from the cluster; skip it.
+        # A Service in the manifest but gone from the cluster cannot be judged.
+        missing << "Service/#{svc[:name]} in #{svc[:namespace]}"
         next nil
       end
       # ExternalName Services map to a DNS name and have no IP families to judge.
@@ -727,7 +729,12 @@ scored_task "dual_stack",
       nil
     end
 
-    if applicable == 0
+    missing.each { |m| result.append_description("#{m}: not found in the cluster, not judged") }
+
+    if applicable == 0 && !missing.empty?
+      result.append_remediation("Make sure the CNF's Services exist in the cluster (reinstall the CNF if they were removed), then run the test again.")
+      result.skipped("None of the CNF's Services were found in the cluster; dual-stack declaration could not be checked")
+    elsif applicable == 0
       result.na("The CNF declares no applicable Services; dual-stack declaration does not apply")
     elsif violation_list.empty?
       result.passed("All Services declare dual-stack (PreferDualStack or RequireDualStack)")

@@ -33,7 +33,7 @@ kind: Service
 metadata:
   name: dual-stack-app
 spec:
-  # Declares dual-stack support; PreferDualStack also works cleanly on a
+  # Declares dual-stack; PreferDualStack also works cleanly on a
   # single-stack cluster (it falls back to one family).
   ipFamilyPolicy: PreferDualStack
   selector:
