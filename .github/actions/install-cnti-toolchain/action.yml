@@ -54,6 +54,10 @@ runs:
         # The prebuilt Crystal binaries link against these. GitHub-hosted
         # runners already ship them, plain runner images do not necessarily,
         # and a green hosted run would not catch a missing one.
+        # install-crystal below runs apt-get install without updating the
+        # index, and a stale index 404s once Ubuntu replaces a package version,
+        # so refresh it on every runner, not only when libraries are missing.
+        sudo apt-get update -q
         missing=""
         for lib in libssl.so libxml2.so libyaml-0.so libgmp.so libevent-2.1.so \
                    libpcre2-8.so libz.so; do
@@ -63,7 +67,6 @@ runs:
         done
         if [ -n "$missing" ]; then
           echo "::group::Installing Crystal runtime libraries: $missing"
-          sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libssl3t64 libxml2 libyaml-0-2 libgmp10 libevent-2.1-7t64 \
             libpcre2-8-0 zlib1g

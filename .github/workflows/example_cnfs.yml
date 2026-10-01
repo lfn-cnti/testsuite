@@ -72,16 +72,8 @@ jobs:
               hostPath: $HOME/.docker/config.json
           EOF
           kind create cluster --name "$KIND_CLUSTER_NAME" --config kind_setup.yaml --wait 5m
-      - name: Refresh apt index
-        # Refresh the runner's apt index first: install-crystal runs apt-get
-        # install without an update, and a stale index 404s once Ubuntu
-        # replaces a package version.
-        run: sudo apt-get update -q
-      - name: Install Crystal
-        uses: crystal-lang/install-crystal@v1
-        with:
-          # renovate: datasource=github-releases depName=crystal-lang/crystal
-          crystal: 1.19.1
+      - name: Install the CNTi toolchain
+        uses: ./.github/actions/install-cnti-toolchain
       - name: Build CNTi Test Suite
         run: |
           shards install
