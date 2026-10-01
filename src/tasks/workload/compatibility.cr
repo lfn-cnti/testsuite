@@ -737,7 +737,10 @@ scored_task "dual_stack",
     elsif applicable == 0
       result.na("The CNF declares no applicable Services; dual-stack declaration does not apply")
     elsif violation_list.empty?
-      result.passed("All Services declare dual-stack (PreferDualStack or RequireDualStack)")
+      # Name only what was judged: some Services may not have been in the cluster.
+      checked = "All #{applicable} Service(s) found in the cluster declare dual-stack (PreferDualStack or RequireDualStack)"
+      checked += "; #{missing.size} declared Service(s) were not found and not checked" unless missing.empty?
+      result.passed(checked)
     else
       violation_list.each do |v|
         result.add_impacted_resource(v[:kind], v[:name], v[:namespace], reason: v[:reason])
