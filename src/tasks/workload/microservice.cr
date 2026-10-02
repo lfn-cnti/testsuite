@@ -779,6 +779,21 @@ scored_task "sig_term_handled",
           judged = non_threads.map { |info| info["Pid"].to_s.strip }
           supervised = judged.size > 1
           judged = judged.reject { |cpid| cpid == pid } if supervised
+          # When PID 1 is a specialized init system, its own processes are not the
+          # workload (as in single_process_type): s6-overlay ends its supervision
+          # tree (s6-supervise and the other s6-* helpers) itself, with SIGTERM and
+          # then SIGKILL, once the services it runs have stopped. The services are
+          # judged.
+          root_is_specialized_init = non_threads.any? do |info|
+            info["Pid"].to_s.strip == pid && SPECIALIZED_INIT_SYSTEMS.includes?(info["Name"].to_s.strip)
+          end
+          init_own = [] of String
+          if supervised && root_is_specialized_init
+            init_own = non_threads.select { |info| InitSystems.init_system_process?(info["Name"].to_s) }
+                                  .map { |info| info["Pid"].to_s.strip }
+                                  .reject { |cpid| cpid == pid }
+            judged -= init_own
+          end
           next skip.call("no process to judge") if judged.empty?
 
           # strace is evidence, not the verdict: for a supervised child it shows
@@ -800,7 +815,7 @@ scored_task "sig_term_handled",
           sleep(Time::Span.new(seconds: STRACE_WAIT_BUFFER)) unless traced.empty?
 
           judged_any = true
-          checked_containers << "#{pod_name}/#{c_name}: PID 1 #{pid}#{supervised ? " (supervisor)" : ""}, judged pid(s) #{judged.join(", ")}, grace #{grace_seconds}s"
+          checked_containers << "#{pod_name}/#{c_name}: PID 1 #{pid}#{supervised ? " (supervisor)" : ""}, judged pid(s) #{judged.join(", ")}#{init_own.empty? ? "" : ", init's own pid(s) not judged #{init_own.join(", ")}"}, grace #{grace_seconds}s"
           ClusterTools.exec_by_node("kill -TERM #{pid} || true", node)
           survivors = wait_for_processes_to_exit(judged, node, grace_seconds)
           # Whatever is still alive did not act on SIGTERM; end it the way the

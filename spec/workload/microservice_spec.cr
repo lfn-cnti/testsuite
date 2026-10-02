@@ -409,6 +409,22 @@ describe "Microservice" do
     end
   end
 
+  it "'sig_term_handled' should pass a service under s6-overlay, whose own processes are the init", tags: ["sig_term"]  do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-s6-init")
+      result = ShellCmd.run_testsuite("sig_term_handled")
+      result[:status].success?.should be_true
+      (/(PASSED).*(Sig Term handled)/ =~ result[:output]).should_not be_nil
+      # nginx is judged; s6-supervise and the other s6-* helpers, which s6 ends
+      # itself at the end of its shutdown, are not.
+      (/s6-nginx.*\(supervisor\), judged pid\(s\) .*, init's own pid\(s\) not judged/ =~ result[:output]).should_not be_nil
+      verify_task_result("sig_term_handled", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
   it "'sig_term_handled' should pass if SIGTERM is passed through to child processes by a supervisor (tini)", tags: ["sig_term"]  do
     begin
       #todo 1. Watch for signals for the containers pid one process, and the tree of all child processes ity manages
