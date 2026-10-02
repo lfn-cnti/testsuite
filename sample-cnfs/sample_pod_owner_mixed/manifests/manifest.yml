@@ -1,0 +1,51 @@
+---
+# A Deployment and a bare Pod with the same labels: the Deployment's selector
+# also matches the bare Pod, which must still be reported once, not twice.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pod-owner-mixed
+  labels:
+    app: pod-owner-mixed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pod-owner-mixed
+  template:
+    metadata:
+      labels:
+        app: pod-owner-mixed
+    spec:
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["sh", "-c", "sleep 2147483647"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-owner-mixed-bare
+  labels:
+    app: pod-owner-mixed
+spec:
+  containers:
+  - name: app
+    image: busybox:1.36
+    command: ["sh", "-c", "sleep 2147483647"]
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      runAsUser: 1000
+      capabilities:
+        drop: ["ALL"]
+      seccompProfile:
+        type: RuntimeDefault

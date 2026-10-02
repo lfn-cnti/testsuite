@@ -16,7 +16,7 @@
 
 * [**Category: Reliability, Resilience and Availability Tests**](#category-reliability-resilience-and-availability-tests)
 
-   [[CNF under network latency]](#cnf-under-network-latency) | [[CNF with host disk fill]](#cnf-with-host-disk-fill) | [[Pod delete]](#pod-delete) | [[Memory hog]](#memory-hog) | [[IO Stress]](#io-stress) | [[Network corruption]](#network-corruption) | [[Network duplication]](#network-duplication) | [[Pod DNS errors]](#pod-dns-errors) | [[Liveness probe]](#liveness-probe) | [[Readiness probe]](#readiness-probe)
+   [[CNF under network latency]](#cnf-under-network-latency) | [[CNF with host disk fill]](#cnf-with-host-disk-fill) | [[Pod delete]](#pod-delete) | [[Memory hog]](#memory-hog) | [[IO Stress]](#io-stress) | [[Network corruption]](#network-corruption) | [[Network duplication]](#network-duplication) | [[Pod DNS errors]](#pod-dns-errors) | [[Liveness probe]](#liveness-probe) | [[Readiness probe]](#readiness-probe) | [[Pod owner]](#pod-owner)
 
 * [**Category: Observability and Diagnostic Tests**](#category-observability-and-diagnostic-tests)
 
@@ -914,6 +914,29 @@ Ensure that your CNF has a [Readiness Probe](https://kubernetes.io/docs/tasks/co
 #### Usage
 
 `./cnti-testsuite readiness`
+
+----------
+
+### Pod owner
+
+#### Overview
+
+Checks that every pod of the CNF is owned by a controller: a Pod declared in the CNF's manifest is a finding, and each live pod of the CNF's workloads must have an owner reference with `controller: true`, whatever its kind, so a pod whose controller is an operator's custom resource counts as owned. Each pod is reported once, however many workloads select it. Helm hooks (such as a chart's `*-test-connection` Pod) are not part of the CNF's workloads and are not judged. When the CNF has no pod to read (for example a workload scaled to zero), the test is `skipped`.
+Measurement: the live pods of each workload resource are read, and their `metadata.ownerReferences` are checked; pods already being deleted, and pods with a `helm.sh/hook` annotation, are left out.
+
+#### Rationale
+
+A Pod created directly, without a Deployment, StatefulSet, DaemonSet or Job owning it, is not recreated when its node fails or is drained, and it cannot be scaled or rolled out.
+
+Sources: [Kubernetes: Working with Pods](https://kubernetes.io/docs/concepts/workloads/pods/#working-with-pods); [Red Hat certsuite: lifecycle-pod-owner-type](https://github.com/redhat-best-practices-for-k8s/certsuite/blob/main/CATALOG.md#lifecycle-pod-owner-type).
+
+#### Remediation
+
+Run the pods through a Deployment, StatefulSet, DaemonSet or Job instead of creating bare Pods.
+
+#### Usage
+
+`./cnti-testsuite pod_owner`
 
 ----------
 

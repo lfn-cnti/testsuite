@@ -65,6 +65,103 @@ describe CntiTestSuite do
     end
   end
 
+  it "'pod_owner' should pass when every pod is owned by a controller", tags: ["pod_owner"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_pod_owner/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("pod_owner")
+      result[:status].success?.should be_true
+      (/(PASSED).*(All 1 pod\(s\) of the CNF are owned by a controller)/ =~ result[:output]).should_not be_nil
+      verify_task_result("pod_owner", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'pod_owner' should fail on a bare Pod declared in the manifest", tags: ["pod_owner"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-hostport-pod/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("pod_owner")
+      result[:status].exit_code.should eq(1)
+      (/impacted: Pod\/hostport-pod in hostport-pod: declared as a bare Pod in the CNF's manifest/ =~ result[:output]).should_not be_nil
+      verify_task_result("pod_owner", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'pod_owner' should report a bare Pod once when a Deployment's selector also matches it", tags: ["pod_owner"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_pod_owner_mixed/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("pod_owner")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(Found 1 of 2 pod\(s\) of the CNF not owned by a controller)/ =~ result[:output]).should_not be_nil
+      result[:output].scan(/impacted: Pod\/pod-owner-mixed-bare/).size.should eq(1)
+      (/impacted: Pod\/pod-owner-mixed-bare in .*: declared as a bare Pod in the CNF's manifest/ =~ result[:output]).should_not be_nil
+      verify_task_result("pod_owner", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'pod_owner' should not count a Helm hook Pod that carries the workload's labels", tags: ["pod_owner"] do
+    # What a chart leaves behind after `helm test`: a hook Pod with the
+    # Deployment's labels, created after the install.
+    hook = "pod-owner-hook.yml"
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_pod_owner/cnti-testsuite.yaml")
+      File.write(hook, <<-YAML)
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: pod-owner-app-test-connection
+          namespace: #{CLUSTER_DEFAULT_NAMESPACE}
+          labels:
+            app: pod-owner-app
+          annotations:
+            helm.sh/hook: test
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: test
+            image: busybox:1.36
+            command: ["sh", "-c", "true"]
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              runAsUser: 1000
+              capabilities:
+                drop: ["ALL"]
+              seccompProfile:
+                type: RuntimeDefault
+        YAML
+      KubectlClient::Apply.file(hook)
+      result = ShellCmd.run_testsuite("pod_owner")
+      result[:status].success?.should be_true
+      (/(PASSED).*(All 1 pod\(s\) of the CNF are owned by a controller)/ =~ result[:output]).should_not be_nil
+      verify_task_result("pod_owner", "passed")
+    ensure
+      KubectlClient::Delete.file(hook) rescue nil
+      File.delete?(hook)
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'pod_owner' should be skipped when the CNF has no pod", tags: ["pod_owner"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_pod_owner_no_pods/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("pod_owner")
+      (/(SKIPPED).*(No pod of the CNF could be read)/ =~ result[:output]).should_not be_nil
+      verify_task_result("pod_owner", "skipped")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
   it "'rolling_update' should pass when valid version is given", tags: ["rolling_update"]  do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling/cnti-testsuite.yaml")
