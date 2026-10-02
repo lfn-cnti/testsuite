@@ -24,7 +24,7 @@
 
 * [**Category: Security Tests**](#category-security-tests)
 
-   [[Container socket mounts]](#container-socket-mounts) | [[Privileged Containers]](#privileged-containers) | [[External IPs]](#external-ips) | [[SELinux Options]](#selinux-options) | [[Sysctls]](#sysctls) | [[Privilege escalation]](#privilege-escalation) | [[Seccomp profile]](#seccomp-profile) | [[Symlink file system]](#symlink-file-system) | [[Application credentials]](#application-credentials) | [[Host network]](#host-network) | [[Service account mapping]](#service-account-mapping) | [[Ingress and Egress blocked]](#ingress-and-egress-blocked) | [[Insecure capabilities]](#insecure-capabilities) | [[Non-root containers]](#non-root-containers) | [[Host PID/IPC privileges]](#host-pidipc-privileges) | [[Linux hardening]](#linux-hardening) | [[CPU limits]](#cpu-limits) | [[Memory limits]](#memory-limits) | [[Immutable File Systems]](#immutable-file-systems) | [[HostPath Mounts]](#hostpath-mounts) | [[SBOM available]](#sbom-available)
+   [[Container socket mounts]](#container-socket-mounts) | [[Privileged Containers]](#privileged-containers) | [[External IPs]](#external-ips) | [[SELinux Options]](#selinux-options) | [[Sysctls]](#sysctls) | [[Privilege escalation]](#privilege-escalation) | [[Seccomp profile]](#seccomp-profile) | [[Symlink file system]](#symlink-file-system) | [[Application credentials]](#application-credentials) | [[Host network]](#host-network) | [[Service account mapping]](#service-account-mapping) | [[Dedicated service account]](#dedicated-service-account) | [[Ingress and Egress blocked]](#ingress-and-egress-blocked) | [[Insecure capabilities]](#insecure-capabilities) | [[Non-root containers]](#non-root-containers) | [[Host PID/IPC privileges]](#host-pidipc-privileges) | [[Linux hardening]](#linux-hardening) | [[CPU limits]](#cpu-limits) | [[Memory limits]](#memory-limits) | [[Immutable File Systems]](#immutable-file-systems) | [[HostPath Mounts]](#hostpath-mounts) | [[SBOM available]](#sbom-available)
 
 * [**Category: Configuration Tests**](#category-configuration-tests)
 
@@ -1320,6 +1320,29 @@ Disable automatic mounting of service account tokens to PODs either at the servi
 #### Usage
 
 `./cnti-testsuite service_account_mapping`
+
+----------
+
+### Dedicated service account
+
+#### Overview
+
+Checks that each workload of the CNF runs as a service account of its own: its pod template sets `serviceAccountName`, and not to `default`. One service account shared by several workloads of the CNF is accepted; the test details list which workload runs as which account.
+Measurement: `serviceAccountName` is read from the live workload resources. The API server mirrors the deprecated `serviceAccount` field into it, so a chart using either field is judged by the account it names. An unset field stays empty on a pod template; on a bare Pod it reads `default`.
+
+#### Rationale
+
+A pod that names no service account runs as its namespace's `default` service account, shared with every other pod that does the same. Its API permissions cannot be scoped to one workload, and the audit log cannot tell the workloads apart. A dedicated service account is what makes least-privilege RBAC possible per workload. `service_account_mapping` checks that the token is not mounted automatically; this test checks which account the pods run as.
+
+Sources: [Kubernetes: Service Accounts](https://kubernetes.io/docs/concepts/security/service-accounts/); [Kubernetes: RBAC good practices](https://kubernetes.io/docs/concepts/security/rbac-good-practices/); [Red Hat certsuite: access-control-pod-service-account](https://github.com/redhat-best-practices-for-k8s/certsuite/blob/main/CATALOG.md#access-control-pod-service-account).
+
+#### Remediation
+
+Create a ServiceAccount for the workload in the CNF's chart and set `serviceAccountName` to it in the pod template.
+
+#### Usage
+
+`./cnti-testsuite dedicated_service_account`
 
 ----------
 
