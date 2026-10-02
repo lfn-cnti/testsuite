@@ -57,6 +57,7 @@ module CLIOptions
     Option.new("destructive", Kind::Flag, "allow destructive tests", retired: "destructive"),
     Option.new("skip-wait-for-install", Kind::Flag, "do not wait for resources to become ready after install", internal: "skip_wait_for_install", retired: "skip_wait_for_install"),
     Option.new("skip-wait-for-uninstall", Kind::Flag, "do not wait for resources to be removed after uninstall", internal: "skip_wait_for_uninstall", retired: "skip_wait_for_uninstall"),
+    Option.new("allow-install", Kind::Flag, "mcp: expose the cluster-mutating cnf_install/cnf_uninstall tools", internal: "allow_install"),
   ]
 
   def self.[]?(name : String) : Option?
