@@ -508,6 +508,60 @@ This uninstalls the CNF and every helper the suite deployed into the cluster. Th
 
 ---
 
+### MCP server
+
+`cnti-testsuite mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io) server over
+stdio (newline-delimited JSON-RPC 2.0), exposing the suite to AI agents. It is a thin transport over
+the existing CLI: run tools re-invoke the binary with `--output json` and return the results document,
+so everything it returns matches [the results schema](docs/cnti-testsuite-results.schema.json). stdout
+carries only JSON-RPC; logs and progress go to stderr.
+
+```
+./cnti-testsuite mcp                  # no install or uninstall by default
+./cnti-testsuite mcp --allow-install  # also expose cnf_install/cnf_uninstall
+```
+
+It implements MCP protocol version `2025-06-18`. The tools:
+
+| Tool | What it does | Annotations |
+|---|---|---|
+| `list_tests` | Every test with its category and type (essential/normal/bonus) | read-only |
+| `run_test` | Runs one test, as `cnti-testsuite <test>` does, and returns its results document when it finishes | |
+| `start_run` | Starts a suite (`all`, `workload`, `cert`), a category or a single test, as `cnti-testsuite <name>` does, and returns a `runId` at once | |
+| `get_run` | The state and progress of a run, with its results document once complete | read-only |
+| `cancel_run` | Stops a run started by `start_run`, `cnf_install` or `cnf_uninstall` | |
+| `get_results` | The newest results document in the workspace | read-only |
+| `cnf_install` / `cnf_uninstall` | Install or uninstall the CNF; only with `--allow-install`. Return a `runId`. | destructive |
+
+A run through MCP is the CLI's run: `start_run cert` runs what `cnti-testsuite cert` runs, and the
+results document is the one the CLI writes. Tests act on the cluster (they kill containers, change
+images, scale workloads, inject faults and install tools), so the run tools carry no annotation
+claiming otherwise, and an MCP host treats them as destructive by default and asks before each run.
+Installing or removing a CNF is a different kind of action from testing the installed one, and is
+available only when the server is started with `--allow-install`.
+
+`run_test` answers when the test finishes: send a `progressToken` to receive progress notifications
+meanwhile, and `notifications/cancelled` stops the test (a cancelled request gets no answer). A test
+that can take longer than the client's tool-call timeout is better started with `start_run`: most
+chaos tests take over a minute, and the TypeScript SDK times a tool call out after 60 s by default.
+`start_run`, `cnf_install` and `cnf_uninstall` answer at once with a `runId`, so a run of any length
+(a `cert` run can take over an hour) is followed with `get_run` and stopped with `cancel_run`. A run that ends without a results document reports the suite's last error
+lines.
+
+Cancelling stops the suite process and the processes it started (a `helm` or `kubectl` command
+running at that moment) where they are: the run's results document keeps `status: running` (it is
+the newest document `get_results` returns), and a test stopped mid-way may leave what it created in
+the cluster, such as a chaos test's fault resources.
+
+`--results-dir` given to `mcp` is passed on to every run, so that `get_results` reads where the runs
+write; `CNTI_TESTSUITE_RESULTS_DIR` reaches them as it is.
+
+Only one run uses the `cnti/` workspace and cluster at a time; a second run is refused, not queued.
+When the client closes stdin, runs still going are stopped before the server exits. HTTP transport
+and in-process execution are out of scope.
+
+---
+
 ### Logging Options
 
 #### Update the loglevel from command line:
