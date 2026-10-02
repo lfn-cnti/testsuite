@@ -11,7 +11,7 @@ deployments:
       namespace: cnti-default
       helm_repo_name: cm
       # port is docker-assigned and exported by spec/setup_spec.cr
-      helm_repo_url: "http://localhost:{{ ENV.SPEC_CHART_MUSEUM_PORT }}"
+      helm_repo_url: "http://127.0.0.1:{{ ENV.SPEC_CHART_MUSEUM_PORT }}"
       helm_chart_name: "nginx"
       chart_version: "15.10.0"
       skip_tls_verify: true
