@@ -155,6 +155,46 @@ describe "Security" do
     end
   end
 
+  it "'dedicated_service_account' should pass when the workload runs as its own service account", tags: ["dedicated_service_account"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_dedicated_service_account/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("dedicated_service_account")
+      result[:status].success?.should be_true
+      (/(PASSED).*(All 1 workload\(s\) run as a service account other than default)/ =~ result[:output]).should_not be_nil
+      (/Deployment\/dedicated-sa-app in .*: service account dedicated-sa-app/ =~ result[:output]).should_not be_nil
+      verify_task_result("dedicated_service_account", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'dedicated_service_account' should fail when the pod template sets no service account", tags: ["dedicated_service_account"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_dedicated_service_account_unset/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("dedicated_service_account")
+      result[:status].exit_code.should eq(1)
+      (/impacted: Deployment\/unset-sa-app in .*: sets no serviceAccountName, so its pods run as the namespace's default service account/ =~ result[:output]).should_not be_nil
+      verify_task_result("dedicated_service_account", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'dedicated_service_account' should fail when the pod template names the default service account", tags: ["dedicated_service_account"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_dedicated_service_account_default/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("dedicated_service_account")
+      result[:status].exit_code.should eq(1)
+      (/impacted: Deployment\/default-sa-app in .*: runs as the namespace's default service account/ =~ result[:output]).should_not be_nil
+      verify_task_result("dedicated_service_account", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
   it "'cpu_limits' should pass on a cnf that has containers with cpu limits set", tags: ["security"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf")

@@ -27,6 +27,7 @@ category_task "security", [
     "sysctls",
     "host_network",
     "service_account_mapping",
+    "dedicated_service_account",
     "application_credentials",
     "sbom_available"
   ]
@@ -784,6 +785,47 @@ scored_task "sbom_available",
       result.skipped("Could not verify #{unverifiable.size} container image(s) (network/registry auth)")
     else
       result.passed("An SBOM is available for every container image")
+    end
+  end
+end
+
+desc "Check that every workload of the CNF runs as a service account of its own, not the namespace's default"
+scored_task "dedicated_service_account",
+  emoji: "🔓🔑" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    findings = [] of NamedTuple(kind: String, name: String, namespace: String, reason: String)
+    judged = 0
+
+    CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
+      live = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+      pod_spec = live.dig?("spec", "template", "spec") || live.dig?("spec")
+      judged += 1
+      # The API server mirrors the deprecated serviceAccount field into
+      # serviceAccountName, so a chart using either is judged by what it names.
+      # An unset field stays empty on a pod template; on a bare Pod, admission
+      # has already filled in "default".
+      account = pod_spec.try(&.dig?("serviceAccountName")).try(&.as_s?).presence
+      label = "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}"
+      if account.nil?
+        findings << {kind: resource[:kind], name: resource[:name], namespace: resource[:namespace],
+                     reason: "sets no serviceAccountName, so its pods run as the namespace's default service account"}
+      elsif account == "default"
+        findings << {kind: resource[:kind], name: resource[:name], namespace: resource[:namespace],
+                     reason: "runs as the namespace's default service account"}
+      else
+        result.append_description("#{label}: service account #{account}")
+      end
+      true
+    end
+
+    if findings.empty?
+      result.passed("All #{judged} workload(s) run as a service account other than default")
+    else
+      findings.each do |f|
+        result.add_impacted_resource(f[:kind], f[:name], f[:namespace], reason: f[:reason])
+      end
+      result.append_remediation("Create a ServiceAccount for the workload in the CNF's chart and set serviceAccountName to it in the pod template, so its API permissions and audit trail are its own and not shared with every other pod using the default service account.")
+      result.failed("Found #{findings.size} of #{judged} workload(s) running as the default service account")
     end
   end
 end

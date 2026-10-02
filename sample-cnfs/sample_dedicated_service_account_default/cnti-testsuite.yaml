@@ -1,0 +1,6 @@
+---
+config_version: v2
+deployments:
+  manifests:
+  - name: default-sa-app
+    manifest_directory: manifests
