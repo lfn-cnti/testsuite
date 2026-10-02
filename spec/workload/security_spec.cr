@@ -195,6 +195,35 @@ describe "Security" do
     end
   end
 
+  it "'pod_security_baseline' should pass when the CNF's pods meet the baseline level", tags: ["pod_security_baseline"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_pod_security_baseline/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("pod_security_baseline")
+      result[:status].success?.should be_true
+      (/(PASSED).*(All 1 pod variant\(s\) of the CNF meet Pod Security "baseline")/ =~ result[:output]).should_not be_nil
+      (/Judged at Pod Security "baseline:latest" of Kubernetes v/ =~ result[:output]).should_not be_nil
+      verify_task_result("pod_security_baseline", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'pod_security_baseline' should fail and name each pod and control that violates baseline", tags: ["pod_security_baseline"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_pod_security_baseline_fail/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("pod_security_baseline")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(Found 2 of 2 pod variant\(s\) of the CNF violating Pod Security "baseline")/ =~ result[:output]).should_not be_nil
+      (/impacted: Pod\/pss-caps-.* in pss-baseline-fail: .*non-default capabilities \(container "app" must not include "NET_ADMIN"/ =~ result[:output]).should_not be_nil
+      (/impacted: Pod\/pss-apparmor-.* in pss-baseline-fail: .*forbidden AppArmor profiles/ =~ result[:output]).should_not be_nil
+      verify_task_result("pod_security_baseline", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
   it "'cpu_limits' should pass on a cnf that has containers with cpu limits set", tags: ["security"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf")

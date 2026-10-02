@@ -30,6 +30,7 @@ task "tools_uninstall", [
 ] do |_, args|
   # (rafal-lal) Temporary solution that will be replaced soon
   Dockerd.uninstall
+  PodSecurity.uninstall_namespace
   FileUtils.rm_rf("#{tools_path}/dockerd-manifest.yml")
   FileUtils.rm_rf("#{tools_path}/docker-config-manifest.yml")
   stdout_success "Testsuite helper tools uninstalled."
