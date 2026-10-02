@@ -511,7 +511,13 @@ describe "Installation" do
 
       # Wait for port
       ok = repeat_with_timeout(15, "Local OCI registry didn't open port #{local_registry_port}", false, 1) do
-        begin s = TCPSocket.new("127.0.0.1", local_registry_port); s.close; true rescue false end
+        begin
+          s = TCPSocket.new("127.0.0.1", local_registry_port)
+          s.close
+          true
+        rescue Socket::ConnectError
+          false
+        end
       end
       ok.should be_true
 
@@ -522,11 +528,11 @@ describe "Installation" do
       )[:status].success?.should be_true
 
       # Push chart to the registry
-      Helm.registry_login("localhost:#{local_registry_port}", username: "dummy", password: "secret", insecure: true, plain_http: true).should be_true
-      Helm.push_oci(tgz, "oci://localhost:#{local_registry_port}/helm", plain_http: true)
+      Helm.registry_login("127.0.0.1:#{local_registry_port}", username: "dummy", password: "secret", insecure: true, plain_http: true).should be_true
+      Helm.push_oci(tgz, "oci://127.0.0.1:#{local_registry_port}/helm", plain_http: true)
 
       # Logout before install
-      ShellCmd.run("helm registry logout localhost:#{local_registry_port}")
+      ShellCmd.run("helm registry logout 127.0.0.1:#{local_registry_port}")
 
       result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_oci_repo/")
       result[:status].success?.should be_true
@@ -565,18 +571,24 @@ describe "Installation" do
 
       # Wait for port
       ok = repeat_with_timeout(15, "ChartMuseum didn't open port #{chart_museum_port}", false, 1) do
-        begin s = TCPSocket.new("127.0.0.1", chart_museum_port); s.close; true rescue false end
+        begin
+          s = TCPSocket.new("127.0.0.1", chart_museum_port)
+          s.close
+          true
+        rescue Socket::ConnectError
+          false
+        end
       end
       ok.should be_true
 
       # HTTP health wait
       healthy = repeat_with_timeout(60, "ChartMuseum not healthy on /health", false, 1) do
-        ShellCmd.run("curl -fsS http://localhost:#{chart_museum_port}/health")[:status].success?
+        ShellCmd.run("curl -fsS http://127.0.0.1:#{chart_museum_port}/health")[:status].success?
       end
       healthy.should be_true
 
       # Upload chart to ChartMuseum
-      upload = ShellCmd.run(%(curl -fsS -u dummy:secret --data-binary @#{tgz} http://localhost:#{chart_museum_port}/api/charts))
+      upload = ShellCmd.run(%(curl -fsS -u dummy:secret --data-binary @#{tgz} http://127.0.0.1:#{chart_museum_port}/api/charts))
       upload[:status].success?.should be_true
 
       result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_private_repo/")
