@@ -1,0 +1,30 @@
+---
+# A Deployment scaled to zero: the CNF has no pod to judge.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pod-owner-scaled-down
+  labels:
+    app: pod-owner-scaled-down
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: pod-owner-scaled-down
+  template:
+    metadata:
+      labels:
+        app: pod-owner-scaled-down
+    spec:
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["sh", "-c", "sleep 2147483647"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault

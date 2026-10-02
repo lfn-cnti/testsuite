@@ -15,7 +15,8 @@ category_task "resilience", [
    "pod_dns_error",
    "pod_network_duplication",
    "liveness",
-   "readiness"
+   "readiness",
+   "pod_owner"
   ],
   title: "Reliability, Resilience, and Availability"
 
@@ -663,6 +664,55 @@ scored_task "pod_dns_error",
         test_passed
       end
       chaos_verdict(result, t.name, task_response, tested)
+    end
+  end
+end
+
+desc "Check that every pod of the CNF is owned by a controller that recreates it (no bare Pods)"
+scored_task "pod_owner",
+  emoji: "⎈🧫" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # One finding per pod, keyed by namespace/name, however many of the CNF's
+    # workloads select it.
+    findings = {} of String => NamedTuple(name: String, namespace: String, reason: String)
+    judged = Set(String).new
+
+    CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
+      bare = resource[:kind].downcase == "pod"
+      live = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+      KubectlClient::Get.pods_by_resource_labels(live, resource[:namespace]).each do |pod|
+        # A pod already being deleted is on its way out, not a pod of the CNF.
+        next if pod.dig?("metadata", "deletionTimestamp")
+        # A Helm hook's pod (a chart's *-test-connection after `helm test`) often
+        # carries the workload's selector labels; hooks are not part of the
+        # CNF's workloads, here as in the manifest.
+        next if pod.dig?("metadata", "annotations", "helm.sh/hook")
+        pod_name = pod.dig?("metadata", "name").try(&.as_s?) || next
+        key = "#{resource[:namespace]}/#{pod_name}"
+        judged << key
+        owners = pod.dig?("metadata", "ownerReferences").try(&.as_a?) || [] of JSON::Any
+        next if owners.any? { |o| o.dig?("controller").try(&.as_bool?) == true }
+        # The manifest's own word wins: "declared as a bare Pod" points at the
+        # fix, whichever workload's selector reached the pod first.
+        next if findings.has_key?(key) && !bare
+        reason = bare ? "declared as a bare Pod in the CNF's manifest" : "has no owner reference with controller: true"
+        findings[key] = {name: pod_name, namespace: resource[:namespace],
+                         reason: "#{reason}: no controller recreates it when its node fails or is drained"}
+      end
+      true
+    end
+
+    if judged.empty?
+      result.append_remediation("Make sure the CNF's pods are running (a workload scaled to zero has none), then run the test again.")
+      result.skipped("No pod of the CNF could be read; pod ownership could not be checked")
+    elsif findings.empty?
+      result.passed("All #{judged.size} pod(s) of the CNF are owned by a controller")
+    else
+      findings.each_value do |f|
+        result.add_impacted_resource("Pod", f[:name], f[:namespace], reason: f[:reason])
+      end
+      result.append_remediation("Run the pods through a Deployment, StatefulSet, DaemonSet or Job, so that a controller recreates them when their node fails or is drained, and they can be scaled and rolled out.")
+      result.failed("Found #{findings.size} of #{judged.size} pod(s) of the CNF not owned by a controller")
     end
   end
 end
