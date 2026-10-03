@@ -856,6 +856,10 @@ scored_task "pod_security_baseline",
 
     version = KubectlClient.server_version rescue "unknown"
     PodSecurity.ensure_namespace
+    if skip_reason = PodSecurity.canary_skip_reason(*PodSecurity.dry_run(PodSecurity.canary_pod))
+      result.append_remediation("Check the cluster's Pod Security admission configuration (AdmissionConfiguration exemptions for usernames, runtime classes and namespaces) and that nothing else rejects pods in #{PodSecurity::BASELINE_NAMESPACE}, then run the test again.")
+      next result.skipped("The CNF's pods could not be judged: #{skip_reason}")
+    end
     findings = 0
     judged = 0
     not_judged = [] of String

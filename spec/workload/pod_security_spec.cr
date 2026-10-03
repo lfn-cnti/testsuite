@@ -69,6 +69,20 @@ describe "PodSecurity" do
     end
   end
 
+  describe "canary" do
+    it "is a pod baseline forbids", tags: ["points"] do
+      PodSecurity.canary_pod.dig("spec", "hostPID").as_bool.should be_true
+    end
+
+    it "lets the test go on only when Pod Security rejects the canary", tags: ["points"] do
+      rejected = %(Error from server (Forbidden): error when creating "STDIN": pods "cnti-pss-canary" is forbidden: violates PodSecurity "baseline:latest": host namespaces (hostPID=true)\n)
+      PodSecurity.canary_skip_reason(false, rejected).should be_nil
+      PodSecurity.canary_skip_reason(true, "pod/cnti-pss-canary created (server dry run)\n").not_nil!.should contain("is not enforcing baseline")
+      webhook = %(Error from server (Forbidden): admission webhook "validate.kyverno.svc-fail" denied the request\n)
+      PodSecurity.canary_skip_reason(false, webhook).not_nil!.should contain("could not confirm")
+    end
+  end
+
   describe "verdict" do
     it "passes a dry run that was admitted", tags: ["points"] do
       PodSecurity.verdict(true, "pod/app created (server dry run)\n").should eq({PodSecurity::Verdict::Passed, nil})

@@ -102,6 +102,32 @@ module PodSecurity
     end
   end
 
+  # A pod that certainly violates baseline (a host namespace). Dry-run first:
+  # if Pod Security admits it, the cluster's admission configuration exempts
+  # the suite's user, a runtime class or the namespace, and every pod of the
+  # CNF would be admitted without being judged.
+  def self.canary_pod : JSON::Any
+    JSON.parse({
+      "apiVersion" => "v1", "kind" => "Pod",
+      "metadata"   => {"name" => "cnti-pss-canary"},
+      "spec"       => {"hostPID" => true, "containers" => [{"name" => "canary", "image" => "busybox:1.36"}]},
+    }.to_json)
+  end
+
+  # The reason to skip, from the canary's dry run, or nil when Pod Security
+  # rejected it as it should and the CNF's pods can be judged.
+  def self.canary_skip_reason(success : Bool, output : String) : String?
+    verdict, reason = verdict(success, output)
+    case verdict
+    when Verdict::Violation
+      nil
+    when Verdict::Passed
+      "Pod Security is not enforcing #{LEVEL} in #{BASELINE_NAMESPACE}: a pod with hostPID was admitted (exempted user, runtime class or namespace?)"
+    else
+      "could not confirm that Pod Security enforces #{LEVEL} in #{BASELINE_NAMESPACE}: #{reason}"
+    end
+  end
+
   # Make sure the dry-run namespace exists and enforces the level. The API
   # server creates the namespace's default service account asynchronously, and
   # admission rejects a pod whose service account does not exist yet, so wait
