@@ -6,7 +6,10 @@ require "totem"
 require "../utils/utils.cr"
 
 desc "Run the certification tests; exits 0 when the CNF is certified"
-suite_task "cert", ["version", "cert_compatibility", "cert_state", "cert_security", "cert_configuration", "cert_observability", "cert_microservice", "cert_resilience"],
+# Compatibility runs last: scaling and rolling out change the CNF, and what a
+# change leaves behind (a scaled-in database cluster that stays degraded)
+# must not fail a test that judges something else (#2719).
+suite_task "cert", ["version", "cert_state", "cert_security", "cert_configuration", "cert_observability", "cert_microservice", "cert_resilience", "cert_compatibility"],
   scope: "essential",
   min_passed: ESSENTIAL_PASSED_THRESHOLD,
   max_failed: CNFManager::NO_FAILURE_LIMIT,
