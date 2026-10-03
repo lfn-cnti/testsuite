@@ -27,7 +27,7 @@ spec:
       containers:
       - name: nginx
         # renovate: datasource=docker depName=nginx
-        image: nginx:1.30.4@sha256:09cc2702709e6388d979d8030e3ab4eb1ceb699b2dced26d7543e872a822e823
+        image: nginx:1.30.4@sha256:d5792f71a9496b833bc08ea834a758c46e2b6a6306c10f4be926f38a656cdc1c
         ports:
         - containerPort: 80
         readinessProbe:
