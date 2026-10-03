@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Run Trivy vulnerability scanner (Repo mode)
         uses: aquasecurity/trivy-action@v0.36.0
@@ -32,6 +32,6 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v4.38.2
         with:
           sarif_file: 'trivy-results.sarif'
