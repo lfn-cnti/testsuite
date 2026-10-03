@@ -193,6 +193,9 @@ scored_task "increase_decrease_capacity",
     # Workloads deployed with no replicas (arbiters, standby sets) run nothing
     # to scale; they are named in the details, not scaled.
     idle = [] of String
+    # Workloads scaled up and back to their deployed count, for the restart
+    # check after the scaling.
+    scaled_back = [] of Tuple(String, String, String)
 
     begin
       CNFManager.cnf_workload_resources(args, config) do |resource|
@@ -231,6 +234,8 @@ scored_task "increase_decrease_capacity",
           why = WorkloadDiagnostics.report(result, resource["kind"].as_s, name, namespace, "#{ref} while scaling back to #{replicas}")
           result.add_impacted_resource(resource["kind"].as_s, name, namespace,
             reason: "could not scale back down to #{replicas} replicas (#{ready} ready)#{why.first?.try { |w| ": #{w}" }}")
+        else
+          scaled_back << {resource["kind"].as_s, name, namespace}
         end
       end
     ensure
@@ -241,6 +246,16 @@ scored_task "increase_decrease_capacity",
 
     idle.each { |line| result.append_description(line) }
     operator_owned.each { |line| result.append_description(line) }
+
+    # Scaling back restores the replica counts, not the application: a
+    # clustered StatefulSet (a database replica set, a quorum) can keep the
+    # members it lost and stay degraded, and the CNF looks fine until a pod
+    # has to start again (#2719). One pod of every scaled workload is
+    # restarted, all at once, and each workload must be Ready again, so a CNF
+    # the scaling left broken fails here rather than in a later test.
+    if failures.empty? && !scaled_back.empty?
+      CapacityRestart.check(scaled_back, result).each { |failure| failures << failure }
+    end
     if deployed.empty? && !idle.empty?
       result.na("increase_decrease_capacity not applicable: no Deployment or StatefulSet runs pods to scale")
     elsif !deployed.empty? && operator_owned.size == deployed.size
@@ -257,6 +272,62 @@ scored_task "increase_decrease_capacity",
   end
 end
 
+
+module CapacityRestart
+  alias Ref = Tuple(String, String, String)
+
+  # The workload's pods that are not on their way out.
+  def self.pods(kind : String, name : String, namespace : String) : Array(JSON::Any)
+    live = KubectlClient::Get.resource(kind, name, namespace)
+    KubectlClient::Get.pods_by_resource_labels(live, namespace).reject { |pod| pod.dig?("metadata", "deletionTimestamp") }
+  end
+
+  def self.pod_ready?(pod : JSON::Any) : Bool
+    conditions = pod.dig?("status", "conditions").try(&.as_a?) || [] of JSON::Any
+    conditions.any? { |c| c["type"]?.try(&.as_s?) == "Ready" && c["status"]?.try(&.as_s?) == "True" }
+  end
+
+  # Ready again after the restart: as many pods as the workload asks for,
+  # all Ready, and the restarted pod gone. Read from the pods, not the
+  # workload's status, which counts the deleted pod for a moment after.
+  def self.recovered?(ref : Ref, deleted_uid : String) : Bool
+    kind, name, namespace = ref
+    desired = deployed_replicas(kind, name, namespace)
+    pods = self.pods(kind, name, namespace)
+    pods.size >= desired && pods.all? { |pod| pod_ready?(pod) && pod.dig?("metadata", "uid").try(&.as_s?) != deleted_uid }
+  rescue KubectlClient::ShellCMD::K8sClientCMDException
+    false
+  end
+
+  # Deletes one pod of each workload at once and waits for all of them to be
+  # Ready again. Returns a failure line per workload that is not.
+  def self.check(refs : Array(Ref), result : CNFManager::TestCaseResult) : Array(String)
+    restarted = {} of Ref => String
+    refs.each do |ref|
+      kind, name, namespace = ref
+      pod = pods(kind, name, namespace).find { |p| p.dig?("metadata", "uid") }
+      next unless pod
+      KubectlClient::Delete.resource("pod", pod.dig("metadata", "name").as_s, namespace, extra_opts: "--wait=false")
+      restarted[ref] = pod.dig("metadata", "uid").as_s
+    end
+    started = Time.utc
+    pending = restarted.keys
+    until pending.empty? || (Time.utc - started).total_seconds > POD_READINESS_TIMEOUT
+      sleep 2.seconds
+      pending.reject! { |ref| recovered?(ref, restarted[ref]) }
+    end
+
+    took = (Time.utc - started).total_seconds.round.to_i
+    result.append_description("Restart after scaling: one pod of each of #{restarted.size} workload(s) deleted at once; #{restarted.size - pending.size} Ready again within #{took} s")
+    pending.map do |ref|
+      kind, name, namespace = ref
+      why = WorkloadDiagnostics.report(result, kind, name, namespace, "#{kind}/#{name} after a pod restart following the scaling")
+      result.add_impacted_resource(kind, name, namespace,
+        reason: "not Ready within #{POD_READINESS_TIMEOUT}s of a pod restart after scaling up and back#{why.first?.try { |w| ": #{w}" }}")
+      "#{kind}/#{name} in #{namespace}: not Ready again within #{POD_READINESS_TIMEOUT}s of a pod restart after scaling up and back; the scaling may have left the application degraded"
+    end
+  end
+end
 
 def increase_decrease_remedy_msg()
 <<-TEMPLATE
