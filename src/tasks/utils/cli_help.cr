@@ -35,8 +35,8 @@ module CLIHelp
 
   # Workload test categories, in the order `workload` runs them.
   WORKLOAD_CATEGORIES = [
-    "compatibility", "state", "security", "configuration",
-    "observability", "microservice", "resilience",
+    "state", "security", "configuration", "observability",
+    "microservice", "resilience", "compatibility",
   ]
 
   # A task whose final path segment starts with '_' is internal and never

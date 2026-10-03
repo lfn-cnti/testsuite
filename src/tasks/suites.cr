@@ -10,5 +10,8 @@ suite_task "all", ["workload"],
   scope: CNFManager::EVERY_TEST
 
 desc "Run every workload test against the installed CNF"
-suite_task "workload", ["compatibility", "state", "security", "configuration",
-                        "observability", "microservice", "resilience"]
+# Compatibility runs last: scaling, rolling updates and rollbacks change the
+# CNF, and what a change leaves behind must not fail a test that judges
+# something else (#2719).
+suite_task "workload", ["state", "security", "configuration", "observability",
+                        "microservice", "resilience", "compatibility"]
