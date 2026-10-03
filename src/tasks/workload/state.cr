@@ -16,6 +16,47 @@ category_task "state", ["no_local_volume_configuration", "elastic_volumes", "dat
 # left in place by drain, so neither can be tested this way.
 NODE_DRAIN_KINDS = ["deployment", "statefulset", "replicaset"]
 
+module NodeDrain
+  alias Ref = NamedTuple(kind: String, name: String, namespace: String)
+
+  def self.node_of(pod : JSON::Any) : String?
+    pod.dig?("spec", "nodeName").try(&.as_s?)
+  end
+
+  # The workload's pods that are not on their way out.
+  def self.pods(ref : Ref) : Array(JSON::Any)
+    live = KubectlClient::Get.resource(ref[:kind], ref[:name], ref[:namespace])
+    KubectlClient::Get.pods_by_resource_labels(live, ref[:namespace]).reject { |pod| pod.dig?("metadata", "deletionTimestamp") }
+  end
+
+  # Ready again: as many pods as the workload asks for, all of them Ready and
+  # none on the drained node. Read from the pods, not the workload's status,
+  # which still counts the evicted pods as ready for a moment after a drain.
+  def self.recovered?(ref : Ref, away_from : String?) : Bool
+    live = KubectlClient::Get.resource(ref[:kind], ref[:name], ref[:namespace])
+    desired = live.dig?("spec", "replicas").try(&.as_i?) || 1
+    pods = KubectlClient::Get.pods_by_resource_labels(live, ref[:namespace]).reject { |pod| pod.dig?("metadata", "deletionTimestamp") }
+    pods.size >= desired && pods.all? { |pod| pod_ready?(pod) && (away_from.nil? || node_of(pod) != away_from) }
+  rescue KubectlClient::ShellCMD::K8sClientCMDException
+    false
+  end
+
+  def self.pod_ready?(pod : JSON::Any) : Bool
+    conditions = pod.dig?("status", "conditions").try(&.as_a?) || [] of JSON::Any
+    conditions.any? { |c| c["type"]?.try(&.as_s?) == "Ready" && c["status"]?.try(&.as_s?) == "True" }
+  end
+
+  # Waits up to `timeout` seconds for the workload to recover.
+  def self.wait_recovered(ref : Ref, away_from : String?, timeout : Int32) : Bool
+    started = Time.utc
+    loop do
+      return true if recovered?(ref, away_from)
+      return false if (Time.utc - started).total_seconds > timeout
+      sleep 1.seconds
+    end
+  end
+end
+
 desc "Does the CNF survive the loss of a node? Each node hosting its pods is drained once"
 scored_task "node_drain",
   type: CNFManager::TestType::Essential,
@@ -48,27 +89,38 @@ scored_task "node_drain",
       next
     end
 
-    by_node = {} of String => Array(NamedTuple(kind: String, name: String, namespace: String))
-    pods_of.each do |ref, pods|
+    # The nodes to drain, in the order they host the CNF's pods now. Which
+    # workloads a drain touches is read again just before it (#2724): an
+    # earlier drain may have moved pods onto the node, and the drain evicts
+    # those as well, so they are judged with it.
+    nodes = [] of String
+    pods_of.each_value do |pods|
       pods.each do |pod|
-        node = pod.dig?("spec", "nodeName").try(&.as_s?)
-        next if node.nil?
-        (by_node[node] ||= [] of NamedTuple(kind: String, name: String, namespace: String)) << ref unless by_node[node]?.try(&.includes?(ref))
+        node = NodeDrain.node_of(pod)
+        nodes << node if node && !nodes.includes?(node)
       end
     end
-    failed = 0
+    failed = Set(NodeDrain::Ref).new
     workloads.each do |ref|
-      next if by_node.values.any?(&.includes?(ref))
+      next if pods_of[ref].any? { |pod| NodeDrain.node_of(pod) }
       result.add_impacted_resource(ref[:kind], ref[:name], ref[:namespace], reason: "no scheduled pod to drain")
-      failed += 1
+      failed << ref
     end
 
-    by_node.each do |node, refs|
+    drained = 0
+    nodes.each do |node|
+      on_node = {} of NodeDrain::Ref => Int32
+      workloads.each do |ref|
+        count = NodeDrain.pods(ref).count { |pod| NodeDrain.node_of(pod) == node }
+        on_node[ref] = count if count > 0
+      end
+      next if on_node.empty?
+      refs = on_node.keys
+      pod_count = on_node.values.sum
       unless schedulable.includes?(node)
         result.append_description("Node #{node} hosts #{refs.size} workload(s) of the CNF but is not schedulable; it was not drained")
         next
       end
-      pod_count = refs.sum { |ref| pods_of[ref].count { |pod| pod.dig?("spec", "nodeName").try(&.as_s?) == node } }
       StatusLine.push "Draining #{node} (#{pod_count} pod(s) of #{refs.size} workload(s))..."
       started = Time.utc
       cordoned = false
@@ -76,7 +128,8 @@ scored_task "node_drain",
         KubectlClient::Utils.cordon(node)
         cordoned = true
         drain = KubectlClient::Utils.drain(node, GENERIC_OPERATION_TIMEOUT)
-        evicted_in = (Time.utc - started).total_seconds.round.to_i
+        evicted_at = Time.utc
+        evicted_in = (evicted_at - started).total_seconds.round.to_i
         unless drain[:status].success?
           # An eviction the API refuses (a PodDisruptionBudget, most often)
           # or a drain that ran out of time: the node's workloads did not go
@@ -85,24 +138,26 @@ scored_task "node_drain",
           result.append_description("Node #{node}: drain did not complete within #{GENERIC_OPERATION_TIMEOUT}s: #{reason}")
           refs.each do |ref|
             result.add_impacted_resource(ref[:kind], ref[:name], ref[:namespace], reason: "eviction from node #{node} did not complete: #{reason}")
+            failed << ref
           end
-          failed += refs.size
           next
         end
+        drained += 1
         result.append_description("Node #{node}: #{pod_count} pod(s) of #{refs.size} workload(s) evicted in #{evicted_in} s")
 
         # Recovery is judged while the node is still cordoned: a workload
-        # that is Ready again now has come back on another node.
+        # that is Ready again now has come back on another node. The time is
+        # counted from the end of the eviction, as the workloads recover
+        # together while they are checked one by one.
         refs.each do |ref|
           label = "#{ref[:kind]}/#{ref[:name]} in #{ref[:namespace]}"
-          since = Time.utc
-          if KubectlClient::Wait.resource_wait_for_install(kind: ref[:kind], resource_name: ref[:name], wait_count: POD_READINESS_TIMEOUT, namespace: ref[:namespace])
-            result.append_description("#{label}: Ready again on another node #{(Time.utc - since).total_seconds.round.to_i} s after eviction")
+          if NodeDrain.wait_recovered(ref, node, POD_READINESS_TIMEOUT)
+            result.append_description("#{label}: Ready again on another node within #{(Time.utc - evicted_at).total_seconds.round.to_i} s of eviction")
           else
             why = WorkloadDiagnostics.report(result, ref[:kind], ref[:name], ref[:namespace], "#{label} after draining #{node}")
             result.add_impacted_resource(ref[:kind], ref[:name], ref[:namespace],
               reason: "not Ready within #{POD_READINESS_TIMEOUT}s of eviction from node #{node}#{why.first?.try { |w| ": #{w}" }}")
-            failed += 1
+            failed << ref
           end
         end
 
@@ -125,12 +180,20 @@ scored_task "node_drain",
       end
     end
 
-    drained = by_node.keys.select { |node| schedulable.includes?(node) }.size
-    if failed == 0
+    # The tests after this one start from a settled CNF: every workload is
+    # Ready again before node_drain returns.
+    workloads.each do |ref|
+      next if failed.includes?(ref)
+      next if NodeDrain.wait_recovered(ref, nil, POD_READINESS_TIMEOUT)
+      result.add_impacted_resource(ref[:kind], ref[:name], ref[:namespace], reason: "not Ready again within #{POD_READINESS_TIMEOUT}s after the drains")
+      failed << ref
+    end
+
+    if failed.empty?
       result.passed("node_drain passed: #{drained} node(s) drained, #{workloads.size} workload(s) rescheduled")
     else
       result.append_remediation("Make every workload survive the loss of the node it runs on: more than one replica spread across nodes, no node-local state, readiness that reflects the service, and PodDisruptionBudgets that leave room for an eviction.")
-      result.failed("node_drain failed: #{failed} workload(s) did not come back after a drain")
+      result.failed("node_drain failed: #{failed.size} workload(s) did not come back after a drain")
     end
   end
 end
