@@ -1,4 +1,4 @@
-FROM golang:1.24 AS validator
+FROM golang:1.27 AS validator
 
 ENV METRICS_VERSION="main"
 RUN git clone -b $METRICS_VERSION https://github.com/prometheus/OpenMetrics.git /validator
