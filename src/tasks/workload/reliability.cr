@@ -3,6 +3,7 @@ require "sam"
 require "file_utils"
 require "colorize"
 require "../utils/utils.cr"
+require "../utils/disruption_budget.cr"
 
 desc "The CNF test suite checks to see if the CNFs are resilient to failures."
 category_task "resilience", [
@@ -16,7 +17,8 @@ category_task "resilience", [
    "pod_network_duplication",
    "liveness",
    "readiness",
-   "pod_owner"
+   "pod_owner",
+   "disruption_budget"
   ],
   title: "Reliability, Resilience, and Availability"
 
@@ -713,6 +715,58 @@ scored_task "pod_owner",
       end
       result.append_remediation("Run the pods through a Deployment, StatefulSet, DaemonSet or Job, so that a controller recreates them when their node fails or is drained, and they can be scaled and rolled out.")
       result.failed("Found #{findings.size} of #{judged.size} pod(s) of the CNF not owned by a controller")
+    end
+  end
+end
+
+desc "Check that the CNF's replicated workloads stay up through a node drain: a disruption budget that allows an eviction, and replicas spread over nodes"
+scored_task "disruption_budget",
+  emoji: "⎈🧫" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    resources = CNFManager.cnf_resource_ymls(args, config).map { |y| JSON.parse(y.to_json) }
+    namespace_of = ->(r : JSON::Any) { r.dig?("metadata", "namespace").try(&.as_s?) || CLUSTER_DEFAULT_NAMESPACE }
+    kind_of = ->(r : JSON::Any) { r.dig?("kind").try(&.as_s?) }
+
+    hpas = resources.select { |r| kind_of.call(r) == "HorizontalPodAutoscaler" }.map { |r| {r, namespace_of.call(r)} }
+    # DaemonSets are left out: a drain does not evict them.
+    workloads = resources.select { |r| ["Deployment", "StatefulSet"].includes?(kind_of.call(r)) }.map do |r|
+      ns = namespace_of.call(r)
+      labels = (r.dig?("spec", "template", "metadata", "labels").try(&.as_h?) || {} of String => JSON::Any)
+        .transform_values { |v| v.as_s? || v.to_s }
+      DisruptionBudget::Workload.new(kind_of.call(r).not_nil!, r.dig("metadata", "name").as_s, ns,
+        DisruptionBudget.replicas(r, ns, hpas), labels,
+        r.dig?("spec", "template", "spec") || JSON::Any.new({} of String => JSON::Any))
+    end
+
+    # Budgets from the manifest, and those live in the CNF's namespaces (an
+    # operator may create them); the live object wins.
+    budgets = {} of String => DisruptionBudget::Budget
+    resources.select { |r| kind_of.call(r) == "PodDisruptionBudget" }.each do |r|
+      ns = namespace_of.call(r)
+      name = r.dig("metadata", "name").as_s
+      budgets["#{ns}/#{name}"] = DisruptionBudget::Budget.new(name, ns, r["spec"]? || JSON::Any.new({} of String => JSON::Any))
+    end
+    (workloads.map(&.namespace) + budgets.values.map(&.namespace)).uniq.each do |ns|
+      live = KubectlClient::ShellCMD.run("kubectl get poddisruptionbudgets -n #{ns} -o json", Log.for(t.name))
+      next unless live[:status].success?
+      (JSON.parse(live[:output])["items"]?.try(&.as_a?) || [] of JSON::Any).each do |item|
+        name = item.dig("metadata", "name").as_s
+        budgets["#{ns}/#{name}"] = DisruptionBudget::Budget.new(name, ns, item["spec"]? || JSON::Any.new({} of String => JSON::Any))
+      end
+    end
+
+    evaluation = DisruptionBudget.evaluate(workloads, budgets.values)
+    evaluation.details.each { |d| result.append_description(d) }
+    if !evaluation.applicable
+      result.na("The CNF has no workload with more than one replica and no PodDisruptionBudget")
+    elsif evaluation.findings.empty?
+      result.passed("Every replicated workload is covered by a disruption budget and spread over nodes, and no budget blocks a drain")
+    else
+      evaluation.findings.each do |f|
+        result.add_impacted_resource(f.kind, f.name, f.namespace, reason: f.reason)
+      end
+      result.append_remediation("For each workload with more than one replica, add a PodDisruptionBudget that selects its pods and allows at least one eviction (for example maxUnavailable: 1), and spread its replicas over nodes with a required podAntiAffinity or a topologySpreadConstraints entry on kubernetes.io/hostname with whenUnsatisfiable: DoNotSchedule. A budget must not set maxUnavailable: 0 or a minAvailable equal to its pods, nor leave both unset.")
+      result.failed("Found #{evaluation.findings.size} workload(s) or budget(s) that would not keep the CNF up through a node drain")
     end
   end
 end
