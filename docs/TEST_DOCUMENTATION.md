@@ -24,7 +24,7 @@
 
 * [**Category: Security Tests**](#category-security-tests)
 
-   [[Container socket mounts]](#container-socket-mounts) | [[Privileged Containers]](#privileged-containers) | [[External IPs]](#external-ips) | [[SELinux Options]](#selinux-options) | [[Sysctls]](#sysctls) | [[Privilege escalation]](#privilege-escalation) | [[Seccomp profile]](#seccomp-profile) | [[Symlink file system]](#symlink-file-system) | [[Application credentials]](#application-credentials) | [[Host network]](#host-network) | [[Service account mapping]](#service-account-mapping) | [[Dedicated service account]](#dedicated-service-account) | [[Ingress and Egress blocked]](#ingress-and-egress-blocked) | [[Insecure capabilities]](#insecure-capabilities) | [[Non-root containers]](#non-root-containers) | [[Host PID/IPC privileges]](#host-pidipc-privileges) | [[Linux hardening]](#linux-hardening) | [[CPU limits]](#cpu-limits) | [[Memory limits]](#memory-limits) | [[Immutable File Systems]](#immutable-file-systems) | [[HostPath Mounts]](#hostpath-mounts) | [[SBOM available]](#sbom-available)
+   [[Container socket mounts]](#container-socket-mounts) | [[Privileged Containers]](#privileged-containers) | [[External IPs]](#external-ips) | [[SELinux Options]](#selinux-options) | [[Sysctls]](#sysctls) | [[Privilege escalation]](#privilege-escalation) | [[Seccomp profile]](#seccomp-profile) | [[Symlink file system]](#symlink-file-system) | [[Application credentials]](#application-credentials) | [[Host network]](#host-network) | [[Service account mapping]](#service-account-mapping) | [[Dedicated service account]](#dedicated-service-account) | [[Ingress and Egress blocked]](#ingress-and-egress-blocked) | [[Insecure capabilities]](#insecure-capabilities) | [[Non-root containers]](#non-root-containers) | [[Host PID/IPC privileges]](#host-pidipc-privileges) | [[Linux hardening]](#linux-hardening) | [[CPU limits]](#cpu-limits) | [[Memory limits]](#memory-limits) | [[Immutable File Systems]](#immutable-file-systems) | [[HostPath Mounts]](#hostpath-mounts) | [[SBOM available]](#sbom-available) | [[Pod Security baseline]](#pod-security-baseline)
 
 * [**Category: Configuration Tests**](#category-configuration-tests)
 
@@ -1635,6 +1635,29 @@ Publish an SBOM for each container image — attach it with `docker buildx build
 #### Usage
 
 `./cnti-testsuite sbom_available`
+
+----------
+
+### Pod Security baseline
+
+#### Overview
+
+Checks that the CNF's pods meet the [Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/) baseline level, as judged by the API server: host namespaces, privileged containers, capabilities, hostPath volumes, host ports, AppArmor, SELinux, the /proc mount type, seccomp, sysctls and host probes. One pod is judged for each workload and pod spec, so replicas share a verdict and pods that differ, mid-rollout or under an operator, are each judged. A failure names each pod and the control it violates. A dry run rejected by something other than Pod Security, such as a validating webhook, is not counted either way: the pod is listed as not judged, with the reason. When no pod of the CNF can be read, or none can be judged, the test is `skipped`. It is also `skipped` when Pod Security is not enforcing baseline in the dry run's namespace: before the CNF's pods, a pod with `hostPID` is dry-run, and if it is admitted (the cluster's admission configuration exempts the suite's user, a runtime class or the namespace), no verdict on the CNF's pods could be trusted.
+Measurement: each pod's spec is created with `kubectl create --dry-run=server` in the `cnti-pss-baseline` namespace, which the suite labels `pod-security.kubernetes.io/enforce=baseline` (at `latest`), so Pod Security Admission judges exactly that pod with the cluster's own implementation, and nothing is created. The pod's name, labels and annotations are kept (baseline reads AppArmor annotations); its service account, token volume, node and priority, which admission would check against that namespace, are dropped. The details name the Kubernetes version the controls came from. The test does not yet accept documented exceptions for CNFs that legitimately need a control, such as a UPF adding `NET_ADMIN`.
+
+#### Rationale
+
+The baseline level is Kubernetes' own minimum for preventing known privilege escalations: a pod that violates it can reach the node or other workloads. Judging it with the API server's implementation rather than a separate list keeps the test in step with the cluster's Kubernetes version, including controls added in later releases. The tests for the individual controls stay, and give the field-level detail.
+
+Sources: [Kubernetes: Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/); [Kubernetes: Pod Security Admission](https://kubernetes.io/docs/concepts/security/pod-security-admission/).
+
+#### Remediation
+
+Bring each pod's spec within the baseline level: no host namespaces, privileged containers, hostPath volumes or host ports; add only the capabilities and set only the sysctls baseline allows; keep the default /proc mount, and do not set AppArmor to unconfined or a custom SELinux type.
+
+#### Usage
+
+`./cnti-testsuite pod_security_baseline`
 
 ----------
 
