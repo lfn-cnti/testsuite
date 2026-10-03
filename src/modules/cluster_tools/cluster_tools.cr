@@ -176,7 +176,13 @@ module ClusterTools
 					container_status_result = container_statuses.map do |container_status|
 						container_name = container_status.dig("name")
 						previous_process_type = "initial_name"
-						prefix_container_id = container_status.dig("containerID").as_s
+						# A container that has not started yet (its pod still Pending, an init
+						# container running) has no ID: it is skipped like one that is not ready.
+						prefix_container_id = container_status.dig?("containerID").try(&.as_s?)
+						unless prefix_container_id
+							Log.info { "no containerID yet, skipping: #{container_name} in #{pod_name}" }
+							next
+						end
 						container_id = prefix_container_id.gsub("containerd://", "")
 						Log.info { "before ready containerStatuses container_id #{container_id}" }
 						ready = container_status.dig("ready").as_bool
