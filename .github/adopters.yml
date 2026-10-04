@@ -1,0 +1,74 @@
+# CNF projects that run the cert in their own CI with lfn-cnti/testsuite-action
+# and show the result as a README badge. The adopter canary
+# (workflows/adopter_canary.yml) runs a suite built from this repository
+# against each of them and compares the result, test by test, with the
+# adopter's own last run (#2727).
+#
+# Each entry mirrors the adopter's cert workflow, so the canary runs what
+# their badge runs. Their files (the suite configuration, the kind config)
+# are read from their repository, at the commit of their last run; only what
+# their workflow does around the action is repeated here. When an adopter
+# changes its workflow, update its entry.
+#
+#   name             job name and artifact suffix: lower case, no spaces
+#   display_name     how the CNF is called in the report
+#   repo             owner/name on GitHub
+#   workflow         file name of their cert workflow; its runs on the
+#                    default branch are the baseline
+#   artifact         name of the results artifact (the action's artifact_name)
+#   cnf_config       path of their cnti-testsuite.yaml in their repository
+#   kind_config      path of their kind config; empty for the action's
+#                    default (a control plane and two workers)
+#   install_timeout  seconds for cnf_install; empty for the suite's default
+#   tests            what they run (the action's tests input)
+#   env              environment their job sets
+#   prepare          commands their job runs before the action, in their
+#                    checkout
+#   expected         changes from the adopter's own result that a suite change
+#                    makes on purpose: test, from, to (a status, or "-" when the
+#                    test is missing from one run) and reason. Any other change
+#                    fails the canary. Add an entry in the pull request that
+#                    makes the change; remove it once the adopter's own runs
+#                    show the new result (the canary reports such entries).
+adopters:
+  - name: jitsi
+    display_name: Jitsi Meet
+    repo: jitsi-contrib/jitsi-helm
+    workflow: cnti.yml
+    artifact: cnti-testsuite-results
+    cnf_config: .github/cnti/cnti-testsuite.yaml
+    kind_config: ""
+    install_timeout: ""
+    tests: cert
+    env: {}
+    prepare: ""
+    expected:
+      - test: sig_term_handled
+        from: failed
+        to: passed
+        reason: "#2718, released in v2.2.0: s6-overlay's own processes are not the workload"
+
+  - name: sdcore
+    display_name: Aether SD-Core
+    repo: omec-project/sdcore-helm-charts
+    workflow: cnti.yml
+    artifact: cnti-testsuite-results
+    cnf_config: .github/cnti/cnti-testsuite.yaml
+    kind_config: .github/cnti/kind.yaml
+    install_timeout: "900"
+    tests: cert
+    env:
+      CNTI_TESTSUITE_GENERIC_OPERATION_TIMEOUT: "180"
+    prepare: |
+      helm repo add bitnami https://charts.bitnami.com/bitnami
+      helm dependency build 5g-control-plane
+      helm dependency build sdcore-helm-charts
+    expected:
+      - test: increase_decrease_capacity
+        from: passed
+        to: failed
+        reason: "#2726, released in v2.2.0: a pod restart after scaling finds MongoDB's replica set degraded (sdcore-helm-charts#195)"
+      - test: node_drain
+        from: failed
+        to: passed
+        reason: "#2725 and #2726, released in v2.2.0: compatibility runs last, so the scale-in no longer breaks the drain"
