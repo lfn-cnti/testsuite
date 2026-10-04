@@ -1,0 +1,181 @@
+# The adopter canary (#2727): runs a suite built from this commit against the
+# CNFs that run the cert in their own CI (.github/adopters.yml), and compares
+# the result, test by test, with each adopter's own last run. The chart is
+# checked out at the commit of that run and installed on the same kind
+# layout, so a difference comes from the suite, not from the adopter.
+#
+# It reports and points at the change; it is not a required check, since an
+# adopter's images, registries or default branch can break for reasons
+# outside this repository. A job fails when any test's result differs from
+# the adopter's run and the change is not listed as expected for that adopter
+# in .github/adopters.yml, or when the canary run ends in an error.
+name: Adopter canary
+
+on:
+  schedule:
+    # Nightly, after the adopters' own nightly runs (03:00 to 04:00 UTC), off
+    # the full hour.
+    - cron: '23 5 * * *'
+  workflow_dispatch:
+  # On demand for a pull request: add the label "adopters".
+  pull_request:
+    types: [labeled, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adopter-canary-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: >-
+      github.event_name != 'pull_request' ||
+      (contains(github.event.pull_request.labels.*.name, 'adopters') &&
+       (github.event.action != 'labeled' || github.event.label.name == 'adopters'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      adopters: ${{ steps.list.outputs.adopters }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: List the adopters
+        id: list
+        run: echo "adopters=$(yq -o=json -I=0 '.adopters' .github/adopters.yml)" >> "$GITHUB_OUTPUT"
+      - name: Install the CNTi toolchain
+        uses: ./.github/actions/install-cnti-toolchain
+      - name: Build the suite
+        run: |
+          shards install
+          crystal build src/cnti-testsuite.cr
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: cnti-testsuite-binary
+          path: cnti-testsuite
+          retention-days: 3
+
+  canary:
+    needs: build
+    name: ${{ matrix.adopter.display_name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        adopter: ${{ fromJson(needs.build.outputs.adopters) }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Find the adopter's last run
+        id: baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ matrix.adopter.repo }}
+          WORKFLOW: ${{ matrix.adopter.workflow }}
+          ARTIFACT: ${{ matrix.adopter.artifact }}
+        run: |
+          set -euo pipefail
+          found=$(.github/workflows/adopter_canary.sh baseline "$REPO" "$WORKFLOW" "$ARTIFACT" "$RUNNER_TEMP/baseline")
+          if [[ -z "$found" ]]; then
+            echo "::error::No run of $WORKFLOW on $REPO's default branch still has the $ARTIFACT artifact"
+            exit 1
+          fi
+          read -r id sha url <<< "$found"
+          echo "Baseline: $url (chart commit $sha)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "file=$(.github/workflows/adopter_canary.sh newest "$RUNNER_TEMP/baseline")" >> "$GITHUB_OUTPUT"
+      - name: Check out the chart at that run's commit
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: ${{ matrix.adopter.repo }}
+          ref: ${{ steps.baseline.outputs.sha }}
+          path: adopter
+          persist-credentials: false
+      - name: Set the adopter's environment
+        env:
+          ADOPTER_ENV: ${{ toJson(matrix.adopter.env) }}
+        run: jq -r 'to_entries[] | "\(.key)=\(.value)"' <<< "$ADOPTER_ENV" >> "$GITHUB_ENV"
+      - name: Install the CNTi toolchain
+        uses: ./.github/actions/install-cnti-toolchain
+      - name: Cache the suite tools
+        uses: ./.github/actions/cache-suite-tools
+        with:
+          scope: adopter-canary
+      - uses: actions/download-artifact@v7.0.0
+        with:
+          name: cnti-testsuite-binary
+          path: ${{ runner.temp }}/cnti-bin
+      - name: Put the suite on the PATH
+        run: |
+          chmod +x "$RUNNER_TEMP/cnti-bin/cnti-testsuite"
+          echo "$RUNNER_TEMP/cnti-bin" >> "$GITHUB_PATH"
+      - name: Prepare as the adopter's job does
+        if: matrix.adopter.prepare != ''
+        working-directory: adopter
+        env:
+          PREPARE: ${{ matrix.adopter.prepare }}
+        run: bash -euo pipefail -c "$PREPARE"
+      - name: Write the action's default kind config
+        if: matrix.adopter.kind_config == ''
+        run: |
+          cat > "$RUNNER_TEMP/kind.yaml" <<'KIND'
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          nodes:
+            - role: control-plane
+            - role: worker
+            - role: worker
+          KIND
+      - name: Create the kind cluster
+        uses: helm/kind-action@v1.15.0
+        with:
+          cluster_name: cnti-testsuite
+          config: ${{ matrix.adopter.kind_config != '' && format('adopter/{0}', matrix.adopter.kind_config) || format('{0}/kind.yaml', runner.temp) }}
+      - name: Run the suite
+        id: run
+        working-directory: adopter
+        env:
+          CNF_CONFIG: ${{ matrix.adopter.cnf_config }}
+          INSTALL_TIMEOUT: ${{ matrix.adopter.install_timeout }}
+          TESTS: ${{ matrix.adopter.tests }}
+        run: |
+          set -uo pipefail
+          cnti-testsuite version
+          cnti-testsuite setup
+          args=(cnf_install --cnf-config "$CNF_CONFIG")
+          if [[ -n "$INSTALL_TIMEOUT" ]]; then args+=(--timeout "$INSTALL_TIMEOUT"); fi
+          cnti-testsuite "${args[@]}" || { echo "::error::cnf_install failed"; exit 1; }
+          cnti-testsuite $TESTS
+          echo "cnti-testsuite exited with $?"
+      - name: Compare with the adopter's run
+        if: always() && steps.baseline.outputs.file != ''
+        env:
+          NAME: ${{ matrix.adopter.display_name }}
+          BASELINE: ${{ steps.baseline.outputs.file }}
+          BASELINE_URL: ${{ steps.baseline.outputs.url }}
+          EXPECTED: ${{ toJson(matrix.adopter.expected) }}
+        run: |
+          set -euo pipefail
+          canary=$(.github/workflows/adopter_canary.sh newest adopter/cnti/results 2>/dev/null || true)
+          if [[ -z "$canary" ]]; then
+            echo "::error::$NAME: the canary run wrote no results file"
+            exit 1
+          fi
+          status=0
+          if [[ "$EXPECTED" == "null" ]]; then echo '[]' > expected.json; else echo "$EXPECTED" > expected.json; fi
+          .github/workflows/adopter_canary.sh compare "$BASELINE" "$canary" "$NAME" report.md expected.json || status=$?
+          { cat report.md; echo "Adopter's run: $BASELINE_URL"; } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+      - uses: actions/upload-artifact@v7.0.1
+        if: always()
+        with:
+          name: adopter-canary-${{ matrix.adopter.name }}
+          path: |
+            adopter/cnti/results/
+            report.md
+          if-no-files-found: ignore
