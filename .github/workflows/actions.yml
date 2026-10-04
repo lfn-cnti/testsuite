@@ -25,7 +25,7 @@ jobs:
       chaos_matrix: ${{ steps.set-matrix.outputs.chaos_matrix }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v7
+      uses: actions/checkout@v7.0.1
       with:
         fetch-depth: 0
     - id: set-matrix
@@ -100,7 +100,7 @@ jobs:
     steps:
     - name: Login to Docker Hub
       if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
-      uses: docker/login-action@v4
+      uses: docker/login-action@v4.6.0
       with:
         username: ${{ env.DOCKERHUB_USERNAME }}
         password: ${{ env.DOCKERHUB_PASSWORD }}
@@ -108,7 +108,7 @@ jobs:
       run: |
         sudo rm -rf /tmp/*
     - name: Checkout code
-      uses: actions/checkout@v7
+      uses: actions/checkout@v7.0.1
       with:
         fetch-depth: 0
     - name: Install the CNTi toolchain
@@ -348,7 +348,7 @@ jobs:
     steps:
     - name: Login to Docker Hub
       if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
-      uses: docker/login-action@v4
+      uses: docker/login-action@v4.6.0
       with:
         username: ${{ env.DOCKERHUB_USERNAME }}
         password: ${{ env.DOCKERHUB_PASSWORD }}
@@ -360,7 +360,7 @@ jobs:
           --password ${{ env.DOCKERHUB_PASSWORD }} \
           registry-1.docker.io
     - name: Checkout code
-      uses: actions/checkout@v7
+      uses: actions/checkout@v7.0.1
       with:
         fetch-depth: 0
     - name: Cache the suite tools
@@ -423,7 +423,7 @@ jobs:
     steps:
     - name: Login to Docker Hub
       if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
-      uses: docker/login-action@v4
+      uses: docker/login-action@v4.6.0
       with:
         username: ${{ env.DOCKERHUB_USERNAME }}
         password: ${{ env.DOCKERHUB_PASSWORD }}
@@ -431,7 +431,7 @@ jobs:
       run: |
         sudo rm -rf /tmp/*
     - name: Checkout code
-      uses: actions/checkout@v7
+      uses: actions/checkout@v7.0.1
       with:
         fetch-depth: 0
     - name: Install the CNTi toolchain
@@ -522,7 +522,7 @@ jobs:
     steps:
     - name: Login to Docker Hub
       if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
-      uses: docker/login-action@v4
+      uses: docker/login-action@v4.6.0
       with:
         username: ${{ env.DOCKERHUB_USERNAME }}
         password: ${{ env.DOCKERHUB_PASSWORD }}
@@ -530,7 +530,7 @@ jobs:
       run: |
         sudo rm -rf /tmp/*
     - name: Checkout code
-      uses: actions/checkout@v7
+      uses: actions/checkout@v7.0.1
       with:
         fetch-depth: 0
     - name: Install the CNTi toolchain
@@ -620,7 +620,7 @@ jobs:
     steps:
     - name: Login to Docker Hub
       if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
-      uses: docker/login-action@v4
+      uses: docker/login-action@v4.6.0
       with:
         username: ${{ env.DOCKERHUB_USERNAME }}
         password: ${{ env.DOCKERHUB_PASSWORD }}
@@ -628,7 +628,7 @@ jobs:
       run: |
         sudo rm -rf /tmp/*
     - name: Checkout code
-      uses: actions/checkout@v7
+      uses: actions/checkout@v7.0.1
       with:
         fetch-depth: 0
     - name: Install the CNTi toolchain
