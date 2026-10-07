@@ -18,5 +18,5 @@ deployments:
   helm_charts:
     - name: ocudu-gnb
       registry_url: "oci://registry.gitlab.com/ocudu/ocudu_elements/ocudu_helm/ocudu-gnb"
-      chart_version: "3.10.3"
+      chart_version: "3.11.2"
       helm_values: -f ./example-cnfs/ocudu/gnb-values.yaml

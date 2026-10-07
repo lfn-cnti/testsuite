@@ -21,15 +21,14 @@ persistence:
 
 # A 4-vCPU runner: one 20 MHz 1x1 cell in test mode instead of the chart's default
 # 100 MHz 4T2R, no hugepages.
-# Sized so that three replicas (increase_decrease_capacity) fit on the two 4-vCPU
-# worker nodes of the runner's kind cluster.
+# Requests sized so that three replicas (increase_decrease_capacity) fit on the two
+# 4-vCPU worker nodes of the runner's kind cluster. No limits: the chart's defaults
+# set none, and limits added here would be credited to the chart by the cpu_limits
+# and memory_limits tests. The run reports the chart's own standing.
 resources:
   requests:
     cpu: "1"
     memory: 2Gi
-  limits:
-    cpu: "2"
-    memory: 3Gi
 
 config:
   gnb-config.yml: |-
