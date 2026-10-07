@@ -18,8 +18,13 @@ needs to install, scale, roll, and chaos-test the workload.
 - `cnti-testsuite.yaml`: the test suite config; the second, retained image
   tag drives the rolling update, downgrade, version change and rollback tests.
 - `gnb-values.yaml`: chart values sized for a four-vCPU node, one 20 MHz
-  1x1 cell, no hugepages, no host path volume. Each choice is explained in
-  the file.
+  1x1 cell, no hugepages, no host path volume, resource requests but no
+  limits. Each choice is explained in the file.
+
+The values change only what the test-mode cluster needs. They add no resource
+limits, since the chart's defaults set none and limits set here would be
+credited to the chart by the `cpu_limits` and `memory_limits` tests; the cert
+result is the chart's own standing, 17 of 19 essential tests.
 
 The image is an AVX2 build with a retained `-stable` tag: the validation
 runners do not guarantee AVX-512, and plain nightly tags are deleted after
