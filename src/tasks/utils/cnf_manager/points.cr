@@ -760,7 +760,7 @@ module CNFManager
       # TODO add tags for category summaries
       YAML.parse <<-END
 name: cnti testsuite
-testsuite_version: <%= CntiTestSuite::VERSION %>
+testsuite_version: #{ReleaseManager::VERSION}
 schema_version: #{RESULTS_SCHEMA_VERSION}
 status: #{RUN_STATUS_RUNNING}
 exit_code:

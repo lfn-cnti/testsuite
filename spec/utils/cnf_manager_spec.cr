@@ -106,6 +106,10 @@ describe "SampleUtils" do
       yaml = YAML.parse(File.read(CNFManager::Points::Results.file))
       yaml["status"].as_s.should eq("running")
       yaml["exit_code"].raw.should be_nil
+      # A run that stops before its first test (no CNF installed, say) leaves
+      # this document as it is: it must already name the version, not a
+      # template placeholder.
+      yaml["testsuite_version"].as_s.should eq(ReleaseManager::VERSION)
 
       CNFManager::Points.upsert_task(CNFManager::TestCaseResult.new(
         "liveness", CNFManager::ResultStatus::Passed, "ok", [] of String, Time.utc, Time.utc))
