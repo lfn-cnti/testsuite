@@ -11,24 +11,22 @@ image:
 sriovConfig:
   enabled: false
 
-# The gNB logs to stdout (see log.filename below). With preserveOldLogs the entrypoint
-# derives a timestamped log directory from that filename ("./<timestamp>"), which the
-# non-root container cannot create, and exits before starting the gNB.
 persistence:
-  # No hostPath log volume (the chart's default): an emptyDir is enough for stdout logging.
+  # No hostPath log volume: an emptyDir is enough, the gNB logs to stdout.
   enabled: false
-  preserveOldLogs: false
 
 # A 4-vCPU runner: one 20 MHz 1x1 cell in test mode instead of the chart's default
-# 100 MHz 4T2R, no hugepages.
-# Sized so that three replicas (increase_decrease_capacity) fit on the two 4-vCPU
-# worker nodes of the runner's kind cluster.
+# 100 MHz 4T2R, no hugepages. The chart (3.12.0 and later) requires requests and
+# limits on every deployment; they are equal here (Guaranteed QoS, as the chart
+# recommends). The gNB in this mode holds about 2.8 GiB and uses about a third of
+# a CPU; three replicas (increase_decrease_capacity) have to fit on the two
+# 4-vCPU worker nodes of the runner's kind cluster.
 resources:
   requests:
     cpu: "1"
-    memory: 2Gi
+    memory: 3Gi
   limits:
-    cpu: "2"
+    cpu: "1"
     memory: 3Gi
 
 config:
