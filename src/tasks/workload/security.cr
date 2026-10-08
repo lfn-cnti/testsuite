@@ -5,6 +5,7 @@ require "colorize"
 require "totem"
 require "../utils/utils.cr"
 require "../utils/sbom_detection.cr"
+require "../utils/pod_security.cr"
 
 desc "CNF containers should be isolated from one another and the host.  The CNF Test suite uses tools like Sysdig Inspect and gVisor"
 category_task "security", [
@@ -29,7 +30,8 @@ category_task "security", [
     "service_account_mapping",
     "dedicated_service_account",
     "application_credentials",
-    "sbom_available"
+    "sbom_available",
+    "pod_security_baseline"
   ]
 
 # Names of the sysctls a resource sets in its pod security context; empty
@@ -826,6 +828,68 @@ scored_task "dedicated_service_account",
       end
       result.append_remediation("Create a ServiceAccount for the workload in the CNF's chart and set serviceAccountName to it in the pod template, so its API permissions and audit trail are its own and not shared with every other pod using the default service account.")
       result.failed("Found #{findings.size} of #{judged} workload(s) running as the default service account")
+    end
+  end
+end
+
+desc "Check that the CNF's pods meet the Pod Security Standards baseline level, as judged by the API server"
+scored_task "pod_security_baseline",
+  emoji: "🔓🔑" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # One pod per owner and spec: replicas share a verdict, pods that differ
+    # (mid-rollout, or under an operator) are each judged.
+    variants = {} of String => NamedTuple(pod: JSON::Any, namespace: String)
+    CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
+      live = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+      KubectlClient::Get.pods_by_resource_labels(live, resource[:namespace]).each do |pod|
+        next if pod.dig?("metadata", "deletionTimestamp")
+        next if pod.dig?("metadata", "annotations", "helm.sh/hook")
+        variants[PodSecurity.variant_key(pod)] ||= {pod: pod, namespace: resource[:namespace]}
+      end
+      true
+    end
+
+    if variants.empty?
+      result.append_remediation("Make sure the CNF's pods are running (a workload scaled to zero has none), then run the test again.")
+      next result.skipped("No pod of the CNF could be read; the Pod Security baseline could not be checked")
+    end
+
+    version = KubectlClient.server_version rescue "unknown"
+    PodSecurity.ensure_namespace
+    if skip_reason = PodSecurity.canary_skip_reason(*PodSecurity.dry_run(PodSecurity.canary_pod))
+      result.append_remediation("Check the cluster's Pod Security admission configuration (AdmissionConfiguration exemptions for usernames, runtime classes and namespaces) and that nothing else rejects pods in #{PodSecurity::BASELINE_NAMESPACE}, then run the test again.")
+      next result.skipped("The CNF's pods could not be judged: #{skip_reason}")
+    end
+    findings = 0
+    judged = 0
+    not_judged = [] of String
+    variants.each_value do |v|
+      pod_name = v[:pod].dig?("metadata", "name").try(&.as_s?) || ""
+      success, output = PodSecurity.dry_run(v[:pod])
+      verdict, reason = PodSecurity.verdict(success, output)
+      case verdict
+      when PodSecurity::Verdict::Passed
+        judged += 1
+      when PodSecurity::Verdict::Violation
+        judged += 1
+        findings += 1
+        result.add_impacted_resource("Pod", pod_name, v[:namespace],
+          reason: "#{PodSecurity.owner(v[:pod])} violates Pod Security \"#{PodSecurity::LEVEL}\": #{reason}")
+      else
+        not_judged << "Pod/#{pod_name} in #{v[:namespace]} (#{PodSecurity.owner(v[:pod])}): not judged, the dry run was rejected by something other than Pod Security: #{reason}"
+      end
+    end
+    not_judged.each { |line| result.append_description(line) }
+    result.append_description("Judged at Pod Security \"#{PodSecurity::LEVEL}:latest\" of Kubernetes v#{version}")
+
+    if findings > 0
+      result.append_remediation("Bring each pod's spec within the Pod Security Standards baseline level: no host namespaces, privileged containers, hostPath volumes or host ports, only the baseline's allowed capabilities and sysctls, and the default /proc mount, AppArmor, SELinux and seccomp settings.")
+      result.failed("Found #{findings} of #{judged} pod variant(s) of the CNF violating Pod Security \"#{PodSecurity::LEVEL}\"")
+    elsif judged == 0
+      result.append_remediation("See why the dry runs were rejected in the details; a validating webhook or quota on the cluster may need to allow the #{PodSecurity::BASELINE_NAMESPACE} namespace.")
+      result.skipped("No pod of the CNF could be judged; every dry run was rejected by something other than Pod Security")
+    else
+      result.passed("All #{judged} pod variant(s) of the CNF meet Pod Security \"#{PodSecurity::LEVEL}\"")
     end
   end
 end
