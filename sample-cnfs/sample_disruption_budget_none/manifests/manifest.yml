@@ -1,0 +1,30 @@
+---
+# Two replicas, no budget and no spread.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: disruption-budget-none
+  labels:
+    app: disruption-budget-none
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: disruption-budget-none
+  template:
+    metadata:
+      labels:
+        app: disruption-budget-none
+    spec:
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["sh", "-c", "sleep 2147483647"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault

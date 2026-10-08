@@ -162,6 +162,66 @@ describe CntiTestSuite do
     end
   end
 
+  it "'disruption_budget' should pass when replicas are spread and a budget allows an eviction", tags: ["disruption_budget"] do
+    begin
+      # The test reads the manifest and the live budgets, not the pods: a
+      # required anti-affinity leaves a second replica Pending on one node.
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_disruption_budget/cnti-testsuite.yaml --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("disruption_budget")
+      result[:status].success?.should be_true
+      (/(PASSED).*(Every replicated workload is covered by a disruption budget)/ =~ result[:output]).should_not be_nil
+      (/PodDisruptionBudget\/disruption-budget-app in .*: allows 1 of 2 selected pod\(s\)/ =~ result[:output]).should_not be_nil
+      verify_task_result("disruption_budget", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'disruption_budget' should fail when a replicated workload has no budget", tags: ["disruption_budget"] do
+    begin
+      # The test reads the manifest and the live budgets, not the pods: a
+      # required anti-affinity leaves a second replica Pending on one node.
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_disruption_budget_none/cnti-testsuite.yaml --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("disruption_budget")
+      result[:status].exit_code.should eq(1)
+      (/impacted: Deployment\/disruption-budget-none in .*: 2 replicas, but no PodDisruptionBudget selects its pods/ =~ result[:output]).should_not be_nil
+      verify_task_result("disruption_budget", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'disruption_budget' should fail on a budget that allows no eviction", tags: ["disruption_budget"] do
+    begin
+      # The test reads the manifest and the live budgets, not the pods: a
+      # required anti-affinity leaves a second replica Pending on one node.
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_disruption_budget_blocking/cnti-testsuite.yaml --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("disruption_budget")
+      result[:status].exit_code.should eq(1)
+      (/impacted: PodDisruptionBudget\/disruption-budget-blocking in .*: allows no eviction of its 2 selected pod\(s\) \(maxUnavailable: 0\)/ =~ result[:output]).should_not be_nil
+      verify_task_result("disruption_budget", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'disruption_budget' should be N/A for a single replica without a budget", tags: ["disruption_budget"] do
+    begin
+      # The test reads the manifest and the live budgets, not the pods: a
+      # required anti-affinity leaves a second replica Pending on one node.
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_disruption_budget_single/cnti-testsuite.yaml --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("disruption_budget")
+      (/(N\/A).*(no workload with more than one replica and no PodDisruptionBudget)/ =~ result[:output]).should_not be_nil
+      verify_task_result("disruption_budget", "na")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
   it "'rolling_update' should pass when valid version is given", tags: ["rolling_update"]  do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling/cnti-testsuite.yaml")
