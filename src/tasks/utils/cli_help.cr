@@ -117,7 +117,7 @@ module CLIHelp
     add.call("Setup helpers", visible_tasks.map(&.path).select(&.starts_with?("setup:")).sort)
     add.call("Utilities", [
       "help", "completion", "version", "update_config", "delete_results",
-      "test", "upsert_release",
+      "results_junit", "evidence", "test", "upsert_release",
     ])
 
     rest = visible_tasks.reject { |task| claimed.includes?(task.path) }.sort_by(&.path)

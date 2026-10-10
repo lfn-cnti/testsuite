@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/lfn-cnti/testsuite/main/docs/cnti-evidence.schema.json",
+  "title": "CNTi Test Suite evidence statement",
+  "description": "Schema for cnti-evidence.json, written by `cnti-testsuite evidence`: an in-toto Statement (v1) with the Test Result predicate (v0.1) whose subject is the results file, plus the `cnti` block a reader needs without opening the results YAML.",
+  "type": "object",
+  "required": ["_type", "subject", "predicateType", "predicate"],
+  "additionalProperties": false,
+  "properties": {
+    "_type": {
+      "type": "string",
+      "const": "https://in-toto.io/Statement/v1"
+    },
+    "subject": {
+      "description": "The results file the statement is about, by content digest.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/resource_descriptor"}
+    },
+    "predicateType": {
+      "type": "string",
+      "const": "https://in-toto.io/attestation/test-result/v0.1"
+    },
+    "predicate": {
+      "type": "object",
+      "required": ["result", "passedTests", "failedTests", "warnedTests", "cnti"],
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "description": "PASSED when the run met its objective, FAILED otherwise (an errored run is FAILED).",
+          "type": "string",
+          "enum": ["PASSED", "WARNED", "FAILED"]
+        },
+        "passedTests": {"type": "array", "items": {"type": "string"}},
+        "failedTests": {"type": "array", "items": {"type": "string"}},
+        "warnedTests": {"type": "array", "items": {"type": "string"}},
+        "cnti": {"$ref": "#/$defs/cnti"}
+      }
+    }
+  },
+  "$defs": {
+    "resource_descriptor": {
+      "type": "object",
+      "required": ["name", "digest"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string"},
+        "digest": {
+          "type": "object",
+          "required": ["sha256"],
+          "additionalProperties": false,
+          "properties": {
+            "sha256": {"type": "string"}
+          }
+        }
+      }
+    },
+    "cnti": {
+      "description": "What the badge and the summary say, as a reader needs them: taken from the results file.",
+      "type": "object",
+      "required": [
+        "schema_version", "testsuite_version", "task", "label", "status", "exit_code",
+        "passed", "max_passed", "essential_passed", "essential_max_passed",
+        "points", "maximum_points", "criteria", "run_date", "results_file", "self_published"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"description": "Version of this `cnti` block.", "type": "integer", "const": 1},
+        "testsuite_version": {"type": "string"},
+        "task": {"description": "The task that produced the results file, e.g. cert.", "type": "string"},
+        "label": {"description": "The badge's label: CNTi essential for the cert task, CNTi <task> otherwise.", "type": "string"},
+        "status": {"type": "string", "enum": ["passed", "failed", "error"]},
+        "exit_code": {"type": "integer"},
+        "passed": {"type": "integer"},
+        "max_passed": {"type": "integer"},
+        "essential_passed": {"type": "integer"},
+        "essential_max_passed": {"type": "integer"},
+        "points": {"type": "integer"},
+        "maximum_points": {"type": "integer"},
+        "criteria": {"description": "The results file's summary.criteria, verbatim; null when the run had none.", "type": ["object", "null"]},
+        "run_date": {"description": "From the results file's timestamp name (UTC, RFC 3339), else the file's modification time.", "type": "string"},
+        "results_file": {"description": "The results file's name, as the subject names it.", "type": "string"},
+        "self_published": {"description": "Always true: the statement is produced by the project's own run, not by a CNTi review.", "type": "boolean", "const": true}
+      }
+    }
+  }
+}

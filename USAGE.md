@@ -90,6 +90,34 @@ errored test an `<error>`; skipped and not-applicable tests a `<skipped>`. The r
 `exit_code` and every `summary` field are `<properties>` of the root, so a consumer can show
 "17 of 19 essential tests passed, threshold 15" without opening the YAML.
 
+#### Evidence bundle
+
+`evidence` writes what a project publishes next to its badge, from the newest results file (or
+`--results-file PATH`), into `cnti/evidence/` (or `--output-dir PATH`):
+
+```
+./cnti-testsuite evidence
+./cnti-testsuite evidence --results-file PATH --output-dir PATH
+```
+
+- `cnti-badge.svg`: the badge, the CNTi logo, the test set and the score (`CNTi essential 17/19`
+  for a `cert` run, the task's name for any other task), green when the run met its objective,
+  red when it did not, grey when it errored.
+- `cnti-badge.json`: the same in [shields.io endpoint](https://shields.io/badges/endpoint-badge)
+  format, with the monochrome logo.
+- `cnti-evidence.json`: an [in-toto Statement](https://github.com/in-toto/attestation) with the
+  [Test Result predicate](https://github.com/in-toto/attestation/blob/main/spec/predicates/test-result.md):
+  the results file as the subject (by sha256 digest), the verdict, the passed and failed tests
+  by name, and under `cnti` the fields a reader needs without opening the YAML (suite version,
+  task, status, tests passed and maximum, points, criteria, run date). Schema:
+  [`docs/cnti-evidence.schema.json`](docs/cnti-evidence.schema.json). The statement says
+  `self_published: true`: it is produced by the project's own run, not by a CNTi review.
+- A copy of the results file and its JUnit report, so the directory is complete on its own.
+
+A results file without a verdict (`status: running`) is refused: the run did not finish. The
+GitHub Action and the GitLab CI/CD component publish this bundle; a job on any other CI runs
+`evidence` after the tests and uploads the directory to a public URL.
+
 To write somewhere else, pass `--results-dir PATH` on the command line or set the
 `CNTI_TESTSUITE_RESULTS_DIR` environment variable; the option wins over the variable. The
 timestamped file and `latest.yml` both go there, and `delete_results` honours the same setting.
