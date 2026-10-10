@@ -1,6 +1,6 @@
 module JaegerManager
   # renovate: datasource=helm depName=jaeger registryUrl=https://jaegertracing.github.io/helm-charts
-  JAEGER_CHART_VERSION = "1.0.0"
+  JAEGER_CHART_VERSION = "1.0.2"
   JAEGER_NAMESPACE = "jaeger"
 
   # Jaeger is configured when its query API answers: probing the thing the
