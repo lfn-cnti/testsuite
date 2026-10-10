@@ -34,5 +34,5 @@ spec:
       containers:
       - name: main
         # renovate: datasource=docker depName=busybox
-        image: busybox:1.33.1@sha256:f7ca5a32c10d51aeda3b4d01c61c6061f497893d7f6628b92f822f7117182a57
+        image: busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e
         command: ["sh", "-c", "sleep 2147483647"]
