@@ -51,7 +51,7 @@ jobs:
         run: |
           shards install
           crystal build src/cnti-testsuite.cr
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: cnti-testsuite-binary
           path: cnti-testsuite
@@ -132,7 +132,7 @@ jobs:
             - role: worker
           KIND
       - name: Create the kind cluster
-        uses: helm/kind-action@v1.15.0
+        uses: helm/kind-action@v1.15.1
         with:
           cluster_name: cnti-testsuite
           config: ${{ matrix.adopter.kind_config != '' && format('adopter/{0}', matrix.adopter.kind_config) || format('{0}/kind.yaml', runner.temp) }}
@@ -171,7 +171,7 @@ jobs:
           .github/workflows/adopter_canary.sh compare "$BASELINE" "$canary" "$NAME" report.md expected.json || status=$?
           { cat report.md; echo "Adopter's run: $BASELINE_URL"; } >> "$GITHUB_STEP_SUMMARY"
           exit $status
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: adopter-canary-${{ matrix.adopter.name }}
