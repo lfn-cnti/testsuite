@@ -146,6 +146,20 @@ tools:                            # versions of the tools whose verdicts the fil
   kyverno: 1.19.0
   kyverno_policies: release-1.19
   litmus: 3.31.0
+platform:                         # the cluster the tests ran on (null when it could not be queried)
+  kubernetes: v1.32.0
+  provider: kind                  # from the nodes' providerID; none when absent
+  cni: kindnet                    # where a kube-system DaemonSet names it; null otherwise
+  nodes:
+    - name: kind-worker
+      roles: []
+      kubelet: v1.32.0
+      os_image: Debian GNU/Linux 12 (bookworm)
+      kernel: 6.8.0-1017-azure
+      container_runtime: containerd://1.7.24
+      architecture: amd64
+      cpu: "4"
+      memory: 16373844Ki
 items:
   - name: privileged_containers
     status: failed                # passed | failed | skipped | na | error
@@ -187,6 +201,7 @@ items:
 | `exit_code` | Process exit code, answering "did this run meet its objective?" (`null` while the run is in progress). `2` at least one test errored (raised) - the suite itself broke, which always wins. Otherwise, for a run with a pass criterion (`cert`): `0` the criterion was met, `1` it was not. For a run without one (`all`, `workload`, `platform`): `0` no test failed (passed/skipped/na), `1` at least one test failed. Additionally, the process exits with `64` (usage error) on unknown or malformed command-line arguments, before any test runs. See [Exit codes](#exit-codes) for the full table. |
 | `summary` | Aggregate numbers for the whole run (see below). |
 | `tools` | Versions of the tools whose verdicts the file contains (see below). |
+| `platform` | The cluster the tests ran on, recorded when the file is created: the API server version, the provider (from the nodes' `providerID`), the CNI where a `kube-system` DaemonSet names it, and every node with its kubelet version, OS image, kernel, container runtime, architecture and capacity. A score is only interpretable against the environment it was produced in. `null` when the cluster could not be queried; a run never fails because of it. |
 | `items` | One entry per test that ran (see below). |
 
 ##### `tools` fields

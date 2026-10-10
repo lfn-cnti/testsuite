@@ -361,6 +361,7 @@ module CNFManager
                      status:            RUN_STATUS_RUNNING,
                      exit_code:         nil,
                      tools:             tool_versions,
+                     platform:          results["platform"]? || CNFManager::Platform.collect,
                      items:             [] of YAML::Any},
             f)
         end
@@ -758,7 +759,7 @@ module CNFManager
 
     def self.template_results_yml
       # TODO add tags for category summaries
-      YAML.parse <<-END
+      doc = YAML.parse <<-END
 name: cnti testsuite
 testsuite_version: #{ReleaseManager::VERSION}
 schema_version: #{RESULTS_SCHEMA_VERSION}
@@ -766,8 +767,14 @@ status: #{RUN_STATUS_RUNNING}
 exit_code:
 tools:
 #{tool_versions.to_yaml.lines[1..].map { |l| "  #{l}\n" }.join.chomp}
+platform:
 items: []
 END
+      # The cluster the run is about to use, recorded once at the start: a
+      # score is only interpretable against the environment it was produced
+      # in (#2746). Null when the cluster cannot be queried.
+      doc.as_h[YAML::Any.new("platform")] = CNFManager::Platform.collect
+      doc
     end
   end
 end

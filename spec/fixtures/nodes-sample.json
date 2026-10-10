@@ -1,0 +1,10 @@
+{"apiVersion":"v1","kind":"List","items":[
+ {"metadata":{"name":"kind-control-plane","labels":{"kubernetes.io/arch":"amd64","node-role.kubernetes.io/control-plane":""}},
+  "spec":{"providerID":"kind://docker/kind/kind-control-plane"},
+  "status":{"capacity":{"cpu":"4","memory":"16373844Ki","pods":"110"},
+            "nodeInfo":{"architecture":"amd64","containerRuntimeVersion":"containerd://1.7.24","kernelVersion":"6.8.0-1017-azure","kubeletVersion":"v1.32.0","osImage":"Debian GNU/Linux 12 (bookworm)"}}},
+ {"metadata":{"name":"kind-worker","labels":{"kubernetes.io/arch":"amd64"}},
+  "spec":{"providerID":"kind://docker/kind/kind-worker"},
+  "status":{"capacity":{"cpu":"4","memory":"16373844Ki","pods":"110"},
+            "nodeInfo":{"architecture":"amd64","containerRuntimeVersion":"containerd://1.7.24","kernelVersion":"6.8.0-1017-azure","kubeletVersion":"v1.32.0","osImage":"Debian GNU/Linux 12 (bookworm)"}}}
+]}

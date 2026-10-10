@@ -63,6 +63,13 @@ module JUnitReport
           xml.element("property", {"name" => "summary.#{key}", "value" => rendered})
         end
       end
+      # The cluster the run used: the scalars, and the nodes as compact JSON.
+      if (platform = results["platform"]?.try(&.as_h?))
+        platform.each do |key, value|
+          rendered = value.raw.is_a?(Hash) || value.raw.is_a?(Array) ? value.to_json : value.to_s
+          xml.element("property", {"name" => "platform.#{key}", "value" => rendered})
+        end
+      end
     end
   end
 

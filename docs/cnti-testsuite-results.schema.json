@@ -103,6 +103,49 @@
       "items": {
         "$ref": "#/$defs/item"
       }
+    },
+    "platform": {
+      "description": "The cluster the tests ran on, recorded when the results file is created at the start of the run. A score is only interpretable against the environment it was produced in. Null when the cluster could not be queried.",
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "kubernetes",
+        "provider",
+        "cni",
+        "nodes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kubernetes": {
+          "description": "The API server's version (kubectl version, serverVersion.gitVersion).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "description": "From the nodes' providerID: kind, aws, gce, azure, openstack, ...; none when the nodes carry no providerID.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cni": {
+          "description": "The CNI, where a kube-system DaemonSet names it (kindnet, calico, cilium, flannel, weave, antrea, ovn); null otherwise.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/node"
+          }
+        }
+      }
     }
   },
   "$defs": {
@@ -348,6 +391,56 @@
           "type": "string"
         },
         "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "required": [
+        "name",
+        "roles",
+        "kubelet",
+        "os_image",
+        "kernel",
+        "container_runtime",
+        "architecture",
+        "cpu",
+        "memory"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "roles": {
+          "description": "From the node-role.kubernetes.io/<role> labels.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "kubelet": {
+          "type": "string"
+        },
+        "os_image": {
+          "type": "string"
+        },
+        "kernel": {
+          "type": "string"
+        },
+        "container_runtime": {
+          "type": "string"
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "cpu": {
+          "description": "status.capacity.cpu",
+          "type": "string"
+        },
+        "memory": {
+          "description": "status.capacity.memory",
           "type": "string"
         }
       }
