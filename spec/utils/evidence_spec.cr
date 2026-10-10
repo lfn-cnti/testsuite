@@ -74,6 +74,52 @@ describe "Evidence" do
     validate_against_schema(statement, schema, schema["$defs"])
   end
 
+  it "bundles the configuration the install recorded: the config and the values files it names", tags: ["points"] do
+    project = File.tempname("cnti-evidence-project")
+    cnf_dir = File.tempname("cnti-evidence-cnf")
+    bundle = File.tempname("cnti-evidence-out")
+    begin
+      Dir.mkdir_p(File.join(project, "ci"))
+      File.write(File.join(project, "values.yaml"), "replicaCount: 2\n")
+      File.write(File.join(project, "ci", "extra.yaml"), "resources: {}\n")
+      File.write(File.join(project, "ci", "ca.crt"), "cert\n")
+      Dir.mkdir_p(cnf_dir)
+      File.write(File.join(cnf_dir, CONFIG_FILE), <<-YAML
+        config_version: v2
+        deployments:
+          helm_charts:
+            - name: cnf
+              helm_chart_name: cnf
+              helm_repo_name: r
+              helm_repo_url: https://example.com/r
+              helm_values: -f values.yaml,ci/extra.yaml --set-file tls.ca=ci/ca.crt,tls.key=missing.key --set x=ci/values.yaml
+        YAML
+      )
+      File.write(File.join(cnf_dir, "config_dir"), project)
+
+      files = Evidence.configuration_files(cnf_dir)
+      files.map(&.[:name]).should eq([CONFIG_FILE, "values.yaml", "ci/extra.yaml", "ci/ca.crt"])
+
+      written = Evidence.write(fixture, bundle, cnf_dir)
+      written.should contain("config/cnti-testsuite.yaml")
+      written.should contain("config/ci/extra.yaml")
+      File.read(File.join(bundle, "config", "values.yaml")).should eq("replicaCount: 2\n")
+      statement = JSON.parse(File.read(File.join(bundle, "cnti-evidence.json")))
+      configuration = statement["predicate"]["configuration"].as_a
+      configuration.map { |c| c["name"].as_s }.should eq(["config/cnti-testsuite.yaml", "config/values.yaml", "config/ci/extra.yaml", "config/ci/ca.crt"])
+      configuration[1]["digest"]["sha256"].as_s.should eq(Digest::SHA256.hexdigest("replicaCount: 2\n"))
+      # The copy is what the digest names.
+      Digest::SHA256.hexdigest(File.read(File.join(bundle, "config", "ci", "ca.crt"))).should eq(configuration[3]["digest"]["sha256"].as_s)
+
+      # No installed CNF: nothing to bundle, and the statement says so.
+      Evidence.configuration_files(File.join(cnf_dir, "nope")).should be_empty
+    ensure
+      FileUtils.rm_rf(project)
+      FileUtils.rm_rf(cnf_dir)
+      FileUtils.rm_rf(bundle)
+    end
+  end
+
   it "refuses a results file without a verdict", tags: ["points"] do
     dir = File.tempname("cnti-evidence-running")
     Dir.mkdir_p(dir)

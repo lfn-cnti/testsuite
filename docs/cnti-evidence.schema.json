@@ -22,13 +22,18 @@
     },
     "predicate": {
       "type": "object",
-      "required": ["result", "passedTests", "failedTests", "warnedTests", "cnti"],
+      "required": ["result", "configuration", "passedTests", "failedTests", "warnedTests", "cnti"],
       "additionalProperties": false,
       "properties": {
         "result": {
           "description": "PASSED when the run met its objective, FAILED otherwise (an errored run is FAILED).",
           "type": "string",
           "enum": ["PASSED", "WARNED", "FAILED"]
+        },
+        "configuration": {
+          "description": "The configuration the run used, copied into the bundle's config/ directory: the cnti-testsuite.yaml the install was given and every values file it names, each by its path in the bundle and its digest. Empty when no CNF was installed when evidence ran.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/resource_descriptor"}
         },
         "passedTests": {"type": "array", "items": {"type": "string"}},
         "failedTests": {"type": "array", "items": {"type": "string"}},

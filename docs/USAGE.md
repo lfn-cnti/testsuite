@@ -113,6 +113,13 @@ errored test an `<error>`; skipped and not-applicable tests a `<skipped>`. The r
   [`docs/cnti-evidence.schema.json`](cnti-evidence.schema.json). The statement says
   `self_published: true`: it is produced by the project's own run, not by a CNTi review.
 - A copy of the results file and its JUnit report, so the directory is complete on its own.
+- `config/`: the configuration the run used, as the install recorded it: the `cnti-testsuite.yaml`
+  the CNF was installed from and every values file it names (`-f`, `--values`, `--set-file`),
+  each listed in the statement's `configuration` with its digest. This is what lets a reader see
+  what was set on top of the chart's defaults; it is published verbatim, so keep credentials out
+  of values files (use `--set` from a secret). The files come from the installed CNF, so run
+  `evidence` before `cnf_uninstall`; afterwards the bundle has no `config/` and the statement's
+  `configuration` is empty.
 
 A results file without a verdict (`status: running`) is refused: the run did not finish. The
 GitHub Action and the GitLab CI/CD component publish this bundle; a job on any other CI runs

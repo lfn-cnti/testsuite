@@ -1,7 +1,7 @@
 require "sam"
 require "./utils/evidence"
 
-desc "Writes the evidence bundle of the newest results file (or --results-file PATH) into --output-dir (default cnti/evidence): the badge as SVG and shields.io JSON, an in-toto Test Result statement, the results file and its JUnit report"
+desc "Writes the evidence bundle of the newest results file (or --results-file PATH) into --output-dir (default cnti/evidence): the badge as SVG and shields.io JSON, an in-toto Test Result statement, the results file and its JUnit report, and the configuration the installed CNF was given (run it before cnf_uninstall)"
 task "evidence" do |_, args|
   results_path = args.named["results-file"]?.try(&.as(String)) || CNFManager::Points::Results.latest
   unless File.exists?(results_path)

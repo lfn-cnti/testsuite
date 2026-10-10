@@ -21,6 +21,9 @@ module Evidence
   # The version of the `cnti` block of the predicate (docs/cnti-evidence.schema.json).
   CNTI_SCHEMA_VERSION = 1
 
+  # Where the bundle keeps the configuration the run used.
+  CONFIG_SUBDIR = "config"
+
   # The results file's `status` and the `result` of the in-toto predicate.
   RESULT_OF = {"passed" => "PASSED", "failed" => "FAILED", "error" => "FAILED"}
 
@@ -104,10 +107,51 @@ module Evidence
     {schemaVersion: 1, label: "CNTi #{set}", message: message, color: name, logoSvg: LOGO_SVG}.to_json
   end
 
+  # The configuration the run used, as the install recorded it: the config
+  # copied into the installed-CNF directory and every values file it names
+  # (`-f`, `--values`, `--set-file`), resolved against the directory the
+  # config came from. Each entry is the name the bundle keeps it under and
+  # the file to copy. Empty when no CNF is installed, so `evidence` has to run
+  # before `cnf_uninstall` to carry the configuration.
+  def self.configuration_files(cnf_dir : String = CNF_DIR) : Array(NamedTuple(name: String, path: String))
+    config = File.join(cnf_dir, CONFIG_FILE)
+    return [] of NamedTuple(name: String, path: String) unless File.file?(config)
+    dir_file = File.join(cnf_dir, "config_dir")
+    config_dir = File.exists?(dir_file) ? File.read(dir_file).strip : "."
+    files = [{name: CONFIG_FILE, path: config}]
+    deployments = YAML.parse(File.read(config))["deployments"]?.try(&.as_h?) || {} of YAML::Any => YAML::Any
+    deployments.each_value do |list|
+      (list.as_a? || [] of YAML::Any).each do |deployment|
+        helm_values = deployment["helm_values"]?.try(&.as_s?) || next
+        values_paths_in(helm_values).each do |written|
+          path = Path.new(written).absolute? ? written : File.join(config_dir, written)
+          next unless File.file?(path)
+          name = Path.new(written).absolute? ? File.basename(written) : written
+          files << {name: name, path: path} unless files.any? { |f| f[:name] == name }
+        end
+      end
+    end
+    files
+  end
+
+  # The file paths a helm_values string names: `-f a.yaml,b.yaml`,
+  # `--values=a.yaml` and the files of `--set-file key=path`.
+  private def self.values_paths_in(helm_values : String) : Array(String)
+    paths = [] of String
+    helm_values.scan(CNFInstall::HELM_VALUES_FILE_FLAG) { |m| paths.concat(m["paths"].split(',')) }
+    helm_values.scan(CNFInstall::HELM_SET_FILE_FLAG) do |m|
+      m["pairs"].split(',').each do |pair|
+        _, sep, path = pair.partition('=')
+        paths << path unless sep.empty?
+      end
+    end
+    paths.reject(&.empty?).reject { |p| p.includes?("://") }
+  end
+
   # The in-toto Statement: the results file is the subject, the Test Result
-  # predicate carries the verdict and the test names, and `cnti` the fields a
-  # reader needs without opening the YAML.
-  def self.statement(results_path : String, results : YAML::Any) : String
+  # predicate carries the verdict, the test names and the configuration the
+  # run used, and `cnti` the fields a reader needs without opening the YAML.
+  def self.statement(results_path : String, results : YAML::Any, configuration : Array(NamedTuple(name: String, path: String)) = [] of NamedTuple(name: String, path: String)) : String
     items = results["items"]?.try(&.as_a?) || [] of YAML::Any
     names_with = ->(wanted : String) {
       items.select { |i| i["status"]?.try(&.as_s?) == wanted }.compact_map { |i| i["name"]?.try(&.as_s?) }
@@ -123,7 +167,8 @@ module Evidence
       "subject"       => [{"name" => File.basename(results_path), "digest" => {"sha256" => sha256_of(results_path)}}],
       "predicateType" => PREDICATE_TYPE,
       "predicate"     => {
-        "result"      => RESULT_OF[status]? || "FAILED",
+        "result"        => RESULT_OF[status]? || "FAILED",
+        "configuration" => configuration.map { |f| {"name" => "#{CONFIG_SUBDIR}/#{f[:name]}", "digest" => {"sha256" => sha256_of(f[:path])}} },
         "passedTests" => names_with.call("passed"),
         "failedTests" => names_with.call("failed"),
         "warnedTests" => [] of String,
@@ -156,7 +201,7 @@ module Evidence
   # Writes the bundle for `results_path` (a timestamped results file, not the
   # latest.yml link) into `output_dir`. Returns the files written, by name.
   # A file without a verdict is refused: a run still `running` never finished.
-  def self.write(results_path : String, output_dir : String) : Array(String)
+  def self.write(results_path : String, output_dir : String, cnf_dir : String = CNF_DIR) : Array(String)
     results = YAML.parse(File.read(results_path))
     status = status_of(results)
     if status == "running" || results["exit_code"]?.try(&.raw).nil?
@@ -171,9 +216,16 @@ module Evidence
       File.write(File.join(output_dir, name), content)
       written << name
     }
+    configuration = configuration_files(cnf_dir)
     write_file.call(BADGE_SVG, badge_svg(set, message, status))
     write_file.call(BADGE_JSON, badge_json(set, message, status) + "\n")
-    write_file.call(STATEMENT_JSON, statement(results_path, results) + "\n")
+    write_file.call(STATEMENT_JSON, statement(results_path, results, configuration) + "\n")
+    configuration.each do |f|
+      target = File.join(output_dir, CONFIG_SUBDIR, f[:name])
+      FileUtils.mkdir_p(File.dirname(target))
+      FileUtils.cp(f[:path], target)
+      written << "#{CONFIG_SUBDIR}/#{f[:name]}"
+    end
 
     results_name = File.basename(results_path)
     FileUtils.cp(results_path, File.join(output_dir, results_name))
