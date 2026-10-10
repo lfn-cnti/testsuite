@@ -30,8 +30,8 @@
     },
     {
       "customType": "regex",
-      "description": "Helm values image block (repository/tag/digest) after a '# renovate:' annotation",
-      "managerFilePatterns": ["/^embedded_files/.*-values\\.ya?ml$/"],
+      "description": "Helm values image block (repository/tag/digest) after a '# renovate:' annotation, in the embedded values and in the spec fixtures that must pin the same image",
+      "managerFilePatterns": ["/^embedded_files/.*-values\\.ya?ml$/", "/^spec/fixtures/.*-values.*\\.ya?ml$/"],
       "matchStrings": ["# renovate: datasource=docker depName=(?<depName>[^\\s]+)\\nimage:\\n\\s+repository: [^\\n]+\\n\\s+tag: (?<currentValue>[^\\s]+)(?:\\n\\s+digest: (?<currentDigest>sha256:[a-f0-9]{64}))?"],
       "datasourceTemplate": "docker"
     },

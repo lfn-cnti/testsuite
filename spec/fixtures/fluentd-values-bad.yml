@@ -1,6 +1,10 @@
 # A fluentd that is detected as a log collector (same image as the
 # testsuite-installed one) but tails /tmp instead of the container logs,
-# so no CNF log ever reaches it.
+# so no CNF log ever reaches it. The test recognises the collector by the
+# digest of the image the suite pins, so this tag has to move with
+# embedded_files/fluentd-values.yml and fluent_manager.cr: renovate bumps
+# all three together through the marker below.
+# renovate: datasource=docker depName=fluent/fluentd-kubernetes-daemonset
 image:
   repository: fluent/fluentd-kubernetes-daemonset
   tag: v1.19.3-debian-elasticsearch8-1.1
