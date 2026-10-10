@@ -27,7 +27,7 @@ spec:
       containers:
       - name: hotrod
         # renovate: datasource=docker depName=jaegertracing/example-hotrod
-        image: jaegertracing/example-hotrod:1.28.0@sha256:fbcdec6e28d20c578a4cf6f67365c6fa1392a1c9af44d4eab634696d0467dbdb
+        image: jaegertracing/example-hotrod:1.76.0@sha256:a96cc9e45b48a9bf11932fdfe24d5dc5660a89c9daeb854ef6a40c18f4a203b6
         env:
         - name: JAEGER_AGENT_HOST
           value: jaeger-agent.jaeger
