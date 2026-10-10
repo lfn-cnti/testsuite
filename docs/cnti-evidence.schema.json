@@ -60,7 +60,8 @@
       "required": [
         "schema_version", "testsuite_version", "task", "label", "status", "exit_code",
         "passed", "max_passed", "essential_passed", "essential_max_passed",
-        "points", "maximum_points", "criteria", "run_date", "results_file", "self_published"
+        "points", "maximum_points", "criteria", "run_date", "results_file", "self_published",
+        "provenance"
       ],
       "additionalProperties": false,
       "properties": {
@@ -79,7 +80,26 @@
         "criteria": {"description": "The results file's summary.criteria, verbatim; null when the run had none.", "type": ["object", "null"]},
         "run_date": {"description": "From the results file's timestamp name (UTC, RFC 3339), else the file's modification time.", "type": "string"},
         "results_file": {"description": "The results file's name, as the subject names it.", "type": "string"},
-        "self_published": {"description": "Always true: the statement is produced by the project's own run, not by a CNTi review.", "type": "boolean", "const": true}
+        "self_published": {"description": "Always true: the statement is produced by the project's own run, not by a CNTi review.", "type": "boolean", "const": true},
+        "published_files": {"description": "Set by a publisher: the extra files published with the bundle, relative to the project's workspace.", "type": "array", "items": {"type": "string"}},
+        "withheld_files": {"description": "Set by a publisher: the extra files named for publishing but withheld (an exclude pattern matched).", "type": "array", "items": {"type": "string"}},
+        "run_url": {"description": "Set by a publisher: the URL of the pipeline run, when it is visible.", "type": "string"},
+        "provenance": {"$ref": "#/$defs/provenance"}
+      }
+    },
+    "provenance": {
+      "description": "Who signed the bundle and how a reader verifies it. Written as `none` by `cnti-testsuite evidence`; the job that signs replaces it.",
+      "type": "object",
+      "required": ["method", "files", "identity"],
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "description": "sigstore-keyless: cosign with the CI's OIDC identity (proves the pipeline); key: cosign or gpg with a project key (proves the publisher); github-attestation: GitHub artifact attestations (proves the workflow); none: unsigned.",
+          "type": "string",
+          "enum": ["sigstore-keyless", "key", "github-attestation", "none"]
+        },
+        "files": {"description": "The signature or bundle files next to the evidence (e.g. cnti-evidence.json.sigstore.json, cnti-evidence.json.sig and the public key); empty for github-attestation (stored by GitHub) and none.", "type": "array", "items": {"type": "string"}},
+        "identity": {"description": "What a reader verifies against: the signing identity for sigstore-keyless (the workflow's URL) and github-attestation (owner/repository), the public key's name or fingerprint for key, null for none.", "type": ["string", "null"]}
       }
     }
   }

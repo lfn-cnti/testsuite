@@ -62,6 +62,10 @@ describe "Evidence" do
     cnti["criteria"]["cert"]["passed"].as_bool.should be_false
     cnti["self_published"].as_bool.should be_true
     cnti["testsuite_version"].as_s.should eq("v2.0.0")
+    # Unsigned until a job signs it; the field is there so a signer only fills it in.
+    cnti["provenance"]["method"].as_s.should eq("none")
+    cnti["provenance"]["files"].as_a.should be_empty
+    cnti["provenance"]["identity"].raw.should be_nil
   end
 
   it "statement conforms to docs/cnti-evidence.schema.json", tags: ["points"] do

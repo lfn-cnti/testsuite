@@ -144,6 +144,10 @@ module Evidence
           "run_date"             => run_date_of(results_path),
           "results_file"         => File.basename(results_path),
           "self_published"       => true,
+          # Who signed the bundle, filled in by whoever signs it after this
+          # file is written (the wrappers, or the project's own job); "none"
+          # until then. See "Signing the evidence" in USAGE.md.
+          "provenance"           => {"method" => "none", "files" => [] of String, "identity" => nil},
         },
       },
     }.to_pretty_json

@@ -118,6 +118,57 @@ A results file without a verdict (`status: running`) is refused: the run did not
 GitHub Action and the GitLab CI/CD component publish this bundle; a job on any other CI runs
 `evidence` after the tests and uploads the directory to a public URL.
 
+#### Signing the evidence
+
+A published bundle says what a run found; a signature says which pipeline produced it, so a
+reader can trust a bundle from a repository they cannot see. `evidence` writes the statement
+unsigned (`cnti.provenance.method: none`); the job that signs it replaces that block and puts
+the signature files next to the bundle. Three methods, by what the CI offers:
+
+- **Sigstore keyless**, where the CI has an OIDC identity (GitHub Actions, GitLab CI and the
+  other issuers Fulcio supports). It proves the pipeline: the certificate names the workflow.
+
+  ```
+  cosign sign-blob cnti-evidence.json --bundle cnti-evidence.json.sigstore.json --yes
+  # reader:
+  cosign verify-blob cnti-evidence.json --bundle cnti-evidence.json.sigstore.json \
+    --certificate-identity-regexp '^https://github.com/<owner>/<repo>/' \
+    --certificate-oidc-issuer https://token.actions.githubusercontent.com
+  ```
+
+  Record: `method: sigstore-keyless`, `files: [cnti-evidence.json.sigstore.json]`, `identity`:
+  the workflow URL the reader verifies against.
+
+- **A project key**, where the CI has no OIDC identity (Jenkins and the like, or an air-gapped
+  pipeline). It proves the publisher, not the pipeline; publish the public key with the bundle
+  or at a stable URL.
+
+  ```
+  cosign sign-blob --key cosign.key cnti-evidence.json --output-signature cnti-evidence.json.sig
+  # reader:
+  cosign verify-blob --key cosign.pub --signature cnti-evidence.json.sig cnti-evidence.json
+  ```
+
+  (`gpg --detach-sign` and `gpg --verify` do the same with a GPG key.) Record: `method: key`,
+  `files: [cnti-evidence.json.sig, cosign.pub]`, `identity`: the key's name or fingerprint.
+
+- **GitHub artifact attestations**, on GitHub Actions: the workflow attests the results file with
+  the statement's predicate (`actions/attest`, permissions `id-token: write` and
+  `attestations: write`); GitHub stores the attestation, nothing is added to the bundle.
+
+  ```
+  # reader:
+  gh attestation verify cnti-testsuite-results-<timestamp>.yml --owner <owner>
+  ```
+
+  Record: `method: github-attestation`, `files: []`, `identity: <owner>/<repo>`.
+
+Sign the statement, not the badge: the statement names the results file by digest, so one
+signature covers the verdict and the results. A signing failure, or an unreachable Sigstore,
+must leave the bundle unsigned with `method: none`, never fail the run that produced it. The
+GitHub Action and the GitLab CI/CD component do this when asked; the commands above are for
+any other CI.
+
 To write somewhere else, pass `--results-dir PATH` on the command line or set the
 `CNTI_TESTSUITE_RESULTS_DIR` environment variable; the option wins over the variable. The
 timestamped file and `latest.yml` both go there, and `delete_results` honours the same setting.
