@@ -107,7 +107,7 @@ module CLIHelp
       add.call("Workload tests: #{category}", [category] + task.dependency_names)
     end
 
-    add.call("Certification", visible_tasks.map(&.path).select(&.starts_with?("cert")).sort)
+    add.call("Essential tests (cert)", visible_tasks.map(&.path).select(&.starts_with?("cert")).sort)
 
     # Tools the suite can install into the cluster on demand, outside the
     # `setup:` namespace.
@@ -150,13 +150,13 @@ module CLIHelp
     TYPICAL WORKFLOW
       #{BIN_NAME} setup                                    install prerequisites (once)
       #{BIN_NAME} cnf_install --cnf-config ./cnti-testsuite.yaml
-      #{BIN_NAME} cert                                     run the certification tests
+      #{BIN_NAME} cert                                     run the essential tests
       #{BIN_NAME} cnf_uninstall
 
     TEST SUITES
       all         every test
       workload    tests against the installed CNF
-      cert        certification run; exits 0 when the CNF is certified
+      cert        the essential tests; exits 0 when enough of them pass
 
     OPTIONS (anywhere on the line; --name VALUE or --name=VALUE)
     #{option_rows}
