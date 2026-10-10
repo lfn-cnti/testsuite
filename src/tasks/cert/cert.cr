@@ -5,7 +5,7 @@ require "colorize"
 require "totem"
 require "../utils/utils.cr"
 
-desc "Run the certification tests; exits 0 when the CNF is certified"
+desc "Run the essential tests; exits 0 when enough of them pass (the threshold)"
 # Compatibility runs last: scaling and rolling out change the CNF, and what a
 # change leaves behind (a scaled-in database cluster that stays degraded)
 # must not fail a test that judges something else (#2719).

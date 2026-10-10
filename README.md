@@ -61,7 +61,7 @@ your own CNF in [`cnti-testsuite.yaml`](CNTI_TESTSUITE_YAML_USAGE.md).
 ## Use it in CI
 
 The [CNTi Test Suite GitHub Action](https://github.com/lfn-cnti/testsuite-action) creates a kind
-cluster, installs your CNF and runs the `cert` tests on every pull request:
+cluster, installs your CNF and runs the essential tests (`cert`) on every pull request:
 
 ```yaml
 - uses: lfn-cnti/testsuite-action@v1
@@ -73,11 +73,15 @@ The job page gets a summary and an annotation for every failed test. With `badge
 action also publishes a badge for your README, showing the result of your default branch:
 
 ```markdown
-![CNTi cert](https://github.com/<owner>/<repo>/raw/badges/cnti-badge.svg)
+![CNTi essential](https://github.com/<owner>/<repo>/raw/badges/cnti-badge.svg)
 ```
 
 It looks like this, with the number of essential tests passed:
-<img alt="CNTi cert: 17/19" src="docs/images/cnti-cert-badge-example.svg" height="20" align="top">
+<img alt="CNTi essential: 17/19" src="docs/images/cnti-essential-badge-example.svg" height="20" align="top">
+
+The badge is evidence the project produces itself from the essential test set; it is not a
+certification. GitLab-hosted projects get the same job and badge from the
+[CNTi Test Suite CI/CD component](https://gitlab.com/lfn-cnti/testsuite-component).
 
 ## What the suite checks
 

@@ -233,8 +233,8 @@ end
 ```
 
 The **type** decides the point value — `essential` 100, `normal` 5, `bonus` 1 —
-so no test restates its own score, and every essential test is by definition a
-certification test. `normal` is the default, so only the tests carrying a policy
+so no test restates its own score, and the essential tests are by definition the
+set that `cert` runs. `normal` is the default, so only the tests carrying a policy
 decision say anything about their type. Everything else is read back rather than declared: a test's
 **scope** from the namespace it registers in, and its **category** from the
 aggregate that runs it. Individual `pass:`/`fail:` overrides exist for the rare
@@ -249,7 +249,7 @@ compiled with, and edits to the file were silently reverted on the next run.
 Every task group — the suites (`all`, `workload`, `cert`) and the
 categories (`security`, `configuration`, ...) —
 declares a success criterion in `Points::GROUP_CRITERIA`. These are group-level
-policy — what the suite certifies, and what it demands of each category — so
+policy — what `cert` requires of the essential tests, and what the suite demands of each category — so
 they live together in one table:
 
 ```crystal
@@ -297,7 +297,7 @@ The same verdict is printed to stdout in a stable, greppable form:
 
 ```
 Security: FAILED (2 of 19 tests failed)
-Certification: PASSED (17 of 19 essential tests passed, threshold 15)
+Cert: PASSED (17 of 19 essential tests passed, threshold 15)
 ```
 
 ##### `items[]` fields
@@ -424,7 +424,7 @@ One CNF is installed at a time, so what a failed `cnf_install` leaves decides th
 crystal src/cnti-testsuite.cr -- workload --cnf-config <path_to_your_config_file>/cnti-testsuite.yaml
 ```
 
-#### Running certification tests
+#### Running the essential tests (`cert`)
 
 ```
 ./cnti-testsuite cert
