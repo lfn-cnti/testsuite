@@ -148,20 +148,104 @@ module LitmusManager
   end
 
   ## wait_for_test will wait for the completion of litmus test
-  def self.wait_for_test(test_name, chaos_experiment_name, args, namespace : String = "default")
+  # Returns false when litmus skipped the experiment: the runner found no
+  # experiment to run (ChaosExperiment missing, its job not created, ...), so
+  # there is no experiment pod and never a ChaosResult. Waiting for the
+  # verdict then would only cost the timeout (#2731).
+  def self.wait_for_test(test_name, chaos_experiment_name, args, namespace : String = "default") : Bool
     chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
     Log.info { "wait_for_test: #{chaos_result_name}" }
     status = "Waiting for the #{chaos_experiment_name} chaos experiment to finish"
     StatusLine.push "#{status}..."
 
-    get_status_info_until("chaosengine", test_name, "jsonpath={.status.engineStatus}", LITMUS_CHAOS_TEST_TIMEOUT, namespace, status) do |engineStatus|
-      ["completed", "stopped"].includes?(engineStatus)
+    skipped = false
+    get_status_info_until("chaosengine", test_name, "json", LITMUS_CHAOS_TEST_TIMEOUT, namespace, status) do |raw_engine|
+      if skipped_experiment?(raw_engine)
+        skipped = true
+        true
+      else
+        ["completed", "stopped"].includes?(engine_status(raw_engine))
+      end
     end
 
-    get_status_info_until("chaosresults", chaos_result_name, "jsonpath={.status.experimentStatus.verdict}", GENERIC_OPERATION_TIMEOUT, namespace, "Waiting for the #{chaos_experiment_name} verdict") do |verdict|
-      verdict != "Awaited"
+    if skipped
+      Log.for("LitmusManager.wait_for_test").warn { "#{chaos_result_name}: litmus skipped the experiment, not waiting for a verdict" }
+    else
+      get_status_info_until("chaosresults", chaos_result_name, "jsonpath={.status.experimentStatus.verdict}", GENERIC_OPERATION_TIMEOUT, namespace, "Waiting for the #{chaos_experiment_name} verdict") do |verdict|
+        verdict != "Awaited"
+      end
     end
     StatusLine.pop
+    !skipped
+  end
+
+  def self.engine_status(raw_engine : String) : String?
+    JSON.parse(raw_engine).dig?("status", "engineStatus").try(&.as_s?)
+  rescue JSON::ParseException
+    nil
+  end
+
+  # The runner pod of an experiment the engine reports as skipped, nil when
+  # no experiment is skipped (or the JSON is not an engine).
+  def self.skipped_experiment?(raw_engine : String) : String?
+    experiments = JSON.parse(raw_engine).dig?("status", "experiments").try(&.as_a?) || return nil
+    skipped = experiments.find { |e| e["status"]?.try(&.as_s?) == "Skipped" } || return nil
+    skipped["runner"]?.try(&.as_s?) || "#{JSON.parse(raw_engine).dig?("metadata", "name").try(&.as_s?)}-runner"
+  rescue JSON::ParseException
+    nil
+  end
+
+  # Why litmus skipped: the runner records it as an event on the engine
+  # (reason ExperimentSkipped, ExperimentNotFound, JobCreationError, ...) and
+  # in its own log, and the ChaosExperiment it looked for may be missing.
+  # Every line is collected, none is required: this runs on a cluster where
+  # something already went wrong.
+  def self.skip_diagnostics(engine_name : String, runner : String, chaos_experiment_name : String, namespace : String) : Array(String)
+    lines = [] of String
+    begin
+      events = KubectlClient::Get.resource("events", namespace: namespace)
+      lines.concat(skip_events(events, engine_name, runner))
+    rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+      lines << "events of #{namespace} not readable: #{ex.message.to_s.lines.first?}"
+    end
+    begin
+      KubectlClient::Get.resource("chaosexperiment.#{LITMUS_K8S_DOMAIN}", chaos_experiment_name, namespace)
+      lines << "ChaosExperiment #{chaos_experiment_name} exists in #{namespace}"
+    rescue KubectlClient::ShellCMD::NotFoundError
+      lines << "ChaosExperiment #{chaos_experiment_name} not found in #{namespace}"
+    rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+      lines << "ChaosExperiment #{chaos_experiment_name}: #{ex.message.to_s.lines.first?}"
+    end
+    begin
+      log = KubectlClient::Utils.logs(runner, namespace: namespace, options: "--tail=15")[:output].to_s.strip
+      lines << "runner #{runner} log: #{log.empty? ? "(empty)" : log.lines.map(&.strip).join(" | ")}"
+    rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+      lines << "runner #{runner} log not available: #{ex.message.to_s.lines.first?}"
+    end
+    lines
+  end
+
+  # The events about the engine or its runner, newest last, as "reason: message".
+  def self.skip_events(events : JSON::Any, engine_name : String, runner : String) : Array(String)
+    items = events.dig?("items").try(&.as_a?) || [] of JSON::Any
+    about = items.select do |e|
+      name = e.dig?("involvedObject", "name").try(&.as_s?) || ""
+      name == engine_name || name == runner
+    end
+    about = about.sort_by { |e| (e["lastTimestamp"]? || e["eventTime"]? || e.dig?("metadata", "creationTimestamp")).try(&.as_s?) || "" }
+    about.map do |e|
+      "event #{e.dig?("involvedObject", "kind").try(&.as_s?)}/#{e.dig?("involvedObject", "name").try(&.as_s?)}: #{e["reason"]?.try(&.as_s?)}: #{(e["message"]?.try(&.as_s?) || "").lines.first?.to_s.strip}"
+    end.last(6)
+  end
+
+  # Experiments litmus skipped in the test under way, "<experiment> on
+  # <target>: <why>"; read and cleared by the test's verdict.
+  @@skipped_experiments = [] of String
+
+  def self.take_skipped : Array(String)
+    skipped = @@skipped_experiments
+    @@skipped_experiments = [] of String
+    skipped
   end
 
   ## check_chaos_verdict will check the verdict of chaosexperiment
@@ -181,6 +265,22 @@ module LitmusManager
     engine_name = chaos_result_name.to_s.rchop("-#{chaos_experiment_name}")
     status_code, raw_engine = get_status_info("chaosengine", engine_name, "json", namespace)
     raw_engine = "" unless status_code == 0
+
+    # Litmus skipped the experiment: nothing was injected, so the CNF was not
+    # tested and the verdict is not its own. The test ends as an error with
+    # the reason litmus gave (#2731).
+    if (runner = skipped_experiment?(raw_engine))
+      why = skip_diagnostics(engine_name, runner, chaos_experiment_name.to_s, namespace)
+      summary = "#{chaos_experiment_name}#{target ? " on #{target}" : ""}: skipped by litmus, no experiment ran; #{chaos_run_summary(raw_chaos_result, raw_engine)}"
+      logger.error { "#{chaos_result_name}: #{summary}; #{why.join("; ")}" }
+      result.try do |r|
+        r.append_description("Litmus #{summary}")
+        why.each { |line| r.append_description("  #{line}") }
+      end
+      @@skipped_experiments << "#{chaos_experiment_name}#{target ? " on #{target}" : ""}#{why.first?.try { |w| " (#{w})" }}"
+      delete_engine(engine_name, namespace)
+      return false
+    end
 
     # The chaosresult knows *why*: surface its failStep and failed probes into
     # the test's details and the error log, instead of discarding them at a log

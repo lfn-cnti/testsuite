@@ -49,3 +49,43 @@ describe "LitmusManager.chaos_failure_summary" do
     LitmusManager.chaos_run_summary("{}", "").should eq "target not recorded by litmus"
   end
 end
+
+describe "LitmusManager skipped experiments" do
+  engine = {
+    metadata: {name: "amf-915fea25"},
+    status:   {engineStatus: "completed", experiments: [{name: "disk-fill", runner: "amf-915fea25-runner", status: "Skipped", verdict: "Fail", experimentPod: "N/A"}]},
+  }.to_json
+  ran = {status: {engineStatus: "completed", experiments: [{name: "disk-fill", runner: "amf-1-runner", status: "Completed", verdict: "Pass"}]}}.to_json
+
+  it "names the runner of an experiment litmus skipped", tags: ["points"] do
+    LitmusManager.skipped_experiment?(engine).should eq("amf-915fea25-runner")
+    LitmusManager.skipped_experiment?(ran).should be_nil
+    LitmusManager.skipped_experiment?("{}").should be_nil
+    LitmusManager.skipped_experiment?("not json").should be_nil
+  end
+
+  it "reads the engine status", tags: ["points"] do
+    LitmusManager.engine_status(engine).should eq("completed")
+    LitmusManager.engine_status({status: {engineStatus: "initialized"}}.to_json).should eq("initialized")
+    LitmusManager.engine_status("").should be_nil
+  end
+
+  it "keeps the events about the engine and its runner, oldest first", tags: ["points"] do
+    events = JSON.parse({
+      items: [
+        {involvedObject: {kind: "ChaosEngine", name: "amf-915fea25"}, reason: "ExperimentSkipped", message: "Experiment Job creation failed, skipping Chaos Experiment: disk-fill\nmore", lastTimestamp: "2026-10-04T06:19:38Z"},
+        {involvedObject: {kind: "Pod", name: "other-pod"}, reason: "Pulled", message: "irrelevant", lastTimestamp: "2026-10-04T06:19:00Z"},
+        {involvedObject: {kind: "Pod", name: "amf-915fea25-runner"}, reason: "Scheduled", message: "Successfully assigned", lastTimestamp: "2026-10-04T06:13:10Z"},
+      ],
+    }.to_json)
+    lines = LitmusManager.skip_events(events, "amf-915fea25", "amf-915fea25-runner")
+    lines.should eq([
+      "event Pod/amf-915fea25-runner: Scheduled: Successfully assigned",
+      "event ChaosEngine/amf-915fea25: ExperimentSkipped: Experiment Job creation failed, skipping Chaos Experiment: disk-fill",
+    ])
+  end
+
+  it "hands the skipped experiments over once", tags: ["points"] do
+    LitmusManager.take_skipped.should eq([] of String)
+  end
+end

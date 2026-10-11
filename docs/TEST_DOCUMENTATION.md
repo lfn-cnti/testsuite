@@ -637,6 +637,8 @@ Give the database a persistent volume: a volumeClaimTemplate in a StatefulSet, o
 Cloud native systems promote resilience by putting a high priority on testing individual components (chaos testing) as they are running (possibly in production).
 [Reliability in traditional telecommunications](https://vmblog.com/archive/2021/09/15/cloud-native-chaos-and-telcos-enforcing-reliability-and-availability-for-telcos.aspx) is handled differently than in Cloud Native systems. Cloud native systems try to address reliability (MTBF) by having the subcomponents have higher availability through higher serviceability (MTTR) and redundancy. For example, having ten redundant subcomponents where seven components are available and three have failed will produce a top level component that is more reliable (MTBF) than a single component that "never fails" in the cloud native world.
 
+The chaos tests run LitmusChaos experiments, one per workload. When Litmus skips an experiment (its runner found no ChaosExperiment to run, or could not create the experiment job), nothing was injected and the CNF was not tested: the test ends as an error, not a failure, and its details carry Litmus's own reason: the events on the engine (`ExperimentSkipped`, `ExperimentNotFound`, `JobCreationError`, ...), the runner pod's last log lines and whether the ChaosExperiment exists in the namespace. The test does not wait for a verdict that cannot come.
+
 ### Usage
 
 All resilience: `./cnti-testsuite resilience`

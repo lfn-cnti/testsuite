@@ -142,10 +142,15 @@ def chaos_container_runtime(result, task_name : String) : {String, String}?
 end
 
 # Verdict shared by the chaos tests: not applicable when litmus could target
-# nothing, otherwise pass or fail on the experiments.
+# nothing, an error when litmus skipped an experiment (the CNF was not tested,
+# so neither pass nor fail is its own; the details say why, #2731),
+# otherwise pass or fail on the experiments.
 def chaos_verdict(result, task_name : String, passed : Bool, tested : Int32, passed_message : String? = nil)
+  skipped = LitmusManager.take_skipped
   if tested == 0
     result.na("#{task_name} not applicable: no Deployment, StatefulSet or DaemonSet for litmus to target")
+  elsif !skipped.empty?
+    result.error("#{task_name}: litmus skipped the experiment on #{skipped.size} of #{tested} workload(s), the CNF was not tested: #{skipped.first}")
   elsif passed
     result.passed(passed_message || "#{task_name} chaos test passed")
   else
