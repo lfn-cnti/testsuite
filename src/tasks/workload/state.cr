@@ -127,6 +127,8 @@ scored_task "node_drain",
       begin
         KubectlClient::Utils.cordon(node)
         cordoned = true
+        # A stop while the node is cordoned gives it back (#2713).
+        RunStop.register("uncordon #{node}") { KubectlClient::Utils.uncordon(node); nil }
         drain = KubectlClient::Utils.drain(node, GENERIC_OPERATION_TIMEOUT)
         evicted_at = Time.utc
         evicted_in = (evicted_at - started).total_seconds.round.to_i
@@ -169,6 +171,7 @@ scored_task "node_drain",
         # The node comes back whatever happened above; a raise here would
         # leave every later test one node short.
         if cordoned
+          RunStop.done("uncordon #{node}")
           begin
             KubectlClient::Utils.uncordon(node)
           rescue ex : KubectlClient::ShellCMD::K8sClientCMDException

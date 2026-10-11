@@ -81,6 +81,8 @@ module CNFManager
         result.set_testcase(task.as(Sam::Task).name.as(String))
         logger.for(result.testcase).info { "Starting test" }
         stdout_info("🎬 Testing: [#{result.testcase}]")
+        # A stop (SIGTERM, SIGINT) records the test under way as an error.
+        RunStop.current = result
       end
 
       begin
@@ -111,6 +113,7 @@ module CNFManager
         # Recording the result is what drives the run's exit code: the summary
         # (recomputed on every upsert) derives it from the item outcomes.
         upsert_decorated_task(result)
+        RunStop.current = nil
       end
 
       # todo lax mode, never returns 1

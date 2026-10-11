@@ -466,3 +466,42 @@ describe "Deployment directory copy" do
     FileUtils.rm_rf(cwd.not_nil!)
   end
 end
+
+describe "RunStop" do
+  it "runs every registered undo once, and only those still pending", tags: ["points"] do
+    ran = [] of String
+    RunStop.register("a") { ran << "a"; nil }
+    RunStop.register("b") { ran << "b"; nil }
+    RunStop.register("c") { raise "boom" }
+    RunStop.done("b")
+    RunStop.pending.sort.should eq(["a", "c"])
+    RunStop.run_cleanups.should eq(["a"])
+    ran.should eq(["a"])
+    RunStop.pending.should eq([] of String)
+  end
+
+  it "a run stopped by a signal is finalized as stopped, with the test under way as an error", tags: ["points"] do
+    results_backup = File.read(CNFManager::Points::Results.file)
+    begin
+      CNFManager::Points.clean_results_yml
+      under_way = CNFManager::TestCaseResult.empty
+      under_way.set_testcase("pod_delete")
+      under_way.set_start_time
+      RunStop.current = under_way
+      RunStop.record_stopped_test(Signal::TERM).should eq("pod_delete")
+      RunStop.current.should be_nil
+      CNFManager::Points.stop_results!(Signal::TERM).should eq(143)
+
+      yaml = YAML.parse(File.read(CNFManager::Points::Results.file))
+      yaml["status"].as_s.should eq("stopped")
+      yaml["exit_code"].as_i.should eq(143)
+      item = yaml["items"].as_a.find { |i| i["name"] == "pod_delete" }.not_nil!
+      item["status"].as_s.should eq("error")
+      item["message"].as_s.should eq("run stopped by SIGTERM")
+      CNFManager::Points.stop_results!(Signal::INT).should eq(130)
+    ensure
+      RunStop.current = nil
+      File.write(CNFManager::Points::Results.file, results_backup)
+    end
+  end
+end

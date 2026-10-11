@@ -349,6 +349,7 @@ module CNFManager
     # after every test, so a run that dies part-way leaves this state behind -
     # readers can tell an unfinished run from one that completed (issue #2544).
     RUN_STATUS_RUNNING = "running"
+    RUN_STATUS_STOPPED = "stopped"
 
     def self.clean_results_yml
       if File.exists?("#{Results.file}")
@@ -703,6 +704,22 @@ module CNFManager
       File.open("#{Results.file}", "w") { |f| YAML.dump(merged, f) }
       Results.refresh_latest
       @@logger.for("finalize_results!").info { "Run finalized: status #{run_status}, exit code #{exit_code}" }
+      exit_code
+    end
+
+    # A run stopped by a signal: the summary is what had run by then, the
+    # status says it was stopped, and the exit code is the conventional
+    # 128 + signal (143 for SIGTERM, 130 for SIGINT), which no verdict uses.
+    def self.stop_results!(signal : Signal) : Int32
+      write_summary!
+      results = File.open("#{Results.file}") { |f| YAML.parse(f) }
+      exit_code = 128 + signal.value
+      merged = results.as_h
+      merged[YAML::Any.new("exit_code")] = YAML::Any.new(exit_code.to_i64)
+      merged[YAML::Any.new("status")] = YAML::Any.new(RUN_STATUS_STOPPED)
+      File.open("#{Results.file}", "w") { |f| YAML.dump(merged, f) }
+      Results.refresh_latest
+      @@logger.for("stop_results!").warn { "Run stopped by signal #{signal.value}: status #{RUN_STATUS_STOPPED}, exit code #{exit_code}" }
       exit_code
     end
 

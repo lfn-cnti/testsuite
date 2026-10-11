@@ -124,8 +124,12 @@ timestamped file and `latest.yml` both go there, and `delete_results` honours th
 
 The file is rewritten after every test. While the run is in progress it says `status: running`
 and `exit_code: null`; the verdict is written only when the run ends (or stops on `--strict`).
-A file still in the `running` state therefore belongs to a run that did not finish — a crash,
-a kill, a CI timeout — and its `summary` shows only what had run by then.
+A run ended by a signal (SIGTERM from a cancelled CI job or the MCP server's `cancel_run`, SIGINT
+from the terminal) is finalized too: the test under way is recorded as an error (`run stopped by
+SIGTERM`), what it changed in the cluster is undone (a chaos engine and its fault, a cordoned node),
+the file says `status: stopped` with `exit_code` 128 + the signal (143 for SIGTERM, 130 for SIGINT),
+and the process exits with that code. A file still in the `running` state therefore belongs to a run
+that could not say how it ended — a crash, a SIGKILL — and its `summary` shows only what had run by then.
 
 A machine-readable [JSON Schema](docs/cnti-testsuite-results.schema.json) describes the file
 (matching the current `schema_version`); use it to validate output or generate types.
@@ -224,7 +228,7 @@ items:
 | `name` | Always `cnti testsuite`. |
 | `testsuite_version` | Version of the test suite that produced the file. |
 | `schema_version` | Integer version of this results-file schema; bumped on breaking changes. |
-| `status` | Overall run verdict, derived from `exit_code`: `passed` (0), `failed` (1), `error` (2); `running` until the run ends. |
+| `status` | Overall run verdict, derived from `exit_code`: `passed` (0), `failed` (1), `error` (2), `stopped` (ended by a signal, 143 or 130); `running` until the run ends. |
 | `command` | The command line that produced this file. |
 | `exit_code` | Process exit code, answering "did this run meet its objective?" (`null` while the run is in progress). `2` at least one test errored (raised) - the suite itself broke, which always wins. Otherwise, for a run with a pass criterion (`cert`): `0` the criterion was met, `1` it was not. For a run without one (`all`, `workload`, `platform`): `0` no test failed (passed/skipped/na), `1` at least one test failed. Additionally, the process exits with `64` (usage error) on unknown or malformed command-line arguments, before any test runs. See [Exit codes](#exit-codes) for the full table. |
 | `summary` | Aggregate numbers for the whole run (see below). |
@@ -388,6 +392,7 @@ The exit code answers one question: did the invocation do what was asked?
 | `1` | No | At least one test failed, or the criterion was not met. Or a command could not do its job: a precondition was missing (no kubeconfig, no CNF installed, a CNF already installed, a tool failed to install) or an operation failed. A message says which. |
 | `2` | The suite itself broke | A test raised an unexpected exception, or the process crashed outside a test. Always wins over `1`. |
 | `64` | Usage error | The command line was wrong: an unknown task, flag or argument; a malformed value; a required argument missing; an argument naming a file that does not exist. Detected before the requested operation starts. (sysexits `EX_USAGE`.) |
+| `143`, `130` | Stopped | The run was ended by a signal (`143` SIGTERM: a cancelled CI job, the MCP server's `cancel_run`, a kill; `130` SIGINT: Ctrl-C). The test under way is recorded as an error, what it changed in the cluster is undone, and the results file says `status: stopped`. (128 + the signal, the shell convention.) |
 
 A script that only needs pass/fail can test for `0`. A script that wants to tell "the CNF failed" (`1`) apart from "the suite or the invocation is broken" (`2`, `64`) can branch on the code.
 
@@ -591,10 +596,11 @@ chaos tests take over a minute, and the TypeScript SDK times a tool call out aft
 (a `cert` run can take over an hour) is followed with `get_run` and stopped with `cancel_run`. A run that ends without a results document reports the suite's last error
 lines.
 
-Cancelling stops the suite process and the processes it started (a `helm` or `kubectl` command
-running at that moment) where they are: the run's results document keeps `status: running` (it is
-the newest document `get_results` returns), and a test stopped mid-way may leave what it created in
-the cluster, such as a chaos test's fault resources.
+Cancelling sends SIGTERM to the suite process and the processes it started (a `helm` or `kubectl`
+command running at that moment). The suite finalizes the run: the test under way is recorded as an
+error, what it changed in the cluster is undone (a chaos test's engine and fault, a cordoned node),
+and the results document, the newest one `get_results` returns, says `status: stopped` with
+`exit_code: 143`.
 
 `--results-dir` given to `mcp` is passed on to every run, so that `get_results` reads where the runs
 write; `CNTI_TESTSUITE_RESULTS_DIR` reaches them as it is.

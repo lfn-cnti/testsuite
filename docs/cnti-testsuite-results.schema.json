@@ -30,12 +30,13 @@
       "const": 1
     },
     "status": {
-      "description": "Overall run verdict, derived from exit_code (0 -> passed, 1 -> failed, 2 -> error). `running` while the run is in progress - a file still saying `running` belongs to a run that did not finish.",
+      "description": "Overall run verdict, derived from exit_code (0 -> passed, 1 -> failed, 2 -> error). `stopped` when the run was ended by a signal (SIGTERM from a cancelled job, SIGINT from the terminal; exit_code is 128 + the signal, 143 or 130): the summary is what had run by then and the test under way is recorded as an error. `running` while the run is in progress - a file still saying `running` belongs to a run that did not finish and could not say so (SIGKILL, a crash).",
       "enum": [
         "running",
         "passed",
         "failed",
-        "error"
+        "error",
+        "stopped"
       ]
     },
     "command": {

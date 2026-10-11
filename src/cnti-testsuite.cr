@@ -67,6 +67,10 @@ begin
   # Every task on the line runs in order with the parsed arguments; SAM only
   # ever sees a task path and a ready-made Sam::Args.
   invocation = CLIParser.parse!(ARGV)
+  # A stop (SIGTERM from a cancelled CI job or the MCP server, SIGINT from the
+  # terminal) undoes what the running test changed, records it as an error,
+  # finalizes the results file as `stopped` and exits 128 + the signal.
+  RunStop.install_traps
   invocation.tasks.each { |task| Sam.invoke(task, invocation.args) }
 
   if CNFManager::Points::Results.file_exists?

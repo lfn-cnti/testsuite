@@ -151,6 +151,9 @@ module LitmusManager
   def self.wait_for_test(test_name, chaos_experiment_name, args, namespace : String = "default")
     chaos_result_name = "#{test_name}-#{chaos_experiment_name}"
     Log.info { "wait_for_test: #{chaos_result_name}" }
+    # A stop while the experiment runs deletes the engine, and with it the
+    # fault litmus injected (#2713).
+    RunStop.register("chaosengine #{test_name} in #{namespace}") { delete_engine(test_name, namespace) }
     status = "Waiting for the #{chaos_experiment_name} chaos experiment to finish"
     StatusLine.push "#{status}..."
 
@@ -198,6 +201,7 @@ module LitmusManager
   # The engine has done its work once the verdict is read. Left behind, the
   # engines of a run pile up in the CNF's namespace, with their runner pods.
   def self.delete_engine(engine_name : String, namespace : String)
+    RunStop.done("chaosengine #{engine_name} in #{namespace}")
     KubectlClient::Delete.resource("chaosengine.#{LITMUS_K8S_DOMAIN}", engine_name, namespace)
   rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
     Log.for("LitmusManager.delete_engine").warn { "chaosengine #{engine_name} in #{namespace} not deleted: #{ex.message.to_s.lines.first?}" }
