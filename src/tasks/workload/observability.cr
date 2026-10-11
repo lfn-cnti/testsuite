@@ -22,8 +22,7 @@ scored_task "log_output",
     logged_resources = [] of String
     judged_any = false
 
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
-      resource_yaml = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, resource_yaml|
       pods = KubectlClient::Get.pods_by_resource_labels(resource_yaml, resource[:namespace])
 
       # Every pod of the resource is read - `kubectl logs <kind>/<name>` would
@@ -92,8 +91,7 @@ scored_task "prometheus_traffic",
     # A workload sends Prometheus traffic when one of the active targets
     # scrapes one of its pods; each one no target scrapes is a finding.
     unscraped = 0
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
-      live = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
       ips = Prometheus.pod_ips(KubectlClient::Get.pods_by_resource_labels(live, resource[:namespace]))
       label = "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}"
       matched = Prometheus.targets_for_ips(ips, targets)
@@ -139,8 +137,7 @@ scored_task "open_metrics",
 
     validated = 0
     invalid = 0
-    CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
-      live = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+    CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
       ips = Prometheus.pod_ips(KubectlClient::Get.pods_by_resource_labels(live, resource[:namespace]))
       label = "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}"
       matched = Prometheus.targets_for_ips(ips, server[:targets])
@@ -282,8 +279,7 @@ scored_task "termination_message_policy",
     findings = [] of NamedTuple(kind: String, name: String, namespace: String, container: String, init: Bool, policy: String)
     judged = 0
 
-    CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
-      live = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+    CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
       pod_spec = live.dig?("spec", "template", "spec") || live.dig?("spec")
       # Regular and init containers are the CNF's own; ephemeral containers are
       # added by `kubectl debug`, not by the chart, so they are not judged.

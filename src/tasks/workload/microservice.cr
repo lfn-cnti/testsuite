@@ -188,8 +188,7 @@ scored_task "reasonable_startup_time" do |t, args|
     # a disk benchmark (#2596).
     limit = config.common.startup_time_max_seconds || REASONABLE_STARTUP_TIME_MAX_SECONDS
     slow = 0
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
-      live = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
       pods = KubectlClient::Get.pods_by_resource_labels(live, namespace: resource[:namespace])
       if pods.empty?
         result.append_description("#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}: no pod to measure")
@@ -259,8 +258,8 @@ def docker_image_compressed_size(fqdn_image : String) : Int64
   compressed_size
 end
 
-def docker_image_pull_auth(resource, image_secrets_config_path)
-  image_pull_secrets = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace]).dig?("spec", "template", "spec", "imagePullSecrets")
+def docker_image_pull_auth(resource, object, image_secrets_config_path)
+  image_pull_secrets = CNFManager.pod_spec_of(object).try(&.["imagePullSecrets"]?)
   if image_pull_secrets
     auths = image_pull_secrets.as_a.map { |secret|
       Log.debug { "image pull secret: #{secret["name"]}" }
@@ -324,7 +323,7 @@ scored_task "reasonable_image_size",
     oversized_images = [] of String
     inspected_targets = 0
 
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
+    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _, object|
 
       # Only measure pod-styled containers; skip anything else without failing.
       unless WORKLOAD_RESOURCE_KIND_NAMES.includes?(resource[:kind].downcase) && container.as_h["image"]?
@@ -341,7 +340,7 @@ scored_task "reasonable_image_size",
       end
 
       # Registry auth may be required to pull the image.
-      docker_image_pull_auth(resource, image_secrets_config_path)
+      docker_image_pull_auth(resource, object, image_secrets_config_path)
 
       begin
         compressed_size = docker_image_compressed_size(fqdn_image)
@@ -702,19 +701,11 @@ scored_task "sig_term_handled",
     tested_pods = Set(String).new
 
     # Iterate over all resources
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, container, _|
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, resource_yaml|
       kind = resource["kind"].downcase
 
       # Early skip if this is not a relevant workload resource
       next true unless kind.in?(["deployment","statefulset","pod","replicaset","daemonset"])
-
-      resource_yaml = nil
-      begin
-        resource_yaml = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
-      rescue ex: KubectlClient::ShellCMD::NotFoundError
-        logger.error { "Failed to retrieve resource #{resource[:kind]}/#{resource[:name]}: #{ex.message}" }
-        next false
-      end
 
       pods = [] of JSON::Any
       begin
@@ -900,8 +891,7 @@ scored_task "service_discovery",
     end
 
     unexposed = 0
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
-      live = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
       labels = (live.dig?("spec", "template", "metadata", "labels") || live.dig?("metadata", "labels")).try(&.as_h?) || {} of String => JSON::Any
       exposing = services.select do |service|
         service[:namespace] == resource[:namespace] &&
@@ -937,11 +927,10 @@ scored_task "specialized_init_system",
     checked_inits     = [] of String
     not_inspected     = [] of String
 
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, yaml|
       Log.for(t.name).info { "Checking #{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}" }
 
       # Try to list pods for this resource; on error => mark skip
-      yaml = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
       pods = begin
         KubectlClient::Get.pods_by_resource_labels(yaml, resource[:namespace])
       rescue ex

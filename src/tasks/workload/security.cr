@@ -190,15 +190,14 @@ scored_task "privileged_containers",
     white_list_container_names = config.common.white_list_container_names
     Log.debug { "white_list_container_names #{white_list_container_names.inspect}" }
     violation_list = [] of NamedTuple(kind: String, name: String, container: String, namespace: String, init: Bool)
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
       # The resource's own containers - init and ephemeral ones included - judged
       # by their own securityContext, never by a name shared with some privileged
       # container elsewhere in the cluster.
       resource_passed = true
-      live = KubectlClient::Get.resource(resource["kind"], resource["name"], resource["namespace"])
       pod_spec = live.dig?("spec", "template", "spec") || live.dig?("spec")
       init_names = (pod_spec.try(&.dig?("initContainers")).try(&.as_a?) || [] of JSON::Any).compact_map { |c| c.dig?("name").try(&.as_s?) }
-      KubectlClient::Get.resource_all_containers(resource["kind"], resource["name"], resource["namespace"]).each do |container|
+      CNFManager.all_containers_of(pod_spec).each do |container|
         container_name = container.dig?("name").try(&.as_s) || ""
         next if white_list_container_names.includes?(container_name)
         next unless container.dig?("securityContext", "privileged") == true
@@ -363,12 +362,11 @@ scored_task "seccomp_profile",
     # pod's; unset means Unconfined on every runtime. Judged per container, so
     # the finding names what to fix (#2582).
     violations = 0
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
-      live = KubectlClient::Get.resource(resource["kind"], resource["name"], resource["namespace"])
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
       pod_spec = live.dig?("spec", "template", "spec") || live.dig?("spec")
       pod_profile = pod_spec.try(&.dig?("securityContext", "seccompProfile", "type")).try(&.as_s?)
       resource_passed = true
-      KubectlClient::Get.resource_all_containers(resource["kind"], resource["name"], resource["namespace"]).each do |container|
+      CNFManager.all_containers_of(pod_spec).each do |container|
         container_name = container.dig?("name").try(&.as_s) || ""
         profile = container.dig?("securityContext", "seccompProfile", "type").try(&.as_s?) || pod_profile
         next if SECCOMP_PROFILES.includes?(profile)
@@ -796,8 +794,7 @@ scored_task "dedicated_service_account",
     findings = [] of NamedTuple(kind: String, name: String, namespace: String, reason: String)
     judged = 0
 
-    CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
-      live = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+    CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
       pod_spec = live.dig?("spec", "template", "spec") || live.dig?("spec")
       judged += 1
       # The API server mirrors the deprecated serviceAccount field into

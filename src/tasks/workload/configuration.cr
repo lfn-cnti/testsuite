@@ -171,12 +171,12 @@ desc "Does the CNF use HostPort"
 scored_task "hostport_not_used",
   type: CNFManager::TestType::Essential do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
       Log.for(t.name).info { "hostport_not_used resource: #{resource}" }
       test_passed = true
 
       # per example https://github.com/lfn-cnti/testsuite/issues/164#issuecomment-904890977
-      KubectlClient::Get.resource_all_containers(resource[:kind], resource[:name], resource[:namespace]).each do |single_container|
+      CNFManager.all_containers_of(CNFManager.pod_spec_of(live)).each do |single_container|
         container_name = single_container.dig?("name").try(&.as_s) || ""
         single_container.dig?("ports").try(&.as_a?).try &.each do |single_port|
           hostport = single_port.dig?("hostPort")

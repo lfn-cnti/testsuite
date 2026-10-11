@@ -682,9 +682,8 @@ scored_task "pod_owner",
     findings = {} of String => NamedTuple(name: String, namespace: String, reason: String)
     judged = Set(String).new
 
-    CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _|
+    CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
       bare = resource[:kind].downcase == "pod"
-      live = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
       KubectlClient::Get.pods_by_resource_labels(live, resource[:namespace]).each do |pod|
         # A pod already being deleted is on its way out, not a pod of the CNF.
         next if pod.dig?("metadata", "deletionTimestamp")

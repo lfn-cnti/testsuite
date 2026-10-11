@@ -93,9 +93,33 @@ module CNFManager
     end
   end
 
+  # The pod spec of a workload object as the cluster holds it: a Pod's own,
+  # a CronJob's job template's, every other workload's template's.
+  def self.pod_spec_of(object : JSON::Any) : JSON::Any?
+    case object["kind"]?.try(&.as_s?).to_s.downcase
+    when "pod"     then object["spec"]?
+    when "cronjob" then object.dig?("spec", "jobTemplate", "spec", "template", "spec")
+    else                object.dig?("spec", "template", "spec")
+    end
+  end
+
+  # Every container of a pod spec: regular, init and ephemeral ones.
+  def self.all_containers_of(pod_spec : JSON::Any?) : Array(JSON::Any)
+    return [] of JSON::Any if pod_spec.nil?
+    ["containers", "initContainers", "ephemeralContainers"].flat_map do |list|
+      pod_spec[list]?.try(&.as_a?) || [] of JSON::Any
+    end
+  end
+
+  # Runs the block on every workload of the CNF, read from the cluster once
+  # per workload: the block gets the ref, the containers (one at a time, or
+  # all at once with check_containers: false), the volumes, and the whole
+  # object, so a test that needs more of it (the pod's securityContext, its
+  # selector, the replica count) does not fetch it again (#2772). A block
+  # may take only the first arguments.
   def self.workload_resource_test(
     args, config, check_containers = true,
-    &block : (NamedTuple(kind: String, name: String, namespace: String), JSON::Any, JSON::Any) -> Bool
+    &block : (NamedTuple(kind: String, name: String, namespace: String), JSON::Any, JSON::Any, JSON::Any) -> Bool
   ) : Bool
     logger = Log.for("workload_resource_test")
     logger.info { "Starting test" }
@@ -112,13 +136,15 @@ module CNFManager
       logger.debug { "Testing #{resource[:kind]}/#{resource[:name]}" }
       logger.trace { resource.inspect }
 
-      volumes = KubectlClient::Get.resource_volumes(resource[:kind], resource[:name], resource[:namespace])
-      containers = KubectlClient::Get.resource_containers(resource[:kind], resource[:name], resource[:namespace])
+      object = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+      pod_spec = pod_spec_of(object)
+      containers = pod_spec.try(&.["containers"]?) || EMPTY_JSON_ARRAY
+      volumes = pod_spec.try(&.["volumes"]?) || EMPTY_JSON_ARRAY
 
       # yields containers individually or all at once
       targets = check_containers ? containers.as_a : [containers]
       targets.each do |target|
-        resp = yield resource, target, volumes
+        resp = yield resource, target, volumes, object
         test_passed &&= resp
       end
     end
