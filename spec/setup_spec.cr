@@ -289,6 +289,29 @@ describe "Installation" do
     end
   end
 
+  it "'cnf_install' should fail when the repository does not have the chart, and leave nothing behind", tags: ["cnf_installation1"] do
+    begin
+      # A missing chart is not a transient error: helm answers at once and
+      # the install gives up without retrying (#2674).
+      started = Time.utc
+      result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-bad-helm-chart/cnti-testsuite.yaml", expect_failure: true)
+      result[:status].exit_code.should eq(1)
+      (/Helm pull failed for deployment "coredns": .*corsdsdsdedns/ =~ result[:output]).should_not be_nil
+      (/Deployment of "coredns" failed during CNF installation/ =~ result[:output]).should_not be_nil
+      (/Nothing was installed on the cluster. cnf_install can be run again/ =~ result[:output]).should_not be_nil
+      (Time.utc - started).should be < 60.seconds
+
+      # The next install runs without a cnf_uninstall in between.
+      result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-minimal-cnf/cnti-testsuite.yaml")
+      (/A CNF is already installed/ =~ result[:output]).should be_nil
+      (/CNF installation complete/ =~ result[:output]).should_not be_nil
+    ensure
+      ShellCmd.run("#{Helm::Binary.get} repo remove badchartrepo")
+      result = ShellCmd.cnf_uninstall()
+      (/All CNF deployments were uninstalled/ =~ result[:output]).should_not be_nil
+    end
+  end
+
   it "'cnf_install' can be run again after an install that failed before it reached the cluster", tags: ["cnf_installation1"] do
     begin
       result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-bad-helm-repo/cnti-testsuite.yaml", expect_failure: true)
