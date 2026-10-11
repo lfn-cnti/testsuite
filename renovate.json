@@ -74,6 +74,11 @@
       "groupName": "kubescape"
     },
     {
+      "description": "kubescape 4.0.13 to 4.0.15 drop every path from the v1 report for rules that set deletePaths (kubescape/kubescape#4103); the next release is proposed as usual and the application_credentials spec tells whether it is fixed",
+      "matchDepNames": ["kubescape/kubescape"],
+      "allowedVersions": "!/^4\\.0\\.1[3-5]$/"
+    },
+    {
       "description": "Crystal toolchain: one PR for every place the version is pinned",
       "matchDepNames": ["crystal-lang/crystal"],
       "groupName": "crystal"
