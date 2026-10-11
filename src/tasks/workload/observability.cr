@@ -32,9 +32,10 @@ scored_task "log_output",
       pods.each do |pod|
         pod_name = pod.dig("metadata", "name").as_s
         # A pod that is not running has nothing to say yet; kubectl prints no
-        # logs and no error for one that was never scheduled.
+        # logs and no error for one that was never scheduled. A pod that ran
+        # to completion (a Job's) keeps its logs.
         phase = pod.dig?("status", "phase").try(&.as_s) || "Unknown"
-        unless phase == "Running"
+        unless phase == "Running" || phase == "Succeeded"
           unreadable << "#{resource[:kind]}/#{resource[:name]} pod #{pod_name}: pod is #{phase}"
           next
         end
@@ -91,7 +92,11 @@ scored_task "prometheus_traffic",
     # A workload sends Prometheus traffic when one of the active targets
     # scrapes one of its pods; each one no target scrapes is a finding.
     unscraped = 0
+    applicable = 0
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
+      # A Job's pod runs to completion, it serves no metrics endpoint to scrape.
+      next true if CNFManager.batch_workload_listed?(resource, result, t.name)
+      applicable += 1
       ips = Prometheus.pod_ips(KubectlClient::Get.pods_by_resource_labels(live, resource[:namespace]))
       label = "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}"
       matched = Prometheus.targets_for_ips(ips, targets)
@@ -110,7 +115,9 @@ scored_task "prometheus_traffic",
       end
     end
 
-    if task_response
+    if applicable == 0
+      result.na("Every workload of the CNF runs to completion (a Job or CronJob), nothing serves metrics to scrape")
+    elsif task_response
       result.passed("Your cnf is sending prometheus traffic")
     else
       result.append_remediation("Expose a /metrics endpoint on each workload and register it with Prometheus: annotate the pods (prometheus.io/scrape, prometheus.io/port, prometheus.io/path) for annotation-based discovery, or add a ServiceMonitor/PodMonitor for the Prometheus Operator.")
@@ -138,6 +145,7 @@ scored_task "open_metrics",
     validated = 0
     invalid = 0
     CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
+      next true if CNFManager.batch_workload_listed?(resource, result, t.name)
       ips = Prometheus.pod_ips(KubectlClient::Get.pods_by_resource_labels(live, resource[:namespace]))
       label = "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}"
       matched = Prometheus.targets_for_ips(ips, server[:targets])
@@ -185,12 +193,18 @@ scored_task "routed_logs",
       next
     end
 
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource_name, _, _|
-      resource = KubectlClient::Get.resource(resource_name[:kind], resource_name[:name], resource_name[:namespace])
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource_name, _, _, resource|
       pods = KubectlClient::Get.pods_by_resource_labels(resource, namespace: resource_name[:namespace])
 
       pods.all? do |pod|
         pod_name = pod.dig("metadata", "name").as_s
+        # A Job's pod that has finished may have been tailed before the
+        # collector was read: only its running pods are judged.
+        phase = pod.dig?("status", "phase").try(&.as_s?) || "Unknown"
+        if CNFManager.batch_workload?(resource_name) && phase != "Running"
+          result.append_description("#{resource_name[:kind]}/#{resource_name[:name]} in #{resource_name[:namespace]} pod #{pod_name}: pod is #{phase}, not judged")
+          next true
+        end
         if FluentManager.pod_tailed?(pod_name, fluent_pods)
           true
         else
@@ -280,7 +294,7 @@ scored_task "termination_message_policy",
     judged = 0
 
     CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
-      pod_spec = live.dig?("spec", "template", "spec") || live.dig?("spec")
+      pod_spec = CNFManager.pod_spec_of(live)
       # Regular and init containers are the CNF's own; ephemeral containers are
       # added by `kubectl debug`, not by the chart, so they are not judged.
       {"containers" => false, "initContainers" => true}.each do |list, init|

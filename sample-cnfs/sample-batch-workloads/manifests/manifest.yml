@@ -1,0 +1,130 @@
+# A CNF with a serving workload next to two that run to completion: a Job
+# that has run, and a CronJob between runs (its schedule never comes round in
+# a test). Every workload is judged on what it declares; the Job's container
+# sets no seccomp profile, the others do (#2773). The namespace allows that:
+# under the cluster's default "restricted" Pod Security level the Job's pod
+# would be rejected and the Job would never run.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: batch-workloads
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: batch-web
+  namespace: batch-workloads
+  labels:
+    app: batch-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: batch-web
+  template:
+    metadata:
+      labels:
+        app: batch-web
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: web
+        image: busybox:1.36
+        command: ["sh", "-c", "while true; do echo serving; sleep 10; done"]
+        livenessProbe:
+          exec:
+            command: ["true"]
+        readinessProbe:
+          exec:
+            command: ["true"]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+        securityContext:
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: batch-once
+  namespace: batch-workloads
+  labels:
+    app: batch-once
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: batch-once
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+      containers:
+      - name: once
+        image: busybox:1.36
+        command: ["sh", "-c", "echo migrated"]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+        securityContext:
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: batch-nightly
+  namespace: batch-workloads
+  labels:
+    app: batch-nightly
+spec:
+  schedule: "0 3 1 1 *"
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app: batch-nightly
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: nightly
+            image: busybox:1.36
+            command: ["sh", "-c", "echo reported"]
+            resources:
+              requests:
+                cpu: 10m
+                memory: 16Mi
+              limits:
+                cpu: 50m
+                memory: 32Mi
+            securityContext:
+              runAsUser: 1000
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]

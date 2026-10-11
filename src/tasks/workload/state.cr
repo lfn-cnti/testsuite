@@ -76,7 +76,7 @@ scored_task "node_drain",
     CNFManager.resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |ref|
       label = "#{ref[:kind]}/#{ref[:name]} in #{ref[:namespace]}"
       unless NODE_DRAIN_KINDS.includes?(ref[:kind].downcase)
-        result.append_description("#{label}: a #{ref[:kind]} cannot be drained and rescheduled (a bare Pod is deleted for good, DaemonSet pods stay), node_drain is not applicable to it")
+        result.append_description("#{label}: a #{ref[:kind]} cannot be drained and rescheduled (a bare Pod is deleted for good, DaemonSet pods stay, a Job's pod runs to completion), node_drain is not applicable to it")
         next
       end
       live = KubectlClient::Get.resource(ref[:kind], ref[:name], ref[:namespace])
@@ -360,7 +360,7 @@ scored_task "no_local_volume_configuration",
       kind = resource["kind"].as_s
       name = resource.dig("metadata", "name").as_s
       namespace = resource.dig?("metadata", "namespace").try(&.as_s?)
-      pod_spec = resource.dig?("spec", "template", "spec") || resource.dig?("spec")
+      pod_spec = CNFManager.pod_spec_of(resource)
       volumes = pod_spec.try(&.dig?("volumes")).try(&.as_a?) || [] of YAML::Any
       volumes.each do |volume|
         claim_name = volume.dig?("persistentVolumeClaim", "claimName").try(&.as_s?)

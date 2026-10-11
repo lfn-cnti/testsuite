@@ -79,6 +79,25 @@ module KubectlClient
         rescue
           return false
         end
+      when "job"
+        # A Job is installed once it has started its pods: active, or already
+        # done (succeeded or failed, both are a Job that ran). Its outcome is
+        # the tests' business, not the install's, so a long or failed Job does
+        # not hold the install until it times out.
+        begin
+          status = KubectlClient::Get.resource(kind, resource_name, namespace)["status"]?
+          return ["active", "succeeded", "failed"].any? { |field| (status.try(&.[field]?).try(&.as_i?) || 0) > 0 }
+        rescue
+          return false
+        end
+      when "cronjob"
+        # A CronJob is a schedule: it is installed once it exists.
+        begin
+          KubectlClient::Get.resource(kind, resource_name, namespace)
+          return true
+        rescue
+          return false
+        end
       when "deployment", "statefulset", "daemonset", "replicaset"
         # Standard Kubernetes workload resources - check replica counts
         replicas = KubectlClient::Get.replica_count(kind, resource_name, namespace)

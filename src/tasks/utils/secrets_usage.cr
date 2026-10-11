@@ -5,16 +5,6 @@
 # shipped Secret no workload reads, a required reference no Secret answers
 # (#1936). Pure functions over the objects' JSON, so they are unit-tested.
 module SecretsUsage
-  # The pod spec of a workload object: a Pod's own, a CronJob's job template's,
-  # every other workload's template's.
-  def self.pod_spec_of(object : JSON::Any) : JSON::Any?
-    case object["kind"]?.try(&.as_s?)
-    when "Pod"     then object["spec"]?
-    when "CronJob" then object.dig?("spec", "jobTemplate", "spec", "template", "spec")
-    else                object.dig?("spec", "template", "spec")
-    end
-  end
-
   # A reference a pod spec makes to a Secret: its name, where, and whether
   # the pod runs without it (`optional: true`).
   record Reference, name : String, where : String, optional : Bool

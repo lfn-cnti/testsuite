@@ -149,7 +149,7 @@ Make sure your helm charts are valid and can be deployed to clusters.
 
 Checks if the Pod can be upgraded to a new software version, then restored back to the original software version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) and [Kubectl Rollout Undo](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#rollout) commands.
 Expectation: The CNF Software version can be successfully incremented, then rolled back.
-The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rollback_from_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason.
+The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rollback_from_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. A Job or CronJob has an immutable pod template and runs once: it is listed in the test details as not applicable.
 
 #### Rationale
 
@@ -173,7 +173,7 @@ Ensure that you can upgrade your CNF using the [Kubectl Set Image](https://kuber
 
 Checks if the Pod can be rolled back to the original software version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) to perform a rollback.
 Expectation: The CNF Software version is successfully rolled back to its original version.
-The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_version_change_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason.
+The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_version_change_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. A Job or CronJob has an immutable pod template and runs once: it is listed in the test details as not applicable.
 
 #### Rationale
 
@@ -199,7 +199,7 @@ Ensure that you can successfully rollback the software version of your CNF by us
 
 Checks if the Pod can be upgraded to a new software version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-)
 Expectation: The CNF Software version can be successfully incremented.
-The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_update_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason.
+The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_update_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. A Job or CronJob has an immutable pod template and runs once: it is listed in the test details as not applicable.
 
 #### Rationale
 
@@ -223,7 +223,7 @@ Ensure that you can successfully perform a rolling upgrade of your CNF using the
 
 Checks if the Pod can be rolled back older software version(Older than the original software version) by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) to perform a downgrade.
 Expectation: The CNF Software version is successfully downgraded to a software version older than the original installation version.
-The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_downgrade_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason.
+The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_downgrade_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. A Job or CronJob has an immutable pod template and runs once: it is listed in the test details as not applicable.
 
 #### Rationale
 
@@ -354,7 +354,7 @@ Audit your CNF's images:
 
 #### Overview
 
-Measures, for every workload resource of the CNF, how long its slowest pod took from its containers starting to reporting Ready, as recorded in the pod's status; image pulls and scheduling are excluded. Each workload is reported with its slowest pod and time, and each one over the limit is a finding. The limit is 30 seconds unless the CNF sets `startup_time_max_seconds` in `cnti-testsuite.yaml`.
+Measures, for every workload resource of the CNF, how long its slowest pod took from its containers starting to reporting Ready, as recorded in the pod's status; image pulls and scheduling are excluded. Each workload is reported with its slowest pod and time, and each one over the limit is a finding. The limit is 30 seconds unless the CNF sets `startup_time_max_seconds` in `cnti-testsuite.yaml`. A Job or CronJob runs to completion: it is listed in the test details as not applicable, and the test is not applicable when the CNF has no other workload.
 Expectation: Every workload of the CNF is Ready within 30 seconds of its containers starting.
 
 #### Rationale
@@ -402,7 +402,7 @@ Ensure that there is only one process type within a container. This does not cou
 
 #### Overview
 
-Checks, for every workload resource of the CNF, that a Service of the CNF selects its pods; each workload is reported with the Service that exposes it, and each one nothing exposes is a finding. Application access for microservices within a cluster should be exposed via a Service. Read more about K8s Service [here](https://kubernetes.io/docs/concepts/services-networking/service/).
+Checks, for every workload resource of the CNF, that a Service of the CNF selects its pods; each workload is reported with the Service that exposes it, and each one nothing exposes is a finding. Application access for microservices within a cluster should be exposed via a Service. Read more about K8s Service [here](https://kubernetes.io/docs/concepts/services-networking/service/). A Job or CronJob runs to completion: it is listed in the test details as not applicable, and the test is not applicable when the CNF has no other workload.
 Expectation: Every workload resource of the CNF is exposed by a Service.
 
 #### Rationale
@@ -448,7 +448,7 @@ Give each service its own database (or its own schema with no cross-service acce
 
 #### Overview
 
-This tests if containers in pods use a specialized init system as their PID 1 process: tini (including tini-static and docker-init), dumb-init, catatonit, s6-overlay (whose PID 1 is s6-svscan), or gopherd (HAProxy's container init and supervisor). The check is on the executable's name, not on any part of its path.
+This tests if containers in pods use a specialized init system as their PID 1 process: tini (including tini-static and docker-init), dumb-init, catatonit, s6-overlay (whose PID 1 is s6-svscan), or gopherd (HAProxy's container init and supervisor). The check is on the executable's name, not on any part of its path. Of a Job's or CronJob's pods only the running ones can be inspected; a pod that has finished is listed in the test details.
 Expectation: Container images should use specialized init systems for containers.
 
 #### Rationale
@@ -471,7 +471,7 @@ Use init systems that are purpose-built for containers like tini, dumb-init, cat
 
 #### Overview
 
-This tests if the PID 1 process of containers handles SIGTERM. SIGTERM is sent to each container's PID 1 and the process must terminate within the pod's `terminationGracePeriodSeconds` (default 30 s). When PID 1 supervises child processes, the children are judged instead: each must be stopped, with whatever shutdown signal the supervisor uses for it (SIGTERM, SIGINT, SIGQUIT, SIGHUP, SIGUSR1 or SIGUSR2), and terminate within the grace period. When PID 1 is a specialized init system, the init's own processes are not judged, only the services it runs: s6-overlay, for example, ends its supervision tree (every `s6-*` process) itself once its services have stopped. A child still running afterwards, or one killed with SIGKILL rather than stopped, fails the container; the details say which signal stopped each process. Containers that cannot be traced are reported as skipped and do not fail the test.
+This tests if the PID 1 process of containers handles SIGTERM. SIGTERM is sent to each container's PID 1 and the process must terminate within the pod's `terminationGracePeriodSeconds` (default 30 s). When PID 1 supervises child processes, the children are judged instead: each must be stopped, with whatever shutdown signal the supervisor uses for it (SIGTERM, SIGINT, SIGQUIT, SIGHUP, SIGUSR1 or SIGUSR2), and terminate within the grace period. When PID 1 is a specialized init system, the init's own processes are not judged, only the services it runs: s6-overlay, for example, ends its supervision tree (every `s6-*` process) itself once its services have stopped. A child still running afterwards, or one killed with SIGKILL rather than stopped, fails the container; the details say which signal stopped each process. Containers that cannot be traced are reported as skipped and do not fail the test. A Job's process is its work, and ending it would change the Job's outcome: a Job or CronJob is listed in the test details as not applicable, and the test is not applicable when the CNF has no other workload.
 Expectation: Sigterm is handled by PID 1 process of containers.
 
 #### Rationale
@@ -532,7 +532,7 @@ All state: `./cnti-testsuite state`
 
 #### Overview
 
-Every node that hosts a pod of the CNF is cordoned and drained once, one node at a time, and every Deployment, StatefulSet or ReplicaSet that has a pod there when the drain starts must be Ready again on another node while the drained node is still cordoned. The pods on a node are read just before it is drained, so pods an earlier drain moved there are judged with it, and the test ends only when every workload is Ready again, so the tests after it start from a settled CNF. The details record, per node, how many pods were evicted and how long it took, and per workload how long it took to be Ready again; a workload that does not come back, or whose eviction the API refuses (a PodDisruptionBudget, usually), is a finding with the reason. Bare Pods and DaemonSets are reported as not applicable: a drain deletes the former for good and leaves the latter in place. Skipped when the cluster has fewer than two schedulable nodes.
+Every node that hosts a pod of the CNF is cordoned and drained once, one node at a time, and every Deployment, StatefulSet or ReplicaSet that has a pod there when the drain starts must be Ready again on another node while the drained node is still cordoned. The pods on a node are read just before it is drained, so pods an earlier drain moved there are judged with it, and the test ends only when every workload is Ready again, so the tests after it start from a settled CNF. The details record, per node, how many pods were evicted and how long it took, and per workload how long it took to be Ready again; a workload that does not come back, or whose eviction the API refuses (a PodDisruptionBudget, usually), is a finding with the reason. Bare Pods, DaemonSets, Jobs and CronJobs are reported as not applicable: a drain deletes a bare Pod for good, leaves a DaemonSet's pods in place, and a Job's pod runs to completion. Skipped when the cluster has fewer than two schedulable nodes.
 Measurement: `kubectl drain` of each node hosting the CNF's pods, with DaemonSet pods ignored and emptyDir data deleted, and the recovery read from the workloads' pods: as many as the workload asks for, all Ready and none on the drained node; no chaos tool is involved. The node stays cordoned for `CNTI_TESTSUITE_NODE_DRAIN_TOTAL_CHAOS_DURATION` seconds (30 by default) after the drain.
 Expectation: All workload resources are successfully rescheduled onto other available node(s).
 
@@ -654,7 +654,7 @@ The applications may stall or get corrupted while they wait endlessly for a pack
 Measurement: LitmusChaos experiment [pod-network-latency](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-latency/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when network latency occurs
 The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) from the nodes and probes the usual socket locations on a node, and `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path. The test is not applicable when the runtime is unsupported or no socket is found.
-Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
+Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod, ReplicaSet, Job or CronJob is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
 Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 
 #### Rationale
@@ -683,7 +683,7 @@ A mitigation strategy (in this case keep the timeout i.e., access latency low) c
 [This experiment](https://litmuschaos.github.io/litmus/experiments/categories/pods/disk-fill/) stresses the disk with continuous and heavy IO to cause degradation in the shared disk. This experiment also reduces the amount of scratch space available on a node which can lead to a lack of space for newer containers to get scheduled. This can cause (Kubernetes gives up by applying an "eviction" taint like "disk-pressure") a wholesale movement of all pods to other nodes.
 Measurement: LitmusChaos experiment [disk-fill](https://litmuschaos.github.io/litmus/experiments/categories/pods/disk-fill/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when disk fill occurs and pods should not be evicted to another node.
-Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
+Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod, ReplicaSet, Job or CronJob is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
 Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 A workload whose containers all mount a read-only root file system cannot be filled at all, which is the property this experiment probes, so it passes without the fault being injected; the reason is recorded in the test details. In a workload that mixes read-only and writable containers, the fault is injected into a writable one.
 
@@ -710,7 +710,7 @@ Ensure that your CNF is resilient and doesn't stall when heavy IO causes a degra
 [This experiment](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-delete/) helps to simulate such a scenario with forced/graceful pod failure on specific or random replicas of an application resource and checks the deployment sanity (replica availability & uninterrupted service) and recovery workflow of the application.
 Measurement: LitmusChaos experiment [pod-delete](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-delete/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when pod delete occurs
-Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
+Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod, ReplicaSet, Job or CronJob is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
 Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 
 #### Rationale
@@ -737,7 +737,7 @@ The [pod-memory hog](https://litmuschaos.github.io/litmus/experiments/categories
 Measurement: LitmusChaos experiment [pod-memory-hog](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-memory-hog/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when pod memory hog occurs
 The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) from the nodes and probes the usual socket locations on a node, and `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path. The test is not applicable when the runtime is unsupported or no socket is found.
-Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
+Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod, ReplicaSet, Job or CronJob is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
 Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 
 #### Rationale
@@ -770,7 +770,7 @@ The [pod-io stress](https://litmuschaos.github.io/litmus/experiments/categories/
 Measurement: LitmusChaos experiment [pod-io-stress](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-io-stress/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function when pod io stress occurs
 The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) from the nodes and probes the usual socket locations on a node, and `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path. The test is not applicable when the runtime is unsupported or no socket is found.
-Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
+Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod, ReplicaSet, Job or CronJob is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
 Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 A workload whose containers all mount a read-only root file system cannot be stressed at all, which is the property this experiment probes, so it passes without the fault being injected; the reason is recorded in the test details. In a workload that mixes read-only and writable containers, the fault is injected into a writable one.
 
@@ -800,7 +800,7 @@ The [pod-network corruption](https://litmuschaos.github.io/litmus/experiments/ca
 Measurement: LitmusChaos experiment [pod-network-corruption](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-corruption/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should be resilient to a lossy/flaky network and should continue to provide some level of availability.
 The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) from the nodes and probes the usual socket locations on a node, and `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path. The test is not applicable when the runtime is unsupported or no socket is found.
-Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
+Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod, ReplicaSet, Job or CronJob is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
 Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 
 #### Rationale
@@ -828,7 +828,7 @@ The [pod-network duplication](https://litmuschaos.github.io/litmus/experiments/c
 Measurement: LitmusChaos experiment [pod-network-duplication](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-duplication/); the Litmus version is in the results file's `tools`.
 Expectation: The CNF should continue to function and be resilient to a duplicate network.
 The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) from the nodes and probes the usual socket locations on a node, and `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path. The test is not applicable when the runtime is unsupported or no socket is found.
-Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
+Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod, ReplicaSet, Job or CronJob is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
 Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 
 #### Rationale
@@ -856,7 +856,7 @@ The [pod-dns error](https://litmuschaos.github.io/litmus/experiments/categories/
 Measurement: LitmusChaos experiment [pod-dns-error](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-dns-error/); the Litmus version is in the results file's `tools`.
 Expectation: That the CNF doesn't crash is resilient to DNS resolution failures.
 The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) and its socket the same way `pod_io_stress` does, and the test is not applicable when the runtime is unsupported or no socket is found.
-Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod or ReplicaSet is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
+Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod, ReplicaSet, Job or CronJob is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
 Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 
 #### Rationale
@@ -879,7 +879,7 @@ Ensure that your CNF is resilient to DNS resolution failures and can maintain a 
 
 #### Overview
 
-This test verifies that each workload resource includes at least one container with a liveness probe configured.
+This test verifies that each workload resource includes at least one container with a liveness probe configured. A Job or CronJob runs to completion: it is listed in the test details as not applicable, and the test is not applicable when the CNF has no other workload.
 Expectation: Each workload resource should have at least one container with a liveness probe defined.
 
 #### Rationale
@@ -906,7 +906,7 @@ Ensure that your CNF has a [Liveness Probe](https://kubernetes.io/docs/tasks/con
 
 #### Overview
 
-This test verifies that each workload resource includes at least one container with a readiness probe configured.
+This test verifies that each workload resource includes at least one container with a readiness probe configured. A Job or CronJob runs to completion: it is listed in the test details as not applicable, and the test is not applicable when the CNF has no other workload.
 Expectation: Each workload resource should have at least one container with a readiness probe defined.
 
 #### Rationale
@@ -962,7 +962,7 @@ All observability: `./cnti-testsuite observability`
 
 #### Overview
 
-This checks and verifies that STDOUT/STDERR logging is configured for the CNF. The last log lines of every pod of each workload resource are read; a resource passes when any of its pods has written to stdout/stderr. Pods whose logs cannot be read yet (not scheduled, container still starting) are reported and left out of the verdict; the test is skipped when no pod could be read.
+This checks and verifies that STDOUT/STDERR logging is configured for the CNF. The last log lines of every pod of each workload resource are read; a resource passes when any of its pods has written to stdout/stderr. Pods whose logs cannot be read yet (not scheduled, container still starting) are reported and left out of the verdict; the test is skipped when no pod could be read. A pod that ran to completion (a Job's) keeps its logs and is read like a running one.
 Expectation: Resource output logs should be sent to STDOUT/STDERR
 
 #### Rationale
@@ -985,7 +985,7 @@ Make sure applications and CNF's are sending log output to STDOUT and or STDERR.
 
 #### Overview
 
-Finds the [Prometheus](https://prometheus.io/) server in the cluster (a pod running a `prometheus` process and the Service in front of it), reads its active targets, and checks that every workload of the CNF has a pod among them. The details name the server, the URL its targets API answered at and, per workload, the scrape URL and target health; a workload no target scrapes is a finding. Not applicable, with the pods and URLs probed in the details, when no Prometheus server answers: nothing scrapes the CNF in that cluster.
+Finds the [Prometheus](https://prometheus.io/) server in the cluster (a pod running a `prometheus` process and the Service in front of it), reads its active targets, and checks that every workload of the CNF has a pod among them. The details name the server, the URL its targets API answered at and, per workload, the scrape URL and target health; a workload no target scrapes is a finding. Not applicable, with the pods and URLs probed in the details, when no Prometheus server answers: nothing scrapes the CNF in that cluster. A Job or CronJob runs to completion: it is listed in the test details as not applicable, and the test is not applicable when the CNF has no other workload.
 Expectation: The CNF is configured and sending metrics to a Prometheus server.
 
 #### Rationale
@@ -1008,7 +1008,7 @@ Install and configure Prometheus for your CNF.
 
 #### Overview
 
-Checks for presence of a Unified Logging Layer and if the CNFs logs are being captured by the Unified Logging Layer. fluentd and fluentbit are currently supported.
+Checks for presence of a Unified Logging Layer and if the CNFs logs are being captured by the Unified Logging Layer. fluentd and fluentbit are currently supported. Of a Job's or CronJob's pods only the running ones are judged; a pod that has finished is listed in the test details.
 Expectation: Fluentd or FluentBit is installed and capturing logs for the CNF.
 
 #### Rationale
@@ -1031,7 +1031,7 @@ Install and configure fluentd or fluentbit to collect data and logs. See more at
 
 #### Overview
 
-Fetches every endpoint Prometheus scrapes on the CNF's pods and runs it through the [OpenMetrics](https://openmetrics.io/) validator; each endpoint is reported by URL with the validator's verdict, and a failing one is a finding with the validator's message. Not applicable when no Prometheus server answers; skipped when a server answers but no endpoint of the CNF is scraped.
+Fetches every endpoint Prometheus scrapes on the CNF's pods and runs it through the [OpenMetrics](https://openmetrics.io/) validator; each endpoint is reported by URL with the validator's verdict, and a failing one is a finding with the validator's message. Not applicable when no Prometheus server answers; skipped when a server answers but no endpoint of the CNF is scraped. A Job or CronJob runs to completion and serves no endpoint: it is listed in the test details as not applicable.
 Expectation: CNF should emit OpenMetrics compatible traffic.
 
 #### Rationale

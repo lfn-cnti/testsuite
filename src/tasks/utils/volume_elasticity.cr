@@ -43,7 +43,7 @@ module VolumeElasticity
   # Claims of a workload: those its pod volumes name, and for a StatefulSet
   # those made from its volumeClaimTemplates, one per template and replica.
   def self.claim_names(resource : JSON::Any) : Array(String)
-    pod_spec = resource.dig?("spec", "template", "spec") || resource.dig?("spec")
+    pod_spec = KubectlClient::Get.pod_spec_of(resource)
     volumes = pod_spec.try(&.dig?("volumes")).try(&.as_a?) || [] of JSON::Any
     claims = volumes.compact_map(&.dig?("persistentVolumeClaim", "claimName").try(&.as_s?))
     templates = resource.dig?("spec", "volumeClaimTemplates").try(&.as_a?) || [] of JSON::Any

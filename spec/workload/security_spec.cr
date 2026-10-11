@@ -265,6 +265,23 @@ describe "Security" do
     end
   end
 
+  it "'seccomp_profile' judges a Job and a CronJob like any other workload", tags: ["security"] do
+    begin
+      # The Job's container sets no profile; the Deployment's and the
+      # CronJob's job template's pods set RuntimeDefault (#2773).
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-batch-workloads")
+      result = ShellCmd.run_testsuite("seccomp_profile")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(Found 1 container\(s\) without a seccomp profile)/ =~ result[:output]).should_not be_nil
+      (/impacted: Job\/batch-once in batch-workloads \(container once\): no seccompProfile on the container or its pod/ =~ result[:output]).should_not be_nil
+      result[:output].should_not contain("impacted: CronJob/batch-nightly")
+      result[:output].should_not contain("impacted: Deployment/batch-web")
+      verify_task_result("seccomp_profile", "failed")
+    ensure
+      ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'seccomp_profile' should pass when the pod sets RuntimeDefault and a container overrides with Localhost", tags: ["security"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-seccomp --skip-wait-for-install")

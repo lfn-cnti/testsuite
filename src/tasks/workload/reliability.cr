@@ -22,7 +22,11 @@ category_task "resilience", [
 
 def run_probe_task(t, args, probe_type : String)
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    applicable = 0
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, _|
+      # A probe watches a pod that serves; a Job's pod runs to completion.
+      next true if CNFManager.batch_workload_listed?(resource, result, t.name)
+      applicable += 1
       resource_ref = "#{resource[:kind]}/#{resource[:name]}"
       probe_key = "#{probe_type}Probe"
       resource_has_probe = false
@@ -52,7 +56,9 @@ def run_probe_task(t, args, probe_type : String)
       resource_has_probe
     end
 
-    if task_response
+    if applicable == 0
+      result.na("Every workload of the CNF runs to completion (a Job or CronJob), a #{probe_type} probe does not apply")
+    elsif task_response
       result.passed("All workload resources have at least one container with a #{probe_type} probe")
     else
       result.failed("One or more workload resources have no containers with a #{probe_type} probe")

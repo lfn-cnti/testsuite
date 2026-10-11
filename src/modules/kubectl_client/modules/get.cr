@@ -245,6 +245,9 @@ module KubectlClient
         logger.warn { "Passed resource is nil" }
         return [] of JSON::Any
       end
+      # A CronJob selects nothing itself: its pods are those of the Jobs it
+      # controls, found by owner reference, Job by Job.
+      return pods_of_cronjob(name.as_s, namespace) if kind.as_s.downcase == "cronjob"
 
       if namespace.nil?
         pods = resource("pods", all_namespaces: true)["items"].as_a
@@ -267,6 +270,27 @@ module KubectlClient
       # Labels can be shared: two workloads with overlapping selectors each own
       # only their own pods, and the controller reference decides which.
       filtered_pods.select { |pod| pod_controlled_by?(pod, kind.as_s, name.as_s) }
+    end
+
+    # The pods of a CronJob's Jobs: a Job is the CronJob's when the CronJob is
+    # its controller, a pod is a Job's when the Job is its controller.
+    def self.pods_of_cronjob(name : String, namespace : String?) : Array(JSON::Any)
+      jobs = resource("jobs", namespace: namespace, all_namespaces: namespace.nil?)["items"].as_a
+      job_names = jobs.select { |job| controller_of(job) == {"CronJob", name} }.map { |job| job.dig("metadata", "name").as_s }
+      return [] of JSON::Any if job_names.empty?
+      pods = resource("pods", namespace: namespace, all_namespaces: namespace.nil?)["items"].as_a
+      pods.select do |pod|
+        controller = controller_of(pod)
+        controller && controller[0] == "Job" && job_names.includes?(controller[1])
+      end
+    end
+
+    # The {kind, name} of the owner reference with controller: true, nil when
+    # the object has none.
+    def self.controller_of(object : JSON::Any) : {String, String}?
+      controller = object.dig?("metadata", "ownerReferences").try(&.as_a?).try &.find { |ref| ref["controller"]?.try(&.as_bool?) }
+      return nil unless controller
+      {controller["kind"]?.try(&.as_s?) || "", controller["name"]?.try(&.as_s?) || ""}
     end
 
     # Whether `pod` belongs to the workload `kind`/`name` by its controller
@@ -384,20 +408,37 @@ module KubectlClient
       matched_pods
     end
 
+    # The pod spec of a workload object: a Pod's own, a CronJob's job
+    # template's, every other workload's template's. Nil when the object has
+    # none (a kind that runs no pods). Every reader of containers, volumes or
+    # a pod securityContext goes through this, so that no kind is resolved by
+    # a path that only some kinds have.
+    def self.pod_spec_of(object : JSON::Any) : JSON::Any?
+      case object["kind"]?.try(&.as_s?).to_s.downcase
+      when "pod"     then object["spec"]?
+      when "cronjob" then object.dig?("spec", "jobTemplate", "spec", "template", "spec")
+      else                object.dig?("spec", "template", "spec")
+      end
+    end
+
+    # The labels the pods of a workload object are created with: a Pod's own,
+    # a CronJob's job template's, every other workload's template's.
+    def self.pod_template_labels_of(object : JSON::Any) : JSON::Any?
+      case object["kind"]?.try(&.as_s?).to_s.downcase
+      when "pod"     then object.dig?("metadata", "labels")
+      when "cronjob" then object.dig?("spec", "jobTemplate", "spec", "template", "metadata", "labels")
+      else                object.dig?("spec", "template", "metadata", "labels")
+      end
+    end
+
     # Every container a workload resource declares - containers, initContainers
-    # and ephemeralContainers - from its pod spec (a Pod's own spec, or the
-    # template's for the kinds that carry one). Tests that judge containers
+    # and ephemeralContainers - from its pod spec. Tests that judge containers
     # read this so that none of them forgets a list.
     def self.resource_all_containers(kind : String, resource_name : String, namespace : String? = nil) : Array(JSON::Any)
       logger = @@logger.for("resource_all_containers")
       logger.debug { "Get every container of #{kind}/#{resource_name}" }
 
-      pod_spec = case kind.downcase
-                 when "pod"
-                   resource(kind, resource_name, namespace).dig?("spec")
-                 when "deployment", "statefulset", "replicaset", "daemonset", "job"
-                   resource(kind, resource_name, namespace).dig?("spec", "template", "spec")
-                 end
+      pod_spec = pod_spec_of(resource(kind, resource_name, namespace))
       return [] of JSON::Any if pod_spec.nil?
 
       ["containers", "initContainers", "ephemeralContainers"].flat_map do |list|
@@ -409,30 +450,14 @@ module KubectlClient
       logger = @@logger.for("resource_containers")
       logger.debug { "Get containers of #{kind}/#{resource_name}" }
 
-      case kind.downcase
-      when "pod"
-        resp = resource(kind, resource_name, namespace).dig?("spec", "containers")
-      when "deployment", "statefulset", "replicaset", "daemonset"
-        resp = resource(kind, resource_name, namespace).dig?("spec", "template", "spec", "containers")
-      end
-
-      return EMPTY_JSON_ARRAY if resp.nil?
-      return resp
+      pod_spec_of(resource(kind, resource_name, namespace)).try(&.["containers"]?) || EMPTY_JSON_ARRAY
     end
 
     def self.resource_volumes(kind : String, resource_name : String, namespace : String? = nil) : JSON::Any
       logger = @@logger.for("resource_volumes")
       logger.debug { "Get volumes of #{kind}/#{resource_name}" }
 
-      case kind.downcase
-      when "pod"
-        resp = resource(kind, resource_name, namespace).dig?("spec", "volumes")
-      when "deployment", "statefulset", "replicaset", "daemonset"
-        resp = resource(kind, resource_name, namespace).dig?("spec", "template", "spec", "volumes")
-      end
-
-      return EMPTY_JSON_ARRAY if resp.nil?
-      return resp
+      pod_spec_of(resource(kind, resource_name, namespace)).try(&.["volumes"]?) || EMPTY_JSON_ARRAY
     end
 
     def self.replica_count(
@@ -552,7 +577,7 @@ module KubectlClient
       when "deployment", "statefulset", "replicaset", "daemonset", "job"
         resp = resource(kind, resource_name, namespace: namespace).dig?("spec", "selector", "matchLabels")
       else
-        resp = resource(kind, resource_name, namespace: namespace).dig?("spec", "template", "metadata", "labels")
+        resp = pod_template_labels_of(resource(kind, resource_name, namespace: namespace))
       end
       logger.trace { "Resource labels: #{resp}" }
 

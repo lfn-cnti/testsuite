@@ -272,6 +272,20 @@ describe "Installation" do
     end
   end
 
+  it "'cnf_install' should count a Job that has run and a CronJob between runs as ready", tags: ["cnf_installation1"] do
+    begin
+      # A Job is installed once it has started its pods (here: once it has
+      # run), a CronJob once it exists; neither holds the install (#2773).
+      result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-batch-workloads/cnti-testsuite.yaml", timeout: 60)
+      (/CNF installation complete/ =~ result[:output]).should_not be_nil
+      (/batch-once is not ready/ =~ result[:output]).should be_nil
+      (/batch-nightly is not ready/ =~ result[:output]).should be_nil
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      (/All CNF deployments were uninstalled/ =~ result[:output]).should_not be_nil
+    end
+  end
+
   it "'cnf_install' should say why a workload did not become ready, with the crashed container's log", tags: ["cnf_installation1"] do
     begin
       result = ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-crashloop/cnti-testsuite.yaml", timeout: 60, cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=info", expect_failure: true)

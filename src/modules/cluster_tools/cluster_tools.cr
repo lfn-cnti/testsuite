@@ -157,7 +157,7 @@ module ClusterTools
   def self.all_containers_by_resource?(resource, namespace, only_container_pids : Bool = false, include_proctree : Bool = true, include_zombies : Bool = false, &block) 
 		kind = resource["kind"].downcase
 		case kind
-		when  "deployment","statefulset","pod","replicaset", "daemonset"
+		when  "deployment","statefulset","pod","replicaset", "daemonset", "job", "cronjob"
 			resource_yaml = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
 			pods = KubectlClient::Get.pods_by_resource_labels(resource_yaml, resource[:namespace])
 			pid_log_names  = [] of String

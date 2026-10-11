@@ -24,7 +24,7 @@ module HugepagesVolumes
   def self.pod_spec(resource : YAML::Any) : YAML::Any?
     kind = resource["kind"]?.try(&.as_s?).try(&.downcase)
     return nil unless kind && WORKLOAD_RESOURCE_KIND_NAMES.includes?(kind)
-    kind == "pod" ? resource.dig?("spec") : resource.dig?("spec", "template", "spec")
+    CNFManager.pod_spec_of(resource)
   end
 
   # The hugepage page sizes the pod requests, gathered across every container and

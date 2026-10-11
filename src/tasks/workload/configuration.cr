@@ -329,7 +329,7 @@ scored_task "secrets_used",
     missing = [] of String
     CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _containers, _volumes|
       object = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
-      pod_spec = SecretsUsage.pod_spec_of(object)
+      pod_spec = CNFManager.pod_spec_of(object)
       refs = pod_spec ? SecretsUsage.references(pod_spec) : [] of SecretsUsage::Reference
       refs_by_ns[resource[:namespace]].concat(refs)
       workloads_by_ns[resource[:namespace]] << resource

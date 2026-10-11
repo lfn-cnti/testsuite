@@ -27,6 +27,21 @@ describe CntiTestSuite do
     end
   end
 
+  it "'liveness' lists a Job and a CronJob as not applicable and judges the rest", tags: ["liveness"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-batch-workloads/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("liveness")
+      result[:status].success?.should be_true
+      (/(PASSED).*(All workload resources have at least one container with a liveness probe)/ =~ result[:output]).should_not be_nil
+      (/> Deployment\/batch-web in batch-workloads: liveness probe on web/ =~ result[:output]).should_not be_nil
+      (/> Job\/batch-once in batch-workloads: a Job runs to completion, liveness is not applicable to it/ =~ result[:output]).should_not be_nil
+      (/> CronJob\/batch-nightly in batch-workloads: a CronJob runs to completion, liveness is not applicable to it/ =~ result[:output]).should_not be_nil
+      verify_task_result("liveness", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'liveness' should fail when livenessProbe is not set", tags: ["liveness"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns_bad_liveness/cnti-testsuite.yaml --skip-wait-for-install")

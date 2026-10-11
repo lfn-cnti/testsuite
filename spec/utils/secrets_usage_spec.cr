@@ -50,9 +50,9 @@ describe "SecretsUsage" do
   end
 
   it "finds the pod spec of each workload kind", tags: ["points"] do
-    SecretsUsage.pod_spec_of(JSON.parse(%({"kind": "Pod", "spec": {"containers": []}}))).should_not be_nil
-    SecretsUsage.pod_spec_of(JSON.parse(%({"kind": "Deployment", "spec": {"template": {"spec": {"containers": []}}}}))).should_not be_nil
-    SecretsUsage.pod_spec_of(JSON.parse(%({"kind": "CronJob", "spec": {"jobTemplate": {"spec": {"template": {"spec": {"containers": []}}}}}}))).should_not be_nil
-    SecretsUsage.pod_spec_of(JSON.parse(%({"kind": "Service", "spec": {}}))).should be_nil
+    CNFManager.pod_spec_of(JSON.parse(%({"kind": "Pod", "spec": {"containers": []}}))).should_not be_nil
+    CNFManager.pod_spec_of(JSON.parse(%({"kind": "Deployment", "spec": {"template": {"spec": {"containers": []}}}}))).should_not be_nil
+    CNFManager.pod_spec_of(JSON.parse(%({"kind": "CronJob", "spec": {"jobTemplate": {"spec": {"template": {"spec": {"containers": []}}}}}}))).should_not be_nil
+    CNFManager.pod_spec_of(JSON.parse(%({"kind": "Service", "spec": {}}))).should be_nil
   end
 end

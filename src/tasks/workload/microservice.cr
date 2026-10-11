@@ -188,7 +188,11 @@ scored_task "reasonable_startup_time" do |t, args|
     # a disk benchmark (#2596).
     limit = config.common.startup_time_max_seconds || REASONABLE_STARTUP_TIME_MAX_SECONDS
     slow = 0
+    applicable = 0
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
+      # The time to Ready: a Job's pod runs to completion and is never Ready.
+      next true if CNFManager.batch_workload_listed?(resource, result, t.name)
+      applicable += 1
       pods = KubectlClient::Get.pods_by_resource_labels(live, namespace: resource[:namespace])
       if pods.empty?
         result.append_description("#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}: no pod to measure")
@@ -219,7 +223,9 @@ scored_task "reasonable_startup_time" do |t, args|
       end
     end
 
-    if task_response
+    if applicable == 0
+      result.na("Every workload of the CNF runs to completion (a Job or CronJob), it has no startup to Ready to measure")
+    elsif task_response
       result.passed("CNF had a reasonable startup time 🚀")
     else
       result.append_remediation("Move work out of the start-up path (lazy initialisation, pre-built caches, smaller images), gate readiness on what the service needs rather than on a fixed initial delay, and use a startupProbe for genuinely slow starters.")
@@ -701,11 +707,12 @@ scored_task "sig_term_handled",
     tested_pods = Set(String).new
 
     # Iterate over all resources
+    applicable = 0
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, resource_yaml|
-      kind = resource["kind"].downcase
-
-      # Early skip if this is not a relevant workload resource
-      next true unless kind.in?(["deployment","statefulset","pod","replicaset","daemonset"])
+      # A Job's process is its work: ending it changes the Job's outcome, and
+      # a finished one has nothing left to signal.
+      next true if CNFManager.batch_workload_listed?(resource, result, t.name)
+      applicable += 1
 
       pods = [] of JSON::Any
       begin
@@ -859,7 +866,9 @@ scored_task "sig_term_handled",
       result.append_description("Pod: #{info[:pod]}, Container: #{info[:container]}, Result: skipped, Reason: #{info[:reason]}")
     end
 
-    if task_response && !judged_any
+    if applicable == 0
+      result.na("Every workload of the CNF runs to completion (a Job or CronJob), SIGTERM handling does not apply")
+    elsif task_response && !judged_any
       result.skipped("Sig Term handling not checked: no container could be traced")
     elsif task_response
       checked_containers.each { |line| result.append_description("Checked #{line}") }
@@ -891,7 +900,11 @@ scored_task "service_discovery",
     end
 
     unexposed = 0
+    applicable = 0
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
+      # A Job's pod takes no requests, no Service needs to reach it.
+      next true if CNFManager.batch_workload_listed?(resource, result, t.name)
+      applicable += 1
       labels = (live.dig?("spec", "template", "metadata", "labels") || live.dig?("metadata", "labels")).try(&.as_h?) || {} of String => JSON::Any
       exposing = services.select do |service|
         service[:namespace] == resource[:namespace] &&
@@ -907,7 +920,9 @@ scored_task "service_discovery",
       end
     end
 
-    if task_response
+    if applicable == 0
+      result.na("Every workload of the CNF runs to completion (a Job or CronJob), a Service does not apply")
+    elsif task_response
       result.passed("Every workload resource of the CNF is exposed by a Service")
     else
       result.append_remediation("Expose each workload through a Service whose selector matches its pod labels; a workload that is reached only through the host network or a secondary interface can declare that as a documented exception.")
@@ -944,6 +959,13 @@ scored_task "specialized_init_system",
       # Every pod is inspected and reported; the verdict comes afterwards.
       pods.map do |pod|
         pod_name = pod.dig("metadata", "name").as_s
+        # A Job's pod that has finished (or not started) has no init process
+        # to read; it is listed, and the running ones are judged.
+        phase = pod.dig?("status", "phase").try(&.as_s?) || "Unknown"
+        if CNFManager.batch_workload?(resource) && phase != "Running"
+          not_inspected << "#{resource[:kind]}/#{resource[:name]} pod #{pod_name}: pod is #{phase}, its init process cannot be read"
+          next true
+        end
         Log.for(t.name).info { "Inspecting pod #{pod_name}" }
 
         results = InitSystems.scan(pod)

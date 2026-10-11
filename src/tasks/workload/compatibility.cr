@@ -21,6 +21,7 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
       Log.for(t.name).debug { "container_names: #{container_names}" }
       rolled = 0
       unconfigured = 0
+      batch = Set(String).new
 
       # TODO use tag associated with image name string (e.g. busybox:v1.7.9) as the version tag
       # TODO optional get a valid version from the remote repo and roll to that, if no tag
@@ -28,6 +29,11 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
       # note: all images are not on docker hub nor are they always on a docker hub compatible api
 
       task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
+        # A Job's pod template is immutable and runs once: nothing rolls.
+        if CNFManager.batch_workload?(resource)
+          CNFManager.batch_workload_listed?(resource, result, t.name) if batch.add?("#{resource[:kind]}/#{resource[:name]}/#{resource[:namespace]}")
+          next true
+        end
         namespace = resource["namespace"]
         container_name = container.as_h["name"].as_s
         test_passed = true
@@ -73,7 +79,9 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
         test_passed
       end
       Log.trace { "#{tn}: task_response=#{task_response}" }
-      if rolled == 0 && unconfigured > 0
+      if rolled == 0 && unconfigured == 0 && !batch.empty?
+        result.na("Every workload of the CNF runs to completion (a Job or CronJob), a #{pretty_test_name} does not apply")
+      elsif rolled == 0 && unconfigured > 0
         result.skipped("No #{tn}_test_tag configured for any container: add container_names with a #{tn}_test_tag to cnti-testsuite.yaml")
       elsif task_response
         result.passed("CNF for #{pretty_test_name_capitalized} Passed")
@@ -95,7 +103,13 @@ scored_task "rollback" do |t, args|
     rolled = 0
     unconfigured = 0
 
+    batch = Set(String).new
     task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
+      # A Job's pod template is immutable and runs once: nothing rolls back.
+      if CNFManager.batch_workload?(resource)
+        CNFManager.batch_workload_listed?(resource, result, t.name) if batch.add?("#{resource[:kind]}/#{resource[:name]}/#{resource[:namespace]}")
+        next true
+      end
       resource_kind = resource["kind"]
       resource_name = resource["name"]
       namespace = resource["namespace"]
@@ -159,7 +173,9 @@ scored_task "rollback" do |t, args|
       !rollout_status.nil? && undo[:status].success?
     end
 
-    if rolled == 0 && unconfigured > 0
+    if rolled == 0 && unconfigured == 0 && !batch.empty?
+      result.na("Every workload of the CNF runs to completion (a Job or CronJob), a rollback does not apply")
+    elsif rolled == 0 && unconfigured > 0
       result.skipped("No usable rollback_from_tag configured for any container: add container_names with a rollback_from_tag to cnti-testsuite.yaml")
     elsif task_response
       result.passed("CNF Rollback Passed")
@@ -664,7 +680,8 @@ scored_task "cni_compatible",
 
       # Pod-level annotations: on the pod itself or in a workload's pod template.
       [resource.dig?("metadata", "annotations"),
-       resource.dig?("spec", "template", "metadata", "annotations")].each do |annotations|
+       resource.dig?("spec", "template", "metadata", "annotations"),
+       resource.dig?("spec", "jobTemplate", "spec", "template", "metadata", "annotations")].each do |annotations|
         annotations.try(&.as_h?).try(&.each do |key, value|
           key = key.as_s? || next
           if key == CNI_NETWORKS_ANNOTATION
@@ -677,7 +694,8 @@ scored_task "cni_compatible",
 
       # SR-IOV device resources requested by any container.
       [resource.dig?("spec", "containers"),
-       resource.dig?("spec", "template", "spec", "containers")].each do |containers|
+       resource.dig?("spec", "template", "spec", "containers"),
+       resource.dig?("spec", "jobTemplate", "spec", "template", "spec", "containers")].each do |containers|
         containers.try(&.as_a?).try(&.each do |container|
           container_name = container.dig?("name").try(&.as_s?)
           ["requests", "limits"].each do |section|

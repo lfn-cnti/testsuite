@@ -96,11 +96,30 @@ module CNFManager
   # The pod spec of a workload object as the cluster holds it: a Pod's own,
   # a CronJob's job template's, every other workload's template's.
   def self.pod_spec_of(object : JSON::Any) : JSON::Any?
-    case object["kind"]?.try(&.as_s?).to_s.downcase
-    when "pod"     then object["spec"]?
-    when "cronjob" then object.dig?("spec", "jobTemplate", "spec", "template", "spec")
-    else                object.dig?("spec", "template", "spec")
+    KubectlClient::Get.pod_spec_of(object)
+  end
+
+  # The same for a workload as the manifest declares it.
+  def self.pod_spec_of(resource : YAML::Any) : YAML::Any?
+    case resource["kind"]?.try(&.as_s?).to_s.downcase
+    when "pod"     then resource["spec"]?
+    when "cronjob" then resource.dig?("spec", "jobTemplate", "spec", "template", "spec")
+    else                resource.dig?("spec", "template", "spec")
     end
+  end
+
+  # Whether the workload runs to completion (a Job or CronJob).
+  def self.batch_workload?(resource : NamedTuple(kind: String, name: String, namespace: String)) : Bool
+    BATCH_WORKLOAD_KIND_NAMES.includes?(resource[:kind].downcase)
+  end
+
+  # For a test that needs a pod that serves: true, with the workload listed in
+  # the test details, when it runs to completion and the test is not
+  # applicable to it; false when the test applies.
+  def self.batch_workload_listed?(resource : NamedTuple(kind: String, name: String, namespace: String), result, task_name : String) : Bool
+    return false unless batch_workload?(resource)
+    result.append_description("#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}: a #{resource[:kind]} runs to completion, #{task_name} is not applicable to it")
+    true
   end
 
   # Every container of a pod spec: regular, init and ephemeral ones.

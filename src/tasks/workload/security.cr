@@ -36,7 +36,7 @@ category_task "security", [
 # when it sets none or cannot be read.
 def pod_sysctl_names(kind : String, name : String, namespace : String?) : Array(String)
   resource = KubectlClient::Get.resource(kind, name, namespace)
-  pod_spec = resource.dig?("spec", "template", "spec") || resource.dig?("spec")
+  pod_spec = CNFManager.pod_spec_of(resource)
   sysctls = pod_spec.try(&.dig?("securityContext", "sysctls")).try(&.as_a?) || [] of JSON::Any
   sysctls.compact_map(&.dig?("name").try(&.as_s?))
 rescue
@@ -195,7 +195,7 @@ scored_task "privileged_containers",
       # by their own securityContext, never by a name shared with some privileged
       # container elsewhere in the cluster.
       resource_passed = true
-      pod_spec = live.dig?("spec", "template", "spec") || live.dig?("spec")
+      pod_spec = CNFManager.pod_spec_of(live)
       init_names = (pod_spec.try(&.dig?("initContainers")).try(&.as_a?) || [] of JSON::Any).compact_map { |c| c.dig?("name").try(&.as_s?) }
       CNFManager.all_containers_of(pod_spec).each do |container|
         container_name = container.dig?("name").try(&.as_s) || ""
@@ -363,7 +363,7 @@ scored_task "seccomp_profile",
     # the finding names what to fix (#2582).
     violations = 0
     task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
-      pod_spec = live.dig?("spec", "template", "spec") || live.dig?("spec")
+      pod_spec = CNFManager.pod_spec_of(live)
       pod_profile = pod_spec.try(&.dig?("securityContext", "seccompProfile", "type")).try(&.as_s?)
       resource_passed = true
       CNFManager.all_containers_of(pod_spec).each do |container|
@@ -795,7 +795,7 @@ scored_task "dedicated_service_account",
     judged = 0
 
     CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
-      pod_spec = live.dig?("spec", "template", "spec") || live.dig?("spec")
+      pod_spec = CNFManager.pod_spec_of(live)
       judged += 1
       # The API server mirrors the deprecated serviceAccount field into
       # serviceAccountName, so a chart using either is judged by what it names.

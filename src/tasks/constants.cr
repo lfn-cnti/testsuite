@@ -27,7 +27,12 @@ EMPTY_JSON_ARRAY = JSON.parse(%([]))
 # init podman ships; packaged as `catatonit` on Debian/Ubuntu/Fedora/openSUSE).
 SPECIALIZED_INIT_SYSTEMS = ["tini", "tini-static", "docker-init", "dumb-init", "s6-svscan", "catatonit", "gopherd"]
 ROLLING_VERSION_CHANGE_TEST_NAMES = ["rolling_update", "rolling_downgrade", "rolling_version_change"]
-WORKLOAD_RESOURCE_KIND_NAMES = ["replicaset", "deployment", "statefulset", "pod", "daemonset"]
+WORKLOAD_RESOURCE_KIND_NAMES = ["replicaset", "deployment", "statefulset", "pod", "daemonset", "job", "cronjob"]
+# The workload kinds whose pods run to completion: judged on what they
+# declare (containers, security context, volumes) like every other workload,
+# listed as not applicable by the tests that need a pod that serves (probes,
+# a Service, a rollout, a drain).
+BATCH_WORKLOAD_KIND_NAMES = ["job", "cronjob"]
 
 TESTSUITE_NAMESPACE = "cnti-testsuite"
 DEFAULT_CNF_NAMESPACE = "cnti-default"
