@@ -396,12 +396,13 @@ describe CntiTestSuite do
     end
   end
 
-  it "'secrets_used' should be skipped when secrets are provided as volumes and not mounted by a container", tags: ["secrets"] do
+  it "'secrets_used' should fail when a secret is shipped as a volume that no container mounts", tags: ["secrets"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_unmounted_secret_volume/cnti-testsuite.yaml --skip-wait-for-install")
       result = ShellCmd.run_testsuite("secrets_used")
-      result[:status].success?.should be_true
-      (/(N\/A).*(Secrets not used)/ =~ result[:output]).should_not be_nil
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(Secrets shipped and references do not match)/ =~ result[:output]).should_not be_nil
+      (/impacted: Secret\/.* shipped by the CNF but read by none of its/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end
@@ -418,12 +419,13 @@ describe CntiTestSuite do
     end
   end
 
-  it "'secrets_used' should skip when secrets are not referenced as environment variables by a container", tags: ["secrets"] do
+  it "'secrets_used' should fail when a shipped secret is not referenced by any container", tags: ["secrets"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_secret_env_no_ref/cnti-testsuite.yaml --skip-wait-for-install")
       result = ShellCmd.run_testsuite("secrets_used")
-      result[:status].success?.should be_true
-      (/(N\/A).*(Secrets not used)/ =~ result[:output]).should_not be_nil
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(Secrets shipped and references do not match)/ =~ result[:output]).should_not be_nil
+      (/impacted: Secret\/.* shipped by the CNF but read by none of its/ =~ result[:output]).should_not be_nil
     ensure
       result = ShellCmd.cnf_uninstall()
     end

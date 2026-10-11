@@ -319,101 +319,59 @@ scored_task "hardcoded_ip_addresses_in_k8s_runtime_configuration",
   end
 end
 
-desc "Does the CNF use K8s Secrets?"
+desc "Does the CNF keep its sensitive data in Secrets, and read every Secret it ships?"
 scored_task "secrets_used",
   type: CNFManager::TestType::Bonus,
   emoji: "🧫" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    # Parse the cnti-testsuite.yaml
-    resp = ""
-    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, containers, volumes|
-      Log.for(t.name).info { "resource: #{resource}" }
-      Log.for(t.name).info { "volumes: #{volumes}" }
-
-      volume_test_passed = false
-      container_secret_mounted = false
-      # Check to see any volume secrets are actually used
-      volumes.as_a.each do |secret_volume|
-        if secret_volume["secret"]?
-          Log.for(t.name).info { "secret_volume: #{secret_volume["name"]}" }
-          container_secret_mounted = false
-          containers.as_a.each do |container|
-            if container["volumeMounts"]?
-                vmount = container["volumeMounts"].as_a
-              Log.for(t.name).info { "vmount: #{vmount}" }
-              Log.for(t.name).debug { "container[env]: #{container["env"]}" }
-              if (vmount.find { |x| x["name"] == secret_volume["name"]? })
-                Log.for(t.name).debug { secret_volume["name"] }
-                container_secret_mounted = true
-                volume_test_passed = true
-              end
-            end
-          end
-          # If any secret volume exists, and it is not mounted by a
-          # container, issue a warning
-          unless container_secret_mounted
-            result.append_description("Warning: secret volume #{secret_volume["name"]} not mounted")
-          end
-        end
+    # What each workload reads, by namespace; then what each namespace holds.
+    refs_by_ns = Hash(String, Array(SecretsUsage::Reference)).new { |h, k| h[k] = [] of SecretsUsage::Reference }
+    workloads_by_ns = Hash(String, Array(NamedTuple(kind: String, name: String, namespace: String))).new { |h, k| h[k] = [] of NamedTuple(kind: String, name: String, namespace: String) }
+    missing = [] of String
+    CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _containers, _volumes|
+      object = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+      pod_spec = SecretsUsage.pod_spec_of(object)
+      refs = pod_spec ? SecretsUsage.references(pod_spec) : [] of SecretsUsage::Reference
+      refs_by_ns[resource[:namespace]].concat(refs)
+      workloads_by_ns[resource[:namespace]] << resource
+      refs.map(&.name).uniq.each do |name|
+        result.append_description("#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]} reads Secret #{name}")
       end
-
-      #  if there are any containers that have a secretkeyref defined
-      #  but do not have a corresponding k8s secret defined, this
-      #  is an installation problem, and does not stop the test from passing
-
-      namespace = resource[:namespace]
-      secrets = KubectlClient::Get.resource("secrets", namespace: namespace)
-
-      secrets["items"].as_a.each do |s|
-        s_name = s["metadata"]["name"]
-        s_type = s["type"]
-        s_namespace = s.dig("metadata", "namespace")
-        Log.for(t.name).debug {"secret name: #{s_name}, type: #{s_type}, namespace: #{s_namespace}"}
-      end
-      secret_keyref_found_and_not_ignored = false
-      containers.as_a.each do |container|
-        c_name = container["name"]
-        Log.for(t.name).debug { "container: #{c_name} envs #{container["env"]?}" }
-        if container["env"]?
-          Log.for("container_info").info { container["env"] }
-          container["env"].as_a.find do |env|
-            Log.for(t.name).trace { "checking container: #{c_name}" }
-            secret_keyref_found_and_not_ignored = secrets["items"].as_a.find do |s|
-              s_name = s["metadata"]["name"]
-              if IGNORED_SECRET_TYPES.includes?(s["type"])
-                Log.debug { "container: #{c_name} ignored secret: #{s_name}" }
-                next
-              end
-              Log.for(t.name).info { "Checking secret: #{s_name}" }
-              found = (s_name == env.dig?("valueFrom", "secretKeyRef", "name"))
-              if found
-                Log.for(t.name).info { "secret_reference_found. container: #{c_name} found secret reference: #{s_name}" }
-              end
-              found
-            end
-          end
-        end
-      end
-
-      # Always pass if any workload resource in a cnf uses a (non-exempt) secret.
-      # If the  workload resource does not use a (non-exempt) secret, always skip.
-
-      test_passed = false
-      if secret_keyref_found_and_not_ignored || volume_test_passed
-        test_passed = true
-      end
-
-      unless test_passed
-        result.append_description("No Secret Volumes or Container secretKeyRefs found for resource: #{resource}")
-      end
-      test_passed
+      true
     end
-    if task_response
-      result.passed("Secrets defined and used")
+
+    shipped_total = 0
+    unused_total = 0
+    workloads_by_ns.each do |namespace, workloads|
+      secrets = KubectlClient::Get.resource("secrets", namespace: namespace)["items"]?.try(&.as_a?) || [] of JSON::Any
+      shipped = SecretsUsage.shipped(secrets)
+      shipped_total += shipped.size
+      refs = refs_by_ns[namespace]
+      # A Secret the CNF ships that nothing reads: data lying in the
+      # namespace for no workload, or a workload that reads its credentials
+      # from somewhere else.
+      SecretsUsage.unused(shipped, refs).each do |name|
+        unused_total += 1
+        result.add_impacted_resource("Secret", name, namespace, reason: "shipped by the CNF but read by none of its #{workloads.size} workload(s) in #{namespace}")
+      end
+      # A required reference no Secret answers: the pod cannot start as
+      # declared, or the Secret is expected from outside the CNF.
+      all_names = secrets.compact_map { |s| s.dig?("metadata", "name").try(&.as_s?) }
+      SecretsUsage.missing(all_names, refs).each do |ref|
+        missing << ref.name
+        result.add_impacted_resource("Secret", ref.name, namespace, reason: "referenced (#{ref.where}) but no Secret of that name exists in #{namespace}")
+      end
+    end
+
+    read_total = refs_by_ns.values.sum(&.size)
+    if shipped_total == 0 && read_total == 0
+      # No Secret shipped and none read: the practice does not apply (#2580).
+      result.na("Secrets not used: the CNF ships no Secret and its workloads read none")
+    elsif unused_total > 0 || !missing.empty?
+      result.append_remediation("Read every Secret the CNF ships from a workload (a mounted volume, a secretKeyRef, an envFrom secretRef) or stop shipping it; a reference must name a Secret that exists, or declare it optional.")
+      result.failed("Secrets shipped and references do not match: #{unused_total} Secret(s) read by no workload, #{missing.uniq.size} reference(s) to a missing Secret")
     else
-      # No Secret volume or secretKeyRef anywhere in the CNF: the practice does
-      # not apply, which is N/A, not a skipped run (#2580).
-      result.na("Secrets not used: the CNF defines no Secret volume or secretKeyRef")
+      result.passed("Secrets defined and used: every Secret the CNF ships is read by a workload")
     end
   end
 end

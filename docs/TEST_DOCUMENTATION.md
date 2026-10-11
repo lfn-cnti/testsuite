@@ -1844,8 +1844,8 @@ Review all Helm Charts & Kubernetes Manifest files of the CNF and look for any h
 
 #### Overview
 
-The secrets used test will scan all the Kubernetes workload resources to see if K8s secrets are being used.
-Expectation: The CNF is using K8s secrets for the management of sensitive data.
+The secrets used test reads, for every workload of the CNF, which Secrets its pod spec consumes (a secret volume a container mounts, a projected secret source, an env `secretKeyRef`, an `envFrom` `secretRef`, an `imagePullSecrets` entry), and lists the Secrets the CNF ships in its namespaces (every Secret but service account tokens, registry credentials and Helm's release records). It fails when a shipped Secret is read by no workload, or when a workload requires a Secret that does not exist; it is not applicable when the CNF ships no Secret and reads none.
+Expectation: The CNF keeps its sensitive data in Secrets, and every Secret it ships is read by one of its workloads.
 
 #### Rationale
 
@@ -1857,7 +1857,7 @@ Sources: [Kubernetes Secrets](https://kubernetes.io/docs/concepts/configuration/
 
 Remove any sensitive data stored in configmaps, environment variables and instead utilize K8s Secrets for storing such data.
 Alternatively, you can use an operator or some other method to abstract hardcoded sensitive data out of your configuration.
-The whole test passes if _any_ workload resource in the cnf uses a (non-exempt) secret. If no workload resources use a (non-exempt) secret, the test is skipped.
+A Secret the CNF ships but no workload reads is either dead data in the namespace or a sign that the workload takes its credentials from somewhere else: read it from a workload, or stop shipping it. A reference to a Secret that does not exist must name an existing one, or declare itself `optional`.
 
 #### Usage
 
