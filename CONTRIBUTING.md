@@ -78,6 +78,13 @@ Outline of what a contributor's workflow looks like:
 1. Make sure all tests pass, and add any new tests as appropriate.
 1. Create a new Pull Request (PR)
 
+## Documentation
+
+The guides live in the repository root and are listed by audience in the README's
+Documentation section; a new guide is added there. Name new guide files in upper case with
+underscores (`K8S_OPERATORS.md`, `CNTI_TESTSUITE_YAML_USAGE.md`). `docs/TEST_DOCUMENTATION.md`
+is linted in CI by the rules in `doc-lint/`.
+
 ## Submitting a PR:
 
 Once you have implemented the feature or bug fix in your branch, you will open a PR to the upstream cnti-testsuite repo. Before opening the PR ensure you rebased on the latest upstream, have added spec tests, if needed, all spec tests are passing.

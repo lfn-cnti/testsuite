@@ -70,7 +70,30 @@ If you run the suite on a platform that is not listed as supported, please tell 
 
 ##### Kind
 
-- Follow the [kind install](KIND-INSTALL.md) instructions to setup a cluster in [kind](https://kind.sigs.k8s.io/).
+[kind](https://kind.sigs.k8s.io/) runs a cluster in containers on one machine; CI runs the
+suite on one. Install `kubectl` and `kind` by their own instructions
+([kubectl](https://kubernetes.io/docs/tasks/tools/), [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation));
+CI pins the kind release in `.github/actions/install-kind` and that is the one known to work.
+
+Some tests need two schedulable nodes, so create the cluster from a config with two workers:
+
+```yaml
+# cnti-kind.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+- role: worker
+- role: worker
+```
+
+```
+kind create cluster --name cnti --config cnti-kind.yaml --wait 5m
+```
+
+`--wait` returns once the nodes are Ready. A CNF that needs Multus or other CNI plugins has to
+bring them: the example CNFs in this repository do not, and the suite installs what its own
+tests need during `setup`.
 
 ##### AWS EKS
 
@@ -272,7 +295,6 @@ In the console where the test suite runs:
 
 A test log file, eg. `cnti-testsuite-results-20201216.txt`, will be created which lists PASS or FAIL for every test based on the date.
 
-For more details on points, see our [POINTS.md](./POINTS.md) documentation.
 
 #### Uninstallation
 

@@ -111,6 +111,44 @@ the practice matters, and how to fix a failure.
 Both are validated every night. They need more of the host than CoreDNS (free5GC's UPF needs the
 `gtp5g` kernel module), so start with CoreDNS for a first try.
 
+## Documentation
+
+Getting started
+
+- [INSTALL.md](INSTALL.md): the release binary, the clusters the suite runs against, kind, EKS.
+- [SOURCE_INSTALL.md](SOURCE_INSTALL.md): building from source for development.
+- [FAQ.md](FAQ.md): questions that come up when the suite is first run.
+
+Using the suite
+
+- [USAGE.md](USAGE.md): every command and option, the results file and its schema, exit codes,
+  the JUnit report, the evidence bundle, the MCP server, environment variables.
+- [CNTI_TESTSUITE_YAML_USAGE.md](CNTI_TESTSUITE_YAML_USAGE.md): the `cnti-testsuite.yaml` that
+  describes a CNF: charts, manifests, values, registries, per-test settings.
+- [K8S_OPERATORS.md](K8S_OPERATORS.md): CNFs deployed and managed by an operator.
+- [docs/TEST_DOCUMENTATION.md](docs/TEST_DOCUMENTATION.md): every test, with its rationale,
+  sources and remediation.
+- [docs/cnti-testsuite-results.schema.json](docs/cnti-testsuite-results.schema.json): the results
+  file, as a JSON Schema.
+
+In CI
+
+- [lfn-cnti/testsuite-action](https://github.com/lfn-cnti/testsuite-action): the GitHub Action.
+- [lfn-cnti/testsuite-component](https://gitlab.com/lfn-cnti/testsuite-component): the GitLab
+  CI/CD component.
+
+Contributing and project
+
+- [CONTRIBUTING.md](CONTRIBUTING.md): issues, pull requests, coding style, dependency updates.
+- [CODE_STRUCTURE.md](CODE_STRUCTURE.md): where things are in the repository.
+- [CONTRIBUTION_LADDER.md](CONTRIBUTION_LADDER.md): from contributor to maintainer.
+- [RELEASE.md](RELEASE.md): how a release is cut.
+- [ROADMAP.md](ROADMAP.md), [MAINTAINERS.md](MAINTAINERS.md).
+- [SECURITY.md](SECURITY.md): reporting a vulnerability. [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
+New guides are named in upper case with underscores, live in the repository root, and are added
+to this list.
+
 ## Contributing
 
 We welcome new tests, example CNFs, fixes, documentation and bug reports.
@@ -118,7 +156,6 @@ We welcome new tests, example CNFs, fixes, documentation and bug reports.
 - [Contributing guide](CONTRIBUTING.md)
 - [Good first issues](https://github.com/lfn-cnti/testsuite/labels/good%20first%20issue) and
   [contributions welcome](https://github.com/lfn-cnti/testsuite/labels/contributions-welcome)
-- Using the suite? Add your organisation to the [adopters](ADOPTERS.md).
 
 ## Community
 

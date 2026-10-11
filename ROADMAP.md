@@ -37,7 +37,6 @@ To get a more complete overview of planned features and current work see the [pr
 
 ### Onboard end users
 
-- Create ADOPTERS.md file to list users of the CNTi Test Suite 
 - Set up [Calendly](https://calendly.com/cnftestsuite) to schedule presentations
 - Offer presentations, demonstrations and assistance on the CNTi Test Suite to Service Providers and CNF Developers
     - To request a presentation, please open an [issue](https://github.com/lfn-cnti/testsuite/issues/new) or schedule via [Calendly](https://calendly.com/cnftestsuite)

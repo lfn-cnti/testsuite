@@ -42,7 +42,7 @@ This INSTALL guide will detail the minimum requirements needed for cnti-testsuit
 
 ##### Kind
 
-- Follow the [kind install](KIND-INSTALL.md) instructions to setup a cluster in [kind](https://kind.sigs.k8s.io/)
+- Follow the [kind instructions in INSTALL.md](INSTALL.md#kind) to set up a cluster in [kind](https://kind.sigs.k8s.io/)
 
 ##### k8s-infra
 
@@ -244,7 +244,6 @@ In the console where the test suite runs:
 
 A test log file, eg. `cnti-testsuite-results-20201216.txt`, will be created which lists PASS or FAIL for every test based on the date.
 
-For more details on points, see our [POINTS.md](./POINTS.md) documentation.
 
 #### Uninstallation
 
@@ -272,5 +271,5 @@ protoc -I.  --crystal_out . openmetrics_data_model.proto
 
 You can check out our [CNTI_TESTSUITE_YAML_USAGE.md](https://github.com/lfn-cnti/testsuite/blob/main/CNTI_TESTSUITE_YAML_USAGE.md) document on what is required to bring or use your own CNF.
 
-- Follow the [INSTALL](INSTALL.md) or [SOURCE-INSTALL](SOURCE-INSTALL.md) to build the binary.
+- Follow the [INSTALL](INSTALL.md) or [SOURCE_INSTALL](SOURCE_INSTALL.md) to build the binary.
 - Now head over to [CNTI_TESTSUITE_YAML_USAGE.md](https://github.com/lfn-cnti/testsuite/blob/main/CNTI_TESTSUITE_YAML_USAGE.md) for more detailed steps.

@@ -32,7 +32,7 @@ How you can learn more?
 A Community Participant engages with the project and its community, contributing their time, thoughts, etc. Community participants are usually users who have stopped being anonymous and started being active in project discussions.
 
 Responsibilities:
-- Follow our [Code of Conduct](code-of-conduct.md)
+- Follow our [Code of Conduct](CODE_OF_CONDUCT.md)
 
 How you can be more involved and participate in the community:
 
@@ -44,7 +44,7 @@ How you can be more involved and participate in the community:
 
 ## Contributor
 
-[Contributors](CONTRIBUTORS.md#contributors) have the following capabilities:
+[Contributors](MAINTAINERS.md) have the following capabilities:
 
 * Have issues and pull requests assigned to you
 * Apply labels, milestones and projects
@@ -64,12 +64,12 @@ To become a contributor, the maintainers of the project would like to see you:
 
 Contributors and maintainers will do their best to watch for community members
 who make good contributors. But don’t be shy, if you feel that this is you,
-please reach out to one or more of the [contributors](CONTRIBUTORS.md) or maintainers.
+please reach out to one or more of the [contributors](MAINTAINERS.md) or maintainers.
 
 
 ## Maintainer
 
-[Maintainers](CONTRIBUTORS.md#maintainers) are members with extra capabilities:
+[Maintainers](MAINTAINERS.md) are members with extra capabilities:
 
 * Be a [Code Owner](.github/CODEOWNERS) and have reviews automatically requested
 * Review pull requests
@@ -78,7 +78,7 @@ please reach out to one or more of the [contributors](CONTRIBUTORS.md) or mainta
 Maintainers also have additional responsibilities beyond just merging code:
 
 * Help foster a safe and welcoming environment for all project participants
-  This will include understanding and enforcing our [Code of Conduct](code-of-conduct.md)
+  This will include understanding and enforcing our [Code of Conduct](CODE_OF_CONDUCT.md)
 * Organize and promote pull request reviews, e.g. prompting community members,
   contributors, and other maintainers to review
 * Triage issues, e.g. adding labels, promoting discussions, finalizing decisions
@@ -97,7 +97,7 @@ the maintainers.
 
 ## Admin
 
-[Admins](CONTRIBUTORS.md#admin) are maintainers with extra responsibilities:
+[Admins](MAINTAINERS.md) are maintainers with extra responsibilities:
 
 
 * Manage repositories
@@ -115,4 +115,4 @@ reach out to one or more of the admins.
 
 
 ## Emeritus Maintainers
-Former maintainers are recognized with an honorary Emeritus Maintainer status, and have their names permanently listed in the [contributors file](CONTRIBUTORS.md) as a form of gratitude for their contributions.
+Former maintainers are recognized with an honorary Emeritus Maintainer status, and have their names permanently listed in the [contributors file](MAINTAINERS.md) as a form of gratitude for their contributions.
