@@ -214,20 +214,19 @@ scored_task "increase_decrease_capacity",
     scaled_back = [] of Tuple(String, String, String)
 
     begin
-      CNFManager.cnf_workload_resources(args, config) do |resource|
-        kind = resource["kind"].as_s.downcase
-        next unless kind == "deployment" || kind == "statefulset"
-        name = resource["metadata"]["name"].as_s
-        namespace = resource.dig("metadata", "namespace").as_s
-        ref = "#{resource["kind"].as_s}/#{name}"
+      CNFManager.resource_refs(args, config, ["deployment", "statefulset"]) do |resource|
+        kind = resource[:kind]
+        name = resource[:name]
+        namespace = resource[:namespace]
+        ref = "#{kind}/#{name}"
 
-        replicas = deployed_replicas(resource["kind"].as_s, name, namespace)
+        replicas = deployed_replicas(kind, name, namespace)
         if replicas == 0
           idle << "#{ref} in #{namespace}: deployed with 0 replicas, not scaled"
           next
         end
-        owner = custom_resource_controller(KubectlClient::Get.resource(resource["kind"].as_s, name, namespace))
-        deployed[{resource["kind"].as_s, name, namespace}] = replicas
+        owner = custom_resource_controller(KubectlClient::Get.resource(kind, name, namespace))
+        deployed[{kind, name, namespace}] = replicas
         target = replicas + increase_by
         Log.for(t.name).info { "#{ref} in #{namespace}: deployed with #{replicas} replicas; scaling to #{target}, then back" }
 
@@ -238,8 +237,8 @@ scored_task "increase_decrease_capacity",
         end
         if ready != target.to_s
           failures << "#{ref} in #{namespace}: increase from #{replicas} to #{target} replicas did not complete (#{ready} ready)"
-          why = WorkloadDiagnostics.report(result, resource["kind"].as_s, name, namespace, "#{ref} while scaling to #{target}")
-          result.add_impacted_resource(resource["kind"].as_s, name, namespace,
+          why = WorkloadDiagnostics.report(result, kind, name, namespace, "#{ref} while scaling to #{target}")
+          result.add_impacted_resource(kind, name, namespace,
             reason: "could not scale up to #{target} replicas (#{ready} ready)#{why.first?.try { |w| ": #{w}" }}")
           next
         end
@@ -247,11 +246,11 @@ scored_task "increase_decrease_capacity",
         ready = scale_and_wait(resource, replicas, args)
         if ready != replicas.to_s
           failures << "#{ref} in #{namespace}: decrease from #{target} back to #{replicas} replicas did not complete (#{ready} ready)"
-          why = WorkloadDiagnostics.report(result, resource["kind"].as_s, name, namespace, "#{ref} while scaling back to #{replicas}")
-          result.add_impacted_resource(resource["kind"].as_s, name, namespace,
+          why = WorkloadDiagnostics.report(result, kind, name, namespace, "#{ref} while scaling back to #{replicas}")
+          result.add_impacted_resource(kind, name, namespace,
             reason: "could not scale back down to #{replicas} replicas (#{ready} ready)#{why.first?.try { |w| ": #{w}" }}")
         else
-          scaled_back << {resource["kind"].as_s, name, namespace}
+          scaled_back << {kind, name, namespace}
         end
       end
     ensure
@@ -357,68 +356,6 @@ Learn more on remediation in the test documentation: https://github.com/lfn-cnti
 TEMPLATE
 end
 
-# desc "Test increasing capacity by setting replicas to 1 and then increasing to 3"
-# task "increase_capacity" do |_, args|
-#   CNFManager::Task.task_runner(args) do |args, config|
-#     Log.debug { "increase_capacity" }
-#     emoji_increase_capacity="📦📈"
-
-#     target_replicas = "3"
-#     base_replicas = "1"
-#     # TODO scale replicatsets separately
-#     # https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/#scaling-a-replicaset
-#     # resource["kind"].as_s.downcase == "replicaset"
-#     task_response = CNFManager.cnf_workload_resources(args, config) do | resource|
-#       if resource["kind"].as_s.downcase == "deployment" ||
-#           resource["kind"].as_s.downcase == "statefulset"
-#         final_count = change_capacity(base_replicas, target_replicas, args, config, resource)
-#         target_replicas == final_count
-#       else
-#         true
-#       end
-#     end
-#     # if target_replicas == final_count 
-#     if task_response.none?(false) 
-#       upsert_passed_task("increase_capacity", "✔️  PASSED: Replicas increased to #{target_replicas} #{emoji_increase_capacity}")
-#     else
-#       upsert_failed_task(testsuite_task, increase_decrease_capacity_failure_msg(target_replicas, emoji_increase_capacity))
-#     end
-#   end
-# end
-
-# desc "Test decrease capacity by setting replicas to 3 and then decreasing to 1"
-# task "decrease_capacity" do |_, args|
-#   hi = CNFManager::Task.task_runner(args) do |args, config|
-#     Log.debug { "decrease_capacity" }
-#     target_replicas = "1"
-#     base_replicas = "3"
-#     task_response = CNFManager.cnf_workload_resources(args, config) do | resource|
-#       # TODO scale replicatsets separately
-#       # https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/#scaling-a-replicaset
-#       # resource["kind"].as_s.downcase == "replicaset"
-#       if resource["kind"].as_s.downcase == "deployment" ||
-#           resource["kind"].as_s.downcase == "statefulset"
-#         final_count = change_capacity(base_replicas, target_replicas, args, config, resource)
-#         target_replicas == final_count
-#       else
-#         true
-#       end
-#     end
-#     emoji_decrease_capacity="📦📉"
-
-#     # if target_replicas == final_count 
-#     if task_response.none?(false) 
-#       ret = upsert_passed_task("decrease_capacity", "✔️  PASSED: Replicas decreased to #{target_replicas} #{emoji_decrease_capacity}")
-#     else
-#       ret = upsert_failed_task(testsuite_task, increase_decrease_capacity_failure_msg(target_replicas, emoji_decrease_capacity))
-#     end
-#     puts "1 ret: #{ret}"
-#     ret
-#   end
-#   puts "hi: #{hi}"
-# end
-
-
 # The replica count a resource was deployed with: its live spec, defaulting
 # to Kubernetes' own default of 1 when the field is unset.
 # The workload's controller owner, as "Kind/name", when it is a custom
@@ -437,19 +374,16 @@ def deployed_replicas(kind : String, name : String, namespace : String) : Int32
   KubectlClient::Get.resource(kind, name, namespace).dig?("spec", "replicas").try(&.as_i) || 1
 end
 
-# Scales the resource and returns the ready replica count once it settles.
-def scale_and_wait(resource, target : Int32, args) : String
-  Log.for("scale_and_wait").info { "#{resource["kind"]}/#{resource["metadata"]["name"]} in #{resource["metadata"]["namespace"]}: scaling to #{target}" }
-  KubectlClient::Utils.scale("#{resource["kind"]}", "#{resource["metadata"]["name"]}", target, resource.dig("metadata", "namespace").as_s)
+# Scales the workload and returns the ready replica count once it settles.
+def scale_and_wait(resource : NamedTuple(kind: String, name: String, namespace: String), target : Int32, args) : String
+  Log.for("scale_and_wait").info { "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}: scaling to #{target}" }
+  KubectlClient::Utils.scale(resource[:kind], resource[:name], target, resource[:namespace])
   wait_for_scaling(resource, target.to_s, args)
 end
 
-def wait_for_scaling(resource, target_replica_count, args)
+def wait_for_scaling(resource : NamedTuple(kind: String, name: String, namespace: String), target_replica_count, args)
   Log.debug { "target_replica_count: #{target_replica_count}" }
-  replicas_cmd = "kubectl get #{resource["kind"]} #{resource["metadata"]["name"]} -o=jsonpath='{.status.readyReplicas}'"
-
-  namespace = resource.dig("metadata", "namespace")
-  replicas_cmd = "#{replicas_cmd} -n #{namespace}"
+  replicas_cmd = "kubectl get #{resource[:kind]} #{resource[:name]} -o=jsonpath='{.status.readyReplicas}' -n #{resource[:namespace]}"
   Process.run(
     replicas_cmd,
     shell: true,
@@ -463,7 +397,7 @@ def wait_for_scaling(resource, target_replica_count, args)
   # readiness probe on a busy node is what the budget is for. The timer resets
   # on every change of the ready count, so it bounds the gap between replicas.
   repeat_with_timeout(timeout: POD_READINESS_TIMEOUT, errormsg: "Pod scaling has timed-out", reset_on_nil: true) do
-    Log.debug { "current_replicas before get #{resource["kind"]}: #{current_replicas}" }
+    Log.debug { "current_replicas before get #{resource[:kind]}: #{current_replicas}" }
     Log.trace { "$KUBECONFIG = #{ENV.fetch("KUBECONFIG", nil)}" }
 
     Process.run(
@@ -683,7 +617,6 @@ scored_task "cni_compatible",
        resource.dig?("spec", "template", "metadata", "annotations"),
        resource.dig?("spec", "jobTemplate", "spec", "template", "metadata", "annotations")].each do |annotations|
         annotations.try(&.as_h?).try(&.each do |key, value|
-          key = key.as_s? || next
           if key == CNI_NETWORKS_ANNOTATION
             flag.call("requests additional CNI networks: #{CNI_NETWORKS_ANNOTATION}=#{value}")
           elsif (vendor = CNI_VENDOR_MARKERS.find { |m| key.includes?(m) })
@@ -700,7 +633,6 @@ scored_task "cni_compatible",
           container_name = container.dig?("name").try(&.as_s?)
           ["requests", "limits"].each do |section|
             container.dig?("resources", section).try(&.as_h?).try(&.each_key do |key|
-              key = key.as_s? || next
               if key.downcase.includes?("sriov")
                 flag.call("container #{container_name} requests the SR-IOV device resource #{key}")
               end

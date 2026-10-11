@@ -1,8 +1,8 @@
-require "yaml"
+require "json"
 require "../constants"
 
-# Static lint for hugepages emptyDir volumes, kept pure (manifest in, findings
-# out) so it can be unit-tested without a cluster.
+# Static lint for hugepages emptyDir volumes, kept pure (the manifest's workloads in,
+# findings out) so it can be unit-tested without a cluster.
 #
 # The kubelet requires an emptyDir volume with a HugePages medium to be backed by
 # a hugepages resource request somewhere in the *pod*: a `HugePages-<size>` medium
@@ -21,7 +21,7 @@ module HugepagesVolumes
 
   # Returns the pod spec (the level that holds containers/volumes) for a workload
   # manifest, or nil if the resource is not a workload we inspect.
-  def self.pod_spec(resource : YAML::Any) : YAML::Any?
+  def self.pod_spec(resource : JSON::Any) : JSON::Any?
     kind = resource["kind"]?.try(&.as_s?).try(&.downcase)
     return nil unless kind && WORKLOAD_RESOURCE_KIND_NAMES.includes?(kind)
     CNFManager.pod_spec_of(resource)
@@ -30,13 +30,12 @@ module HugepagesVolumes
   # The hugepage page sizes the pod requests, gathered across every container and
   # init container and from both requests and limits (a hugepages limit with no
   # request is valid — Kubernetes defaults the request from it).
-  def self.requested_page_sizes(pod_spec : YAML::Any) : Array(String)
+  def self.requested_page_sizes(pod_spec : JSON::Any) : Array(String)
     sizes = [] of String
     {"containers", "initContainers"}.each do |field|
-      (pod_spec.dig?(field).try(&.as_a?) || [] of YAML::Any).each do |container|
+      (pod_spec.dig?(field).try(&.as_a?) || [] of JSON::Any).each do |container|
         {"requests", "limits"}.each do |kind|
-          (container.dig?("resources", kind).try(&.as_h?) || {} of YAML::Any => YAML::Any).each_key do |key|
-            k = key.as_s
+          (container.dig?("resources", kind).try(&.as_h?) || {} of String => JSON::Any).each_key do |k|
             sizes << k.sub("hugepages-", "") if k.starts_with?("hugepages-")
           end
         end
@@ -49,7 +48,7 @@ module HugepagesVolumes
   # pods declare a hugepages volume (so callers report `na` when none do — a
   # container that asks for hugepages without such a volume is legitimate and
   # leaves nothing to check).
-  def self.check(resources : Array(YAML::Any)) : NamedTuple(violations: Array(Violation), pods_with_hugepages_volume: Int32)
+  def self.check(resources : Array(JSON::Any)) : NamedTuple(violations: Array(Violation), pods_with_hugepages_volume: Int32)
     violations = [] of Violation
     pods_with_hugepages_volume = 0
 
@@ -61,7 +60,7 @@ module HugepagesVolumes
       name = resource.dig?("metadata", "name").try(&.as_s?) || ""
       namespace = resource.dig?("metadata", "namespace").try(&.as_s?)
 
-      hugepage_volumes = (spec.dig?("volumes").try(&.as_a?) || [] of YAML::Any).select do |volume|
+      hugepage_volumes = (spec.dig?("volumes").try(&.as_a?) || [] of JSON::Any).select do |volume|
         (volume.dig?("emptyDir", "medium").try(&.as_s?) || "").starts_with?("HugePages")
       end
       next if hugepage_volumes.empty?

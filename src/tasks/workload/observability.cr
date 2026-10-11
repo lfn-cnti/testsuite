@@ -245,12 +245,10 @@ scored_task "tracing",
     untraced = [] of NamedTuple(kind: String, name: String, namespace: String)
     traced_any = false
     uninspected = 0
-    CNFManager.cnf_workload_resources(args, config) do |resource|
-      kind = resource.dig?("kind").try(&.as_s?)
-      name = resource.dig?("metadata", "name").try(&.as_s?)
-      next unless kind && name
-      next unless KubectlClient::WORKLOAD_RESOURCES.values.includes?(kind)
-      namespace = resource.dig?("metadata", "namespace").try(&.as_s?) || CLUSTER_DEFAULT_NAMESPACE
+    CNFManager.resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |ref|
+      kind = ref[:kind]
+      name = ref[:name]
+      namespace = ref[:namespace]
       resource_yaml = KubectlClient::Get.resource(kind, name, namespace)
       pods = KubectlClient::Get.pods_by_resource_labels(resource_yaml, namespace)
       pod_names = pods.compact_map { |pod| pod.dig?("metadata", "name").try(&.as_s?) }

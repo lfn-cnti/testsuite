@@ -47,33 +47,51 @@ module CNFManager
     manifest_ymls
   end
 
+  # The CNF's workloads come from two sources, and each helper reads one
+  # (#2774):
+  #
+  # - workload_resource_test reads the cluster: the live object of every
+  #   workload, with its containers and volumes. For a test that judges the
+  #   cluster's state, which is nearly every test.
+  # - cnf_resources and cnf_workload_resources read the installed manifest
+  #   (what `helm template` rendered, what kubectl applied): every resource,
+  #   or the workloads among them. For a test that judges what the CNF
+  #   declares: an API version, a hugepages volume against the requests next
+  #   to it, a Subscription. Both yield JSON, the shape the cluster helper
+  #   yields, so no block converts.
+  # - resource_refs yields only the kind, name and namespace of the manifest's
+  #   resources of the given kinds. For a test that needs the list of the
+  #   CNF's workloads (or Services) and reads everything else from the
+  #   cluster itself.
+
+  # Every resource of the installed manifest, as JSON. Helm hooks are not
+  # part of the CNF.
   def self.cnf_resources(args, config, &block)
     logger = Log.for("cnf_resources")
     logger.debug { "Map block to CNF resources" }
 
-    manifest_ymls = cnf_resource_ymls(args, config)
-    resource_resp = manifest_ymls.map do |resource|
-      resp = yield resource
-      resp
+    cnf_resource_ymls(args, config).map do |resource|
+      yield JSON.parse(resource.to_json)
     end
-
-    resource_resp
   end
 
+  # The workloads of the installed manifest (WORKLOAD_RESOURCE_KIND_NAMES),
+  # as JSON, each with its namespace set: a manifest rendered without one
+  # names none, and the install put the resource in the default namespace
+  # (helm/helm#10737).
   def self.cnf_workload_resources(args, config, &block)
     logger = Log.for("cnf_workload_resources")
     logger.debug { "Map block to CNF workload resources" }
 
     manifest_ymls = cnf_resource_ymls(args, config)
     resource_ymls = Helm.all_workload_resources(manifest_ymls, default_namespace: CLUSTER_DEFAULT_NAMESPACE)
-    resource_resp = resource_ymls.map do |resource|
-      resp = yield resource
-      resp
+    resource_ymls.map do |resource|
+      yield JSON.parse(resource.to_json)
     end
-
-    resource_resp
   end
 
+  # The kind, name and namespace of every resource of the given kinds in the
+  # installed manifest; the namespace defaults like the install did.
   def self.resource_refs(args, config, resource_kinds, &block : NamedTuple(kind: String, name: String, namespace: String) -> )
     logger = Log.for("resource_refs")
     logger.info { "Yielding resources: #{resource_kinds}" }
@@ -207,11 +225,9 @@ module CNFManager
   end
 
   def self.workload_resource_keys(args, config) : Array(String)
-    resource_keys = CNFManager.cnf_workload_resources(args, config) do |resource|
-      namespace = resource.dig?("metadata", "namespace") || CLUSTER_DEFAULT_NAMESPACE
-      kind = resource.dig?("kind")
-      name = resource.dig?("metadata", "name")
-      "#{namespace},#{kind}/#{name}".downcase
+    resource_keys = [] of String
+    resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |ref|
+      resource_keys << "#{ref[:namespace]},#{ref[:kind]}/#{ref[:name]}".downcase
     end
     # The scanner-backed tests filter a cluster-wide report down to these
     # keys; with none there is nothing to judge, not a clean report.

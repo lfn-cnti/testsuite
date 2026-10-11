@@ -361,7 +361,7 @@ scored_task "no_local_volume_configuration",
       name = resource.dig("metadata", "name").as_s
       namespace = resource.dig?("metadata", "namespace").try(&.as_s?)
       pod_spec = CNFManager.pod_spec_of(resource)
-      volumes = pod_spec.try(&.dig?("volumes")).try(&.as_a?) || [] of YAML::Any
+      volumes = pod_spec.try(&.dig?("volumes")).try(&.as_a?) || [] of JSON::Any
       volumes.each do |volume|
         claim_name = volume.dig?("persistentVolumeClaim", "claimName").try(&.as_s?)
         next unless claim_name

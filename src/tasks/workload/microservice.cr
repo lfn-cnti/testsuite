@@ -393,21 +393,10 @@ scored_task "single_process_type",
     resources_checked = false
     test_passed = true
 
-    CNFManager.cnf_workload_resources(args, config) do |resource|
-      # Extract and convert necessary fields from the resource
-      kind = resource["kind"].as_s?
-      name = resource["metadata"]["name"].as_s?
-      namespace = resource["metadata"]["namespace"].as_s?
-      next unless kind && name && namespace
-
-      # Create a NamedTuple with the necessary fields
-      resource_named_tuple = {
-        kind: kind,
-        name: name,
-        namespace: namespace
-      }
-
-      Log.info { "Constructed resource_named_tuple: #{resource_named_tuple}" }
+    CNFManager.resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |resource_named_tuple|
+      kind = resource_named_tuple[:kind]
+      name = resource_named_tuple[:name]
+      namespace = resource_named_tuple[:namespace]
 
       # Iterate over every container and verify there is only one application process type.
       ClusterTools.all_containers_by_resource?(resource_named_tuple, namespace, only_container_pids:true) do |container_id, container_pid_on_node, node, container_proctree_statuses, container_status|

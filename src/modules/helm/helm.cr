@@ -130,7 +130,7 @@ module Helm
     #
     # 2. cnf_setup installs the Helm chart with "-n hello-world" namespace flag.
     #
-    # 3. cnf_setup calls the CNFManager.workload_resource_test or cnf_workload_resources helper to fetch YAMLs
+    # 3. cnf_setup calls the CNFManager.cnf_workload_resources helper to fetch YAMLs
     #    The YAMLs are from the "helm template" output.
     #    And these now do not contain namespace for any resources due to [0] mentioned above.
     #
@@ -191,28 +191,6 @@ module Helm
     end
     Log.for("workload_resource_kind_names").debug { "resource names: #{resource_names}" }
     resource_names
-  end
-
-  def self.kind_exists?(args, config, kind, default_namespace : String = "default") : Bool
-    logger = Log.for("kind_exists?")
-    logger.debug { "kind: #{kind}" }
-    resource_ymls = CNFManager.cnf_workload_resources(args, config) do |resource|
-      resource
-    end
-
-    default_namespace = "default"
-    if !config.cnf_config[:helm_install_namespace].empty?
-      default_namespace = config.cnf_config[:helm_install_namespace]
-    end
-    resource_names = Helm.workload_resource_kind_names(resource_ymls, default_namespace: default_namespace)
-    found = false
-    resource_names.each do |resource|
-      if resource[:kind].downcase == kind.downcase
-        found = true
-      end
-    end
-    logger.debug { "kind found: #{found}" }
-    found
   end
 
   private def self.tls_flags(

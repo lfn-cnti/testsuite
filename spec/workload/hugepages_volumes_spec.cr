@@ -4,8 +4,8 @@ require "../../src/tasks/utils/hugepages_volumes"
 # Pure unit specs for the hugepages-volume backing lint. The failing manifests
 # are accepted by the API server and fail only on the node, so they are exercised
 # directly against rendered YAML here, which makes every outcome reachable.
-private def ymls(manifest : String) : Array(YAML::Any)
-  YAML.parse_all(manifest).reject { |x| x.raw.nil? }
+private def ymls(manifest : String) : Array(JSON::Any)
+  YAML.parse_all(manifest).reject { |x| x.raw.nil? }.map { |x| JSON.parse(x.to_json) }
 end
 
 describe "HugepagesVolumes" do

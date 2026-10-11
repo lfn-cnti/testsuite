@@ -663,10 +663,9 @@ scored_task "hugepages_volumes",
     # `hugepages-<size>`, and a size-less `HugePages` medium needs the pod to ask
     # for hugepages in exactly one page size. A CNF with no hugepages volume is
     # not applicable.
-    resources = [] of YAML::Any
+    resources = [] of JSON::Any
     CNFManager.cnf_workload_resources(args, config) do |resource|
       resources << resource
-      resource
     end
     lint = HugepagesVolumes.check(resources)
 
@@ -732,12 +731,9 @@ scored_task "exclusive_cpus",
 
     # Index the CNF's workloads from the composite manifest so operator-created
     # ones are covered too, keyed by kind/name.
-    workloads = {} of String => JSON::Any
-    CNFManager.cnf_workload_resources(args, config) do |resource|
-      k = resource.dig?("kind").try(&.as_s?)
-      n = resource.dig?("metadata", "name").try(&.as_s?)
-      workloads["#{k.try(&.downcase)}/#{n}"] = JSON.parse(resource.to_json) if k && n
-      resource
+    workloads = {} of String => NamedTuple(kind: String, name: String, namespace: String)
+    CNFManager.resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |ref|
+      workloads["#{ref[:kind].downcase}/#{ref[:name]}"] = ref
     end
 
     violations = [] of NamedTuple(kind: String, name: String, namespace: String?, container: String?, reason: String)
@@ -748,13 +744,13 @@ scored_task "exclusive_cpus",
     pods_checked = 0
 
     targets.each do |target|
-      manifest = workloads["#{target.kind.downcase}/#{target.name}"]?
-      unless manifest
+      workload = workloads["#{target.kind.downcase}/#{target.name}"]?
+      unless workload
         unmeasurable << {kind: target.kind, name: target.name, namespace: nil, container: nil,
           reason: "declared latency_sensitive but matches no workload of the CNF; check the kind/name"}
         next
       end
-      namespace = manifest.dig?("metadata", "namespace").try(&.as_s?) || CLUSTER_DEFAULT_NAMESPACE
+      namespace = workload[:namespace]
 
       # Read the live workload so a bare Pod carries its status.qosClass and the
       # API server's defaulted requests (pods_by_resource_labels returns the given
