@@ -61,7 +61,7 @@ module FluentManager
             "fluentd-values.yml",
             FLUENTD_VALUES,
             # renovate: datasource=docker depName=fluent/fluentd-kubernetes-daemonset
-            "fluent/fluentd-kubernetes-daemonset:v1.19.3-debian-elasticsearch8-1.1@sha256:88da01d42636bb6f659f4116d66cafe44f7ee2436ddbd5c3b8bd595449f2a639",
+            "fluent/fluentd-kubernetes-daemonset:v1.19.4-debian-elasticsearch8-1.1@sha256:1273055eb16742c0e4a0b710cc7ae0ea2ed4f3d11ad3b86890e150d2abff3070",
             "fluentd/fluentd")
     end
   end
@@ -73,7 +73,7 @@ module FluentManager
             "fluentbit-values.yml",
             FLUENTBIT_VALUES,
             # renovate: datasource=docker depName=fluent/fluent-bit
-            "fluent/fluent-bit:5.1.1@sha256:a941bdd5ca552b2c6597fc7b3bccf2e61d30873939bab5700963de0e94ac6169",
+            "fluent/fluent-bit:5.1.3@sha256:c5542543523c9678398dd78d927c05e8425ec15b038f226b67b3b019b1a70845",
             "fluent-bit/fluent-bit")
     end
   end

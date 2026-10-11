@@ -19,7 +19,7 @@ inputs:
     description: "Helm version to install"
     required: false
     # renovate: datasource=github-releases depName=helm/helm
-    default: "4.2.4"
+    default: "4.3.0"
 runs:
   using: "composite"
   steps:

@@ -21,7 +21,7 @@ module Setup
   # renovate: datasource=github-releases depName=kubescape/regolibrary
   KUBESCAPE_FRAMEWORK_VERSION = "2.0.33"
   # renovate: datasource=github-releases depName=helm/helm
-  HELM_VERSION                = "4.2.4"
+  HELM_VERSION                = "4.3.0"
 
   # Useful consts grouped by tools
 
