@@ -742,13 +742,19 @@ Each workload is targeted by a selector label that only its own pods carry, so a
 
 #### Rationale
 
-If the memory policies for a CNF are not set and granular, containers on the node can be killed based on their oom_score and the QoS class a given pod belongs to (best-effort ones are first to be targeted). This eval is extended to all pods running on the node, thereby causing a bigger blast radius.
+Memory is the one resource Kubernetes cannot throttle: a container that needs more than it may have is killed, not slowed down. The test promotes the Kubernetes practices that decide what happens then, and it holds for any Kubernetes workload, not only network functions.
 
-Sources: [LitmusChaos pod-memory-hog fault](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-memory-hog/); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
+* **A memory request and limit on every container.** The request is what the scheduler reserves on the node; the limit is the ceiling the kernel enforces on the container's cgroup. A container that exceeds its limit is OOM-killed on its own, and the pod is restarted by its controller. A container without a limit competes with everything else on the node.
+* **The QoS class the pod gets from them.** Requests equal to limits make the pod `Guaranteed`; requests below limits make it `Burstable`; neither makes it `BestEffort`. When a node runs short of memory, the kubelet evicts `BestEffort` pods first, then `Burstable` pods using more than they requested, and `Guaranteed` pods last; the kernel's OOM killer ranks processes the same way through the `oom_score_adj` the kubelet assigns per class.
+* **Surviving the loss of a container.** A pod that is killed and restarted must come back on its own: a liveness probe, a readiness probe that holds traffic until it can serve, and replicas spread so one restart is not an outage.
+
+The experiment consumes most of the memory available to the target container for the duration of the fault. With limits set, the pressure stays inside that container and the test shows whether the workload recovers from an OOM kill; without them, the pressure reaches the node and the eviction order above decides which pods, of this CNF or another, are lost.
+
+Sources: [Kubernetes: Resource Management for Pods and Containers](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/); [Kubernetes: Pod Quality of Service Classes](https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/); [Kubernetes: Node-pressure Eviction](https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/); [LitmusChaos pod-memory-hog fault](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-memory-hog/); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
 
 #### Remediation
 
-Ensure that your CNF is resilient to heavy memory usage and can maintain some level of availability.
+Set a memory request and limit on every container, sized from what the workload uses under load, so that pressure stays inside the container and the pod keeps a predictable QoS class. Give the workload liveness and readiness probes and more than one replica where it serves traffic, so a container the kernel kills is replaced without an outage. Then run the test again: it passes when the workload keeps serving through the fault and recovers after it.
 
 #### Usage
 
