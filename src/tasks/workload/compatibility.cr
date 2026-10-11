@@ -283,8 +283,7 @@ module CapacityRestart
   end
 
   def self.pod_ready?(pod : JSON::Any) : Bool
-    conditions = pod.dig?("status", "conditions").try(&.as_a?) || [] of JSON::Any
-    conditions.any? { |c| c["type"]?.try(&.as_s?) == "Ready" && c["status"]?.try(&.as_s?) == "True" }
+    WorkloadDiagnostics.pod_ready?(pod)
   end
 
   # Ready again after the restart: as many pods as the workload asks for,

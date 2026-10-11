@@ -68,11 +68,14 @@ module WorkloadDiagnostics
   # The last lines each container of the workload's pods logged, and for a
   # container that has restarted, the last lines of its previous run: the
   # reason a crash-looping container died is in the run before the current one.
-  def self.log_tails(kind : String, name : String, namespace : String, tail : Int32 = 40) : Array(String)
+  # With `unready_only`, only the pods that are not Ready: the ones a test
+  # asks about, not the ones that are fine.
+  def self.log_tails(kind : String, name : String, namespace : String, tail : Int32 = 40, unready_only : Bool = false) : Array(String)
     sections = [] of String
     begin
       resource = KubectlClient::Get.resource(kind, name, namespace)
       KubectlClient::Get.pods_by_resource_labels(resource, namespace).each do |pod|
+        next if unready_only && pod_ready?(pod)
         pod_name = pod.dig("metadata", "name").as_s
         (pod.dig?("status", "containerStatuses").try(&.as_a?) || [] of JSON::Any).each do |cs|
           container = cs.dig("name").as_s
@@ -94,13 +97,34 @@ module WorkloadDiagnostics
     sections
   end
 
-  # Appends the collected lines to the result's details, under a heading.
+  # Lines of log kept per container in the result's details; the suite log
+  # carries a longer tail.
+  DETAIL_LOG_LINES = 12
+  LOG_LINES        = 40
+
+  # Appends the collected lines to the result's details, under a heading:
+  # the pods that are not Ready with the cluster's Warning events, then the
+  # last lines those pods logged (and the previous run of a container that
+  # restarted). Conditions and events say that a pod is not Ready; only its
+  # own log says why. Returns the problem lines, without the logs.
   def self.report(result, kind : String, name : String, namespace : String, heading : String) : Array(String)
     lines = problems(kind, name, namespace)
     unless lines.empty?
       result.append_description("#{heading}:")
       lines.each { |line| result.append_description("  #{line}") }
+      tails = log_tails(kind, name, namespace, tail: LOG_LINES, unready_only: true)
+      tails.each { |section| Log.for("WorkloadDiagnostics").info { "#{heading}\n#{section}" } }
+      tails.each do |section|
+        header, _, body = section.partition("\n")
+        result.append_description("  #{header}")
+        body.lines.last(DETAIL_LOG_LINES).each { |line| result.append_description("    #{line.rstrip}") }
+      end
     end
     lines
+  end
+
+  def self.pod_ready?(pod : JSON::Any) : Bool
+    conditions = pod.dig?("status", "conditions").try(&.as_a?) || [] of JSON::Any
+    conditions.any? { |c| c.dig?("type").try(&.as_s?) == "Ready" && c.dig?("status").try(&.as_s?) == "True" }
   end
 end
