@@ -142,7 +142,6 @@ end
 
 desc "Does the CNF use NodePort"
 scored_task "nodeport_not_used" do |t, args|
-  # TODO rename task_runner to multi_cnf_task_runner
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     test_passed = true
 

@@ -28,29 +28,15 @@ module CNFManager
       CNFManager::Points::Results.ensure_results_file!
       ensure_cnf_installed!() if check_cnf_installed
 
-      if check_cnf_config(args)
-        single_task_runner(args, task, &block)
-      else
-        all_cnfs_task_runner(args, task, &block)
-      end
-    end
-
-    def self.all_cnfs_task_runner(args, task : Sam::Task? = nil,
-                                  &block : (Sam::Args, CNFInstall::Config::Config, CNFManager::TestCaseResult) -> (
-                                    String | Colorize::Object(String) | CNFManager::TestCaseResult?)
-    )
-      cnf_configs = CNFManager.cnf_config_list(false)
-
-      # Tests that run without a CNF get a dummy config
-      if cnf_configs.empty?
-        single_task_runner(args, task, &block)
-      else
-        cnf_configs.map do |config|
-          new_args = Sam::Args.new(args.named, args.raw)
-          new_args.named["cnf-config"] = config
-          single_task_runner(new_args, task, &block)
+      # The test runs against the config given on the command line, else the
+      # installed CNF's (cnf_install allows one at a time), else without a CNF.
+      unless check_cnf_config(args)
+        if config = CNFManager.cnf_config_list(false).first?
+          args = Sam::Args.new(args.named, args.raw)
+          args.named["cnf-config"] = config
         end
       end
+      single_task_runner(args, task, &block)
     end
 
     # TODO give example for calling

@@ -101,7 +101,7 @@ module BaseConfigWarning
     @@warned = true
     stdout_warning "No #{BASE_CONFIG_NAME} found in the current directory or the suite home " \
                    "(#{ENV.fetch("CNTI_TESTSUITE_DIR", "~/.cnti-testsuite")}); feature toggles " \
-                   "(wip, alpha, beta, poc, destructive, multi-cnf) default to disabled."
+                   "(wip, alpha, beta, poc, destructive) default to disabled."
   end
 end
 

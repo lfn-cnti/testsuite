@@ -1,7 +1,5 @@
 ---
 toggles:
-  - name: multi-cnf
-    toggle_on: false 
   - name: wip
     toggle_on: false 
   - name: alpha
