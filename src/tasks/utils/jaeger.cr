@@ -22,8 +22,14 @@ module JaegerManager
     StatusLine.push "Installing Jaeger into the cluster (cassandra warm-up; this can take a few minutes)..."
     Helm.helm_repo_add("jaegertracing", "https://jaegertracing.github.io/helm-charts")
     CNFManager.ensure_namespace_exists!(JAEGER_NAMESPACE)
+    # The collector's OTLP receiver is on by default; the chart only puts its
+    # ports on the Service when they are named here. A CNF instrumented with
+    # OpenTelemetry sends to jaeger-collector.jaeger:4318 (HTTP) or :4317
+    # (gRPC); a Jaeger client sends to the agent as before.
     Helm.install("jaeger", "jaegertracing/jaeger", namespace: JAEGER_NAMESPACE,
-      values: "--version #{JAEGER_CHART_VERSION} --set cassandra.config.seed_size=1")
+      values: "--version #{JAEGER_CHART_VERSION} --set cassandra.config.seed_size=1 " \
+              "--set collector.service.otlp.http.name=otlp-http --set collector.service.otlp.http.port=4318 " \
+              "--set collector.service.otlp.grpc.name=otlp-grpc --set collector.service.otlp.grpc.port=4317")
     # Cassandra readies first (the collector and query crash-loop until it
     # resolves), and an unready Jaeger must fail the install loudly (#2060):
     # every consumer of this install would otherwise silently skip.
@@ -60,6 +66,11 @@ module JaegerManager
       .reject { |name| name.starts_with?("jaeger") }
   end
 
+  # The process tags that carry the emitting host's name: a Jaeger client
+  # reports `hostname`, an OpenTelemetry SDK the resource attribute
+  # `host.name`. In a pod both are the pod name.
+  HOSTNAME_TAGS = ["hostname", "host.name"]
+
   # The hostnames (pod names, for in-cluster clients) found in the process tags
   # of the service's recent traces.
   def self.trace_hostnames(service : String) : Set(String)
@@ -71,7 +82,7 @@ module JaegerManager
       processes.each_value do |process|
         tags = process.dig?("tags").try(&.as_a?) || next
         tags.each do |tag|
-          next unless tag.dig?("key").try(&.as_s?) == "hostname"
+          next unless HOSTNAME_TAGS.includes?(tag.dig?("key").try(&.as_s?))
           hostname = tag.dig?("value").try(&.as_s?)
           hostnames << hostname if hostname
         end

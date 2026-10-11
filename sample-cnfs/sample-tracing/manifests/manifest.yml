@@ -7,8 +7,10 @@ metadata:
     pod-security.kubernetes.io/enforce: privileged
 
 ---
-# Jaeger's HotROD demo, pointed at the suite-installed Jaeger agent. It emits
-# spans whenever it serves a request; the tracing spec sends one.
+# Jaeger's HotROD demo, pointed at the suite-installed Jaeger collector over
+# OTLP (HotROD exports with the OpenTelemetry SDK since Jaeger 1.53, and
+# ignores the old JAEGER_AGENT_* variables). It emits spans whenever it serves
+# a request; the tracing spec sends one.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -27,12 +29,10 @@ spec:
       containers:
       - name: hotrod
         # renovate: datasource=docker depName=jaegertracing/example-hotrod
-        image: jaegertracing/example-hotrod:1.28.0@sha256:fbcdec6e28d20c578a4cf6f67365c6fa1392a1c9af44d4eab634696d0467dbdb
+        image: jaegertracing/example-hotrod:1.76.0@sha256:a96cc9e45b48a9bf11932fdfe24d5dc5660a89c9daeb854ef6a40c18f4a203b6
         env:
-        - name: JAEGER_AGENT_HOST
-          value: jaeger-agent.jaeger
-        - name: JAEGER_AGENT_PORT
-          value: "6831"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://jaeger-collector.jaeger:4318
         ports:
         - name: http
           containerPort: 8080
