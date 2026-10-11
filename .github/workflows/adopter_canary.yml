@@ -1,6 +1,7 @@
 # The adopter canary (#2727): runs a suite built from this commit against the
-# CNFs that run the cert in their own CI (.github/adopters.yml), and compares
-# the result, test by test, with each adopter's own last run. The chart is
+# CNFs that run the essential tests in their own CI, on GitHub or GitLab
+# (.github/adopters.yml), and compares the result, test by test, with each
+# adopter's own last run. The chart is
 # checked out at the commit of that run and installed on the same kind
 # layout, so a difference comes from the suite, not from the adopter.
 #
@@ -74,14 +75,19 @@ jobs:
         id: baseline
         env:
           GH_TOKEN: ${{ github.token }}
+          HOST: ${{ matrix.adopter.host }}
           REPO: ${{ matrix.adopter.repo }}
           WORKFLOW: ${{ matrix.adopter.workflow }}
           ARTIFACT: ${{ matrix.adopter.artifact }}
         run: |
           set -euo pipefail
-          found=$(.github/workflows/adopter_canary.sh baseline "$REPO" "$WORKFLOW" "$ARTIFACT" "$RUNNER_TEMP/baseline")
+          if [[ "$HOST" == "gitlab" ]]; then
+            found=$(.github/workflows/adopter_canary.sh baseline-gitlab "$REPO" "$WORKFLOW" "$RUNNER_TEMP/baseline")
+          else
+            found=$(.github/workflows/adopter_canary.sh baseline "$REPO" "$WORKFLOW" "$ARTIFACT" "$RUNNER_TEMP/baseline")
+          fi
           if [[ -z "$found" ]]; then
-            echo "::error::No run of $WORKFLOW on $REPO's default branch still has the $ARTIFACT artifact"
+            echo "::error::No run of $WORKFLOW on $REPO's default branch still has its results"
             exit 1
           fi
           read -r id sha url <<< "$found"
@@ -90,12 +96,22 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "file=$(.github/workflows/adopter_canary.sh newest "$RUNNER_TEMP/baseline")" >> "$GITHUB_OUTPUT"
       - name: Check out the chart at that run's commit
+        if: matrix.adopter.host != 'gitlab'
         uses: actions/checkout@v7.0.1
         with:
           repository: ${{ matrix.adopter.repo }}
           ref: ${{ steps.baseline.outputs.sha }}
           path: adopter
           persist-credentials: false
+      - name: Check out the chart at that run's commit (GitLab)
+        if: matrix.adopter.host == 'gitlab'
+        env:
+          REPO: ${{ matrix.adopter.repo }}
+          SHA: ${{ steps.baseline.outputs.sha }}
+        run: |
+          set -euo pipefail
+          git clone --quiet --no-checkout "https://gitlab.com/$REPO.git" adopter
+          git -C adopter checkout --quiet "$SHA"
       - name: Set the adopter's environment
         env:
           ADOPTER_ENV: ${{ toJson(matrix.adopter.env) }}

@@ -1,21 +1,27 @@
-# CNF projects that run the cert in their own CI with lfn-cnti/testsuite-action
-# and show the result as a README badge. The adopter canary
+# CNF projects that run the essential tests in their own CI, with
+# lfn-cnti/testsuite-action on GitHub or the lfn-cnti/testsuite-component on
+# GitLab, and show the result as a README badge. The adopter canary
 # (workflows/adopter_canary.yml) runs a suite built from this repository
 # against each of them and compares the result, test by test, with the
 # adopter's own last run (#2727).
 #
-# Each entry mirrors the adopter's cert workflow, so the canary runs what
-# their badge runs. Their files (the suite configuration, the kind config)
-# are read from their repository, at the commit of their last run; only what
-# their workflow does around the action is repeated here. When an adopter
-# changes its workflow, update its entry.
+# Each entry mirrors the adopter's job, so the canary runs what their badge
+# runs. Their files (the suite configuration, the kind config) are read from
+# their repository, at the commit of their last run; only what their job does
+# around the action or the component is repeated here. When an adopter
+# changes its job, update its entry.
 #
 #   name             job name and artifact suffix: lower case, no spaces
 #   display_name     how the CNF is called in the report
-#   repo             owner/name on GitHub
-#   workflow         file name of their cert workflow; its runs on the
-#                    default branch are the baseline
-#   artifact         name of the results artifact (the action's artifact_name)
+#   host             github (default) or gitlab (gitlab.com)
+#   repo             owner/name on GitHub, or the project path on gitlab.com
+#   workflow         GitHub: file name of their workflow; its runs on the
+#                    default branch are the baseline. GitLab: name of their
+#                    job (the component's is cnti-testsuite); its runs in
+#                    pipelines of the default branch, child pipelines
+#                    included, are the baseline
+#   artifact         GitHub: name of the results artifact (the action's
+#                    artifact_name). GitLab: unused, the job's artifacts
 #   cnf_config       path of their cnti-testsuite.yaml in their repository
 #   kind_config      path of their kind config; empty for the action's
 #                    default (a control plane and two workers)
@@ -33,6 +39,7 @@
 adopters:
   - name: jitsi
     display_name: Jitsi Meet
+    host: github
     repo: jitsi-contrib/jitsi-helm
     workflow: cnti.yml
     artifact: cnti-testsuite-results
@@ -50,6 +57,7 @@ adopters:
 
   - name: sdcore
     display_name: Aether SD-Core
+    host: github
     repo: omec-project/sdcore-helm-charts
     workflow: cnti.yml
     artifact: cnti-testsuite-results
@@ -72,3 +80,20 @@ adopters:
         from: failed
         to: passed
         reason: "#2725 and #2726, released in v2.2.0: compatibility runs last, so the scale-in no longer breaks the drain"
+
+  # The job runs in the ocudu-gnb chart's child pipeline, on merge requests
+  # and on main when the chart or its test values change; the artifacts of a
+  # run on main are kept for 30 days.
+  - name: ocudu
+    display_name: OCUDU gNB
+    host: gitlab
+    repo: ocudu/ocudu_elements/ocudu_helm
+    workflow: cnti-testsuite
+    artifact: ""
+    cnf_config: .gitlab/cnti/ocudu-gnb/cnti-testsuite.yaml
+    kind_config: ""
+    install_timeout: "900"
+    tests: cert
+    env: {}
+    prepare: ""
+    expected: []
