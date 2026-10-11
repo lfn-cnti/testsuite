@@ -1,0 +1,34 @@
+# A Deployment whose container exposes a hostPort: the spec.template path of
+# hostport_not_used. Its own namespace at the privileged level, since a
+# hostPort is not allowed by the baseline Pod Security Standard (#2687).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hostport-deployment
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hostport-deployment
+  namespace: hostport-deployment
+  labels:
+    app: hostport-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hostport-deployment
+  template:
+    metadata:
+      labels:
+        app: hostport-deployment
+    spec:
+      containers:
+      - name: hostport-deployment
+        image: busybox:1.33.1
+        command: ["/bin/sleep", "2147483647"]
+        ports:
+        - containerPort: 8080
+          hostPort: 18081

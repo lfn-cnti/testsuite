@@ -295,17 +295,18 @@ describe CntiTestSuite do
     end
   end
 
-  it "'hostport_not_used' should fail when a host port is being used", tags: ["hostport_not_used"] do
+  it "'hostport_not_used' should fail when a Deployment uses a host port", tags: ["hostport_not_used"] do
     begin
-      # The test reads the ports of the Deployment, which exists as soon as it
-      # is applied: no need to wait for the application, which takes over a
-      # minute to start and once did not start at all (#2669).
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample_hostport --skip-wait-for-install")
+      # The check reads the containers of the pod template (#2687).
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-hostport-deployment")
       result = ShellCmd.run_testsuite("hostport_not_used")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(HostPort is being used)/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/hostport-deployment.*\(container hostport-deployment\): using hostPort 18081 for containerPort 8080/ =~ result[:output]).should_not be_nil
+      verify_task_result("hostport_not_used", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
     end
   end
 
