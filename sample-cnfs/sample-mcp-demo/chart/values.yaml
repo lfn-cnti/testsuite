@@ -1,0 +1,19 @@
+replicaCount: 1
+
+# renovate: datasource=docker depName=nginx
+image: nginx:1.31.6@sha256:60f0d4e986561e08804f75c211dcaf7fc5455699eada29f42cbe8a0a7253dd86
+
+service:
+  port: 80
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 64Mi
+
+# Probes for the web container, as Kubernetes probe objects. Empty: none.
+livenessProbe: {}
+readinessProbe: {}
