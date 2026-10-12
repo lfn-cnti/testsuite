@@ -9,6 +9,9 @@
   "separateMajorMinor": true,
   "labels": ["dependencies"],
   "commitMessagePrefix": "",
+  "git-submodules": {
+    "enabled": true
+  },
   "customManagers": [
     {
       "customType": "regex",
@@ -82,6 +85,11 @@
       "description": "Crystal toolchain: one PR for every place the version is pinned",
       "matchDepNames": ["crystal-lang/crystal"],
       "groupName": "crystal"
+    },
+    {
+      "description": "The free5GC reference chart (example-cnfs/free5gc/free5gc-helm) follows its default branch, one PR per move; the version-change targets in example-cnfs/free5gc/cnti-testsuite.yaml must move with it by hand, and the free5GC validation workflow is dispatched on the PR before it merges",
+      "matchManagers": ["git-submodules"],
+      "labels": ["dependencies", "needs-review"]
     },
     {
       "description": "Majors wait on the dependency dashboard until someone approves them",
