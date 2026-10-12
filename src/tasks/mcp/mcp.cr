@@ -1,7 +1,7 @@
 require "sam"
 require "./server"
 
-desc "Run an MCP (JSON-RPC 2.0 over stdio) server exposing the suite to AI agents; see USAGE.md"
+desc "Run an MCP (JSON-RPC 2.0 over stdio) server exposing the suite to AI agents; see docs/USAGE.md"
 task "mcp" do |_, args|
   # No install or uninstall by default: cnf_install/cnf_uninstall are exposed
   # only with --allow-install.

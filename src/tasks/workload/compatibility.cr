@@ -337,7 +337,7 @@ def increase_decrease_remedy_msg()
 <<-TEMPLATE
 
 Replica failure can be due to insufficent permissions, image pull errors and other issues.
-Learn more on remediation by viewing our USAGE.md doc at https://bit.ly/capacity_remedy
+Learn more on remediation in the test documentation: https://github.com/lfn-cnti/testsuite/blob/main/docs/TEST_DOCUMENTATION.md#increase-decrease-capacity
 TEMPLATE
 end
 

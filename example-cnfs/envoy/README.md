@@ -7,7 +7,7 @@ and routing network traffic to microservices
 
 ## Pre-req:
 
-Follow [Pre-req steps](../../INSTALL.md#pre-requisites), including
+Follow [Pre-req steps](../../docs/INSTALL.md#pre-requisites), including
 Set the KUBECONFIG environment to point to the remote K8s cluster
 
 ### Automated Envoy installation

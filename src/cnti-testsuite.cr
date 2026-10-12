@@ -40,7 +40,7 @@ task "test" do
   puts "ping"
 end
 
-desc "Print a shell completion script; `completion bash` (default) or `completion zsh`, see USAGE.md"
+desc "Print a shell completion script; `completion bash` (default) or `completion zsh`, see docs/USAGE.md"
 task "completion" do |_, args|
   shell = args.raw.first?.try(&.to_s) || CLICompletion::DEFAULT_SHELL
   unless CLICompletion::SHELLS.includes?(shell)

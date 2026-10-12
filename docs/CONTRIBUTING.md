@@ -2,16 +2,16 @@
 
 Welcome! We gladly accept contributions on new tests, example CNFs, updates to documentation, enhancements, bug reports and more.
 
-The CNTI Test Suite is [Apache 2.0 licensed](LICENSE) and accepts contributions via GitHub pull requests. Please read the following guidelines carefully to make it easier to get your contribution accepted.
+The CNTI Test Suite is [Apache 2.0 licensed](../LICENSE) and accepts contributions via GitHub pull requests. Please read the following guidelines carefully to make it easier to get your contribution accepted.
 
 ## Support Channels:
 
 Support channels include:
 
-- [Issues](../../issues)
+- [Issues](https://github.com/lfn-cnti/testsuite/issues)
 - Join the conversation on [LFN Tech's Slack](https://lfntech.slack.com/) [#cnti](https://lfntech.slack.com/archives/C06HQGWK4NL) channel
 
-Before starting work on a major feature, please reach out to us via [GitHub Issues](../../issues) or Slack. We will make sure no one else is already working on it and ask you to open a [GitHub issue](../../issues/new/choose).
+Before starting work on a major feature, please reach out to us via [GitHub Issues](https://github.com/lfn-cnti/testsuite/issues) or Slack. We will make sure no one else is already working on it and ask you to open a [GitHub issue](https://github.com/lfn-cnti/testsuite/issues/new/choose).
 
 - Small patches and bug fixes don't need prior communication.
 
@@ -19,7 +19,7 @@ Before starting work on a major feature, please reach out to us via [GitHub Issu
 
 GitHub Issues are used as the primary method for tracking items for the CNTI Test Suite. Please self-assign an issue to yourself when you start to work on it so we don't duplicate work :)
 
-- [Issues](../../issues)
+- [Issues](https://github.com/lfn-cnti/testsuite/issues)
   - [Good first issues](https://github.com/lfn-cnti/testsuite/labels/good%20first%20issue)
   - [Contributions welcome](https://github.com/lfn-cnti/testsuite/labels/contributions-welcome)
 
@@ -91,7 +91,7 @@ Once you have implemented the feature or bug fix in your branch, you will open a
 
 In order to open a pull request (PR) it is required to be up to date with the latest changes upstream. If other commits are pushed upstream before your PR is merged, you will also need to rebase again before it will be merged.
 
-Using the automated [pull request template](.github/PULL_REQUEST_TEMPLATE.md), please note a description of the changes, the type of change, the issue(s) related to the PR, how the changes have been tested and if updates are needed in the documentation.
+Using the automated [pull request template](../.github/PULL_REQUEST_TEMPLATE.md), please note a description of the changes, the type of change, the issue(s) related to the PR, how the changes have been tested and if updates are needed in the documentation.
 
 For general advice on how to submit a pull request, please see [Creating a pull request](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-a-pull-request).
 

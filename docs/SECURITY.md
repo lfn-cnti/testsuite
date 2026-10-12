@@ -5,7 +5,7 @@
 Please do not open a public issue for a vulnerability in the suite or in what it installs on a
 cluster. Report it privately through GitHub's
 [private vulnerability reporting](https://github.com/lfn-cnti/testsuite/security/advisories/new)
-for this repository, or by e-mail to the [maintainers](MAINTAINERS.md).
+for this repository, or by e-mail to the [maintainers](../MAINTAINERS.md).
 
 You will get an acknowledgement within a week. The maintainers assess the report, agree a fix
 and a disclosure date with you, and publish an advisory with the fix. Credit is given unless

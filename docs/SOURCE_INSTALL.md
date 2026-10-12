@@ -103,7 +103,7 @@ We can assume you have access to a working kubernetes cluster. We recommend only
 <details><summary>(Optional) Build cnti-testsuite using Docker  Alpine Image</summary>
 <p>
 
-We use the official crystal alpine docker image for builds; seen in [actions.yml](.github/workflows/actions.yml)
+We use the official crystal alpine docker image for builds; seen in [actions.yml](../.github/workflows/actions.yml)
 
 _This build method is static and DOES NOT have any runtime dependencies._
 
@@ -184,7 +184,7 @@ To use CoreDNS as an example CNF. Download the testsuite configuration to test C
   crystal src/cnti-testsuite.cr cnf_install --cnf-config ./cnti-testsuite.yaml
   ```
 
-There are other examples in the [example cnfs](example-cnfs) folder if you would like to test others.
+There are other examples in the [example cnfs](../example-cnfs) folder if you would like to test others.
 
 #### NOTE: CNF **must** have a [helm chart](https://helm.sh/)
 
@@ -211,7 +211,7 @@ The following will run only workload tests:
 
 You can also run via `crystal` by replacing the `./cnti-testsuite` with `crystal spec src/cnti-testsuite.cr` and then the argument.
 
-#### More Example Usage (also see the [complete usage documentation](https://github.com/lfn-cnti/testsuite/blob/main/USAGE.md))
+#### More Example Usage (also see the [complete usage documentation](https://github.com/lfn-cnti/testsuite/blob/main/docs/USAGE.md))
 
 ```
 # These assume you've already run the cnf_install pointing at a cnti-testsuite.yaml config above. You can always specify your config at the end of each command as well, eg:
@@ -269,7 +269,7 @@ protoc -I.  --crystal_out . openmetrics_data_model.proto
 
 ### Ready to Bring Your Own CNF?
 
-You can check out our [CNTI_TESTSUITE_YAML_USAGE.md](https://github.com/lfn-cnti/testsuite/blob/main/CNTI_TESTSUITE_YAML_USAGE.md) document on what is required to bring or use your own CNF.
+You can check out our [CNTI_TESTSUITE_YAML_USAGE.md](https://github.com/lfn-cnti/testsuite/blob/main/docs/CNTI_TESTSUITE_YAML_USAGE.md) document on what is required to bring or use your own CNF.
 
 - Follow the [INSTALL](INSTALL.md) or [SOURCE_INSTALL](SOURCE_INSTALL.md) to build the binary.
-- Now head over to [CNTI_TESTSUITE_YAML_USAGE.md](https://github.com/lfn-cnti/testsuite/blob/main/CNTI_TESTSUITE_YAML_USAGE.md) for more detailed steps.
+- Now head over to [CNTI_TESTSUITE_YAML_USAGE.md](https://github.com/lfn-cnti/testsuite/blob/main/docs/CNTI_TESTSUITE_YAML_USAGE.md) for more detailed steps.

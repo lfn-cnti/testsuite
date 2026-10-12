@@ -23,7 +23,7 @@ assignees: ""
 ---
 
 ### Documentation tasks:
-- [ ] Update [installation instructions](../../INSTALL.md) if needed
+- [ ] Update [installation instructions](../../docs/INSTALL.md) if needed
 - [ ] Update [TEST_DOCUMENTATION md](../../docs/TEST_DOCUMENTATION.md) if needed
   - [ ] How to run
   - [ ] Description and details

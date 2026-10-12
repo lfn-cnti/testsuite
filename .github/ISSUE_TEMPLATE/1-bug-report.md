@@ -55,4 +55,4 @@ crystal src/cnti-testsuite.cr -- -l debug test
 CNTI_TESTSUITE_LOG_LEVEL=DEBUG ./cnti-testsuite test
 ```
 
-Check [usage documentation](https://github.com/lfn-cnti/testsuite/blob/main/USAGE.md) for more info about invoking commands and logging
+Check [usage documentation](https://github.com/lfn-cnti/testsuite/blob/main/docs/USAGE.md) for more info about invoking commands and logging

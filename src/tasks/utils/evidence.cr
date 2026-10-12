@@ -146,7 +146,7 @@ module Evidence
           "self_published"       => true,
           # Who signed the bundle, filled in by whoever signs it after this
           # file is written (the wrappers, or the project's own job); "none"
-          # until then. See "Signing the evidence" in USAGE.md.
+          # until then. See "Signing the evidence" in docs/USAGE.md.
           "provenance"           => {"method" => "none", "files" => [] of String, "identity" => nil},
         },
       },
