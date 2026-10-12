@@ -196,6 +196,14 @@ describe CntiTestSuite do
       (/Failed/ =~ result[:output]).should_not be_nil
       # A rollout that does not complete names the resource, the image and why.
       (/impacted: Deployment\/.* in .* \(container .+\): rollout to .*:.* did not complete within 200s/ =~ result[:output]).should_not be_nil
+      # Why, from the pods: the image does not exist, so it cannot be pulled.
+      (/did not complete within 200s.*(ErrImagePull|ImagePullBackOff)/ =~ result[:output]).should_not be_nil
+      # And the test put the deployed image back, so the tests after it start
+      # from the CNF as deployed.
+      deployment = KubectlClient::Get.resource("deployment", "coredns-coredns", DEFAULT_CNF_NAMESPACE)
+      image = deployment.dig("spec", "template", "spec", "containers", 0, "image").as_s
+      image.includes?("this_is_not_a_valid_version").should be_false
+      deployment.dig?("status", "readyReplicas").try(&.as_i).should eq(deployment.dig("spec", "replicas").as_i)
     ensure
       result = ShellCmd.cnf_uninstall()
     end

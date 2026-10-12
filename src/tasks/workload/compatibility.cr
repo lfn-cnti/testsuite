@@ -22,74 +22,96 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
       rolled = 0
       unconfigured = 0
       batch = Set(String).new
+      # Every workload this test changes, with the deployed image of each
+      # container it changed: put back after the test, pass or fail.
+      changed = RolloutRestore::Changed.new
+      restored = true
+      task_response = false
 
       # TODO use tag associated with image name string (e.g. busybox:v1.7.9) as the version tag
       # TODO optional get a valid version from the remote repo and roll to that, if no tag
       #  e.g. wget -q https://registry.hub.docker.com/v1/repositories/debian/tags -O -  | sed -e 's/[][]//g' -e 's/"//g' -e 's/ //g' | tr '}' '\n'  | awk -F: '{print $3}'
       # note: all images are not on docker hub nor are they always on a docker hub compatible api
 
-      task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
-        # A Job's pod template is immutable and runs once: nothing rolls.
-        if CNFManager.batch_workload?(resource)
-          CNFManager.batch_workload_listed?(resource, result, t.name) if batch.add?("#{resource[:kind]}/#{resource[:name]}/#{resource[:namespace]}")
-          next true
-        end
-        namespace = resource["namespace"]
-        container_name = container.as_h["name"].as_s
-        test_passed = true
-        Log.for(t.name).debug { "container: #{container}" }
-        #todo use skopeo to get the next and previous versions of the cnf image dynamically
-        config_container = container_names.find{|x| x.name == container_name} if container_names
-        Log.debug { "config_container: #{config_container}" }
+      begin
+        task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
+          # A Job's pod template is immutable and runs once: nothing rolls.
+          if CNFManager.batch_workload?(resource)
+            CNFManager.batch_workload_listed?(resource, result, t.name) if batch.add?("#{resource[:kind]}/#{resource[:name]}/#{resource[:namespace]}")
+            next true
+          end
+          namespace = resource["namespace"]
+          container_name = container.as_h["name"].as_s
+          test_passed = true
+          Log.for(t.name).debug { "container: #{container}" }
+          #todo use skopeo to get the next and previous versions of the cnf image dynamically
+          config_container = container_names.find{|x| x.name == container_name} if container_names
+          Log.debug { "config_container: #{config_container}" }
 
-        # A container without the tag this test needs is a configuration gap,
-        # not a rollout failure: it is left out with the remediation, and the
-        # test is skipped when no container had one (#2577).
-        unless config_container && !config_container.get_container_tag(tn).empty?
-          result.append_remediation("Please add the container name #{container_name} and a corresponding #{tn}_test_tag into your cnti-testsuite.yaml under container names")
-          unconfigured += 1
-          next true
-        end
-        rolled += 1
+          # A container without the tag this test needs is a configuration gap,
+          # not a rollout failure: it is left out with the remediation, and the
+          # test is skipped when no container had one (#2577).
+          unless config_container && !config_container.get_container_tag(tn).empty?
+            result.append_remediation("Please add the container name #{container_name} and a corresponding #{tn}_test_tag into your cnti-testsuite.yaml under container names")
+            unconfigured += 1
+            next true
+          end
+          rolled += 1
 
-        # split out image name from version tag
-        image_name = container.as_h["image"].as_s.rpartition(":")[0]
-        tag = config_container.get_container_tag(tn)
-        resp = KubectlClient::Utils.set_image(resource["kind"], resource["name"], container_name, image_name, tag, namespace: namespace)
-        unless resp[:status].success?
-          result.add_impacted_resource(resource["kind"], resource["name"], namespace, container: container_name,
-            reason: "could not set image #{image_name}:#{tag}: #{resp[:error].to_s.strip}")
-          next false
-        end
+          # split out image name from version tag
+          image_name = container.as_h["image"].as_s.rpartition(":")[0]
+          tag = config_container.get_container_tag(tn)
+          key = {resource["kind"], resource["name"], namespace}
+          deployed = changed[key]? || begin
+            images = {} of String => String
+            changed[key] = images
+            # A stop while the image is changed puts the deployed images back (#2713).
+            RunStop.register(RolloutRestore.stop_key(*key)) { RolloutRestore.set_back(*key, images) }
+            images
+          end
+          deployed[container_name] ||= container.as_h["image"].as_s
+          resp = KubectlClient::Utils.set_image(resource["kind"], resource["name"], container_name, image_name, tag, namespace: namespace)
+          unless resp[:status].success?
+            result.add_impacted_resource(resource["kind"], resource["name"], namespace, container: container_name,
+              reason: "could not set image #{image_name}:#{tag}: #{resp[:error].to_s.strip}")
+            next false
+          end
 
-        rollout_error = nil
-        begin
-          rollout_status = KubectlClient::Rollout.status(resource["kind"], resource["name"], namespace: namespace, timeout: "200s")
-        rescue ex : KubectlClient::ShellCMD::UnspecifiedError
-          rollout_error = ex.message.to_s.lines.first?
-        end
+          rollout_error = nil
+          begin
+            rollout_status = KubectlClient::Rollout.status(resource["kind"], resource["name"], namespace: namespace, timeout: "200s")
+          rescue ex : KubectlClient::ShellCMD::UnspecifiedError
+            rollout_error = ex.message.to_s.lines.first?
+          end
 
-        unless rollout_status
-          Log.info { "Rollout failed for #{resource["kind"]}/#{resource["name"]} in #{namespace} namespace" }
-          result.add_impacted_resource(resource["kind"], resource["name"], namespace, container: container_name,
-            reason: "rollout to #{image_name}:#{tag} did not complete within 200s#{rollout_error ? ": #{rollout_error}" : ""}")
-          test_passed = false
+          unless rollout_status
+            Log.info { "Rollout failed for #{resource["kind"]}/#{resource["name"]} in #{namespace} namespace" }
+            # Why: the pods that are not Ready, the cluster's Warning events and
+            # their last log lines, with the first reason in the finding.
+            why = WorkloadDiagnostics.report(result, resource["kind"], resource["name"], namespace,
+              "#{resource["kind"]}/#{resource["name"]} during the #{pretty_test_name} to #{image_name}:#{tag}")
+            result.add_impacted_resource(resource["kind"], resource["name"], namespace, container: container_name,
+              reason: "rollout to #{image_name}:#{tag} did not complete within 200s#{rollout_error ? ": #{rollout_error}" : ""}#{why.first?.try { |w| "; #{w}" }}")
+            test_passed = false
+          end
+          Log.trace { "#{tn}: #{container} test_passed=#{test_passed}" }
+          test_passed
         end
-        Log.trace { "#{tn}: #{container} test_passed=#{test_passed}" }
-        test_passed
+      ensure
+        # Back to the deployed images, whatever happened above, so the tests
+        # after this one start from the CNF as deployed.
+        restored = RolloutRestore.restore(changed, result, tn)
       end
       Log.trace { "#{tn}: task_response=#{task_response}" }
       if rolled == 0 && unconfigured == 0 && !batch.empty?
         result.na("Every workload of the CNF runs to completion (a Job or CronJob), a #{pretty_test_name} does not apply")
       elsif rolled == 0 && unconfigured > 0
         result.skipped("No #{tn}_test_tag configured for any container: add container_names with a #{tn}_test_tag to cnti-testsuite.yaml")
-      elsif task_response
+      elsif task_response && restored
         result.passed("CNF for #{pretty_test_name_capitalized} Passed")
       else
         result.failed("CNF for #{pretty_test_name_capitalized} Failed")
       end
-      # TODO should we roll the image back to original version in an ensure?
-      # TODO Use the kubectl rollback to history command
     end
   end
 end
@@ -159,8 +181,10 @@ scored_task "rollback" do |t, args|
         rollout_error = ex.message.to_s.lines.first?
       end
       unless rollout_status
+        why = WorkloadDiagnostics.report(result, resource_kind, resource_name, namespace,
+          "#{resource_kind}/#{resource_name} during the rollout to #{image_name}:#{rollback_from_tag}")
         result.add_impacted_resource(resource_kind, resource_name, namespace, container: container_name,
-          reason: "rollout to #{image_name}:#{rollback_from_tag} did not complete within 180s#{rollout_error ? ": #{rollout_error}" : ""}")
+          reason: "rollout to #{image_name}:#{rollback_from_tag} did not complete within 180s#{rollout_error ? ": #{rollout_error}" : ""}#{why.first?.try { |w| "; #{w}" }}")
       end
 
       Log.for(t.name).debug { "rollback: rolling back to old version" }

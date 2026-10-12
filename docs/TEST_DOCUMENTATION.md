@@ -173,7 +173,7 @@ Ensure that you can upgrade your CNF using the [Kubectl Set Image](https://kuber
 
 Checks if the Pod can be rolled back to the original software version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) to perform a rollback.
 Expectation: The CNF Software version is successfully rolled back to its original version.
-The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_version_change_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. A Job or CronJob is not applicable: its pod template cannot change.
+The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_version_change_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. Afterwards every workload the test changed is put back to its deployed image and must be ready again within the pod readiness timeout, so the next test starts from the CNF as deployed; a StatefulSet pod that never became Ready is deleted so that it is recreated from the deployed template (a forced rollback). A workload that does not come back is a finding of this test. A Job or CronJob is not applicable: its pod template cannot change.
 
 #### Rationale
 
@@ -199,7 +199,7 @@ Ensure that you can successfully rollback the software version of your CNF by us
 
 Checks if the Pod can be upgraded to a new software version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-)
 Expectation: The CNF Software version can be successfully incremented.
-The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_update_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. A Job or CronJob is not applicable: its pod template cannot change.
+The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_update_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. Afterwards every workload the test changed is put back to its deployed image and must be ready again within the pod readiness timeout, so the next test starts from the CNF as deployed; a StatefulSet pod that never became Ready is deleted so that it is recreated from the deployed template (a forced rollback). A workload that does not come back is a finding of this test. A Job or CronJob is not applicable: its pod template cannot change.
 
 #### Rationale
 
@@ -223,7 +223,7 @@ Ensure that you can successfully perform a rolling upgrade of your CNF using the
 
 Checks if the Pod can be rolled back older software version(Older than the original software version) by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) to perform a downgrade.
 Expectation: The CNF Software version is successfully downgraded to a software version older than the original installation version.
-The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_downgrade_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. A Job or CronJob is not applicable: its pod template cannot change.
+The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_downgrade_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. Afterwards every workload the test changed is put back to its deployed image and must be ready again within the pod readiness timeout, so the next test starts from the CNF as deployed; a StatefulSet pod that never became Ready is deleted so that it is recreated from the deployed template (a forced rollback). A workload that does not come back is a finding of this test. A Job or CronJob is not applicable: its pod template cannot change.
 
 #### Rationale
 
