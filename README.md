@@ -126,6 +126,8 @@ Using the suite
 - [CNTI_TESTSUITE_YAML_USAGE.md](docs/CNTI_TESTSUITE_YAML_USAGE.md): the `cnti-testsuite.yaml` that
   describes a CNF: charts, manifests, values, registries, per-test settings.
 - [K8S_OPERATORS.md](docs/K8S_OPERATORS.md): CNFs deployed and managed by an operator.
+- [MCP.md](docs/MCP.md): the suite from an AI agent (Claude Code, Claude Desktop, VS Code): setup,
+  what it does to your cluster, example prompts and a recorded session.
 - [docs/TEST_DOCUMENTATION.md](docs/TEST_DOCUMENTATION.md): every test, with its rationale,
   sources and remediation.
 - [docs/cnti-testsuite-results.schema.json](docs/cnti-testsuite-results.schema.json): the results

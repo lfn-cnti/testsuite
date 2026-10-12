@@ -622,6 +622,10 @@ the existing CLI: run tools re-invoke the binary with `--output json` and return
 so everything it returns matches [the results schema](cnti-testsuite-results.schema.json). stdout
 carries only JSON-RPC; logs and progress go to stderr.
 
+This section is the reference. [MCP.md](MCP.md) is the how-to: registering the server with Claude
+Code, Claude Desktop and VS Code, what it does to your cluster, example prompts and a recorded
+session.
+
 ```
 ./cnti-testsuite mcp                  # no install or uninstall by default
 ./cnti-testsuite mcp --allow-install  # also expose cnf_install/cnf_uninstall

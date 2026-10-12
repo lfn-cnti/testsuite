@@ -55,6 +55,44 @@ describe CntiTestSuite do
     end
   end
 
+  # docs/MCP.md shows an agent fixing these two failures in the demo CNF, so the
+  # demo has to keep failing as shipped and pass with the probes the guide sets.
+  it "the MCP guide's demo CNF fails liveness and readiness, and passes with the guide's probes", tags: ["liveness"] do
+    demo = "./sample-cnfs/sample-mcp-demo"
+    begin
+      ShellCmd.cnf_install("--cnf-config #{demo}/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("liveness readiness")
+      (/impacted: Deployment\/.*-web in .*: no liveness probe on any container \(web\)/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/.*-web in .*: no readiness probe on any container \(web\)/ =~ result[:output]).should_not be_nil
+    ensure
+      ShellCmd.cnf_uninstall()
+    end
+
+    probes = %w(livenessProbe readinessProbe).flat_map do |probe|
+      ["--set #{probe}.httpGet.path=/", "--set #{probe}.httpGet.port=http"]
+    end
+    # Next to the demo, so its chart path resolves as in the demo's own config.
+    fixed = "#{demo}/cnti-testsuite-fixed-#{Random::Secure.hex(4)}.yaml"
+    File.write(fixed, <<-YAML)
+      config_version: v2
+      deployments:
+        helm_dirs:
+          - name: web
+            helm_directory: chart
+            helm_values: "#{probes.join(" ")}"
+      YAML
+    begin
+      ShellCmd.cnf_install("--cnf-config #{fixed}")
+      result = ShellCmd.run_testsuite("liveness readiness")
+      result[:status].success?.should be_true
+      (/(PASSED).*(All workload resources have at least one container with a liveness probe)/ =~ result[:output]).should_not be_nil
+      (/(PASSED).*(All workload resources have at least one container with a readiness probe)/ =~ result[:output]).should_not be_nil
+    ensure
+      ShellCmd.cnf_uninstall()
+      File.delete(fixed) if File.exists?(fixed)
+    end
+  end
+
   it "'readiness' should pass when readinessProbe is set", tags: ["readiness"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/k8s-multiple-deployments/cnti-testsuite.yaml")
