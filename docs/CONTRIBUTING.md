@@ -80,8 +80,9 @@ Outline of what a contributor's workflow looks like:
 
 ## Documentation
 
-The guides live in the repository root and are listed by audience in the README's
-Documentation section; a new guide is added there. Name new guide files in upper case with
+The guides live in `docs/` and are listed by audience in the README's Documentation section; a
+new guide goes in `docs/` and is added to that list. The root keeps `README.md`, `LICENSE`,
+`MAINTAINERS.md` and short stubs at the most linked old paths. Name new guide files in upper case with
 underscores (`K8S_OPERATORS.md`, `CNTI_TESTSUITE_YAML_USAGE.md`). `docs/TEST_DOCUMENTATION.md`
 is linted in CI by the rules in `doc-lint/`.
 
