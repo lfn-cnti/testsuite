@@ -221,8 +221,10 @@ describe "Utils" do
   end
 
   describe "'download' function", tags: ["utils-download"] do
-    port = 50500
-    ip = "0.0.0.0"
+    # The OS picks a free port at bind time: a fixed port can be taken by
+    # another listener on the runner host, such as a kind cluster's API server.
+    ip = "127.0.0.1"
+    port = 0
     server = HTTP::Server.new do |ctx|
       request = ctx.request
       response = ctx.response
@@ -250,7 +252,7 @@ describe "Utils" do
     end
 
     before_all do
-      server.bind_tcp(ip, port)
+      port = server.bind_tcp(ip, 0).port
       spawn do
         server.listen
       end
