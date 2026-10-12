@@ -22,6 +22,28 @@ module MCP
   # structuredContent is a results document.
   RESULTS_SCHEMA = JSON.parse({{ read_file("#{__DIR__}/../../../docs/cnti-testsuite-results.schema.json") }}).to_json
 
+  # What an agent reads to write a cnti-testsuite.yaml, embedded at compile time
+  # so it is the reference of this binary: the configuration's JSON Schema and
+  # its guide. Served as MCP resources, by URI.
+  RESOURCES = [
+    {
+      uri:         "cnti-testsuite://docs/cnti-testsuite-config.schema.json",
+      name:        "cnti-testsuite-config.schema.json",
+      title:       "cnti-testsuite.yaml JSON Schema",
+      description: "Every key of a cnti-testsuite.yaml, with its type and what it does. Check a file against it with the validate_config tool.",
+      mime_type:   "application/schema+json",
+      text:        {{ read_file("#{__DIR__}/../../../docs/cnti-testsuite-config.schema.json") }},
+    },
+    {
+      uri:         "cnti-testsuite://docs/CNTI_TESTSUITE_YAML_USAGE.md",
+      name:        "CNTI_TESTSUITE_YAML_USAGE.md",
+      title:       "cnti-testsuite.yaml guide",
+      description: "How to write a cnti-testsuite.yaml: the deployment kinds, the per-test settings, examples.",
+      mime_type:   "text/markdown",
+      text:        {{ read_file("#{__DIR__}/../../../docs/CNTI_TESTSUITE_YAML_USAGE.md") }},
+    },
+  ]
+
   class Server
     @log = ::Log.for("mcp")
     @out = Mutex.new
@@ -106,6 +128,10 @@ module MCP
         write_raw_result(id, Tools.list_json(@allow_install))
       when "tools/call"
         handle_tool_call(id, params)
+      when "resources/list"
+        write_raw_result(id, resources_list_json)
+      when "resources/read"
+        handle_resource_read(id, params)
       else
         write_error(id, -32601, "Method not found: #{method}")
       end
@@ -123,7 +149,12 @@ module MCP
       result = JSON.build do |j|
         j.object do
           j.field "protocolVersion", PROTOCOL_VERSION
-          j.field "capabilities" { j.object { j.field("tools") { j.object { j.field "listChanged", false } } } }
+          j.field "capabilities" do
+            j.object do
+              j.field("tools") { j.object { j.field "listChanged", false } }
+              j.field("resources") { j.object { j.field "listChanged", false } }
+            end
+          end
           j.field "serverInfo" do
             j.object do
               j.field "name", SERVER_NAME
@@ -146,6 +177,51 @@ module MCP
       end
     end
 
+    private def resources_list_json : String
+      JSON.build do |j|
+        j.object do
+          j.field "resources" do
+            j.array do
+              RESOURCES.each do |r|
+                j.object do
+                  j.field "uri", r[:uri]
+                  j.field "name", r[:name]
+                  j.field "title", r[:title]
+                  j.field "description", r[:description]
+                  j.field "mimeType", r[:mime_type]
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+
+    # MCP's error for an unknown resource URI.
+    RESOURCE_NOT_FOUND = -32002
+
+    private def handle_resource_read(id, params)
+      uri = params.try(&.dig?("uri")).try(&.as_s?)
+      unless resource = RESOURCES.find { |r| r[:uri] == uri }
+        write_error(id, RESOURCE_NOT_FOUND, "Resource not found: #{uri}")
+        return
+      end
+      result = JSON.build do |j|
+        j.object do
+          j.field "contents" do
+            j.array do
+              j.object do
+                j.field "uri", resource[:uri]
+                j.field "mimeType", resource[:mime_type]
+                j.field "text", resource[:text]
+              end
+            end
+          end
+        end
+      end
+      write_raw_result(id, result)
+    end
+
     private def handle_tool_call(id, params)
       name = params.try(&.dig?("name")).try(&.as_s?)
       args = params.try(&.dig?("arguments"))
@@ -164,6 +240,13 @@ module MCP
         else
           write_tool_error(id, "No results file yet; run a test first")
         end
+      when "validate_config"
+        cfg = args.try(&.dig?("cnf_config")).try(&.as_s?)
+        unless cfg
+          write_tool_error(id, "validate_config requires a 'cnf_config' path")
+          return
+        end
+        write_tool_result(id, Tools.validate_config_json(cfg))
       when "get_run", "cancel_run"
         run_id = args.try(&.dig?("runId")).try(&.as_s?)
         run = run_id.try { |r| @runs[r]? }

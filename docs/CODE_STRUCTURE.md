@@ -31,5 +31,5 @@ The suite is one Crystal binary, `cnti-testsuite`, built from `src/cnti-testsuit
 - `sample-cnfs/`: fixtures the specs install; `example-cnfs/`: the example CNFs users run,
   validated nightly (`example_cnf_validation.yml`).
 - `embedded_files/`: files compiled into the binary (values for the collectors, Litmus RBAC).
-- `docs/`: the guides (usage, install, configuration, contributing and the rest; `README.md` is their index), the test documentation, and the results and evidence schemas; `doc-lint/`: the test documentation's lint rules. The root keeps `README.md`, `LICENSE`, `MAINTAINERS.md`, and stubs for the three most linked old paths.
+- `docs/`: the guides (usage, install, configuration, contributing and the rest; `README.md` is their index), the test documentation, and the results, evidence and configuration schemas; `doc-lint/`: the test documentation's lint rules. The root keeps `README.md`, `LICENSE`, `MAINTAINERS.md`, and stubs for the three most linked old paths.
 - `.github/`: workflows, composite actions, the adopter canary's list (`adopters.yml`).

@@ -637,6 +637,7 @@ It implements MCP protocol version `2025-06-18`. The tools:
 | `get_run` | The state and progress of a run, with its results document once complete | read-only |
 | `cancel_run` | Stops a run started by `start_run`, `cnf_install` or `cnf_uninstall` | |
 | `get_results` | The newest results document in the workspace | read-only |
+| `validate_config` | Checks a `cnti-testsuite.yaml`, as `cnti-testsuite validate_config` does, without installing anything; returns `valid` and the suite's messages | read-only |
 | `cnf_install` / `cnf_uninstall` | Install or uninstall the CNF; only with `--allow-install`. Return a `runId`. | destructive |
 
 A run through MCP is the CLI's run: `start_run cert` runs what `cnti-testsuite cert` runs, and the
@@ -659,6 +660,13 @@ command running at that moment). The suite finalizes the run: the test under way
 error, what it changed in the cluster is undone (a chaos test's engine and fault, a cordoned node),
 and the results document, the newest one `get_results` returns, says `status: stopped` with
 `exit_code: 143`.
+
+For writing a `cnti-testsuite.yaml`, the server also offers two resources, embedded in the binary so
+they match it: the configuration's JSON Schema
+(`cnti-testsuite://docs/cnti-testsuite-config.schema.json`, the same file as
+[cnti-testsuite-config.schema.json](cnti-testsuite-config.schema.json)) and the configuration guide
+(`cnti-testsuite://docs/CNTI_TESTSUITE_YAML_USAGE.md`). An agent can read them, write the file and check
+it with `validate_config`, which takes no run lock and needs no cluster, before it installs anything.
 
 `--results-dir` given to `mcp` is passed on to every run, so that `get_results` reads where the runs
 write; `CNTI_TESTSUITE_RESULTS_DIR` reaches them as it is.

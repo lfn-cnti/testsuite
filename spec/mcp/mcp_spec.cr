@@ -47,12 +47,13 @@ describe "mcp server" do
 
     replies = by_id(messages)
     replies[1]["result"]["protocolVersion"].as_s.should eq("2025-06-18")
+    replies[1]["result"]["capabilities"]["resources"]?.should_not be_nil
 
     tools = replies[2]["result"]["tools"].as_a.to_h { |t| {t["name"].as_s, t} }
-    tools.keys.should eq(["list_tests", "run_test", "start_run", "get_run", "cancel_run", "get_results"])
+    tools.keys.should eq(["list_tests", "run_test", "start_run", "get_run", "cancel_run", "get_results", "validate_config"])
     # Install and uninstall are hidden unless --allow-install is passed.
     tools.has_key?("cnf_install").should be_false
-    ["list_tests", "get_run", "get_results"].each do |name|
+    ["list_tests", "get_run", "get_results", "validate_config"].each do |name|
       tools[name]["annotations"]["readOnlyHint"].as_bool.should be_true
     end
     # Running tests changes the cluster: no hint claims otherwise, so the MCP
@@ -146,6 +147,49 @@ describe "mcp server" do
     # again for the next session.
     second = by_id(mcp_exchange([call(1, "start_run", {"name" => "all"})]))
     second[1]["result"]["structuredContent"]["status"].as_s.should eq("running")
+  end
+
+  it "checks a cnti-testsuite.yaml with validate_config, without a run or a cluster", tags: ["points"] do
+    broken = File.tempname("broken-config", ".yaml")
+    File.write(broken, "config_version: v2\ndeployments:\n  helm_dirs:\n    - name: web\n      helm_dir: chart\n")
+    replies = by_id(mcp_exchange([
+      call(1, "validate_config", {"cnf_config" => "sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml"}),
+      call(2, "validate_config", {"cnf_config" => broken}),
+      call(3, "validate_config"),
+      # It takes no run lock: a run going on doesn't stop it.
+      call(4, "start_run", {"name" => "liveness"}),
+      call(5, "validate_config", {"cnf_config" => "sample-cnfs/sample-coredns-cnf"}),
+    ]))
+    valid = replies[1]["result"]["structuredContent"]
+    valid["valid"].as_bool.should be_true
+    valid["messages"].as_a.map(&.as_s).join("\n").should contain("Successfully validated")
+
+    invalid = replies[2]["result"]["structuredContent"]
+    invalid["valid"].as_bool.should be_false
+    invalid["messages"].as_a.map(&.as_s).join("\n").should contain("helm_dir")
+
+    error_text(replies[3]).should contain("cnf_config")
+    replies[5]["result"]["structuredContent"]["valid"].as_bool.should be_true
+  ensure
+    File.delete(broken) if broken && File.exists?(broken)
+  end
+
+  it "serves the configuration's schema and guide as resources", tags: ["points"] do
+    schema_uri = "cnti-testsuite://docs/cnti-testsuite-config.schema.json"
+    replies = by_id(mcp_exchange([
+      %({"jsonrpc":"2.0","id":1,"method":"resources/list"}),
+      {jsonrpc: "2.0", id: 2, method: "resources/read", params: {uri: schema_uri}}.to_json,
+      {jsonrpc: "2.0", id: 3, method: "resources/read", params: {uri: "cnti-testsuite://nope"}}.to_json,
+    ]))
+    listed = replies[1]["result"]["resources"].as_a.map { |r| r["uri"].as_s }
+    listed.should eq([schema_uri, "cnti-testsuite://docs/CNTI_TESTSUITE_YAML_USAGE.md"])
+
+    content = replies[2]["result"]["contents"][0]
+    content["mimeType"].as_s.should eq("application/schema+json")
+    # The binary serves the schema it was built with: the one in docs/.
+    JSON.parse(content["text"].as_s).should eq(JSON.parse(File.read("docs/cnti-testsuite-config.schema.json")))
+
+    replies[3]["error"]["code"].as_i.should eq(-32002)
   end
 
   it "exposes cnf_install (destructive) only with --allow-install", tags: ["points"] do

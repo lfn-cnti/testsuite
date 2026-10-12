@@ -2,11 +2,11 @@ require "json"
 require "yaml"
 
 # Minimal JSON-Schema validator covering only the constructs the suite's
-# schemas use ($ref, type, enum, const, required, additionalProperties:false,
-# array items). Driven by the schema file itself so it acts as a drift guard:
+# schemas use ($ref, type, enum, const, required, additionalProperties: false
+# or a schema for the remaining keys, minimum, array items). Driven by the schema file itself so it acts as a drift guard:
 # any divergence between an emitted file and the published schema (added,
 # removed or renamed field, wrong type) fails the spec. Shared by the results
-# file spec and the evidence statement spec.
+# file spec, the evidence statement spec and the configuration schema spec.
 def resolve_schema_ref(schema : JSON::Any, defs : JSON::Any) : JSON::Any
   if ref = schema["$ref"]?
     defs[ref.as_s.split("/").last]
@@ -46,8 +46,23 @@ def validate_against_schema(instance : YAML::Any, schema : JSON::Any, defs : JSO
     raise "#{path}: expected type #{names}, got #{instance.raw.inspect}" unless names.any? { |n| yaml_matches_type?(instance, n) }
   end
 
+  if (minimum = schema["minimum"]?) && (number = instance.as_i64? || instance.as_f?)
+    raise "#{path}: #{number} is less than the minimum #{minimum}" if number < (minimum.as_i64? || minimum.as_f)
+  end
+
+  # Keys not in `properties`: refused with additionalProperties: false, or each
+  # checked against additionalProperties when it is a schema (a map's values).
+  additional = schema["additionalProperties"]?
+  if additional && additional.as_h? && (map = instance.as_h?)
+    declared = schema["properties"]?.try(&.as_h) || {} of String => JSON::Any
+    map.each do |k, v|
+      next if declared.has_key?(k.as_s)
+      validate_against_schema(v, additional, defs, "#{path}.#{k.as_s}")
+    end
+  end
+
   if props = schema["properties"]?
-    if schema["additionalProperties"]?.try(&.as_bool?) == false
+    if additional.try(&.as_bool?) == false
       instance.as_h.each_key do |k|
         raise "#{path}: unexpected key '#{k.as_s}' not declared in schema" unless props.as_h.has_key?(k.as_s)
       end

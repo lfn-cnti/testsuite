@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lfn-cnti/testsuite/raw/main/docs/cnti-testsuite-config.schema.json",
+  "title": "cnti-testsuite.yaml",
+  "description": "The configuration that tells the CNTi Test Suite how to install a CNF (cnf_install) and how some tests treat it. Version v2. Described in docs/CNTI_TESTSUITE_YAML_USAGE.md; check a file with `cnti-testsuite validate_config --cnf-config PATH`. Values may use {{ ENV.NAME }} placeholders, rendered before parsing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["config_version", "deployments"],
+  "properties": {
+    "config_version": {
+      "description": "The format version. v1 files are converted on the fly; `update_config` writes them as v2.",
+      "const": "v2"
+    },
+    "common": { "$ref": "#/$defs/common" },
+    "deployments": { "$ref": "#/$defs/deployments" }
+  },
+  "$defs": {
+    "common": {
+      "description": "Settings for the whole CNF.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "container_names": {
+          "description": "Per container: the released image tags the rolling update, downgrade and version change tests move to, and the tag rollback starts from. A container without the tag a test needs is left out of that test.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/container" }
+        },
+        "white_list_container_names": {
+          "description": "Containers the privileged_containers test leaves out.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "workload_resource_labels": {
+          "description": "Labels that pick the CNF's workloads when its deployments don't name them directly.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/workload_resource_label" }
+        },
+        "docker_insecure_registries": {
+          "description": "Registries the suite reaches without TLS verification.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "image_registry_fqdns": {
+          "description": "Registry name to fully qualified host, for images given without one.",
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "hardcoded_ip_exceptions": {
+          "description": "IP addresses the hardcoded IP test accepts in the CNF's runtime configuration.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/hardcoded_ip" }
+        },
+        "tls_profiles": {
+          "description": "Named TLS settings, used by a Helm deployment's tls_profile.",
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/tls_profile" }
+        },
+        "auth_defaults": { "$ref": "#/$defs/auth_defaults" },
+        "image_size_max_mb": {
+          "description": "The reasonable_image_size limit in megabytes, instead of the default.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "startup_time_max_seconds": {
+          "description": "The reasonable_startup_time limit in seconds, instead of the default 30.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "container": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "description": "Container name, as in the pod spec.", "type": "string" },
+        "rolling_update_test_tag": { "description": "A newer released tag for rolling_update.", "type": ["string", "number"] },
+        "rolling_downgrade_test_tag": { "description": "An older released tag for rolling_downgrade.", "type": ["string", "number"] },
+        "rolling_version_change_test_tag": { "description": "A different released tag for rolling_version_change.", "type": ["string", "number"] },
+        "rollback_from_tag": { "description": "A released tag, other than the installed one, that rollback rolls out and then undoes.", "type": ["string", "number"] }
+      }
+    },
+    "workload_resource_label": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": { "type": "string" },
+        "value": { "type": "string" },
+        "namespace": { "type": "string" }
+      }
+    },
+    "hardcoded_ip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ip"],
+      "properties": {
+        "ip": { "type": "string" }
+      }
+    },
+    "tls_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ca_file": { "type": "string" },
+        "cert_file": { "type": "string" },
+        "key_file": { "type": "string" }
+      }
+    },
+    "auth_defaults": {
+      "description": "Credentials by registry host or Helm repository name, used when a chart doesn't carry its own auth.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "oci_registries": { "type": "object", "additionalProperties": { "$ref": "#/$defs/auth" } },
+        "helm_repos": { "type": "object", "additionalProperties": { "$ref": "#/$defs/auth" } }
+      }
+    },
+    "auth": {
+      "description": "A token, or a username and password. Keep secrets out of the file: use {{ ENV.NAME }} placeholders.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "token": { "type": "string" },
+        "username": { "type": "string" },
+        "password": { "type": "string" }
+      }
+    },
+    "deployments": {
+      "description": "What cnf_install installs. At least one deployment, and every name unique across the three lists.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "helm_charts": {
+          "description": "Charts from a Helm repository (helm_repo_name, helm_repo_url, helm_chart_name) or an OCI registry (registry_url, chart_version).",
+          "type": "array",
+          "items": { "$ref": "#/$defs/helm_chart" }
+        },
+        "helm_dirs": {
+          "description": "Chart directories, relative to this file.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/helm_dir" }
+        },
+        "manifests": {
+          "description": "Directories of Kubernetes manifests, relative to this file.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/manifest_dir" }
+        }
+      }
+    },
+    "latency_sensitive": {
+      "description": "A workload, and the containers in it, that needs exclusive CPUs (checked by exclusive_cpus).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name"],
+      "properties": {
+        "kind": { "type": "string" },
+        "name": { "type": "string" },
+        "containers": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "helm_chart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "description": "The deployment's name, unique in the file; also the Helm release name.", "type": "string" },
+        "priority": { "description": "Install order: lower first, higher removed first.", "type": "integer" },
+        "latency_sensitive": { "type": "array", "items": { "$ref": "#/$defs/latency_sensitive" } },
+        "helm_values": { "description": "Extra helm arguments, such as `--set key=value` or `--values file.yaml`.", "type": "string" },
+        "namespace": { "description": "Namespace to install into; cnti-default when empty.", "type": "string" },
+        "tls_profile": { "description": "A name from common.tls_profiles.", "type": "string" },
+        "skip_tls_verify": { "type": "boolean" },
+        "helm_repo_name": { "description": "Classic repository: the alias it is added under.", "type": "string" },
+        "helm_chart_name": { "description": "Classic repository: the chart's name. Ignored for OCI, where it comes from registry_url.", "type": "string" },
+        "helm_repo_url": { "description": "Classic repository: its URL.", "type": "string" },
+        "registry_url": { "description": "OCI chart: oci://host/path/chart. Needs chart_version, and excludes the helm_repo_* fields.", "type": "string" },
+        "plain_http": { "description": "OCI chart: reach the registry over HTTP.", "type": "boolean" },
+        "chart_version": { "description": "Chart version: required for OCI, optional for a classic repository.", "type": ["string", "number"] },
+        "pass_credentials": { "description": "Forward credentials across redirects.", "type": "boolean" },
+        "auth": { "description": "Credentials for this chart, instead of common.auth_defaults.", "$ref": "#/$defs/auth" }
+      }
+    },
+    "helm_dir": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "helm_directory"],
+      "properties": {
+        "name": { "description": "The deployment's name, unique in the file; also the Helm release name.", "type": "string" },
+        "priority": { "description": "Install order: lower first, higher removed first.", "type": "integer" },
+        "latency_sensitive": { "type": "array", "items": { "$ref": "#/$defs/latency_sensitive" } },
+        "helm_values": { "description": "Extra helm arguments, such as `--set key=value` or `--values file.yaml`.", "type": "string" },
+        "namespace": { "description": "Namespace to install into; cnti-default when empty.", "type": "string" },
+        "tls_profile": { "description": "A name from common.tls_profiles.", "type": "string" },
+        "skip_tls_verify": { "type": "boolean" },
+        "helm_directory": { "description": "The chart's directory, relative to this file.", "type": "string" }
+      }
+    },
+    "manifest_dir": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "manifest_directory"],
+      "properties": {
+        "name": { "description": "The deployment's name, unique in the file.", "type": "string" },
+        "priority": { "description": "Install order: lower first, higher removed first.", "type": "integer" },
+        "latency_sensitive": { "type": "array", "items": { "$ref": "#/$defs/latency_sensitive" } },
+        "manifest_directory": { "description": "The manifests' directory, relative to this file.", "type": "string" }
+      }
+    }
+  }
+}

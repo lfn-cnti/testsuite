@@ -256,6 +256,35 @@ module MCP
 
     NO_ARGS = %({"type":"object","properties":{},"additionalProperties":false})
 
+    # The structuredContent of validate_config.
+    VALIDATION_SCHEMA = %({"type":"object","properties":{) +
+                        %("valid":{"type":"boolean","description":"whether the suite accepts the file"},) +
+                        %("messages":{"type":"array","items":{"type":"string"},"description":"what the suite said about the file, its reasons when it is not valid"}},) +
+                        %("required":["valid","messages"]})
+
+    # Checks a cnti-testsuite.yaml as `cnti-testsuite validate_config` does, in
+    # a child process: the parser ends the process on a broken file, which must
+    # not end the server. It reads the file only, so it takes no run lock and
+    # needs no cluster. The verdict and the reasons are what the suite prints on
+    # stdout; its log goes to stderr, and only its last lines are passed on, when
+    # stdout says nothing.
+    def self.validate_config_json(cnf_config : String) : String
+      bin = Process.executable_path || "cnti-testsuite"
+      stdout = IO::Memory.new
+      stderr = IO::Memory.new
+      status = Process.run(bin, ["validate_config", "--cnf-config", cnf_config], output: stdout, error: stderr)
+      messages = plain_lines(stdout.to_s)
+      messages = plain_lines(stderr.to_s).last(STDERR_LINES) if messages.empty? && !status.success?
+      {valid: status.success?, messages: messages}.to_json
+    end
+
+    STDERR_LINES = 5
+
+    # Lines without colour codes, blank ones dropped.
+    private def self.plain_lines(text : String) : Array(String)
+      text.gsub(/\e\[[0-9;]*m/, "").lines.map(&.strip).reject(&.empty?)
+    end
+
     # The structuredContent of get_run, cancel_run and the async run tools: the
     # run's state, with the results document (RESULTS_SCHEMA) once there is one.
     RUN_SCHEMA = %({"type":"object","properties":{) +
@@ -307,6 +336,11 @@ module MCP
               tool(j, "get_results",
                 "Return the newest results document from the workspace.",
                 NO_ARGS, read_only: true, output_schema: MCP::RESULTS_SCHEMA)
+
+              tool(j, "validate_config",
+                "Check a cnti-testsuite.yaml for errors without installing anything or touching the cluster, as `cnti-testsuite validate_config` does. Returns whether the suite accepts it, with its reasons when it doesn't. The format is described by the resource cnti-testsuite://docs/cnti-testsuite-config.schema.json and the guide cnti-testsuite://docs/CNTI_TESTSUITE_YAML_USAGE.md.",
+                %({"type":"object","properties":{"cnf_config":{"type":"string","description":"path to a cnti-testsuite.yaml or its directory, relative to the server's working directory"}},"required":["cnf_config"],"additionalProperties":false}),
+                read_only: true, output_schema: VALIDATION_SCHEMA)
 
               if allow_install
                 tool(j, "cnf_install",

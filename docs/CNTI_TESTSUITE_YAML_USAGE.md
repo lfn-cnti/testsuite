@@ -57,6 +57,22 @@ New releases may change the format of cnti-testsuite.yaml. To update your older 
 ./cnti-testsuite update_config input_config=OLD_CONFIG_PATH output_config=NEW_CONFIG_PATH
 ```
 
+### JSON Schema
+
+[cnti-testsuite-config.schema.json](cnti-testsuite-config.schema.json) describes every key below, with
+its type. A spec keeps it in step with what the suite accepts. With the first line below, editors that
+use the YAML language server, such as VS Code with the YAML extension, complete and check the file as
+you write it:
+
+```yaml
+# yaml-language-server: $schema=https://github.com/lfn-cnti/testsuite/raw/main/docs/cnti-testsuite-config.schema.json
+config_version: v2
+```
+
+The schema checks the shape of the file. A few rules it can't express are checked by the suite itself:
+deployment names must be unique, a chart comes either from a Helm repository or from an OCI registry,
+and an OCI chart needs `chart_version`. `cnti-testsuite validate_config` checks both.
+
 ### Keys and Values
 
 #### Environment variables (Jinja)
