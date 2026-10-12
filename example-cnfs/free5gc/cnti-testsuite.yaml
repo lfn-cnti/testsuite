@@ -4,6 +4,12 @@ common:
   hardcoded_ip_exceptions:
     - ip: 8.8.8.8
   container_names:
+    # The version-change tests move the running functions away from the
+    # version the chart deploys (v4.3.0, the latest release, in the
+    # free5gc-helm submodule): the rolling update, version change and
+    # rollback to v4.2.3, and the downgrade to v4.2.2. Both must differ from
+    # the deployed version, so when Renovate moves the submodule to a chart
+    # with other image tags, move these targets in the same pull request.
     - name: amf
       rolling_update_test_tag: "v4.2.3"
       rolling_downgrade_test_tag: "v4.2.2"
