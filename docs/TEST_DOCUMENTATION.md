@@ -149,7 +149,7 @@ Make sure your helm charts are valid and can be deployed to clusters.
 
 Checks if the Pod can be upgraded to a new software version, then restored back to the original software version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) and [Kubectl Rollout Undo](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#rollout) commands.
 Expectation: The CNF Software version can be successfully incremented, then rolled back.
-The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rollback_from_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. A Job or CronJob has an immutable pod template and runs once: it is listed in the test details as not applicable.
+The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rollback_from_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. A Job or CronJob is not applicable: its pod template cannot change.
 
 #### Rationale
 
@@ -173,7 +173,7 @@ Ensure that you can upgrade your CNF using the [Kubectl Set Image](https://kuber
 
 Checks if the Pod can be rolled back to the original software version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) to perform a rollback.
 Expectation: The CNF Software version is successfully rolled back to its original version.
-The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_version_change_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. A Job or CronJob has an immutable pod template and runs once: it is listed in the test details as not applicable.
+The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_version_change_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. A Job or CronJob is not applicable: its pod template cannot change.
 
 #### Rationale
 
@@ -199,7 +199,7 @@ Ensure that you can successfully rollback the software version of your CNF by us
 
 Checks if the Pod can be upgraded to a new software version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-)
 Expectation: The CNF Software version can be successfully incremented.
-The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_update_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. A Job or CronJob has an immutable pod template and runs once: it is listed in the test details as not applicable.
+The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_update_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. A Job or CronJob is not applicable: its pod template cannot change.
 
 #### Rationale
 
@@ -223,7 +223,7 @@ Ensure that you can successfully perform a rolling upgrade of your CNF using the
 
 Checks if the Pod can be rolled back older software version(Older than the original software version) by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) to perform a downgrade.
 Expectation: The CNF Software version is successfully downgraded to a software version older than the original installation version.
-The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_downgrade_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. A Job or CronJob has an immutable pod template and runs once: it is listed in the test details as not applicable.
+The test needs the version to move to from the `container_names` section of `cnti-testsuite.yaml` (`rolling_downgrade_test_tag`); a container without it is left out with a remediation, and the test is skipped when no container has one. A rollout that does not complete is reported per resource with the image and the reason. A Job or CronJob is not applicable: its pod template cannot change.
 
 #### Rationale
 
@@ -354,7 +354,7 @@ Audit your CNF's images:
 
 #### Overview
 
-Measures, for every workload resource of the CNF, how long its slowest pod took from its containers starting to reporting Ready, as recorded in the pod's status; image pulls and scheduling are excluded. Each workload is reported with its slowest pod and time, and each one over the limit is a finding. The limit is 30 seconds unless the CNF sets `startup_time_max_seconds` in `cnti-testsuite.yaml`. A Job or CronJob runs to completion: it is listed in the test details as not applicable, and the test is not applicable when the CNF has no other workload.
+Measures, for every workload resource of the CNF, how long its slowest pod took from its containers starting to reporting Ready, as recorded in the pod's status; image pulls and scheduling are excluded. Each workload is reported with its slowest pod and time, and each one over the limit is a finding. The limit is 30 seconds unless the CNF sets `startup_time_max_seconds` in `cnti-testsuite.yaml`.
 Expectation: Every workload of the CNF is Ready within 30 seconds of its containers starting.
 
 #### Rationale
@@ -402,7 +402,7 @@ Ensure that there is only one process type within a container. This does not cou
 
 #### Overview
 
-Checks, for every workload resource of the CNF, that a Service of the CNF selects its pods; each workload is reported with the Service that exposes it, and each one nothing exposes is a finding. Application access for microservices within a cluster should be exposed via a Service. Read more about K8s Service [here](https://kubernetes.io/docs/concepts/services-networking/service/). A Job or CronJob runs to completion: it is listed in the test details as not applicable, and the test is not applicable when the CNF has no other workload.
+Checks, for every workload resource of the CNF, that a Service of the CNF selects its pods; each workload is reported with the Service that exposes it, and each one nothing exposes is a finding. Application access for microservices within a cluster should be exposed via a Service. Read more about K8s Service [here](https://kubernetes.io/docs/concepts/services-networking/service/).
 Expectation: Every workload resource of the CNF is exposed by a Service.
 
 #### Rationale
@@ -879,7 +879,7 @@ Ensure that your CNF is resilient to DNS resolution failures and can maintain a 
 
 #### Overview
 
-This test verifies that each workload resource includes at least one container with a liveness probe configured. A Job or CronJob runs to completion: it is listed in the test details as not applicable, and the test is not applicable when the CNF has no other workload.
+This test verifies that each workload resource includes at least one container with a liveness probe configured.
 Expectation: Each workload resource should have at least one container with a liveness probe defined.
 
 #### Rationale
@@ -906,7 +906,7 @@ Ensure that your CNF has a [Liveness Probe](https://kubernetes.io/docs/tasks/con
 
 #### Overview
 
-This test verifies that each workload resource includes at least one container with a readiness probe configured. A Job or CronJob runs to completion: it is listed in the test details as not applicable, and the test is not applicable when the CNF has no other workload.
+This test verifies that each workload resource includes at least one container with a readiness probe configured.
 Expectation: Each workload resource should have at least one container with a readiness probe defined.
 
 #### Rationale
@@ -985,7 +985,7 @@ Make sure applications and CNF's are sending log output to STDOUT and or STDERR.
 
 #### Overview
 
-Finds the [Prometheus](https://prometheus.io/) server in the cluster (a pod running a `prometheus` process and the Service in front of it), reads its active targets, and checks that every workload of the CNF has a pod among them. The details name the server, the URL its targets API answered at and, per workload, the scrape URL and target health; a workload no target scrapes is a finding. Not applicable, with the pods and URLs probed in the details, when no Prometheus server answers: nothing scrapes the CNF in that cluster. A Job or CronJob runs to completion: it is listed in the test details as not applicable, and the test is not applicable when the CNF has no other workload.
+Finds the [Prometheus](https://prometheus.io/) server in the cluster (a pod running a `prometheus` process and the Service in front of it), reads its active targets, and checks that every workload of the CNF has a pod among them. The details name the server, the URL its targets API answered at and, per workload, the scrape URL and target health; a workload no target scrapes is a finding. Not applicable, with the pods and URLs probed in the details, when no Prometheus server answers: nothing scrapes the CNF in that cluster.
 Expectation: The CNF is configured and sending metrics to a Prometheus server.
 
 #### Rationale
@@ -1031,7 +1031,7 @@ Install and configure fluentd or fluentbit to collect data and logs. See more at
 
 #### Overview
 
-Fetches every endpoint Prometheus scrapes on the CNF's pods and runs it through the [OpenMetrics](https://openmetrics.io/) validator; each endpoint is reported by URL with the validator's verdict, and a failing one is a finding with the validator's message. Not applicable when no Prometheus server answers; skipped when a server answers but no endpoint of the CNF is scraped. A Job or CronJob runs to completion and serves no endpoint: it is listed in the test details as not applicable.
+Fetches every endpoint Prometheus scrapes on the CNF's pods and runs it through the [OpenMetrics](https://openmetrics.io/) validator; each endpoint is reported by URL with the validator's verdict, and a failing one is a finding with the validator's message. Not applicable when no Prometheus server answers; skipped when a server answers but no endpoint of the CNF is scraped.
 Expectation: CNF should emit OpenMetrics compatible traffic.
 
 #### Rationale
@@ -1979,3 +1979,15 @@ For each latency-sensitive workload make its pods Guaranteed (set cpu and memory
 `./cnti-testsuite exclusive_cpus`
 
 ----------
+
+**Jobs and CronJobs.** The tests inspect a CNF's Jobs and CronJobs as they inspect its Deployments, StatefulSets, DaemonSets, ReplicaSets and bare Pods. The configuration and security tests judge their pod templates the same way: a privileged container in a database setup Job is a finding, as it would be in a Deployment.
+
+A Job's pods run to completion, its pod template cannot change, and it serves nothing. The tests that need a long-running workload therefore list each Job and CronJob in the test details as not applicable and judge the CNF's other workloads:
+
+| Tests | Jobs and CronJobs |
+|---|---|
+| [Reasonable Startup Time](#reasonable-startup-time), [Service Discovery](#service-discovery), [Sigterm Handled](#sigterm-handled), [Liveness probe](#liveness-probe), [Readiness probe](#readiness-probe), [Prometheus installed](#prometheus-installed) | Not applicable. When the CNF has no other workload, the test is not applicable. |
+| [Rollback](#rollback), [Rolling update](#rolling-update), [Rolling version change](#rolling-version-change), [Rolling downgrade](#rolling-downgrade), [Node drain](#node-drain), [OpenMetrics compatible](#openmetrics-compatible) | Not applicable. |
+| The chaos tests of [Reliability, Resilience and Availability](#category-reliability-resilience-and-availability-tests) | Left out: Litmus cannot target them. |
+| [Specialized Init Systems](#specialized-init-systems), [Routed logs](#routed-logs) | Only the pods still running are inspected. |
+| [Use stdout/stderr for logs](#use-stdoutstderr-for-logs) | Finished pods are read like running ones. |
