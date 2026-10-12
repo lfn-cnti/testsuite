@@ -83,7 +83,10 @@ adopters:
 
   # The job runs in the ocudu-gnb chart's child pipeline, on merge requests
   # and on main when the chart or its test values change; the artifacts of a
-  # run on main are kept for 30 days.
+  # run on main are kept for 30 days. After a month without a chart change
+  # the canary runs on OCUDU's main without a comparison. It is the nightly
+  # essential-tests run against OCUDU (ocudu_validation.yml runs the workload
+  # suite only).
   - name: ocudu
     display_name: OCUDU gNB
     host: gitlab

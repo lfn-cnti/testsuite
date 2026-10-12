@@ -39,6 +39,8 @@ runners do not guarantee AVX-512, and plain nightly tags are deleted after
 ./cnti-testsuite cnf_uninstall
 ```
 
-The `OCUDU validation` workflow runs both suites nightly on a kind cluster.
+The `OCUDU validation` workflow runs the workload suite nightly on a kind cluster. The essential
+tests (`cert`) run every night in the adopter canary instead, against OCUDU's own chart and
+configuration, and are compared with OCUDU's badge.
 Findings from the last full run are tracked in
 [issue #2559](https://github.com/lfn-cnti/testsuite/issues/2559).

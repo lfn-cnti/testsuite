@@ -12,6 +12,16 @@
 #     included, whose artifacts still hold a results file. Public projects
 #     need no token; GITLAB_TOKEN is sent when set.
 #
+#   adopter_canary.sh head <github|gitlab> <repo or project path>
+#     Prints "head_sha commit_url" for the head of the adopter's default
+#     branch: what the canary runs when no run of the adopter still has its
+#     results to compare with.
+#
+#   adopter_canary.sh report <canary.yml> <display name> <markdown out>
+#     The canary's own result, without a comparison: status, essential tests
+#     passed, and every test that did not pass. Exits 1 when the run ended in
+#     an error.
+#
 #   adopter_canary.sh compare <baseline.yml> <canary.yml> <display name> <markdown out> [expected.json]
 #     Compares the two results files test by test and writes the report as
 #     Markdown. Every test whose result differs is a change; a change listed
@@ -90,6 +100,55 @@ baseline_gitlab() {
       awk -v name="$job_name" -v now="$now" '$2 == name && ($3 == "success" || $3 == "failed") && ($4 == "-" || $4 > now)')
   done < <(gitlab_get "projects/$project/pipelines?ref=$branch&source=push&per_page=20" |
     jq -r '.[] | "\(.id) \(.sha)"')
+}
+
+head_commit() {
+  local host=$1 repo=$2
+  if [[ "$host" == "gitlab" ]]; then
+    local project branch
+    project=$(jq -rn --arg p "$repo" '$p | @uri')
+    branch=$(gitlab_get "projects/$project" | jq -r .default_branch)
+    gitlab_get "projects/$project/repository/branches/$(jq -rn --arg b "$branch" '$b | @uri')" |
+      jq -r '"\(.commit.id) \(.commit.web_url)"'
+  else
+    local branch
+    branch=$(gh api "repos/$repo" -q .default_branch)
+    gh api "repos/$repo/commits/$branch" -q '"\(.sha) \(.html_url)"'
+  fi
+}
+
+report() {
+  local canary=$1 name=$2 out=$3
+  local canary_exit
+  canary_exit=$(yq '.exit_code' "$canary")
+  {
+    echo "### $name"
+    echo
+    echo "No run of the adopter still has its results, so nothing to compare with: the canary ran this commit's suite on the head of the adopter's default branch."
+    echo
+    echo "| | Canary |"
+    echo "|---|---|"
+    echo "| Status | $(yq '.status' "$canary") |"
+    echo "| Essential passed | $(yq '.summary.essential_passed // "-"' "$canary") |"
+    echo
+    local rows
+    rows=$(tests_of "$canary" | awk -F'\t' '$2 != "passed"' | sort)
+    if [[ -z "$rows" ]]; then
+      echo "Every test passed."
+    else
+      echo "| Test | Canary | Canary's message |"
+      echo "|---|---|---|"
+      while IFS=$'\t' read -r test status message; do
+        echo "| \`$test\` | $status | $message |"
+      done <<< "$rows"
+    fi
+    echo
+  } > "$out"
+  echo "::warning::$name: no run of the adopter to compare with; the canary's own result is in the job summary"
+  if [[ "$canary_exit" == "2" ]]; then
+    echo "::error::$name: the canary run ended in an error (exit code 2)"
+    return 1
+  fi
 }
 
 # The newest results file in a directory, or in its cnti/results.
@@ -184,6 +243,8 @@ shift
 case "$cmd" in
   baseline) baseline "$@" ;;
   baseline-gitlab) baseline_gitlab "$@" ;;
+  head) head_commit "$@" ;;
+  report) report "$@" ;;
   newest) newest "$@" ;;
   compare) compare "$@" ;;
   *) echo "unknown command: $cmd" >&2; exit 64 ;;

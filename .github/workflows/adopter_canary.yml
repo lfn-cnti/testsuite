@@ -10,6 +10,12 @@
 # outside this repository. A job fails when any test's result differs from
 # the adopter's run and the change is not listed as expected for that adopter
 # in .github/adopters.yml, or when the canary run ends in an error.
+#
+# When no run of an adopter still has its results (an adopter whose job runs
+# on main only when its chart changes, and whose artifacts expire), the
+# canary runs on the head of the adopter's default branch and reports its own
+# result without a comparison, with a warning. The essential tests then still
+# run against the adopter every night; the OCUDU validation relies on that.
 name: Adopter canary
 
 on:
@@ -82,13 +88,18 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$HOST" == "gitlab" ]]; then
-            found=$(.github/workflows/adopter_canary.sh baseline-gitlab "$REPO" "$WORKFLOW" "$RUNNER_TEMP/baseline")
+            found=$(.github/workflows/adopter_canary.sh baseline-gitlab "$REPO" "$WORKFLOW" "$RUNNER_TEMP/baseline") || true
           else
-            found=$(.github/workflows/adopter_canary.sh baseline "$REPO" "$WORKFLOW" "$ARTIFACT" "$RUNNER_TEMP/baseline")
+            found=$(.github/workflows/adopter_canary.sh baseline "$REPO" "$WORKFLOW" "$ARTIFACT" "$RUNNER_TEMP/baseline") || true
           fi
           if [[ -z "$found" ]]; then
-            echo "::error::No run of $WORKFLOW on $REPO's default branch still has its results"
-            exit 1
+            echo "::warning::No run of $WORKFLOW on $REPO's default branch still has its results; running on its head without a comparison"
+            read -r sha url <<< "$(.github/workflows/adopter_canary.sh head "${HOST:-github}" "$REPO")"
+            echo "No baseline: $url (chart commit $sha)"
+            echo "sha=$sha" >> "$GITHUB_OUTPUT"
+            echo "url=$url" >> "$GITHUB_OUTPUT"
+            echo "fallback=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           read -r id sha url <<< "$found"
           echo "Baseline: $url (chart commit $sha)"
@@ -186,6 +197,22 @@ jobs:
           if [[ "$EXPECTED" == "null" ]]; then echo '[]' > expected.json; else echo "$EXPECTED" > expected.json; fi
           .github/workflows/adopter_canary.sh compare "$BASELINE" "$canary" "$NAME" report.md expected.json || status=$?
           { cat report.md; echo "Adopter's run: $BASELINE_URL"; } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+      - name: Report without a baseline
+        if: always() && steps.baseline.outputs.fallback == 'true'
+        env:
+          NAME: ${{ matrix.adopter.display_name }}
+          HEAD_URL: ${{ steps.baseline.outputs.url }}
+        run: |
+          set -euo pipefail
+          canary=$(.github/workflows/adopter_canary.sh newest adopter/cnti/results 2>/dev/null || true)
+          if [[ -z "$canary" ]]; then
+            echo "::error::$NAME: the canary run wrote no results file"
+            exit 1
+          fi
+          status=0
+          .github/workflows/adopter_canary.sh report "$canary" "$NAME" report.md || status=$?
+          { cat report.md; echo "Adopter's commit: $HEAD_URL"; } >> "$GITHUB_STEP_SUMMARY"
           exit $status
       - uses: actions/upload-artifact@v7.0.2
         if: always()
