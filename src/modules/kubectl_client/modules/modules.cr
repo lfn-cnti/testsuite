@@ -47,16 +47,17 @@ module KubectlClient
       ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
     end
 
-    def self.namespace(namespace : String)
+    def self.namespace(namespace : String, labels : Hash(String, String) = {} of String => String)
       logger = @@logger.for("namespace")
       logger.info { " Apply namespace: #{namespace}" }
 
-      namespace_manifest = <<-YAML
-        apiVersion: v1
-        kind: Namespace
-        metadata:
-          name: #{namespace}
-        YAML
+      # labels only when there are any: an empty map in the last applied
+      # configuration makes a later `kubectl apply` of a manifest that defines
+      # the namespace without labels remove every label, including those set
+      # since with `kubectl label` (the Pod Security level of litmus).
+      metadata = {"name" => namespace} of String => String | Hash(String, String)
+      metadata["labels"] = labels unless labels.empty?
+      namespace_manifest = {"apiVersion" => "v1", "kind" => "Namespace", "metadata" => metadata}.to_yaml
 
       File.tempfile("#{namespace}", ".yaml") do |manifest_file|
         manifest_file.puts(namespace_manifest)

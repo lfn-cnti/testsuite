@@ -13,18 +13,11 @@ namespace "setup" do
     logger.info { "Creating namespace for CNTI testsuite" }
 
     begin
-      KubectlClient::Apply.namespace(TESTSUITE_NAMESPACE)
+      SuiteNamespaces.ensure_exists(TESTSUITE_NAMESPACE)
     rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
       stdout_failure "Could not create #{TESTSUITE_NAMESPACE} namespace on the Kubernetes cluster"
       logger.error { "Failed to create #{TESTSUITE_NAMESPACE} namespace: #{ex.message}" }
       exit(1)
-    end
-
-    begin
-      KubectlClient::Utils.label("namespace", TESTSUITE_NAMESPACE, ["pod-security.kubernetes.io/enforce=privileged"])
-    rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
-      logger.error { "Failed to label #{TESTSUITE_NAMESPACE} namespace: #{ex.message}" }
-      # (rafal-lal) TODO: should testsuite exit here?
     end
   end
 

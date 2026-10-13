@@ -4,7 +4,7 @@ require "../utils/utils.cr"
 
 namespace "setup" do
   desc "Install CNTi Test Suite Cluster Tools"
-  task "install_cluster_tools" do |_, args|
+  task "install_cluster_tools", ["setup:create_namespace"] do |_, args|
     logger = SLOG.for("install_cluster_tools")
     logger.info { "Installing cluster_tools on the cluster" }
     StatusLine.push "Installing cluster-tools on every node (first run pulls the image)..."

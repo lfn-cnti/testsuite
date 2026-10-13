@@ -2,7 +2,7 @@ require "sam"
 
 namespace "setup" do
   desc "Install FluentD"
-  task "install_fluentd" do |_, args|
+  task "install_fluentd", ["setup:create_namespace"] do |_, args|
     SLOG.for("install_fluentd").info { "Installing FluentD chart" }
     # (rafal-lal) TODO: make sure this external calls are error-handled, logged properly.
     FluentManager::FluentD.new.install
@@ -15,7 +15,7 @@ namespace "setup" do
   end
 
   desc "Install FluentBit"
-  task "install_fluentbit" do |_, args|
+  task "install_fluentbit", ["setup:create_namespace"] do |_, args|
     SLOG.for("install_fluentbit").info { "Installing Fluentbit chart" }
     FluentManager::FluentBit.new.install
   end
