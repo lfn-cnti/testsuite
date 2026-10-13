@@ -1,0 +1,19 @@
+# An example CNF that an operator deploys: MongoDB Controllers for Kubernetes
+# (the mongodb-kubernetes chart), then a MongoDBCommunity replica set in the
+# same namespace. The operator creates the replica set's StatefulSets from the
+# custom resource; the suite finds them by their owner references.
+config_version: v2
+deployments:
+  helm_charts:
+    - name: mongodb-operator
+      helm_repo_name: mongodb
+      helm_repo_url: https://mongodb.github.io/helm-charts
+      helm_chart_name: mongodb-kubernetes
+      # renovate: datasource=helm depName=mongodb-kubernetes registryUrl=https://mongodb.github.io/helm-charts
+      chart_version: "1.13.0"
+      namespace: mongodb
+      priority: 1
+  manifests:
+    - name: replica-set
+      manifest_directory: manifests
+      priority: 2

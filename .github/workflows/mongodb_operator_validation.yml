@@ -1,0 +1,32 @@
+name: MongoDB operator validation
+
+on:
+  schedule:
+    # Hosted runners, so it doesn't wait on the self-hosted pool the OCUDU
+    # validation uses.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+  # A change to the example, its spec or this workflow is validated before it
+  # merges.
+  pull_request:
+    paths:
+      - example-cnfs/mongodb-operator/**
+      - spec/mongodb_operator_spec.cr
+      - .github/workflows/mongodb_operator_validation.yml
+
+# One run at a time; queue rather than cancel a run already under way.
+concurrency:
+  group: mongodb-operator-validation
+  cancel-in-progress: false
+
+jobs:
+  mongodb-operator:
+    uses: ./.github/workflows/example_cnf_validation.yml
+    with:
+      cnf: mongodb-operator
+      display_name: MongoDB operator
+      # The operator and a three-pod replica set: a cert run takes about 25
+      # minutes on a hosted runner, a workload run with the chaos tests a few
+      # hours, so the jobs get a hosted runner's full 360.
+      timeout_minutes: 360
+    secrets: inherit
