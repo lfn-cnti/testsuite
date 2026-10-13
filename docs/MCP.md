@@ -111,6 +111,29 @@ In `.vscode/mcp.json` in your CNF's repository, for agent mode in Copilot Chat:
 }
 ```
 
+### opencode
+
+In `opencode.json` (or `opencode.jsonc`) at the root of your CNF's repository, or in your user config:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "cnti": {
+      "type": "local",
+      "command": ["/path/to/cnti-testsuite", "mcp", "--allow-install"],
+      "cwd": ".",
+      "environment": { "KUBECONFIG": "/home/you/.kube/config" }
+    }
+  }
+}
+```
+
+Replace `/path/to/cnti-testsuite` with the binary's absolute path, or with `cnti-testsuite` if
+it's on your `PATH`. `cwd: "."` starts the server in your CNF's directory, as the suite
+expects. In the global config (`~/.config/opencode/opencode.json`), which applies to every
+project, set `cwd` to the CNF directory's absolute path instead.
+
 ### Other clients
 
 Any MCP client that starts stdio servers works. It needs the command `cnti-testsuite` with the
