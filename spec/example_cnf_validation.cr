@@ -10,7 +10,10 @@ module ExampleCNFValidation
   PRODUCTION_ENV = "env -u CNTI_TESTSUITE_ENV"
 
   # Installs the CNF, runs the cert suite and requires the CNF to be certified.
-  def self.cert(config : String)
+  # With `require_pass: false`, for an example kept to exercise the suite while
+  # its upstream fixes are pending, a failing verdict is accepted too; an
+  # errored test never is.
+  def self.cert(config : String, require_pass : Bool = true)
     ShellCmd.cnf_install("--cnf-config #{config} --timeout 1800")
     result = ShellCmd.run_testsuite("cert", cmd_prefix: PRODUCTION_ENV)
 
@@ -20,7 +23,8 @@ module ExampleCNFValidation
 
     # The verdict line, not a hard-coded test count: the essential set can
     # change size without the CNF losing its certification.
-    result[:output].should match(/^Cert: PASSED \(\d+ of \d+ essential tests passed, threshold \d+\)/m)
+    verdict = require_pass ? "PASSED" : "(PASSED|FAILED)"
+    result[:output].should match(/^Cert: #{verdict} \(\d+ of \d+ essential tests passed, threshold \d+\)/m)
   ensure
     ShellCmd.cnf_uninstall()
   end

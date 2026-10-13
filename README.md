@@ -9,6 +9,7 @@
 [![Crystal Specs](https://github.com/lfn-cnti/testsuite/workflows/Crystal%20Specs/badge.svg)](https://github.com/lfn-cnti/testsuite/actions)
 [![free5GC validation](https://github.com/lfn-cnti/testsuite/actions/workflows/free5gc_validation.yml/badge.svg)](https://github.com/lfn-cnti/testsuite/actions/workflows/free5gc_validation.yml)
 [![OCUDU validation](https://github.com/lfn-cnti/testsuite/actions/workflows/ocudu_validation.yml/badge.svg)](https://github.com/lfn-cnti/testsuite/actions/workflows/ocudu_validation.yml)
+[![MongoDB operator validation](https://github.com/lfn-cnti/testsuite/actions/workflows/mongodb_operator_validation.yml/badge.svg)](https://github.com/lfn-cnti/testsuite/actions/workflows/mongodb_operator_validation.yml)
 [![License](https://img.shields.io/github/license/lfn-cnti/testsuite)](LICENSE)
 
 **Check whether your network function is cloud native before your users find out.**
@@ -107,8 +108,12 @@ the practice matters, and how to fix a failure.
   and [free5GC](https://free5gc.org/blog/20260415/20260415/).
 - **The [OCUDU](https://ocudu.org/) gNB**, a 5G base station, runs in test mode without a radio.
   See [`example-cnfs/ocudu`](example-cnfs/ocudu/README.md).
+- **[MongoDB Controllers for Kubernetes](https://github.com/mongodb/mongodb-kubernetes)** with a
+  MongoDBCommunity replica set, the database behind several 5G cores, is the example of a CNF an
+  operator deploys: the suite finds the operator's workloads through the custom resource. See
+  [`example-cnfs/mongodb-operator`](example-cnfs/mongodb-operator/README.md).
 
-Both are validated every night. They need more of the host than CoreDNS (free5GC's UPF needs the
+All three are validated every night. They need more of the host than CoreDNS (free5GC's UPF needs the
 `gtp5g` kernel module), so start with CoreDNS for a first try.
 
 ## Documentation

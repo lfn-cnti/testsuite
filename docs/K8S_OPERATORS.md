@@ -47,3 +47,11 @@ Suppose an operator creates Deployments for a custom resource (for example, `Pod
 - Ensure operator sets meaningful labels or ownerReferences on the workload resources it creates.
 - Use unique labels for each CNF to avoid conflicts.
 - Review the composite manifest to verify all expected resources are included.
+
+## A real example
+
+[`example-cnfs/mongodb-operator`](../example-cnfs/mongodb-operator/README.md) installs MongoDB
+Controllers for Kubernetes and a `MongoDBCommunity` replica set. The operator creates the replica
+set's StatefulSets, which carry owner references to the custom resource, so the suite finds them
+without any `workload_resource_labels`. The `MongoDB operator validation` workflow runs it every
+night.

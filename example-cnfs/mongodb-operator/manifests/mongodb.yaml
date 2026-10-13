@@ -1,0 +1,34 @@
+# A two-member replica set with an arbiter. The operator requires SCRAM
+# authentication and at least one user; the password below is for testing
+# only, keep a real one out of the repository.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mdb-app-password
+  namespace: mongodb
+type: Opaque
+stringData:
+  password: test-only-password
+---
+apiVersion: mongodbcommunity.mongodb.com/v1
+kind: MongoDBCommunity
+metadata:
+  name: mdb
+  namespace: mongodb
+spec:
+  type: ReplicaSet
+  version: "8.0.13"
+  members: 2
+  arbiters: 1
+  security:
+    authentication:
+      modes: ["SCRAM"]
+  users:
+    - name: app
+      db: admin
+      passwordSecretRef:
+        name: mdb-app-password
+      scramCredentialsSecretName: mdb-app
+      roles:
+        - name: root
+          db: admin
