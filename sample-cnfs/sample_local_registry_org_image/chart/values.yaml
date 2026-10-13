@@ -3,7 +3,7 @@
 # Declare variables to be passed into your templates.
 
 image:
-  repository: registry.default.svc.cluster.local:5000/coredns-sample-org/coredns
+  repository: registry.cnti-registry.svc.cluster.local:5000/coredns-sample-org/coredns
   tag: "1.6.7"
   pullPolicy: IfNotPresent
 

@@ -368,34 +368,6 @@ module KubectlClient
       false
     end
 
-    def self.wait_for_install_by_apply(manifest_file : String, wait_count : Int32 = 180) : Bool
-      logger = @@logger.for("wait_for_install_by_apply")
-      logger.info { "Waiting for manifest found in #{manifest_file} to install" }
-
-      apply_result = KubectlClient::Apply.file(manifest_file)
-      apply_resp = apply_result[:output]
-
-      second_count = 0
-      until (apply_resp =~ /unchanged/) != nil || second_count > wait_count.to_i
-        if second_count % RESOURCE_WAIT_LOG_INTERVAL == 0
-          logger.info { "seconds elapsed while waiting: #{second_count}" }
-        end
-
-        sleep 1.seconds
-        apply_result = KubectlClient::Apply.file(manifest_file)
-        apply_resp = apply_result[:output]
-        second_count += 1
-      end
-
-      if (apply_resp =~ /unchanged/) != nil
-        logger.info { "Manifest #{manifest_file} is installed" }
-        return true
-      end
-
-      logger.warn { "Manifest #{manifest_file} was not installed - timeout" }
-      false
-    end
-
     def self.wait_for_resource_availability(kind : String,
                                             resource_name : String,
                                             namespace = "default",

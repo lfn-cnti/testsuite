@@ -480,19 +480,20 @@ scored_task "immutable_configmap",
     # https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/
     # Feature probe: an immutable ConfigMap must reject a change. Whether the
     # cluster enforces that is a cluster property, so a cluster that does not
-    # makes the test not applicable (#2595). The probe is removed either way.
+    # makes the test not applicable (#2595). The probe lives in the suite's own
+    # namespace, under a name no CNF uses, and is removed either way.
     test_config_map_filename = "#{CNF_TEMP_FILES_DIR}/test_config_map.yml"
     File.write(test_config_map_filename, ImmutableConfigMapTemplate.new("doesnt_matter").to_s)
-    KubectlClient::Apply.file(test_config_map_filename)
+    KubectlClient::Apply.file(test_config_map_filename, namespace: TESTSUITE_NAMESPACE)
     File.write(test_config_map_filename, ImmutableConfigMapTemplate.new("doesnt_matter_again").to_s)
     enforced = begin
-      KubectlClient::Apply.file(test_config_map_filename)
+      KubectlClient::Apply.file(test_config_map_filename, namespace: TESTSUITE_NAMESPACE)
       false
     rescue KubectlClient::ShellCMD::UnspecifiedError
       true
     end
     begin
-      KubectlClient::Delete.file(test_config_map_filename)
+      KubectlClient::Delete.file(test_config_map_filename, namespace: TESTSUITE_NAMESPACE)
     rescue KubectlClient::ShellCMD::NotFoundError
       Log.for(t.name).warn { "Probe ConfigMap already gone" }
     end
