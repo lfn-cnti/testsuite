@@ -538,6 +538,10 @@ scored_task "zombie_handled",
       next
     end
 
+    # The probe's child runs /sleep and then exits, orphaned onto PID 1. This
+    # window is part of the test: it lets the child finish and gives PID 1 the
+    # chance to reap it, so a zombie still found afterwards is one PID 1 did not
+    # reap. A waiter can't shorten it: there is no event for "would have reaped".
     sleep(Time::Span.new(seconds: 10))
 
     pods_to_restart = Set(Tuple(String, String)).new
@@ -571,17 +575,22 @@ scored_task "zombie_handled",
       end
     end
 
+    # Each pod's restart count before the kill: the restart has registered
+    # once it rises, and only then is waiting for Ready meaningful (a pod can
+    # still report Ready for a moment after its container was killed).
+    restarts_before = pods_to_restart.to_h { |pod| {pod, pod_restart_count(*pod)} }
+
     containers_to_restart.each do |container_id, node|
       Log.for(t.name).info { "Shutting down container #{container_id}" }
       ClusterTools.exec_by_node("ctr -n=k8s.io task kill --signal 9 #{container_id}", node)
     end
 
-    if !pods_to_restart.empty?
-      sleep(Time::Span.new(seconds: 20))
-    end
-
     pods_to_restart.each do |pod_name, namespace|
-      Log.for(t.name).info { "Waiting for pod #{pod_name} in namespace #{namespace} to become Ready..." }
+      Log.for(t.name).info { "Waiting for pod #{pod_name} in namespace #{namespace} to restart and become Ready..." }
+      before = restarts_before[{pod_name, namespace}]
+      repeat_with_timeout(timeout: GENERIC_OPERATION_TIMEOUT, errormsg: "Pod #{pod_name} in #{namespace} did not restart within #{GENERIC_OPERATION_TIMEOUT}s", delay: 1) do
+        pod_restart_count(pod_name, namespace) > before
+      end
       KubectlClient::Wait.wait_for_resource_availability("pod", pod_name, namespace, GENERIC_OPERATION_TIMEOUT)
     end
 
@@ -592,6 +601,16 @@ scored_task "zombie_handled",
       result.failed("Zombie not handled")
     end
   end
+end
+
+# The restarts of all of a pod's containers together; -1 when the pod can't
+# be read, so any count read later counts as a change.
+def pod_restart_count(pod_name : String, namespace : String) : Int32
+  pod = KubectlClient::Get.resource("pod", pod_name, namespace)
+  statuses = pod.dig?("status", "containerStatuses").try(&.as_a?) || [] of JSON::Any
+  statuses.sum { |s| s.dig?("restartCount").try(&.as_i?) || 0 }
+rescue
+  -1
 end
 
 # Attach strace to a PID in background, following all threads
