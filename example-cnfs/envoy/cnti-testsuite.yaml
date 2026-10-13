@@ -2,13 +2,13 @@
 config_version: v2
 common:
   container_names:
-    # Neighbouring releases of the chart's v1.11.1 image, so the rollout tests
+    # Neighbouring releases of the chart's v1.39.3 image, so the rollout tests
     # have a version to move to and one to come back from.
     - name: envoy
-      rolling_update_test_tag: v1.11.2
-      rolling_downgrade_test_tag: v1.11.0
-      rolling_version_change_test_tag: v1.11.2
-      rollback_from_tag: v1.11.2
+      rolling_update_test_tag: v1.39.4
+      rolling_downgrade_test_tag: v1.39.2
+      rolling_version_change_test_tag: v1.39.4
+      rollback_from_tag: v1.39.4
 deployments:
   helm_dirs:
   - name: envoy
