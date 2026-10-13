@@ -1,6 +1,9 @@
 require "file_utils"
 
 module FluentManager
+  # Every log line of the module carries its scope (CNTI-FluentManager).
+  Log = ::Log.for("FluentManager")
+
   abstract class FluentBase
     getter flavor_name : String
     getter repo_url : String

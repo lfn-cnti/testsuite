@@ -6,6 +6,9 @@ require "log"
 require "ecr"
 
 module ClusterTools
+  # Every log line of the module carries its scope (CNTI-ClusterTools).
+  Log = ::Log.for("ClusterTools")
+
   # Default installation namespace
   @@namespace = "cnti-testsuite"
 
@@ -33,7 +36,7 @@ module ClusterTools
     namespaces = KubectlClient::Get.resource("namespaces")
     namespace_array = namespaces["items"].as_a 
 
-    Log.debug { "ClusterTools ensure_namespace_exists namespace_array: #{namespace_array}" }
+    Log.debug { "ensure_namespace_exists: namespaces #{namespace_array.map { |n| n.dig?("metadata", "name") }.compact.join(", ")}" }
 
     unless namespace_array.find{ |n| n.dig?("metadata", "name") == self.namespace }
       raise NamespaceDoesNotExistException.new("ClusterTools Namespace #{self.namespace} does not exist")
@@ -43,7 +46,7 @@ module ClusterTools
   end
 
   def self.install()
-    Log.info { "ClusterTools install" }
+    Log.info { "Installing cluster-tools" }
     FileUtils.mkdir_p(File.dirname(Setup::CLUSTER_TOOLS_MANIFEST))
     File.write(Setup::CLUSTER_TOOLS_MANIFEST, ManifestTemplate.new().to_s)
     KubectlClient::Apply.file(Setup::CLUSTER_TOOLS_MANIFEST, namespace: self.namespace!)
@@ -51,7 +54,7 @@ module ClusterTools
   end
 
   def self.uninstall()
-    Log.info { "ClusterTools uninstall" }
+    Log.info { "Uninstalling cluster-tools" }
     FileUtils.mkdir_p(File.dirname(Setup::CLUSTER_TOOLS_MANIFEST))
     File.write(Setup::CLUSTER_TOOLS_MANIFEST, ManifestTemplate.new().to_s)
 
@@ -66,13 +69,13 @@ module ClusterTools
   def self.exec(cli : String) : KubectlClient::CMDResult
     pods = KubectlClient::Get.pods_by_nodes(KubectlClient::Get.schedulable_nodes_list, namespace: self.namespace, label: {"name" => "cluster-tools"})
     cluster_tools_pod_name = pods[0].dig?("metadata", "name") if pods[0]?
-    Log.info { "cluster_tools_pod_name: #{cluster_tools_pod_name}"}
+    Log.debug { "cluster_tools_pod_name: #{cluster_tools_pod_name}"}
 
     KubectlClient::Utils.exec("#{cluster_tools_pod_name}", cli, namespace: self.namespace!)
   end
 
   def self.exec_by_node(cli : String, node_name : String) : KubectlClient::CMDResult?
-    Log.info { "exec_by_node: Called with String" }
+    Log.debug { "exec_by_node: Called with String" }
 
     nodes = KubectlClient::Get.resource("nodes")["items"].as_a
 
@@ -95,7 +98,7 @@ module ClusterTools
   end
 
   def self.exec_by_node(cli : String, node : JSON::Any) : KubectlClient::CMDResult
-    Log.info { "exec_by_node: Called with JSON" }
+    Log.debug { "exec_by_node: Called with JSON" }
     pod_name = get_cluster_tools_pod_on_node(node)
     exec = KubectlClient::Utils.exec("#{pod_name}", cli, namespace: self.namespace)
     Log.debug { "ClusterTools exec: #{exec}" }
@@ -111,7 +114,7 @@ module ClusterTools
 
   # todo make compatible with other runtimes
   def self.parse_container_id(container_id : String)
-    Log.info { "parse_container_id container_id: #{container_id}" }
+    Log.debug { "parse_container_id container_id: #{container_id}" }
     if container_id =~ /containerd/
       container_id.gsub("containerd://", "")[0..13] 
     else
@@ -120,7 +123,7 @@ module ClusterTools
   end
 
   def self.node_pid_by_container_id(container_id, node) : String | Nil
-    Log.info {"node_pid_by_container_id container_id: #{container_id}" }
+    Log.debug {"node_pid_by_container_id container_id: #{container_id}" }
     short_container_id = parse_container_id(container_id)
     inspect = ClusterTools.exec_by_node("crictl inspect #{short_container_id}", node)
     unless inspect[:status].success?
@@ -130,7 +133,7 @@ module ClusterTools
 
     Log.debug {"node_pid_by_container_id inspect: #{inspect[:output]}" }
     pid = "#{JSON.parse(inspect[:output]).dig?("info", "pid")}"
-    Log.info {"node_pid_by_container_id pid: #{pid}" }
+    Log.debug {"node_pid_by_container_id pid: #{pid}" }
     pid 
   end
   # Zombies are invisible to cgroup-based enumeration on cgroup v1 nodes
@@ -163,15 +166,15 @@ module ClusterTools
 			pid_log_names  = [] of String
 			pod_resp = pods.map do |pod|
 				pod_name = pod.dig("metadata", "name")
-				Log.info { "pod_name: #{pod_name}" }
+				Log.debug { "pod_name: #{pod_name}" }
 
 				status = pod["status"]
 				if status["containerStatuses"]?
 						container_statuses = status["containerStatuses"].as_a
-					Log.info { "container_statuses: #{container_statuses}" }
-					Log.info { "pod_name: #{pod_name}" }
+					Log.debug { "container_statuses: #{container_statuses}" }
+					Log.debug { "pod_name: #{pod_name}" }
 					nodes = KubectlClient::Get.nodes_by_pod(pod)
-					Log.info { "nodes_by_resource done" }
+					Log.debug { "nodes_by_resource done" }
 					node = nodes.first # there should only be one node returned for one pod
 					container_status_result = container_statuses.map do |container_status|
 						container_name = container_status.dig("name")
@@ -180,33 +183,33 @@ module ClusterTools
 						# container running) has no ID: it is skipped like one that is not ready.
 						prefix_container_id = container_status.dig?("containerID").try(&.as_s?)
 						unless prefix_container_id
-							Log.info { "no containerID yet, skipping: #{container_name} in #{pod_name}" }
+							Log.debug { "no containerID yet, skipping: #{container_name} in #{pod_name}" }
 							next
 						end
 						container_id = prefix_container_id.gsub("containerd://", "")
-						Log.info { "before ready containerStatuses container_id #{container_id}" }
+						Log.debug { "before ready containerStatuses container_id #{container_id}" }
 						ready = container_status.dig("ready").as_bool
 						if !ready
-							Log.info { "container status: #{container_status} "}
-							Log.info { "not ready! skipping: containerStatuses container_id #{container_id}" }
+							Log.debug { "container status: #{container_status} "}
+							Log.debug { "not ready! skipping: containerStatuses container_id #{container_id}" }
 							false
 							next
 						end
 						# next unless ready 
-						Log.info { "containerStatuses container_id #{container_id}" }
+						Log.debug { "containerStatuses container_id #{container_id}" }
 						#get container id's pid on the node (different from inside the container)
 						container_pid_on_node = "#{ClusterTools.node_pid_by_container_id(container_id, node)}"
 						if container_pid_on_node.empty?
-							Log.info { "no pid for (skipping): containerStatuses container_id #{container_id}" }
+							Log.debug { "no pid for (skipping): containerStatuses container_id #{container_id}" }
 							false
 							next
 						end
 
 						# next if pid.empty?
-						Log.info { "node pid (should never be pid 1): #{container_pid_on_node}" }
+						Log.debug { "node pid (should never be pid 1): #{container_pid_on_node}" }
 
 						node_name = node.dig("metadata", "name").as_s
-						Log.info { "node name : #{node_name}" }
+						Log.debug { "node name : #{node_name}" }
             if include_proctree
               if only_container_pids 
                 pids = KernelIntrospection::K8s::Node.pids_by_container(container_id, node)
@@ -218,12 +221,12 @@ module ClusterTools
               end
 
               if pids.empty?
-                Log.info { "pids empty #{pids}" }
+                Log.debug { "pids empty #{pids}" }
                 false
                 next
               end
 
-              Log.info { "parsed pids: #{pids}" }
+              Log.debug { "parsed pids: #{pids}" }
               proc_statuses = KernelIntrospection::K8s::Node.all_statuses_by_pids(pids, node)
 
               container_proctree_statuses = KernelIntrospection::K8s::Node.proctree_by_pid(container_pid_on_node, node, proc_statuses)
@@ -232,13 +235,13 @@ module ClusterTools
             end
 						yield container_id, container_pid_on_node, node, container_proctree_statuses, container_status, pod_name
 					end
-          Log.info { "container_status_result.all?(true): #{container_status_result.all?(true)}" }
+          Log.debug { "container_status_result.all?(true): #{container_status_result.all?(true)}" }
           container_status_result.all?(true)
         else
           false
         end
 			end
-      Log.info { "pod_resp.all?(true): #{pod_resp.all?(true)}" }                     
+      Log.debug { "pod_resp.all?(true): #{pod_resp.all?(true)}" }                     
       pod_resp.all?(true)
     else
       true # non "deployment","statefulset","pod","replicaset", and "daemonset" dont have containers
@@ -246,7 +249,7 @@ module ClusterTools
 	end
 
   def self.wait_for_cluster_tools
-    Log.info { "ClusterTools wait_for_cluster_tools" }
+    Log.info { "Waiting for cluster-tools to be ready" }
     KubectlClient::Wait.resource_wait_for_install("Daemonset", "cluster-tools", namespace: self.namespace!, wait_count: 300)
   end
 
@@ -256,13 +259,13 @@ module ClusterTools
   # Accepts org/image:tag or repo/org/image:tag
   # A content digest is an uncompressed digest, which is what Kubernetes tracks 
   def self.official_content_digest_by_image_name(image_name)
-    Log.info { "official_content_digest_by_image_name: #{image_name}"}
+    Log.debug { "official_content_digest_by_image_name: #{image_name}"}
 
     if (u = ENV["DOCKERHUB_USERNAME"]?) && !u.empty? && (p = ENV["DOCKERHUB_PASSWORD"]?) && !p.empty?
-      Log.info { "Using USERNAME and PASSWORD for accessing the registry via skopeo" }
+      Log.debug { "Using USERNAME and PASSWORD for accessing the registry via skopeo" }
       registry_creds = "--creds #{u}:#{p}"
     else
-      Log.info { "Access the registry anonymously via skopeo" }
+      Log.debug { "Access the registry anonymously via skopeo" }
       registry_creds = ""
     end
     result = exec("skopeo inspect #{registry_creds} docker://#{image_name}")
@@ -278,14 +281,14 @@ module ClusterTools
   end
 
   def self.local_match_by_image_name(image_name, nodes=KubectlClient::Get.resource("nodes")["items"].as_a )
-    Log.info { "local_match_by_image_name image_name: #{image_name}" }
+    Log.debug { "local_match_by_image_name image_name: #{image_name}" }
     nodes = KubectlClient::Get.nodes["items"].as_a
     local_match_by_image_name(image_name, nodes)
   end
 
   # TODO (rafal-lal): add spec for it
   def self.local_match_by_image_name(image_name, nodes : Array(JSON::Any))
-    Log.info { "local_match_by_image_name image_name: #{image_name}" }
+    Log.debug { "local_match_by_image_name image_name: #{image_name}" }
 
     match = Hash{:found => false, :digest => "", :release_name => ""}
 
@@ -319,7 +322,7 @@ module ClusterTools
       end
     end
 
-    Log.info { "local_match_by_image_name base_image_name: #{base_image_name}, explicit_tag: #{explicit_tag}, explicit_digest: #{explicit_digest}" }
+    Log.debug { "local_match_by_image_name base_image_name: #{base_image_name}, explicit_tag: #{explicit_tag}, explicit_digest: #{explicit_digest}" }
 
     # Group all imageIDs on passed 'nodes' into array.
     # If 'base_image_name' matches the name with tag, save its first occurence.
@@ -349,26 +352,26 @@ module ClusterTools
         next
       end
     end
-    Log.info { "local_match_by_image_name imageIDs : #{imageIDs}" }
+    Log.debug { "local_match_by_image_name imageIDs : #{imageIDs}" }
 
     if !explicit_digest.empty?
       # Use the digest provided in image_name directly; skip the skopeo registry call.
-      Log.info { "local_match_by_image_name using explicit digest: #{explicit_digest}" }
+      Log.debug { "local_match_by_image_name using explicit digest: #{explicit_digest}" }
       sha_list = [{"name" => base_image_name, "manifest_digest" => explicit_digest}]
       match = DockerClient::K8s.local_digest_match(sha_list, imageIDs)
-      Log.info { "local_match_by_image_name match : #{match}"}
+      Log.debug { "local_match_by_image_name match : #{match}"}
     elsif !tag.empty?
-      Log.info { "container tag: #{tag}" }
+      Log.debug { "container tag: #{tag}" }
       resp = ClusterTools.official_content_digest_by_image_name(base_image_name + ":" + tag)
       sha_list = [{"name" => base_image_name, "manifest_digest" => resp["Digest"].as_s}]
-      Log.info { "jaeger_pods sha_list : #{sha_list}"}
+      Log.debug { "jaeger_pods sha_list : #{sha_list}"}
       match = DockerClient::K8s.local_digest_match(sha_list, imageIDs)
-      Log.info { "local_match_by_image_name match : #{match}"}
+      Log.debug { "local_match_by_image_name match : #{match}"}
     else
-      Log.info { "local_match_by_image_name tag: #{tag} match : #{match}"}
+      Log.debug { "local_match_by_image_name tag: #{tag} match : #{match}"}
       match[:found]=false
     end
-    Log.info { "local_match_by_image_name match: #{match}" }
+    Log.debug { "local_match_by_image_name match: #{match}" }
     match
   end
 
@@ -387,7 +390,7 @@ module ClusterTools
 
 
   def self.cluster_tools_pod_by_node(node_name)
-    Log.info { "cluster_tools_pod_by_node node_name: #{node_name}" }
+    Log.debug { "cluster_tools_pod_by_node node_name: #{node_name}" }
     cluster_tools_pod = self.pod_by_node(node_name)
   end
   
