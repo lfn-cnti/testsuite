@@ -293,7 +293,7 @@ jobs:
         # registry.mirrors config; configure the mirror via the config_path
         # hosts.toml mechanism instead (set in the cluster's containerdConfigPatches).
         source cluster.env
-        REG="registry.default.svc.cluster.local:5000"
+        REG="registry.cnti-registry.svc.cluster.local:5000"
         docker exec "$CLUSTER-control-plane" mkdir -p "/etc/containerd/certs.d/$REG"
         docker exec -i "$CLUSTER-control-plane" sh -c "cat > '/etc/containerd/certs.d/$REG/hosts.toml'" <<'HOSTS'
         server = "http://localhost:5000"

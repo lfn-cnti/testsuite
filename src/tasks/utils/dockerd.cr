@@ -1,7 +1,7 @@
 module Dockerd
   def self.install(insecure_registries : Array(String) = [] of String)
     # These are default values to help speed up the cluster setup for the CNF
-    insecure_registries_default = ["registry:5000", "registry.default.svc.cluster.local:5000"]
+    insecure_registries_default = ["registry:5000", "registry.cnti-registry.svc.cluster.local:5000"]
     if insecure_registries.empty?
       insecure_registries = insecure_registries_default
     end

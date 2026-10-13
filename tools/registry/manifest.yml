@@ -2,7 +2,9 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: default
+  # Its own namespace, so the spec can remove it whole and nothing lands in
+  # default. hostNetwork needs the privileged level.
+  name: cnti-registry
   labels:
     pod-security.kubernetes.io/enforce: privileged
 
@@ -11,7 +13,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: registry
-  namespace: default
+  namespace: cnti-registry
 spec:
   selector:
     app: registry
@@ -25,7 +27,7 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: registry
-  namespace: default
+  namespace: cnti-registry
   labels:
     app: registry
 spec:

@@ -18,18 +18,6 @@ class ChaosTemplates
     ECR.def_to_s("src/templates/chaos_templates/pod_io_stress.yml.ecr")
   end
 
-  class Network
-    def initialize(@labels)
-    end
-    ECR.def_to_s("src/templates/chaos_templates/network.yml.ecr")
-  end
-
-  class Cpu
-    def initialize(@labels)
-    end
-    ECR.def_to_s("src/templates/chaos_templates/cpu.yml.ecr")
-  end
-
   class PodNetworkLatency
     def initialize(
       @test_name : String,

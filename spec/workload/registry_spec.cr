@@ -14,7 +14,7 @@ describe "Private Registry: Image" do
     result = ShellCmd.run_testsuite("setup")
     Dockerd.install
     install_registry = KubectlClient::Apply.file(registry_manifest_path.to_s)
-    KubectlClient::Wait.resource_wait_for_install("Pod", "registry")
+    KubectlClient::Wait.resource_wait_for_install("Pod", "registry", namespace: "cnti-registry")
 
     Dockerd.exec("apk add curl")
     Dockerd.exec("curl http://example.com")
@@ -24,7 +24,7 @@ describe "Private Registry: Image" do
       Log.info { "Docker Login output: #{result[:output]}" }
     end
 
-    private_registry = "registry.default.svc.cluster.local:5000"
+    private_registry = "registry.cnti-registry.svc.cluster.local:5000"
     Dockerd.exec("docker pull coredns/coredns:1.6.7")
     Dockerd.exec("docker tag coredns/coredns:1.6.7 #{private_registry}/coredns:1.6.7",)
     Dockerd.exec("docker push #{private_registry}/coredns:1.6.7")
@@ -57,15 +57,7 @@ describe "Private Registry: Image" do
   end
 
   after_all do
-    # TODO (rafal-lal): Why manifest file has 'default' namespace defined in it?
-    # We wouldn't need to catch this exception otherwise.
-    begin
-      delete_registry = KubectlClient::Delete.file(registry_manifest_path.to_s)
-    rescue ex : KubectlClient::ShellCMD::UnspecifiedError
-      unless /this namespace may not be deleted/i.match("#{ex.message}")
-        raise ex
-      end
-    end
+    KubectlClient::Delete.file(registry_manifest_path.to_s)
     Dockerd.uninstall
   end	
 end
@@ -75,12 +67,12 @@ describe "Private Registry: Rolling" do
     result = ShellCmd.run_testsuite("setup")
     Dockerd.install
     install_registry = KubectlClient::Apply.file(registry_manifest_path.to_s)
-    KubectlClient::Wait.resource_wait_for_install("Pod", "registry")
+    KubectlClient::Wait.resource_wait_for_install("Pod", "registry", namespace: "cnti-registry")
 
     Dockerd.exec("apk add curl")
     Dockerd.exec("curl http://example.com")
 
-    private_registry = "registry.default.svc.cluster.local:5000"
+    private_registry = "registry.cnti-registry.svc.cluster.local:5000"
     Dockerd.exec("docker pull coredns/coredns:1.6.7")
     Dockerd.exec("docker tag coredns/coredns:1.6.7 #{private_registry}/coredns:1.6.7")
     Dockerd.exec("docker push #{private_registry}/coredns:1.6.7")
@@ -130,15 +122,7 @@ describe "Private Registry: Rolling" do
   end  
 
   after_all do
-    # TODO (rafal-lal): Why manifest file has 'default' namespace defined in it?
-    # We wouldn't need to catch this exception otherwise.
-    begin
-      delete_registry = KubectlClient::Delete.file(registry_manifest_path.to_s)
-    rescue ex : KubectlClient::ShellCMD::UnspecifiedError
-      unless /this namespace may not be deleted/i.match("#{ex.message}")
-        raise ex
-      end
-    end
+    KubectlClient::Delete.file(registry_manifest_path.to_s)
     Dockerd.uninstall
     result = ShellCmd.run_testsuite("uninstall_all")
   end	
