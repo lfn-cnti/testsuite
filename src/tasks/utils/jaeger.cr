@@ -1,4 +1,7 @@
 module JaegerManager
+  # Every log line of the module carries its scope (CNTI-JaegerManager).
+  Log = ::Log.for("JaegerManager")
+
   # renovate: datasource=helm depName=jaeger registryUrl=https://jaegertracing.github.io/helm-charts
   JAEGER_CHART_VERSION = "1.0.2"
   JAEGER_NAMESPACE = "jaeger"
@@ -47,12 +50,12 @@ module JaegerManager
   # from outside the cluster, no in-cluster curl needed. Returns nil when the
   # call or the parse fails.
   def self.query_api(path : String) : JSON::Any?
-    logger = Log.for("JaegerManager.query_api")
+    logger = ::Log.for("JaegerManager.query_api")
     cmd = "kubectl get --raw '/api/v1/namespaces/#{JAEGER_NAMESPACE}/services/jaeger-query:query/proxy#{path}'"
     result = KubectlClient::ShellCMD.raise_exc_on_error { KubectlClient::ShellCMD.run(cmd, logger) }
     JSON.parse(result[:output])
   rescue ex : KubectlClient::ShellCMD::K8sClientCMDException | JSON::ParseException
-    logger = Log.for("JaegerManager.query_api")
+    logger = ::Log.for("JaegerManager.query_api")
     logger.warn { "Jaeger query API call #{path} failed: #{ex.message}" }
     nil
   end

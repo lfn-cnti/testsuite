@@ -71,7 +71,6 @@ end
 
 def check_cnf_config(args)
   Log.trace { "args = #{args.inspect}" }
-  Log.info { "check_cnf_config args: #{args.inspect}" }
   if args.named.keys.includes? "cnf-config"
     yml_file = args.named["cnf-config"].as(String)
     cnf = File.dirname(yml_file)
@@ -79,7 +78,7 @@ def check_cnf_config(args)
   else
     cnf = nil
   end
-  Log.info { "check_cnf_config cnf: #{cnf}" }
+  Log.for("check_cnf_config").debug { "cnf: #{cnf}" }
   cnf
 end
 

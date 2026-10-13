@@ -268,7 +268,7 @@ module KubectlClient
 
       while seconds <= wait_count
         if (seconds % RESOURCE_WAIT_LOG_INTERVAL).zero?
-          logger.info { "#{seconds}s elapsed, pending descendants=#{pending.size}" }
+          logger.debug { "#{seconds}s elapsed, pending descendants=#{pending.size}" }
         end
 
         # Check whether the root resource still exists
