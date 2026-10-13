@@ -470,10 +470,10 @@ module CNFInstall
     label_selectors = config.common.workload_resource_labels
     return if label_selectors.empty?
 
-    # Make the sleep before label resource identification configurable
+    # How long the label-selected set has to hold still before it counts as
+    # complete (the same settle time owned-resource discovery uses).
     label_resource_sleep = ENV.has_key?("CNTI_TESTSUITE_LABEL_RESOURCE_SLEEP") ? ENV["CNTI_TESTSUITE_LABEL_RESOURCE_SLEEP"].to_i : 5
     StatusLine.update "Identifying and adding label-selected resources to composite manifest."
-    sleep label_resource_sleep.seconds
     start = Time.utc
 
     label_selectors.each do |selector|
@@ -498,8 +498,13 @@ module CNFInstall
         resources
       end
 
-      initial_resources = fetch_resources.call
-      has_pods = initial_resources.any? { |res| res[:kind].downcase == "pod" }
+      # Pods an operator creates may not exist yet: wait for the first to
+      # appear, up to the discovery timeout, instead of a fixed sleep. A
+      # selector whose pods are already there moves on at once; one that never
+      # selects a pod is left to the manifest step below, as before.
+      has_pods = repeat_with_timeout(timeout: OWNED_RESOURCE_DISCOVERY_TIMEOUT, errormsg: "No pod with label #{selector_str} appeared within #{OWNED_RESOURCE_DISCOVERY_TIMEOUT}s", delay: 1) do
+        fetch_resources.call.any? { |res| res[:kind].downcase == "pod" }
+      end
       next unless has_pods
 
       seen = Set(String).new
