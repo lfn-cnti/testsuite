@@ -133,6 +133,10 @@ To run CNF certification tests:
 cnti-testsuite cert
 ```
 
+The `free5GC validation` workflow runs the workload suite and the long chaos tests nightly on a
+kind cluster. The essential tests (`cert`) run every night in the adopter canary instead, against
+free5GC's own chart and configuration, and are compared with free5GC's badge.
+
 ## Verify Deployment
 
 To check that all components are running:

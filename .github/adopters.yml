@@ -100,3 +100,31 @@ adopters:
     env: {}
     prepare: ""
     expected: []
+
+  # free5GC's badge job runs nightly and on pushes to main that change the
+  # chart or the job, so a recent baseline is always there. Like their job,
+  # the canary builds and loads the gtp5g kernel module on the runner first:
+  # kind nodes share the host kernel, and the UPF forwards through it. It is
+  # the nightly essential-tests run against free5GC (free5gc_validation.yml
+  # runs the workload suite and the long chaos tests only).
+  - name: free5gc
+    display_name: free5GC
+    host: github
+    repo: free5gc/free5gc-helm
+    workflow: cnti.yml
+    artifact: cnti-testsuite-results
+    cnf_config: cnti-testsuite.yaml
+    kind_config: ci/kind-cnti.yaml
+    install_timeout: "1800"
+    tests: cert
+    env:
+      CNTI_TESTSUITE_GENERIC_OPERATION_TIMEOUT: "180"
+    prepare: |
+      sudo apt-get update -qq
+      sudo apt-get install -y -qq build-essential "linux-headers-$(uname -r)"
+      git clone --depth 1 https://github.com/free5gc/gtp5g.git /tmp/gtp5g
+      make -C /tmp/gtp5g -j"$(nproc)"
+      sudo make -C /tmp/gtp5g install
+      sudo modprobe gtp5g
+      lsmod | grep -q '^gtp5g'
+    expected: []

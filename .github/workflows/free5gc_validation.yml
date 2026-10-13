@@ -3,7 +3,7 @@ name: free5GC validation
 on:
   schedule:
     # Midnight; the OCUDU validation runs on the same runner pool once this
-    # one has had time to finish (cert about 1.5 h, workload about 4.7 h).
+    # one has had time to finish (workload about 4.7 h).
     - cron: '0 0 * * *'
   workflow_dispatch:
 
@@ -26,6 +26,11 @@ jobs:
       # spec/free5gc_spec.cr): about three hours and an hour and a half.
       # 360 is the hosted cut-off.
       timeout_minutes: 360
-      suites: '["cert", "workload", "long_chaos"]'
+      # The essential tests run against free5GC every night in the adopter
+      # canary (adopter_canary.yml), on free5GC's own chart and configuration
+      # and compared with their badge; here only the workload suite and the
+      # long chaos tests run, which the canary does not. free5gc_cert stays in
+      # spec/free5gc_spec.cr for a run by hand.
+      suites: '["workload", "long_chaos"]'
       gtp5g: true
     secrets: inherit
