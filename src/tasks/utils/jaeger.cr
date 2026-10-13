@@ -15,9 +15,12 @@ module JaegerManager
 
   def self.uninstall
     Log.debug { "uninstall_jaeger" }
-    Helm.uninstall("jaeger", JAEGER_NAMESPACE)
-  rescue Helm::ShellCMD::ReleaseNotFound
-    Log.info { "Jaeger release not found, nothing to uninstall" }
+    begin
+      Helm.uninstall("jaeger", JAEGER_NAMESPACE)
+    rescue Helm::ShellCMD::ReleaseNotFound
+      Log.info { "Jaeger release not found, nothing to uninstall" }
+    end
+    SuiteNamespaces.release(JAEGER_NAMESPACE)
   end
 
   def self.install

@@ -502,6 +502,8 @@ One CNF is installed at a time, so what a failed `cnf_install` leaves decides th
 ./cnti-testsuite cnf_uninstall
 ```
 
+A namespace the suite created for a Helm deployment (`cnti-default`, or the deployment's `namespace` when it did not exist yet) is deleted with the CNF. The suite marks the namespaces it creates with the label `app.kubernetes.io/managed-by=cnti-testsuite`. A namespace that already existed is kept: the suite sets its `pod-security.kubernetes.io/enforce` label to `privileged` for the run, and the uninstall puts back the level it had.
+
 ##### Specify timeout for resource removal during uninstallation
 ```
 ./cnti-testsuite cnf_uninstall --timeout 60
@@ -606,7 +608,7 @@ binary). To remove it: `complete -r cnti-testsuite`.
 ./cnti-testsuite uninstall_all
 ```
 
-This uninstalls the CNF and every helper the suite deployed into the cluster. The tools the suite downloaded for itself (kubescape and its framework, the kyverno CLI and policies, helm, the chaos experiments) stay under the suite home: each carries a version marker and is only downloaded again when the suite pins a different version. To delete them:
+This uninstalls the CNF and every helper the suite deployed into the cluster, and deletes the namespaces the suite created for them (`cnti-testsuite`, `jaeger`). The tools the suite downloaded for itself (kubescape and its framework, the kyverno CLI and policies, helm, the chaos experiments) stay under the suite home: each carries a version marker and is only downloaded again when the suite pins a different version. To delete them:
 
 ```
 ./cnti-testsuite tools_purge

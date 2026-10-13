@@ -59,6 +59,41 @@ describe "Installation" do
       (/All CNF deployments were uninstalled/ =~ result[:output]).should_not be_nil
       (/Testsuite helper tools uninstalled./ =~ result[:output]).should_not be_nil
       File.exists?(Setup::KUBESCAPE_BINARY).should be_true
+      # setup created the suite's namespace, so uninstall_all removes it (#2213).
+      expect_raises(KubectlClient::ShellCMD::NotFoundError) { KubectlClient::Get.resource("namespace", TESTSUITE_NAMESPACE) }
+    end
+  end
+
+  it "'cnf_uninstall' should delete a CNF namespace the suite created", tags: ["cnf_installation1"] do
+    KubectlClient::Delete.resource("namespace", "cnfspace", extra_opts: "--ignore-not-found --wait")
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/")
+      SuiteNamespaces.owned?(KubectlClient::Get.resource("namespace", "cnfspace")).should be_true
+    ensure
+      ShellCmd.cnf_uninstall
+    end
+    expect_raises(KubectlClient::ShellCMD::NotFoundError) { KubectlClient::Get.resource("namespace", "cnfspace") }
+  end
+
+  it "'cnf_uninstall' should keep a CNF namespace that existed before and restore its Pod Security level", tags: ["cnf_installation1"] do
+    enforce = SuiteNamespaces::ENFORCE
+    KubectlClient::Delete.resource("namespace", "cnfspace", extra_opts: "--ignore-not-found --wait")
+    begin
+      KubectlClient::Apply.namespace("cnfspace", labels: {enforce => "restricted"})
+      KubectlClient::ShellCMD.run("kubectl create configmap keep-me -n cnfspace --from-literal=owner=someone-else")
+      begin
+        ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/")
+        KubectlClient::Get.resource("namespace", "cnfspace").dig("metadata", "labels", enforce).as_s.should eq("privileged")
+      ensure
+        ShellCmd.cnf_uninstall
+      end
+      namespace = KubectlClient::Get.resource("namespace", "cnfspace")
+      SuiteNamespaces.owned?(namespace).should be_false
+      namespace.dig("metadata", "labels", enforce).as_s.should eq("restricted")
+      namespace.dig?("metadata", "annotations", SuiteNamespaces::PREVIOUS_ENFORCE).should be_nil
+      KubectlClient::Get.resource("configmap", "keep-me", "cnfspace").dig("data", "owner").as_s.should eq("someone-else")
+    ensure
+      KubectlClient::Delete.resource("namespace", "cnfspace", extra_opts: "--ignore-not-found --wait")
     end
   end
 

@@ -32,6 +32,8 @@ task "tools_uninstall", [
   Dockerd.uninstall
   FileUtils.rm_rf("#{tools_path}/dockerd-manifest.yml")
   FileUtils.rm_rf("#{tools_path}/docker-config-manifest.yml")
+  # Last, once everything the suite put there is gone.
+  SuiteNamespaces.release(TESTSUITE_NAMESPACE)
   stdout_success "Testsuite helper tools uninstalled."
 end
 

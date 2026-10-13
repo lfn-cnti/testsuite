@@ -293,6 +293,20 @@ module CNFInstall
 
     delete_workload_resources_by_labels(config)
 
+    # The namespaces the deployments were installed into: deleted if the suite
+    # created them, otherwise given back their Pod Security level. The suite's
+    # own namespace is left to tools_uninstall.
+    namespaces = deployment_managers.flat_map do |dm|
+      case dm
+      when HelmDeploymentManager     then [dm.get_deployment_namespace]
+      when ManifestDeploymentManager then dm.referenced_namespaces
+      else                                [] of String
+      end
+    end
+    (namespaces.uniq - [TESTSUITE_NAMESPACE]).each do |namespace|
+      SuiteNamespaces.release(namespace, wait: !parsed_args[:skip_wait_for_uninstall])
+    end
+
     FileUtils.rm_rf(CNF_DIR)
     result
   end

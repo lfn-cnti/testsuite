@@ -20,6 +20,9 @@ module CNFInstall
       end
 
       begin
+        # A namespace the manifests use but don't define is created here, so
+        # that they don't depend on one left behind by an earlier install.
+        referenced_namespaces.each { |namespace| SuiteNamespaces.create_missing(namespace) }
         @cluster_touched = true
         response = KubectlClient::Apply.file(@manifest_directory_path)
         # Save the stderr from installation command for usage in other tests.
@@ -48,6 +51,15 @@ module CNFInstall
       end
 
       true
+    end
+
+    # The namespaces the manifests put resources into, except those they
+    # define themselves.
+    def referenced_namespaces : Array(String)
+      ymls = Manifest.manifest_string_to_ymls(generate_manifest())
+      defined = ymls.select { |y| y["kind"]?.try(&.as_s?) == "Namespace" }.compact_map { |y| y.dig?("metadata", "name").try(&.as_s?) }
+      used = ymls.compact_map { |y| y.dig?("metadata", "namespace").try(&.as_s?) }
+      (used - defined).uniq
     end
 
     def generate_manifest()
