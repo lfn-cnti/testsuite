@@ -207,6 +207,7 @@ module KernelIntrospection
               next unless ready
               container_id = container_status.dig("containerID").as_s
               pid = ClusterTools.node_pid_by_container_id(container_id, node)
+              next unless pid
               # there are some nodes that wont have a proc with this pid in it
               # e.g. a stand alone pod gets installed on only one node
               process = ClusterTools.exec_by_node("cat /proc/#{pid}/cmdline", node)

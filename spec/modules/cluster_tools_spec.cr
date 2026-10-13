@@ -86,3 +86,18 @@ describe "ClusterTools" do
     (/cluster-tools/ =~ ClusterTools.pod_name).should_not be_nil
   end
 end
+
+describe "ClusterTools.running_pid_from_inspect" do
+  it "returns the PID of a running container", tags: ["points"] do
+    ClusterTools.running_pid_from_inspect(%({"info": {"pid": 4242}})).should eq("4242")
+  end
+
+  it "returns nil for an exited container, whose pid crictl reports as 0 (#2802)", tags: ["points"] do
+    ClusterTools.running_pid_from_inspect(%({"info": {"pid": 0}})).should be_nil
+  end
+
+  it "returns nil when there is no pid or no valid JSON", tags: ["points"] do
+    ClusterTools.running_pid_from_inspect(%({"info": {}})).should be_nil
+    ClusterTools.running_pid_from_inspect("not json").should be_nil
+  end
+end

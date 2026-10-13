@@ -132,9 +132,21 @@ module ClusterTools
     end
 
     Log.debug {"node_pid_by_container_id inspect: #{inspect[:output]}" }
-    pid = "#{JSON.parse(inspect[:output]).dig?("info", "pid")}"
+    pid = running_pid_from_inspect(inspect[:output])
     Log.debug {"node_pid_by_container_id pid: #{pid}" }
-    pid 
+    Log.warn {"container #{container_id} has no running process" } if pid.nil?
+    pid
+  end
+
+  # The node PID of a container from `crictl inspect`, or nil when the
+  # container has no running process: crictl reports pid 0 for an exited
+  # container, and the process tree of PID 0 would be every process on the
+  # node (#2802).
+  def self.running_pid_from_inspect(inspect_output : String) : String?
+    pid = JSON.parse(inspect_output).dig?("info", "pid").try(&.raw).to_s
+    pid.empty? || pid == "0" ? nil : pid
+  rescue JSON::ParseException
+    nil
   end
   # Zombies are invisible to cgroup-based enumeration on cgroup v1 nodes
   # (the kernel detaches exiting tasks from every v1 hierarchy), so they are

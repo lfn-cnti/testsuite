@@ -755,6 +755,14 @@ scored_task "sig_term_handled",
 
         pod_passed = status["containerStatuses"].as_a.map do |c_stat|
           c_name = c_stat["name"].as_s
+          # The container as it is now: stopping an earlier container of this
+          # pod can restart this one too, under a new container ID (#2802).
+          live_statuses = begin
+            KubectlClient::Get.resource("pod", pod_name, pod_namespace).dig?("status", "containerStatuses").try(&.as_a?)
+          rescue KubectlClient::ShellCMD::NotFoundError
+            nil
+          end
+          c_stat = live_statuses.try(&.find { |s| s["name"]?.try(&.as_s?) == c_name }) || c_stat
           skip = ->(reason : String) do
             logger.info { "Skipping #{pod_name}/#{c_name}: #{reason}" }
             skipped_containers << {pod: pod_name, container: c_name, reason: reason}
@@ -767,7 +775,7 @@ scored_task "sig_term_handled",
           c_id = c_stat["containerID"].as_s
           node = KubectlClient::Get.nodes_by_pod(pod).first
           pid  = ClusterTools.node_pid_by_container_id(c_id, node)
-          next skip.call("no node PID found for the container") if pid.nil? || pid.empty?
+          next skip.call("no running process found for the container") if pid.nil?
 
           # The container's processes, threads excluded (Tgid != Pid means a thread).
           pids           = KernelIntrospection::K8s::Node.pids(node)
