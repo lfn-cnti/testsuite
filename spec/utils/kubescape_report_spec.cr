@@ -29,7 +29,33 @@ private RESPONSE = <<-JSON
 }
 JSON
 
+# A credentials rule as kubescape after 4.0.16 reports it in v1: the fields to
+# remove only under deletePaths (kubescape/kubescape#4103).
+private DELETE_ONLY = <<-JSON
+{
+  "name": "Applications credentials in configuration files",
+  "remediation": "Use Kubernetes secrets instead of plain values.",
+  "ruleReports": [{
+    "name": "rule-credentials-in-env-var",
+    "ruleResponses": [{
+      "alertMessage": "Deployment: coredns has sensitive information in environment variables",
+      "alertObject": {"k8sApiObjects": [{"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": "coredns", "namespace": "default"}}]},
+      "failedPaths": null,
+      "reviewPaths": null,
+      "fixPaths": null,
+      "deletePaths": ["spec.template.spec.containers[0].env[0].name", "spec.template.spec.containers[0].env[0].value"]
+    }]
+  }]
+}
+JSON
+
 describe "Kubescape report parsing" do
+  it "keeps the fields a rule reports only as fields to delete", tags: ["points"] do
+    report = Kubescape.parse_test_report(JSON.parse(DELETE_ONLY))
+    report.failed_resources.size.should eq(1)
+    report.failed_resources[0].paths.should eq(["spec.template.spec.containers[0].env[0].name", "spec.template.spec.containers[0].env[0].value"])
+  end
+
   it "keeps the failed fields and suggested values, and phrases them", tags: ["points"] do
     report = Kubescape.parse_test_report(JSON.parse(RESPONSE))
     report.remediation.should eq("Set resources.limits.cpu for every container.")
