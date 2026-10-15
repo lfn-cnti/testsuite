@@ -147,12 +147,15 @@ module Kubescape
       return if k8s_objects == nil
   
       alert_message = rule_response.dig?("alertMessage")
-      # Where in the object the rule failed: failedPaths/reviewPaths name the
-      # field, fixPaths name it with the value to set. Any of the three may be
-      # null in a given response, so they are merged.
+      # Where in the object the rule failed: failedPaths/reviewPaths/deletePaths
+      # name the field, fixPaths name it with the value to set. Any of them may
+      # be null in a given response, so they are merged. Rules whose fix is to
+      # remove the field (credentials in env, C-0012) report it only in
+      # deletePaths since kubescape 4.0.13; its v1 report carries that field
+      # from the release after 4.0.16 (kubescape/kubescape#4103).
       paths = [] of String
       fixes = {} of String => String
-      ["failedPaths", "reviewPaths"].each do |key|
+      ["failedPaths", "reviewPaths", "deletePaths"].each do |key|
         rule_response.dig?(key).try(&.as_a?).try &.each { |path| paths << path.as_s }
       end
       rule_response.dig?("fixPaths").try(&.as_a?).try &.each do |fix|
@@ -244,7 +247,7 @@ module Kubescape
     property name
     property namespace
     property alert_message
-    # Fields the rule failed on (kubescape failedPaths/reviewPaths/fixPaths),
+    # Fields the rule failed on (kubescape failedPaths/reviewPaths/deletePaths/fixPaths),
     # and the value fixPaths suggests for each, when it does.
     property paths : Array(String) = [] of String
     property fixes : Hash(String, String) = {} of String => String
