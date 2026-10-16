@@ -1,0 +1,62 @@
+---
+# Its own namespace, so that the pods are admitted while CI enforces the
+# restricted profile in the default namespaces; the test judges them at baseline.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pss-baseline-fail
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+---
+# Adds a capability baseline does not allow.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pss-caps
+  namespace: pss-baseline-fail
+  labels:
+    app: pss-caps
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pss-caps
+  template:
+    metadata:
+      labels:
+        app: pss-caps
+    spec:
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["sh", "-c", "sleep 2147483647"]
+        securityContext:
+          capabilities:
+            add: ["NET_ADMIN"]
+---
+# Sets AppArmor to unconfined only through the annotation baseline reads, so
+# the test has to keep the pod's annotations for its dry run.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pss-apparmor
+  namespace: pss-baseline-fail
+  labels:
+    app: pss-apparmor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pss-apparmor
+  template:
+    metadata:
+      labels:
+        app: pss-apparmor
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/app: unconfined
+    spec:
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["sh", "-c", "sleep 2147483647"]
+
