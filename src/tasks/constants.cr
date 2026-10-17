@@ -1,6 +1,6 @@
 require "./utils/embedded_file_manager.cr"
 
-ESSENTIAL_PASSED_THRESHOLD = 15
+ESSENTIAL_PASSED_THRESHOLD = 20
 # Default limit for reasonable_image_size; a CNF lowers it with image_size_max_mb.
 REASONABLE_IMAGE_SIZE_MAX_MB = 5_000
 # The one directory the suite owns in the user's working directory. Everything

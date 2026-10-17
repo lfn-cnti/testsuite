@@ -15,7 +15,8 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
   pretty_test_name_capitalized = tn.split(/:|_/).map(&.capitalize).join(" ")
 
   desc "Test if the CNF containers are loosely coupled by performing a #{pretty_test_name}"
-  scored_task "#{tn}" do |t, args|
+  scored_task "#{tn}",
+    type: (tn == "rolling_update" ? CNFManager::TestType::Essential : CNFManager::TestType::Normal) do |t, args|
     CNFManager::Task.task_runner(args, task: t) do |args, config, result|
       container_names = config.common.container_names
       Log.for(t.name).debug { "container_names: #{container_names}" }
@@ -117,7 +118,8 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
 end
 
 desc "Test if the CNF can perform a rollback"
-scored_task "rollback" do |t, args|
+scored_task "rollback",
+  type: CNFManager::TestType::Essential do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     container_names = config.common.container_names
     Log.for(t.name).debug { "container_names: #{container_names}" }
@@ -675,7 +677,8 @@ scored_task "cni_compatible",
 end
 
 desc "CNF should not use any deprecated Kubernetes features"
-scored_task "deprecated_k8s_features" do |t, args|
+scored_task "deprecated_k8s_features",
+  type: CNFManager::TestType::Essential do |t, args|
   logger = WLOG.for("deprecated_k8s_features")
   logger.info { "Testing CNF for usage of deprecated Kubernetes features" }
 
