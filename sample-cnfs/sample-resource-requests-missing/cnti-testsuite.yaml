@@ -1,0 +1,6 @@
+---
+config_version: v2
+deployments:
+  manifests:
+  - name: resource-requests-missing
+    manifest_directory: manifests

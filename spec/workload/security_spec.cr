@@ -306,6 +306,47 @@ describe "Security" do
     end
   end
 
+  it "'resource_requests' should pass when every container requests CPU and memory, naming requests inherited from limits", tags: ["security"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-resource-requests --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("resource_requests")
+      result[:status].success?.should be_true
+      (/(PASSED).*(Every container requests CPU and memory)/ =~ result[:output]).should_not be_nil
+      (/Deployment\/requests in requests, container sidecar: no CPU request, Kubernetes sets it to the CPU limit/ =~ result[:output]).should_not be_nil
+      verify_task_result("resource_requests", "passed")
+    ensure
+      ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'resource_requests' should fail containers without requests, init containers included", tags: ["security"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-resource-requests-missing --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("resource_requests")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(Found 2 container\(s\) without CPU or memory requests)/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/requests-missing in requests-missing \(container app\): container sets no CPU request/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/requests-missing in requests-missing \(container setup\): init container sets no CPU or memory request/ =~ result[:output]).should_not be_nil
+      (/remediation: Set resources.requests.cpu and resources.requests.memory on every container/ =~ result[:output]).should_not be_nil
+      verify_task_result("resource_requests", "failed")
+    ensure
+      ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'resource_requests' should pass a container without requests when a LimitRange supplies default requests", tags: ["security"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-resource-requests-limitrange --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("resource_requests")
+      result[:status].success?.should be_true
+      (/(PASSED).*(Every container requests CPU and memory)/ =~ result[:output]).should_not be_nil
+      (/container app: no memory request, LimitRange container-defaults supplies the default/ =~ result[:output]).should_not be_nil
+      verify_task_result("resource_requests", "passed")
+    ensure
+      ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'ingress_egress_blocked' should not pass on a cnf that has no ingress and egress traffic policy", tags: ["security"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf")

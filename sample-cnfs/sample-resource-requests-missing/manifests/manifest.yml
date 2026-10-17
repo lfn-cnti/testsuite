@@ -1,0 +1,37 @@
+# Two containers without requests: the init container sets no resources at
+# all, and the app requests memory but no CPU and sets no limits.
+# resource_requests must fail and name both.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: requests-missing
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: requests-missing
+  namespace: requests-missing
+  labels:
+    app: requests-missing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: requests-missing
+  template:
+    metadata:
+      labels:
+        app: requests-missing
+    spec:
+      initContainers:
+      - name: setup
+        image: busybox:1.36
+        command: ["/bin/true"]
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["/bin/sleep", "2147483647"]
+        resources:
+          requests:
+            memory: 16Mi

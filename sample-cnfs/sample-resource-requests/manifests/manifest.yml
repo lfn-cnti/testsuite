@@ -1,0 +1,52 @@
+# Every container requests CPU and memory: the init container and the app set
+# requests, the sidecar sets limits only, which Kubernetes copies to its
+# requests. resource_requests must pass and name the sidecar's inherited
+# requests.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: requests
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: requests
+  namespace: requests
+  labels:
+    app: requests
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: requests
+  template:
+    metadata:
+      labels:
+        app: requests
+    spec:
+      initContainers:
+      - name: setup
+        image: busybox:1.36
+        command: ["/bin/true"]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["/bin/sleep", "2147483647"]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            memory: 32Mi
+      - name: sidecar
+        image: busybox:1.36
+        command: ["/bin/sleep", "2147483647"]
+        resources:
+          limits:
+            cpu: 20m
+            memory: 32Mi
