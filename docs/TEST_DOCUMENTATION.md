@@ -24,7 +24,7 @@
 
 * [**Category: Security Tests**](#category-security-tests)
 
-   [[Container socket mounts]](#container-socket-mounts) | [[Privileged Containers]](#privileged-containers) | [[External IPs]](#external-ips) | [[SELinux Options]](#selinux-options) | [[Sysctls]](#sysctls) | [[Privilege escalation]](#privilege-escalation) | [[Seccomp profile]](#seccomp-profile) | [[Symlink file system]](#symlink-file-system) | [[Application credentials]](#application-credentials) | [[Host network]](#host-network) | [[Service account mapping]](#service-account-mapping) | [[Dedicated service account]](#dedicated-service-account) | [[Ingress and Egress blocked]](#ingress-and-egress-blocked) | [[Insecure capabilities]](#insecure-capabilities) | [[Non-root containers]](#non-root-containers) | [[Host PID/IPC privileges]](#host-pidipc-privileges) | [[Linux hardening]](#linux-hardening) | [[CPU limits]](#cpu-limits) | [[Memory limits]](#memory-limits) | [[Immutable File Systems]](#immutable-file-systems) | [[HostPath Mounts]](#hostpath-mounts) | [[SBOM available]](#sbom-available)
+   [[Container socket mounts]](#container-socket-mounts) | [[Privileged Containers]](#privileged-containers) | [[External IPs]](#external-ips) | [[SELinux Options]](#selinux-options) | [[Sysctls]](#sysctls) | [[Privilege escalation]](#privilege-escalation) | [[Seccomp profile]](#seccomp-profile) | [[Symlink file system]](#symlink-file-system) | [[Application credentials]](#application-credentials) | [[Host network]](#host-network) | [[Service account mapping]](#service-account-mapping) | [[Dedicated service account]](#dedicated-service-account) | [[Ingress and Egress blocked]](#ingress-and-egress-blocked) | [[Insecure capabilities]](#insecure-capabilities) | [[Non-root containers]](#non-root-containers) | [[Host PID/IPC privileges]](#host-pidipc-privileges) | [[Linux hardening]](#linux-hardening) | [[CPU limits]](#cpu-limits) | [[Memory limits]](#memory-limits) | [[Resource requests]](#resource-requests) | [[Immutable File Systems]](#immutable-file-systems) | [[HostPath Mounts]](#hostpath-mounts) | [[SBOM available]](#sbom-available)
 
 * [**Category: Configuration Tests**](#category-configuration-tests)
 
@@ -1568,6 +1568,29 @@ Define LimitRange and ResourceQuota policies to limit memory usage for namespace
 #### Usage
 
 `./cnti-testsuite memory_limits`
+
+----------
+
+### Resource requests
+
+#### Overview
+
+Checks that every container of the CNF, init containers included, sets `resources.requests.cpu` and `resources.requests.memory`. A request that Kubernetes fills in, from the container's own limit or from a namespace `LimitRange` default, counts as set and is named in the details. The values are not judged.
+Expectation: Every container requests CPU and memory.
+
+#### Rationale
+
+The scheduler places a pod by its requests: a container without one is placed as if it needed nothing. A pod none of whose containers requests anything is in the [BestEffort QoS class](https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/), the first the kubelet [evicts](https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/#pod-selection-for-kubelet-eviction) when a node runs short of memory. A request copied from a limit passes, but is named, because it is rarely the size the workload needs: it reserves the peak. Whether a request is the right size is a measurement question, an idle and a loaded run, not a manifest one, so the test does not judge it.
+
+Sources: [Kubernetes resource management: requests and limits](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#requests-and-limits); [Pod Quality of Service classes](https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/).
+
+#### Remediation
+
+Set `resources.requests.cpu` and `resources.requests.memory` on every container, init containers included, sized from a measured idle and loaded run. Where a chart leaves sizing to the user, ship reasonable defaults rather than none.
+
+#### Usage
+
+`./cnti-testsuite resource_requests`
 
 ----------
 
