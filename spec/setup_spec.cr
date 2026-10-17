@@ -444,6 +444,9 @@ describe "Installation" do
       result = ShellCmd.run_testsuite("non_root_containers")
       (/(N\/A).*(non_root_containers not applicable: no workload resources in the CNF manifest)/ =~ result[:output]).should_not be_nil
       verify_task_result("non_root_containers", "na")
+      result = ShellCmd.run_testsuite("resource_requests")
+      (/(N\/A).*(resource_requests not applicable: no workload resources in the CNF manifest)/ =~ result[:output]).should_not be_nil
+      verify_task_result("resource_requests", "na")
     ensure
       ShellCmd.cnf_uninstall()
     end

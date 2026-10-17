@@ -24,7 +24,7 @@
 
 * [**Category: Security Tests**](#category-security-tests)
 
-   [[Container socket mounts]](#container-socket-mounts) | [[Privileged Containers]](#privileged-containers) | [[External IPs]](#external-ips) | [[SELinux Options]](#selinux-options) | [[Sysctls]](#sysctls) | [[Privilege escalation]](#privilege-escalation) | [[Seccomp profile]](#seccomp-profile) | [[Symlink file system]](#symlink-file-system) | [[Application credentials]](#application-credentials) | [[Host network]](#host-network) | [[Service account mapping]](#service-account-mapping) | [[Dedicated service account]](#dedicated-service-account) | [[Ingress and Egress blocked]](#ingress-and-egress-blocked) | [[Insecure capabilities]](#insecure-capabilities) | [[Non-root containers]](#non-root-containers) | [[Host PID/IPC privileges]](#host-pidipc-privileges) | [[Linux hardening]](#linux-hardening) | [[CPU limits]](#cpu-limits) | [[Memory limits]](#memory-limits) | [[Immutable File Systems]](#immutable-file-systems) | [[HostPath Mounts]](#hostpath-mounts) | [[SBOM available]](#sbom-available)
+   [[Container socket mounts]](#container-socket-mounts) | [[Privileged Containers]](#privileged-containers) | [[External IPs]](#external-ips) | [[SELinux Options]](#selinux-options) | [[Sysctls]](#sysctls) | [[Privilege escalation]](#privilege-escalation) | [[Seccomp profile]](#seccomp-profile) | [[Symlink file system]](#symlink-file-system) | [[Application credentials]](#application-credentials) | [[Host network]](#host-network) | [[Service account mapping]](#service-account-mapping) | [[Dedicated service account]](#dedicated-service-account) | [[Ingress and Egress blocked]](#ingress-and-egress-blocked) | [[Insecure capabilities]](#insecure-capabilities) | [[Non-root containers]](#non-root-containers) | [[Host PID/IPC privileges]](#host-pidipc-privileges) | [[Linux hardening]](#linux-hardening) | [[CPU limits]](#cpu-limits) | [[Memory limits]](#memory-limits) | [[Resource requests]](#resource-requests) | [[Init container requests]](#init-container-requests) | [[Immutable File Systems]](#immutable-file-systems) | [[HostPath Mounts]](#hostpath-mounts) | [[SBOM available]](#sbom-available)
 
 * [**Category: Configuration Tests**](#category-configuration-tests)
 
@@ -1568,6 +1568,52 @@ Define LimitRange and ResourceQuota policies to limit memory usage for namespace
 #### Usage
 
 `./cnti-testsuite memory_limits`
+
+----------
+
+### Resource requests
+
+#### Overview
+
+Checks that every container of the CNF's workloads sets `resources.requests.cpu` and `resources.requests.memory`. Init containers are judged separately, by `init_container_requests`. A request that Kubernetes fills in, from the container's own limit or from a namespace `LimitRange` default, counts as set and is named in the details. The values are not judged.
+Expectation: Every container requests CPU and memory.
+
+#### Rationale
+
+The scheduler places a pod by its requests: a container without one is placed as if it needed nothing. A pod none of whose containers requests anything is in the [BestEffort QoS class](https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/), the first the kubelet [evicts](https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/#pod-selection-for-kubelet-eviction) when a node runs short of memory. A request copied from a limit passes, but is named, because it is rarely the size the workload needs: it reserves the peak. Whether a request is the right size is a measurement question, an idle and a loaded run, not a manifest one, so the test does not judge it.
+
+Sources: [Kubernetes resource management: requests and limits](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#requests-and-limits); [Pod Quality of Service classes](https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/).
+
+#### Remediation
+
+Set `resources.requests.cpu` and `resources.requests.memory` on every container, sized from a measured idle and loaded run. Where a chart leaves sizing to the user, ship reasonable defaults rather than none.
+
+#### Usage
+
+`./cnti-testsuite resource_requests`
+
+----------
+
+### Init container requests
+
+#### Overview
+
+Checks that every init container of the CNF's workloads sets `resources.requests.cpu` and `resources.requests.memory`, with the same rules as `resource_requests`: a request filled in from the container's limit or from a namespace `LimitRange` default counts as set and is named. Not applicable when no workload has init containers.
+Expectation: Every init container requests CPU and memory.
+
+#### Rationale
+
+An init container runs before the workload's containers and to completion, so a missing request weighs less than on a workload container: the pod is scheduled by the larger of its containers' total and its largest init container, and its [QoS class](https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/) stays Burstable while the other containers request. The init container still runs unsized, and a namespace with a [ResourceQuota](https://kubernetes.io/docs/concepts/policy/resource-quotas/) on requests rejects any pod in which a container, init containers included, sets none.
+
+Sources: [Kubernetes init containers: resource sharing](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/#resource-sharing-within-containers); [Resource quotas](https://kubernetes.io/docs/concepts/policy/resource-quotas/).
+
+#### Remediation
+
+Set `resources.requests.cpu` and `resources.requests.memory` on every init container. A wait or copy step needs little; a migration or data load should be sized like a workload container.
+
+#### Usage
+
+`./cnti-testsuite init_container_requests`
 
 ----------
 

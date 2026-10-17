@@ -1,0 +1,42 @@
+# The container sets no resources; a LimitRange in its namespace gives every
+# container default requests. resource_requests must pass and name the range;
+# init_container_requests is N/A, as there is no init container.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: requests-limitrange
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: container-defaults
+  namespace: requests-limitrange
+spec:
+  limits:
+  - type: Container
+    defaultRequest:
+      cpu: 10m
+      memory: 16Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: requests-limitrange
+  namespace: requests-limitrange
+  labels:
+    app: requests-limitrange
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: requests-limitrange
+  template:
+    metadata:
+      labels:
+        app: requests-limitrange
+    spec:
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["/bin/sleep", "2147483647"]
