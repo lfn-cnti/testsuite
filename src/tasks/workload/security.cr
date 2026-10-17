@@ -310,6 +310,7 @@ end
 
 desc "Check if potential attackers may gain access to a POD and inherit access to the entire host network. For example, in AWS case, they will have access to the entire VPC."
 scored_task "host_network",
+  type: CNFManager::TestType::Essential,
   deps: ["setup:kubescape_scan"],
   emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
@@ -433,7 +434,6 @@ end
 
 desc "Check if the containers have CPU limits set"
 scored_task "cpu_limits",
-  type: CNFManager::TestType::Essential,
   deps: ["setup:kubescape_scan"],
   emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
@@ -538,6 +538,7 @@ end
 
 desc "Check if every container requests CPU and memory"
 scored_task "resource_requests",
+  type: CNFManager::TestType::Essential,
   emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     # The scheduler places a pod by its requests, and a pod none of whose
@@ -617,6 +618,7 @@ end
 
 desc "Check the Host PID/IPC privileges of the containers"
 scored_task "host_pid_ipc_privileges",
+  type: CNFManager::TestType::Essential,
   deps: ["setup:kubescape_scan"],
   emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
@@ -892,6 +894,7 @@ end
 
 desc "Check that every workload of the CNF runs as a service account of its own, not the namespace's default"
 scored_task "dedicated_service_account",
+  type: CNFManager::TestType::Essential,
   emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     findings = [] of NamedTuple(kind: String, name: String, namespace: String, reason: String)

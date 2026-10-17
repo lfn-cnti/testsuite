@@ -493,7 +493,6 @@ end
 
 desc "Are the zombie processes handled?"
 scored_task "zombie_handled",
-  type: CNFManager::TestType::Essential,
   emoji: "⚖👀" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     injection_failures = [] of String
@@ -949,7 +948,6 @@ end
 
 desc "To check if the CNF uses a specialized init system"
 scored_task "specialized_init_system",
-  type: CNFManager::TestType::Essential,
   deps: ["setup:install_cluster_tools"],
   emoji: "🚀" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|

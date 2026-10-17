@@ -538,6 +538,7 @@ end
 
 desc "Check if CNF uses Kubernetes alpha APIs"
 scored_task "alpha_k8s_apis",
+  type: CNFManager::TestType::Essential,
   emoji: "⭕🔍" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     offenders = 0

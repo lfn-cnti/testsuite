@@ -681,6 +681,7 @@ end
 
 desc "Check that every pod of the CNF is owned by a controller that recreates it (no bare Pods)"
 scored_task "pod_owner",
+  type: CNFManager::TestType::Essential,
   emoji: "⎈🧫" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     # One finding per pod, keyed by namespace/name, however many of the CNF's

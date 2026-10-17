@@ -16,6 +16,7 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
 
   desc "Test if the CNF containers are loosely coupled by performing a #{pretty_test_name}"
   scored_task "#{tn}",
+    type: (tn == "rolling_update" ? CNFManager::TestType::Essential : CNFManager::TestType::Normal),
     deps: ["setup:install_cluster_tools"] do |t, args|
     CNFManager::Task.task_runner(args, task: t) do |args, config, result|
       container_names = config.common.container_names
@@ -115,6 +116,7 @@ end
 
 desc "Test if the CNF can perform a rollback"
 scored_task "rollback",
+  type: CNFManager::TestType::Essential,
   deps: ["setup:install_cluster_tools"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     container_names = config.common.container_names
@@ -717,7 +719,8 @@ scored_task "cni_compatible",
 end
 
 desc "CNF should not use any deprecated Kubernetes features"
-scored_task "deprecated_k8s_features" do |t, args|
+scored_task "deprecated_k8s_features",
+  type: CNFManager::TestType::Essential do |t, args|
   logger = WLOG.for("deprecated_k8s_features")
   logger.info { "Testing CNF for usage of deprecated Kubernetes features" }
 
