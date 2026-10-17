@@ -14,6 +14,8 @@ category_task "security", [
     "insecure_capabilities",
     "memory_limits",
     "cpu_limits",
+    "resource_requests",
+    "init_container_requests",
     "linux_hardening",
     "ingress_egress_blocked",
     "host_pid_ipc_privileges",
@@ -469,6 +471,107 @@ scored_task "memory_limits",
       Kubescape.report_failed_resources(test_report, result)
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found containers without memory limits set")
+    end
+  end
+end
+
+# The resources every container should request: the two the scheduler places
+# a pod by and the kubelet evicts by.
+REQUESTED_RESOURCES = {"cpu" => "CPU", "memory" => "memory"}
+
+# The name of a namespace LimitRange that gives a container a default request
+# for the resource: its defaultRequest, or its default, which Kubernetes also
+# uses as the request. Nil when no range supplies one.
+def limit_range_default_request(limit_ranges : Array(JSON::Any), resource : String) : String?
+  limit_ranges.each do |range|
+    (range.dig?("spec", "limits").try(&.as_a?) || [] of JSON::Any).each do |limit|
+      next unless limit["type"]?.try(&.as_s?) == "Container"
+      if limit.dig?("defaultRequest", resource) || limit.dig?("default", resource)
+        return range.dig?("metadata", "name").try(&.as_s?) || "unnamed"
+      end
+    end
+  end
+  nil
+end
+
+# Judges the CPU and memory requests of one list of containers ("containers"
+# or "initContainers") in every workload of the CNF. A request Kubernetes fills
+# in, from the container's limit or from a LimitRange default, counts as set
+# and is named, as it is rarely the intended size; the values are not judged.
+# Each container without a request is an impacted resource. Returns how many
+# containers were judged and how many lack a request.
+def requests_of_containers(args, config, result, list : String, what : String) : NamedTuple(judged: Int32, missing: Int32)
+  judged = 0
+  violations = 0
+  limit_ranges = {} of String => Array(JSON::Any)
+  CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, live|
+    namespace = resource["namespace"]
+    containers = CNFManager.pod_spec_of(live).try(&.[list]?).try(&.as_a?) || [] of JSON::Any
+    next true if containers.empty?
+    ranges = limit_ranges[namespace] ||= KubectlClient::Get.resource("limitranges", namespace: namespace)["items"]?.try(&.as_a?) || [] of JSON::Any
+    resource_passed = true
+    containers.each do |container|
+      judged += 1
+      container_name = container.dig?("name").try(&.as_s) || ""
+      label = "#{resource["kind"]}/#{resource["name"]} in #{namespace}, #{what} #{container_name}"
+      missing = [] of String
+      REQUESTED_RESOURCES.each do |key, shown|
+        next if container.dig?("resources", "requests", key)
+        if container.dig?("resources", "limits", key)
+          result.append_description("#{label}: no #{shown} request, Kubernetes sets it to the #{shown} limit")
+        elsif range = limit_range_default_request(ranges, key)
+          result.append_description("#{label}: no #{shown} request, LimitRange #{range} supplies the default")
+        else
+          missing << shown
+        end
+      end
+      next if missing.empty?
+      result.add_impacted_resource(resource["kind"], resource["name"], namespace, container: container_name,
+        reason: "#{what} sets no #{missing.join(" or ")} request")
+      violations += 1
+      resource_passed = false
+    end
+    resource_passed
+  end
+  {judged: judged, missing: violations}
+end
+
+desc "Check if every container requests CPU and memory"
+scored_task "resource_requests",
+  emoji: "🔓🔑" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # The scheduler places a pod by its requests, and a pod none of whose
+    # containers requests anything is BestEffort, the first evicted when a
+    # node runs short (#2732). The workload's containers are judged here; its
+    # init containers, which run before them and to completion, in
+    # init_container_requests.
+    counts = requests_of_containers(args, config, result, "containers", "container")
+    if counts[:missing] == 0
+      result.passed("Every container requests CPU and memory")
+    else
+      result.append_remediation("Set resources.requests.cpu and resources.requests.memory on every container, sized from a measured idle and loaded run.")
+      result.failed("Found #{counts[:missing]} container(s) without CPU or memory requests")
+    end
+  end
+end
+
+desc "Check if every init container requests CPU and memory"
+scored_task "init_container_requests",
+  emoji: "🔓🔑" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # An init container without requests weighs less than a workload
+    # container: the pod is scheduled by the larger of its containers' sum
+    # and its largest init container, and its QoS class does not drop to
+    # BestEffort while the other containers request. It still runs unsized,
+    # and a namespace with a ResourceQuota on requests rejects the pod.
+    counts = requests_of_containers(args, config, result, "initContainers", "init container")
+    if counts[:judged] == 0
+      result.na("No workload of the CNF has init containers")
+    elsif counts[:missing] == 0
+      result.passed("Every init container requests CPU and memory")
+    else
+      result.append_remediation("Set resources.requests.cpu and resources.requests.memory on every init container; a small wait or copy step needs little, but a namespace with a ResourceQuota on requests rejects the pod without them.")
+      result.failed("Found #{counts[:missing]} init container(s) without CPU or memory requests")
     end
   end
 end
