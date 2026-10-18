@@ -25,7 +25,7 @@ common:
   container_names:
     - name: coredns
       rolling_update_test_tag: "1.8.0"
-      rolling_downgrade_test_tag: 1.6.7
+      rolling_downgrade_test_tag: 1.6.6
       rolling_version_change_test_tag: 1.8.0
       rollback_from_tag: 1.8.0
 
@@ -114,7 +114,7 @@ Common parameters are required for proper functioning of some tests. If these pa
 Array of container parameters for rolling version change tests, example:
   name: coredns
   rolling_update_test_tag: 1.8.0
-  rolling_downgrade_test_tag: 1.6.7
+  rolling_downgrade_test_tag: 1.6.6
   rolling_version_change_test_tag: 1.8.0
   rollback_from_tag: 1.8.0
 
