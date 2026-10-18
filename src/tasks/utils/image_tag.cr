@@ -13,6 +13,54 @@ module ImageTag
     last.rpartition(":")[2]
   end
 
+  # The repository of an image reference, without its tag or digest; the
+  # registry port stays ("registry:5000/org/image:1.2" is
+  # "registry:5000/org/image").
+  def self.repository_of(image : String) : String
+    name = image.split("@").first
+    slash = name.rindex('/') || -1
+    colon = name.rindex(':')
+    colon && colon > slash ? name[0...colon] : name
+  end
+
+  # The form of a version tag and its numbers: "v4.3.0" is "v#.#.#" with
+  # [4, 3, 0], "7.0.9-debian-12-r4" is "#.#.#-debian-#-r#" with
+  # [7, 0, 9, 12, 4]. Nil for a tag without a number, which names no version.
+  def self.version_form(tag : String) : {String, Array(Int64)}?
+    numbers = tag.scan(/\d+/).map { |m| m[0].to_i64? }
+    return nil if numbers.empty? || numbers.any?(&.nil?)
+    {tag.gsub(/\d+/, "#"), numbers.compact}
+  end
+
+  # The release before the deployed tag: among the repository's tags, the
+  # closest older one of the same form ("v4.3.0" takes "v4.2.3", never
+  # "v4.3.0-rc1" or "latest"). Nil when there is none.
+  def self.previous_release(deployed : String, tags : Array(String)) : String?
+    form = version_form(deployed)
+    return nil unless form
+    best = nil
+    best_numbers = [] of Int64
+    tags.each do |tag|
+      candidate = version_form(tag)
+      next unless candidate && candidate[0] == form[0]
+      next unless compare_versions(candidate[1], form[1]) < 0
+      if best.nil? || compare_versions(candidate[1], best_numbers) > 0
+        best = tag
+        best_numbers = candidate[1]
+      end
+    end
+    best
+  end
+
+  private def self.compare_versions(a : Array(Int64), b : Array(Int64)) : Int32
+    a.each_with_index do |n, i|
+      return 1 if i >= b.size
+      c = n <=> b[i]
+      return c unless c == 0
+    end
+    a.size < b.size ? -1 : 0
+  end
+
   def self.digest?(image : String) : Bool
     image.includes?("@sha256:")
   end
