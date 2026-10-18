@@ -1,0 +1,13 @@
+---
+# The sample_rolling chart (coredns 1.6.7) with test tags equal to the
+# deployed one: nothing would roll out, so rolling_update must skip with
+# remediation, not pass (#2816).
+config_version: v2
+common:
+  container_names:
+  - name: coredns
+    rolling_update_test_tag: 1.6.7
+deployments:
+  helm_dirs:
+  - name: coredns
+    helm_directory: ../sample_rolling/chart

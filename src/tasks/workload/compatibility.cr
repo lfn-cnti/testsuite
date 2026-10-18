@@ -56,11 +56,19 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
             unconfigured += 1
             next true
           end
+          tag = config_container.get_container_tag(tn)
+          # The deployed tag rolls out nothing: setting it changes no pod, the
+          # rollout returns at once and the test would pass without testing
+          # anything (#2816). Like rollback, it is a configuration gap.
+          if ImageTag.tag_of(container.as_h["image"].as_s) == tag
+            result.append_remediation("#{tn}_test_tag #{tag} for container #{container_name} is the deployed tag, so nothing would roll out: set it to another released version")
+            unconfigured += 1
+            next true
+          end
           rolled += 1
 
           # split out image name from version tag
           image_name = container.as_h["image"].as_s.rpartition(":")[0]
-          tag = config_container.get_container_tag(tn)
           key = {resource["kind"], resource["name"], namespace}
           deployed = changed[key]? || begin
             images = {} of String => String
@@ -106,7 +114,7 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
       if rolled == 0 && unconfigured == 0 && !batch.empty?
         result.na("Every workload of the CNF runs to completion (a Job or CronJob), a #{pretty_test_name} does not apply")
       elsif rolled == 0 && unconfigured > 0
-        result.skipped("No #{tn}_test_tag configured for any container: add container_names with a #{tn}_test_tag to cnti-testsuite.yaml")
+        result.skipped("No usable #{tn}_test_tag configured for any container: add container_names with a #{tn}_test_tag other than the deployed tag to cnti-testsuite.yaml")
       elsif task_response && restored
         result.passed("CNF for #{pretty_test_name_capitalized} Passed")
       else

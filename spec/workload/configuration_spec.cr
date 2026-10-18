@@ -252,8 +252,21 @@ describe CntiTestSuite do
       # sample-coredns-cnf declares no container_names at all.
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("rolling_update")
-      (/(SKIPPED).*(No rolling_update_test_tag configured for any container)/ =~ result[:output]).should_not be_nil
+      (/(SKIPPED).*(No usable rolling_update_test_tag configured for any container)/ =~ result[:output]).should_not be_nil
       (/remediation: Please add the container name coredns and a corresponding rolling_update_test_tag/ =~ result[:output]).should_not be_nil
+      verify_task_result("rolling_update", "skipped")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'rolling_update' should skip, not pass, when the test tag is the deployed tag", tags: ["rolling_update"] do
+    begin
+      # The sample_rolling chart deploys coredns 1.6.7; the test tag is 1.6.7 too.
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling_deployed_tag/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("rolling_update")
+      (/(SKIPPED).*(No usable rolling_update_test_tag configured for any container)/ =~ result[:output]).should_not be_nil
+      (/remediation: rolling_update_test_tag 1.6.7 for container coredns is the deployed tag, so nothing would roll out/ =~ result[:output]).should_not be_nil
       verify_task_result("rolling_update", "skipped")
     ensure
       result = ShellCmd.cnf_uninstall()
