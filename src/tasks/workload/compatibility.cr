@@ -15,7 +15,8 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
   pretty_test_name_capitalized = tn.split(/:|_/).map(&.capitalize).join(" ")
 
   desc "Test if the CNF containers are loosely coupled by performing a #{pretty_test_name}"
-  scored_task "#{tn}" do |t, args|
+  scored_task "#{tn}",
+    deps: ["setup:install_cluster_tools"] do |t, args|
     CNFManager::Task.task_runner(args, task: t) do |args, config, result|
       container_names = config.common.container_names
       Log.for(t.name).debug { "container_names: #{container_names}" }
@@ -28,13 +29,8 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
       restored = true
       task_response = false
 
-      # TODO use tag associated with image name string (e.g. busybox:v1.7.9) as the version tag
-      # TODO optional get a valid version from the remote repo and roll to that, if no tag
-      #  e.g. wget -q https://registry.hub.docker.com/v1/repositories/debian/tags -O -  | sed -e 's/[][]//g' -e 's/"//g' -e 's/ //g' | tr '}' '\n'  | awk -F: '{print $3}'
-      # note: all images are not on docker hub nor are they always on a docker hub compatible api
-
       begin
-        task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
+        task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _, live|
           # A Job's pod template is immutable and runs once: nothing rolls.
           if CNFManager.batch_workload?(resource)
             CNFManager.batch_workload_listed?(resource, result, t.name) if batch.add?("#{resource[:kind]}/#{resource[:name]}/#{resource[:namespace]}")
@@ -44,24 +40,17 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
           container_name = container.as_h["name"].as_s
           test_passed = true
           Log.for(t.name).debug { "container: #{container}" }
-          #todo use skopeo to get the next and previous versions of the cnf image dynamically
           config_container = container_names.find{|x| x.name == container_name} if container_names
           Log.debug { "config_container: #{config_container}" }
 
-          # A container without the tag this test needs is a configuration gap,
-          # not a rollout failure: it is left out with the remediation, and the
-          # test is skipped when no container had one (#2577).
-          unless config_container && !config_container.get_container_tag(tn).empty?
-            result.append_remediation("Please add the container name #{container_name} and a corresponding #{tn}_test_tag into your cnti-testsuite.yaml under container names")
-            unconfigured += 1
-            next true
-          end
-          tag = config_container.get_container_tag(tn)
-          # The deployed tag rolls out nothing: setting it changes no pod, the
-          # rollout returns at once and the test would pass without testing
-          # anything (#2816). Like rollback, it is a configuration gap.
-          if ImageTag.tag_of(container.as_h["image"].as_s) == tag
-            result.append_remediation("#{tn}_test_tag #{tag} for container #{container_name} is the deployed tag, so nothing would roll out: set it to another released version")
+          # The version to move to: the configured tag, else the image's
+          # previous release (#2816). A container with neither is a
+          # configuration gap, not a rollout failure: it is left out with the
+          # remediation, and the test is skipped when no container had one
+          # (#2577).
+          tag = rollout_target_tag(result, config_container.try(&.get_container_tag(tn)) || "", "#{tn}_test_tag",
+            "#{resource["kind"]}/#{resource["name"]} in #{namespace}", container_name, container.as_h["image"].as_s, live)
+          unless tag
             unconfigured += 1
             next true
           end
@@ -114,7 +103,7 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
       if rolled == 0 && unconfigured == 0 && !batch.empty?
         result.na("Every workload of the CNF runs to completion (a Job or CronJob), a #{pretty_test_name} does not apply")
       elsif rolled == 0 && unconfigured > 0
-        result.skipped("No usable #{tn}_test_tag configured for any container: add container_names with a #{tn}_test_tag other than the deployed tag to cnti-testsuite.yaml")
+        result.skipped("No usable #{tn}_test_tag configured for any container, and no previous release to take from the registry: see the remediation")
       elsif task_response && restored
         result.passed("CNF for #{pretty_test_name_capitalized} Passed")
       else
@@ -125,7 +114,8 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
 end
 
 desc "Test if the CNF can perform a rollback"
-scored_task "rollback" do |t, args|
+scored_task "rollback",
+  deps: ["setup:install_cluster_tools"] do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     container_names = config.common.container_names
     Log.for(t.name).debug { "container_names: #{container_names}" }
@@ -134,7 +124,7 @@ scored_task "rollback" do |t, args|
     unconfigured = 0
 
     batch = Set(String).new
-    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _|
+    task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _, live|
       # A Job's pod template is immutable and runs once: nothing rolls back.
       if CNFManager.batch_workload?(resource)
         CNFManager.batch_workload_listed?(resource, result, t.name) if batch.add?("#{resource[:kind]}/#{resource[:name]}/#{resource[:namespace]}")
@@ -153,19 +143,15 @@ scored_task "rollback" do |t, args|
       }
       #do_update = `kubectl set image deployment/coredns-coredns coredns=coredns/coredns:latest --record`
 
-      # A container without a usable rollback_from_tag is a configuration gap,
-      # not a rollback failure: it is left out with the remediation, and the
-      # test is skipped when no container had one (#2577).
+      # The version to roll back from: the configured rollback_from_tag, else
+      # the image's previous release (#2816). A container with neither is a
+      # configuration gap, not a rollback failure: it is left out with the
+      # remediation, and the test is skipped when no container had one
+      # (#2577).
       config_container = container_names.find{|x| x.name == container_name } if container_names
-      unless config_container && !config_container.get_container_tag("rollback_from").empty?
-        result.append_remediation("Please add the container name #{container_name} and a corresponding rollback_from_tag into your cnti-testsuite.yaml under container names")
-        unconfigured += 1
-        next true
-      end
-
-      rollback_from_tag = config_container.get_container_tag("rollback_from")
-      if rollback_from_tag == image_tag
-        result.append_remediation("Rollback not possible for #{container_name}: rollback_from_tag equals the installed tag #{image_tag}; specify a different version")
+      rollback_from_tag = rollout_target_tag(result, config_container.try(&.get_container_tag("rollback_from")) || "", "rollback_from_tag",
+        "#{resource_kind}/#{resource_name} in #{namespace}", container_name, container.as_h["image"].as_s, live)
+      unless rollback_from_tag
         unconfigured += 1
         next true
       end
@@ -208,7 +194,7 @@ scored_task "rollback" do |t, args|
     if rolled == 0 && unconfigured == 0 && !batch.empty?
       result.na("Every workload of the CNF runs to completion (a Job or CronJob), a rollback does not apply")
     elsif rolled == 0 && unconfigured > 0
-      result.skipped("No usable rollback_from_tag configured for any container: add container_names with a rollback_from_tag to cnti-testsuite.yaml")
+      result.skipped("No usable rollback_from_tag configured for any container, and no previous release to take from the registry: see the remediation")
     elsif task_response
       result.passed("CNF Rollback Passed")
     else
@@ -393,6 +379,54 @@ end
 # The workload's controller owner, as "Kind/name", when it is a custom
 # resource (an API group other than the core, apps and batch ones): an
 # operator's object, not a Kubernetes controller. Nil otherwise.
+# Registry tags listed during this run, by repository; nil when the registry
+# could not be read.
+ROLLOUT_REGISTRY_TAGS = {} of String => Array(String)?
+
+# The tag a rollout test moves a container to, or nil when there is none, with
+# the reason recorded on the result. The tag configured in cnti-testsuite.yaml
+# comes first; a configured tag equal to the deployed one rolls out nothing
+# and is a configuration gap. Without one, the image's previous release in
+# its registry (#2816): the closest older tag of the same form. Workloads an
+# operator owns take their image from its custom resource and are not rolled
+# without a configured tag.
+def rollout_target_tag(result, configured : String, tag_key : String, label : String, container_name : String, image : String, workload : JSON::Any) : String?
+  deployed = ImageTag.digest?(image) ? nil : ImageTag.tag_of(image)
+  unless configured.empty?
+    if configured == ImageTag.tag_of(image)
+      result.append_remediation("#{tag_key} #{configured} for container #{container_name} is the deployed tag, so nothing would roll out: set it to another released version")
+      return nil
+    end
+    return configured
+  end
+  if owner = custom_resource_controller(workload)
+    result.append_description("#{label}, container #{container_name}: the image is set by #{owner}, so it is not rolled without a configured #{tag_key}")
+    return nil
+  end
+  repository = ImageTag.repository_of(image)
+  tags = if deployed && ImageTag.version_form(deployed)
+           ROLLOUT_REGISTRY_TAGS.fetch(repository) { ROLLOUT_REGISTRY_TAGS[repository] = ClusterTools.image_tags(repository) }
+         end
+  previous = deployed && tags ? ImageTag.previous_release(deployed, tags) : nil
+  if previous
+    result.append_description("#{label}, container #{container_name}: no #{tag_key} configured, using #{previous}, the release before the deployed #{deployed}")
+    return previous
+  end
+  why = if ImageTag.digest?(image)
+          "its image is pinned by digest"
+        elsif deployed.nil?
+          "its image has no tag"
+        elsif ImageTag.version_form(deployed).nil?
+          "its tag #{deployed} names no version"
+        elsif tags.nil?
+          "the tags of #{repository} could not be listed"
+        else
+          "#{repository} has no older release of the form of #{deployed}"
+        end
+  result.append_remediation("No #{tag_key} configured for container #{container_name}, and #{why}: add container_names with a #{tag_key} to cnti-testsuite.yaml")
+  nil
+end
+
 def custom_resource_controller(workload : JSON::Any) : String?
   controller = workload.dig?("metadata", "ownerReferences").try(&.as_a?).try &.find { |ref| ref["controller"]?.try(&.as_bool?) }
   return nil unless controller

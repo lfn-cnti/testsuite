@@ -19,4 +19,30 @@ describe "ImageTag" do
     ImageTag.unversioned_reason("registry.example:5000/org/app").should eq "has no tag (implicitly latest)"
     ImageTag.unversioned_reason("org/app:stable").should eq "uses the moving tag stable, which names no version"
   end
+
+  it "takes the repository from a reference, keeping the registry port", tags: ["versioned_tag"] do
+    ImageTag.repository_of("coredns/coredns:1.6.7").should eq "coredns/coredns"
+    ImageTag.repository_of("registry.example:5000/org/app:v2").should eq "registry.example:5000/org/app"
+    ImageTag.repository_of("registry.example:5000/org/app").should eq "registry.example:5000/org/app"
+    ImageTag.repository_of("org/app:1.0@sha256:abc").should eq "org/app"
+  end
+
+  it "finds the release before the deployed tag among tags of the same form (#2816)", tags: ["versioned_tag"] do
+    ImageTag.previous_release("v4.3.0", ["v4.3.1", "v4.2.3", "v4.2.10", "v4.3.0", "v4.3.0-rc1", "latest"]).should eq "v4.2.10"
+    ImageTag.previous_release("1.6.7", ["1.6.5", "1.6.6", "1.7.0", "1.6.7"]).should eq "1.6.6"
+    ImageTag.previous_release("7.0.9-debian-12-r4", ["7.0.9-debian-12-r3", "7.0.9-debian-12-r5", "7.0.8-debian-12-r9"]).should eq "7.0.9-debian-12-r3"
+    ImageTag.previous_release("stable-11248", ["stable-11146", "stable-11146-2", "stable-11248", "stable"]).should eq "stable-11146"
+    ImageTag.previous_release("1.0.0", ["1.0.1", "2.0.0"]).should be_nil
+    ImageTag.previous_release("latest", ["1.0.0"]).should be_nil
+  end
+
+  it "orders date-and-commit tags by date, keeps -stable builds apart, and treats -latest as moving", tags: ["versioned_tag"] do
+    tags = ["ubuntu-24.04-avx2-20261014_b78bf08b", "ubuntu-24.04-avx2-20261015_de11750b", "ubuntu-24.04-avx2-20261016_52af3689",
+            "ubuntu-24.04-avx2-20261016_de11750b-stable", "ubuntu-24.04-avx512-20261015_de11750b", "ubuntu-24.04-avx2-latest"]
+    ImageTag.previous_release("ubuntu-24.04-avx2-20261016_52af3689", tags).should eq "ubuntu-24.04-avx2-20261015_de11750b"
+    ImageTag.version_form("ubuntu-24.04-avx2-latest").should be_nil
+    ImageTag.previous_release("ubuntu-24.04-avx2-latest", tags).should be_nil
+    ImageTag.version_form("20261016").should eq({"#", [20261016_i64]})
+    ImageTag.version_form("stable-11248").should eq({"stable-#", [11248_i64]})
+  end
 end

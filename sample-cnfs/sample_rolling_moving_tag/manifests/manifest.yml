@@ -1,0 +1,30 @@
+# A workload on a moving tag (busybox:stable) and no test tags configured:
+# the tag names no version, so there is no previous release to take from the
+# registry. The rollout tests must skip with a remediation (#2816).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: moving-tag
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: moving-tag
+  namespace: moving-tag
+  labels:
+    app: moving-tag
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: moving-tag
+  template:
+    metadata:
+      labels:
+        app: moving-tag
+    spec:
+      containers:
+      - name: app
+        image: busybox:stable
+        command: ["/bin/sleep", "2147483647"]

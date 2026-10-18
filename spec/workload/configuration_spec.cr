@@ -247,13 +247,25 @@ describe CntiTestSuite do
     end
   end
 
-  it "'rolling_update' should skip with remediation when no test tag is configured", tags: ["rolling_update"] do
+  it "'rolling_update' should roll to the image's previous release when no test tag is configured", tags: ["rolling_update"] do
     begin
       # sample-coredns-cnf declares no container_names at all.
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("rolling_update")
-      (/(SKIPPED).*(No usable rolling_update_test_tag configured for any container)/ =~ result[:output]).should_not be_nil
-      (/remediation: Please add the container name coredns and a corresponding rolling_update_test_tag/ =~ result[:output]).should_not be_nil
+      result[:status].success?.should be_true
+      (/container coredns: no rolling_update_test_tag configured, using \S+, the release before the deployed \S+/ =~ result[:output]).should_not be_nil
+      verify_task_result("rolling_update", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'rolling_update' should skip with remediation when no tag is configured and the deployed tag names no version", tags: ["rolling_update"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling_moving_tag --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("rolling_update")
+      (/(SKIPPED).*(No usable rolling_update_test_tag configured for any container, and no previous release to take from the registry)/ =~ result[:output]).should_not be_nil
+      (/remediation: No rolling_update_test_tag configured for container app, and its tag stable names no version/ =~ result[:output]).should_not be_nil
       verify_task_result("rolling_update", "skipped")
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -332,12 +344,24 @@ describe CntiTestSuite do
     end
   end
 
-  it "'rollback' should skip with remediation when no rollback_from_tag is configured", tags: ["rollback"] do
+  it "'rollback' should roll back from the image's previous release when no rollback_from_tag is configured", tags: ["rollback"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("rollback")
-      (/(SKIPPED).*(No usable rollback_from_tag configured for any container)/ =~ result[:output]).should_not be_nil
-      (/remediation: Please add the container name coredns and a corresponding rollback_from_tag/ =~ result[:output]).should_not be_nil
+      result[:status].success?.should be_true
+      (/container coredns: no rollback_from_tag configured, using \S+, the release before the deployed \S+/ =~ result[:output]).should_not be_nil
+      verify_task_result("rollback", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'rollback' should skip with remediation when no rollback_from_tag is configured and the deployed tag names no version", tags: ["rollback"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling_moving_tag --skip-wait-for-install")
+      result = ShellCmd.run_testsuite("rollback")
+      (/(SKIPPED).*(No usable rollback_from_tag configured for any container, and no previous release to take from the registry)/ =~ result[:output]).should_not be_nil
+      (/remediation: No rollback_from_tag configured for container app, and its tag stable names no version/ =~ result[:output]).should_not be_nil
       verify_task_result("rollback", "skipped")
     ensure
       result = ShellCmd.cnf_uninstall()
