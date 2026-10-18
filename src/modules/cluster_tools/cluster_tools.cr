@@ -273,19 +273,34 @@ module ClusterTools
   def self.official_content_digest_by_image_name(image_name)
     Log.debug { "official_content_digest_by_image_name: #{image_name}"}
 
-    if (u = ENV["DOCKERHUB_USERNAME"]?) && !u.empty? && (p = ENV["DOCKERHUB_PASSWORD"]?) && !p.empty?
-      Log.debug { "Using USERNAME and PASSWORD for accessing the registry via skopeo" }
-      registry_creds = "--creds #{u}:#{p}"
-    else
-      Log.debug { "Access the registry anonymously via skopeo" }
-      registry_creds = ""
-    end
-    result = exec("skopeo inspect #{registry_creds} docker://#{image_name}")
+    result = exec("skopeo inspect #{skopeo_creds} docker://#{image_name}")
     response = result[:output]
     if result[:status].success? && !response.empty?
       return JSON.parse(response)
     end
     JSON.parse(%({}))
+  end
+
+  # The registry credentials skopeo is given, from DOCKERHUB_USERNAME and
+  # DOCKERHUB_PASSWORD; anonymous access when they are unset.
+  def self.skopeo_creds : String
+    if (u = ENV["DOCKERHUB_USERNAME"]?) && !u.empty? && (p = ENV["DOCKERHUB_PASSWORD"]?) && !p.empty?
+      Log.debug { "Using USERNAME and PASSWORD for accessing the registry via skopeo" }
+      "--creds #{u}:#{p}"
+    else
+      Log.debug { "Access the registry anonymously via skopeo" }
+      ""
+    end
+  end
+
+  # The tags of an image repository in its registry, listed by skopeo in
+  # cluster-tools; nil when the registry cannot be read.
+  def self.image_tags(repository : String) : Array(String)?
+    result = exec("skopeo list-tags #{skopeo_creds} docker://#{repository}")
+    return nil unless result[:status].success?
+    JSON.parse(result[:output])["Tags"]?.try(&.as_a?).try(&.map(&.as_s))
+  rescue JSON::ParseException
+    nil
   end
 
   def self.local_match_by_image_name(image_names : Array(String), nodes=KubectlClient::Get.resource("nodes")["items"].as_a )
