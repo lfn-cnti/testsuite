@@ -1,0 +1,47 @@
+---
+# Two replicas spread over nodes, but a budget that allows no eviction.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: disruption-budget-blocking
+  labels:
+    app: disruption-budget-blocking
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: disruption-budget-blocking
+  template:
+    metadata:
+      labels:
+        app: disruption-budget-blocking
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app: disruption-budget-blocking
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["sh", "-c", "sleep 2147483647"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: disruption-budget-blocking
+spec:
+  maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: disruption-budget-blocking
