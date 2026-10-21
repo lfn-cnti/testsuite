@@ -108,6 +108,8 @@ scored_task "node_drain",
     end
 
     drained = 0
+    failed_drains = [] of NamedTuple(node: String, refs: Array(NodeDrain::Ref))
+    failed_drain_waited = Set(NodeDrain::Ref).new
     nodes.each do |node|
       on_node = {} of NodeDrain::Ref => Int32
       workloads.each do |ref|
@@ -124,6 +126,7 @@ scored_task "node_drain",
       StatusLine.push "Draining #{node} (#{pod_count} pod(s) of #{refs.size} workload(s))..."
       started = Time.utc
       cordoned = false
+      drain_succeeded = false
       begin
         KubectlClient::Utils.cordon(node)
         cordoned = true
@@ -142,31 +145,33 @@ scored_task "node_drain",
             result.add_impacted_resource(ref[:kind], ref[:name], ref[:namespace], reason: "eviction from node #{node} did not complete: #{reason}")
             failed << ref
           end
-          next
-        end
-        drained += 1
-        result.append_description("Node #{node}: #{pod_count} pod(s) of #{refs.size} workload(s) evicted in #{evicted_in} s")
+          failed_drains << {node: node, refs: refs}
+        else
+          drain_succeeded = true
+          drained += 1
+          result.append_description("Node #{node}: #{pod_count} pod(s) of #{refs.size} workload(s) evicted in #{evicted_in} s")
 
-        # Recovery is judged while the node is still cordoned: a workload
-        # that is Ready again now has come back on another node. The time is
-        # counted from the end of the eviction, as the workloads recover
-        # together while they are checked one by one.
-        refs.each do |ref|
-          label = "#{ref[:kind]}/#{ref[:name]} in #{ref[:namespace]}"
-          if NodeDrain.wait_recovered(ref, node, POD_READINESS_TIMEOUT)
-            result.append_description("#{label}: Ready again on another node within #{(Time.utc - evicted_at).total_seconds.round.to_i} s of eviction")
-          else
-            why = WorkloadDiagnostics.report(result, ref[:kind], ref[:name], ref[:namespace], "#{label} after draining #{node}")
-            result.add_impacted_resource(ref[:kind], ref[:name], ref[:namespace],
-              reason: "not Ready within #{POD_READINESS_TIMEOUT}s of eviction from node #{node}#{why.first?.try { |w| ": #{w}" }}")
-            failed << ref
+          # Recovery is judged while the node is still cordoned: a workload
+          # that is Ready again now has come back on another node. The time is
+          # counted from the end of the eviction, as the workloads recover
+          # together while they are checked one by one.
+          refs.each do |ref|
+            label = "#{ref[:kind]}/#{ref[:name]} in #{ref[:namespace]}"
+            if NodeDrain.wait_recovered(ref, node, POD_READINESS_TIMEOUT)
+              result.append_description("#{label}: Ready again on another node within #{(Time.utc - evicted_at).total_seconds.round.to_i} s of eviction")
+            else
+              why = WorkloadDiagnostics.report(result, ref[:kind], ref[:name], ref[:namespace], "#{label} after draining #{node}")
+              result.add_impacted_resource(ref[:kind], ref[:name], ref[:namespace],
+                reason: "not Ready within #{POD_READINESS_TIMEOUT}s of eviction from node #{node}#{why.first?.try { |w| ": #{w}" }}")
+              failed << ref
+            end
           end
-        end
 
-        # Keep the node out for the rest of the hold, so a recovery that
-        # only lasts until the node returns does not count.
-        remaining = NODE_DRAIN_TOTAL_CHAOS_DURATION - (Time.utc - started).total_seconds.to_i
-        sleep(remaining.seconds) if remaining > 0
+          # Keep the node out for the rest of the hold, so a recovery that
+          # only lasts until the node returns does not count.
+          remaining = NODE_DRAIN_TOTAL_CHAOS_DURATION - (Time.utc - started).total_seconds.to_i
+          sleep(remaining.seconds) if remaining > 0
+        end
       ensure
         # The node comes back whatever happened above; a raise here would
         # leave every later test one node short.
@@ -179,15 +184,36 @@ scored_task "node_drain",
             result.append_description("Node #{node} could not be uncordoned: #{ex.message.to_s.lines.first?.to_s.strip}")
           end
         end
+        if !drain_succeeded
+          fd = failed_drains.find { |f| f[:node] == node }
+          if fd
+            # A drain that ran out of time may have evicted workloads before it
+            # gave up. Wait after the node is back (uncordoned), so recovery
+            # is not judged against the next drain and pods left behind are
+            # not passed to later tests.
+            fd[:refs].each do |ref|
+              label = "#{ref[:kind]}/#{ref[:name]} in #{ref[:namespace]}"
+              if NodeDrain.wait_recovered(ref, nil, POD_READINESS_TIMEOUT)
+                failed_drain_waited << ref
+              else
+                why = WorkloadDiagnostics.report(result, ref[:kind], ref[:name], ref[:namespace], "#{label} after drain of #{node} did not complete")
+                result.append_description("#{label}: not Ready again within #{POD_READINESS_TIMEOUT}s after the drain of #{node} did not complete#{why.first?.try { |w| ": #{w}" }}")
+                failed_drain_waited << ref
+              end
+            end
+          end
+        end
         StatusLine.pop
       end
     end
-
     # The tests after this one start from a settled CNF: every workload is
     # Ready again before node_drain returns.
     workloads.each do |ref|
+      next if failed_drain_waited.includes?(ref)
       next if failed.includes?(ref)
-      next if NodeDrain.wait_recovered(ref, nil, POD_READINESS_TIMEOUT)
+      if NodeDrain.wait_recovered(ref, nil, POD_READINESS_TIMEOUT)
+        next
+      end
       result.add_impacted_resource(ref[:kind], ref[:name], ref[:namespace], reason: "not Ready again within #{POD_READINESS_TIMEOUT}s after the drains")
       failed << ref
     end
