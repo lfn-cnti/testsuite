@@ -142,6 +142,16 @@ scored_task "node_drain",
             result.add_impacted_resource(ref[:kind], ref[:name], ref[:namespace], reason: "eviction from node #{node} did not complete: #{reason}")
             failed << ref
           end
+          # A drain that ran out of time may have evicted the workloads before
+          # it did: the CNF is then left unsettled. It is settled here, before
+          # the next node is drained, so that a workload that is still coming
+          # back is not judged against the next drain, and the tests that
+          # follow find a CNF that is up.
+          refs.each do |ref|
+            label = "#{ref[:kind]}/#{ref[:name]} in #{ref[:namespace]}"
+            next if NodeDrain.wait_recovered(ref, nil, POD_READINESS_TIMEOUT)
+            result.append_description("#{label}: not Ready again within #{POD_READINESS_TIMEOUT}s after the drain of #{node} did not complete")
+          end
           next
         end
         drained += 1
@@ -186,8 +196,13 @@ scored_task "node_drain",
     # The tests after this one start from a settled CNF: every workload is
     # Ready again before node_drain returns.
     workloads.each do |ref|
+      # The workloads whose drain failed are waited for too: a drain that ran
+      # out of time may have evicted them before it did, and the tests that
+      # follow need a CNF that is up. Their failure is the drain's, already
+      # recorded, so it is not reported twice.
+      recovered = NodeDrain.wait_recovered(ref, nil, POD_READINESS_TIMEOUT)
+      next if recovered
       next if failed.includes?(ref)
-      next if NodeDrain.wait_recovered(ref, nil, POD_READINESS_TIMEOUT)
       result.add_impacted_resource(ref[:kind], ref[:name], ref[:namespace], reason: "not Ready again within #{POD_READINESS_TIMEOUT}s after the drains")
       failed << ref
     end
