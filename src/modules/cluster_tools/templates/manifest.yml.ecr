@@ -14,25 +14,74 @@ spec:
       hostPID: true
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
+      # The suite reads the CNF's containers on the node they run on, so this
+      # pod has to be on every node the CNF can use. A node with a taint (a
+      # control-plane node, most often) would otherwise have no pod to read
+      # the containers of, and every test that inspects them would fail
+      # without saying why.
+      tolerations:
+      - operator: Exists
       containers:
         - name: cluster-tools
           # renovate: datasource=docker depName=lfncnti/cluster-tools
           image: lfncnti/cluster-tools:v1.0.8
-          imagePullPolicy: Always
+          # The tag is pinned, so there is nothing to refresh: pulling it on
+          # every node only adds a wait, and a registry that is slow or
+          # rate-limits leaves a node without the pod the tests read the
+          # CNF's containers through.
+          imagePullPolicy: IfNotPresent
           command:
             - /bin/bash
             - -c
             - |
-              CONTAINERD_SOCKET_DIR=$(lsof -U -bw | grep -E "/containerd\.sock\s" | awk '{print $9}' | head -n 1 | xargs -r dirname)
-              if [ -n "$CONTAINERD_SOCKET_DIR" ]; then
-                ln -s /host/$CONTAINERD_SOCKET_DIR /run/containerd
-              else
-                CRIO_SOCKET_DIR=$(lsof -U -bw | grep -E "/crio\.sock\s" | awk '{print $9}' | head -n 1 | xargs -r dirname)
-                if [ -n "$CRIO_SOCKET_DIR" ]; then
-                  ln -s /host/$CRIO_SOCKET_DIR /var/run/crio
+              # Every container inspection goes through the runtime socket, and
+              # the socket is linked in here: a pod that starts before the
+              # runtime is up would break every inspection of the CNF's
+              # containers for its whole lifetime, and the CNF would then be
+              # reported as having no container at all. The link is created
+              # (and re-created) until the runtime socket is there.
+              link_runtime() {
+                CRICTL_ENDPOINT=""
+                CONTAINERD_SOCKET_DIR=$(lsof -U -bw | grep -E "/containerd\.sock\s" | awk '{print $9}' | head -n 1 | xargs -r dirname)
+                if [ -n "$CONTAINERD_SOCKET_DIR" ]; then
+                  ln -sfn /host/$CONTAINERD_SOCKET_DIR /run/containerd
+                  CRICTL_ENDPOINT="unix:///run/containerd/containerd.sock"
+                else
+                  CRIO_SOCKET_DIR=$(lsof -U -bw | grep -E "/crio\.sock\s" | awk '{print $9}' | head -n 1 | xargs -r dirname)
+                  if [ -n "$CRIO_SOCKET_DIR" ]; then
+                    ln -sfn /host/$CRIO_SOCKET_DIR /var/run/crio
+                    CRICTL_ENDPOINT="unix:///var/run/crio/crio.sock"
+                  fi
                 fi
-              fi
+                if [ -n "$CRICTL_ENDPOINT" ]; then
+                  # crictl takes the endpoint it talks to from its
+                  # configuration file. The command runs as root and /etc is
+                  # writable, so the endpoint is written where crictl reads it
+                  # by default; the inspections run in a fresh process, which
+                  # would not see this shell's exports. Without it, crictl
+                  # talks to containerd's socket, so every inspection of a
+                  # container fails on a node that runs CRI-O.
+                  printf 'runtime-endpoint: %s\n' "$CRICTL_ENDPOINT" > /etc/crictl.yaml
+                fi
+              }
+              until [ -S /run/containerd/containerd.sock ] || [ -S /var/run/crio/crio.sock ]; do
+                link_runtime
+                sleep 5
+              done
               sleep infinity
+          # The pod is ready only when the runtime it exposes is there: a
+          # cluster-tools pod that cannot reach the runtime cannot inspect the
+          # CNF's containers, and the tests would read that as a CNF that has
+          # no container to judge.
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -c
+                - test -S /run/containerd/containerd.sock || test -S /var/run/crio/crio.sock
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
           volumeMounts:
           - name: systemd
             mountPath: /run/systemd/
