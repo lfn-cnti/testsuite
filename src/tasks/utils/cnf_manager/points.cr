@@ -602,6 +602,9 @@ module CNFManager
       passed = failed = skipped = na = error = 0
       points = 0
       essential_passed = 0
+      essential_failed = 0
+      essential_skipped = 0
+      essential_error = 0
       present_tasks = [] of String
       items.each do |item|
         name = item["name"]?.try(&.as_s?) || ""
@@ -616,6 +619,9 @@ module CNFManager
         when "error"   then error   += 1
         end
         essential_passed += 1 if status == "passed" && essential_tasks.includes?(name)
+        essential_failed += 1 if status == "failed" && essential_tasks.includes?(name)
+        essential_skipped += 1 if status == "skipped" && essential_tasks.includes?(name)
+        essential_error += 1 if status == "error" && essential_tasks.includes?(name)
       end
 
       # Denominators are scoped to the tasks that actually ran (present items).
@@ -632,6 +638,12 @@ module CNFManager
         max_passed:           max_passed,
         essential_passed:     essential_passed,
         essential_max_passed: essential_max_passed,
+        # The essential tests that did not pass, told apart by why: a test
+        # that failed is a finding about the CNF, a test that was skipped or
+        # that errored is not.
+        essential_failed:     essential_failed,
+        essential_skipped:    essential_skipped,
+        essential_error:      essential_error,
         points:               points,
         maximum_points:       max_points,
       }

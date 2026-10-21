@@ -286,6 +286,21 @@
               }
             }
           }
+        },
+        "essential_failed": {
+          "description": "Number of essential tests that failed: a finding about the CNF.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "essential_skipped": {
+          "description": "Number of essential tests that were skipped: they could not be judged.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "essential_error": {
+          "description": "Number of essential tests that errored: the suite could not do its job.",
+          "type": "integer",
+          "minimum": 0
         }
       }
     },

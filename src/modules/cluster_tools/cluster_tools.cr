@@ -100,6 +100,14 @@ module ClusterTools
   def self.exec_by_node(cli : String, node : JSON::Any) : KubectlClient::CMDResult
     Log.debug { "exec_by_node: Called with JSON" }
     pod_name = get_cluster_tools_pod_on_node(node)
+    unless pod_name
+      # Without the pod on the node the command cannot run at all: an empty pod
+      # name makes kubectl fail with a message about a missing resource, which
+      # reads like a failure of the command itself.
+      node_name = node.dig?("metadata", "name")
+      Log.error { "No cluster-tools pod on node #{node_name}" }
+      return KubectlClient::CMDResult.new(status: Process::Status[1], output: "", error: "no cluster-tools pod on node #{node_name}")
+    end
     exec = KubectlClient::Utils.exec("#{pod_name}", cli, namespace: self.namespace)
     Log.debug { "ClusterTools exec: #{exec}" }
     exec
@@ -123,19 +131,75 @@ module ClusterTools
   end
 
   def self.node_pid_by_container_id(container_id, node) : String | Nil
+    inspect_container(container_id, node)[:pid]
+  end
+
+  # The node PID of a container from `crictl inspect`, with the reason it
+  # could not be read. The two are told apart: a container the runtime does
+  # not know is a CNF that has no container, while a lookup that did not work
+  # (the cluster-tools pod is gone, the runtime socket is not linked, the
+  # command did not reach the node) is a broken test harness, and the two are
+  # not the same finding.
+  def self.inspect_container(container_id, node) : NamedTuple(pid: String?, reason: String?)
     Log.debug {"node_pid_by_container_id container_id: #{container_id}" }
     short_container_id = parse_container_id(container_id)
     inspect = ClusterTools.exec_by_node("crictl inspect #{short_container_id}", node)
     unless inspect[:status].success?
-      Log.error {"container_id not found for: #{container_id}" }
-      return nil
+      reason = inspect[:error].to_s.strip
+      reason = "the runtime does not know the container" if reason.empty?
+      # A reason the runtime did not give: whether the runtime of the node
+      # answers at all tells a container that is gone from a runtime the
+      # suite cannot reach.
+      if !ClusterTools.harness_failure?(reason) && !ClusterTools.runtime_reachable?(node)
+        reason = "the runtime of the node did not answer"
+      end
+      Log.error {"container_id not found for: #{container_id}: #{reason}" }
+      return {pid: nil.as(String?), reason: reason}
     end
 
     Log.debug {"node_pid_by_container_id inspect: #{inspect[:output]}" }
     pid = running_pid_from_inspect(inspect[:output])
     Log.debug {"node_pid_by_container_id pid: #{pid}" }
     Log.warn {"container #{container_id} has no running process" } if pid.nil?
-    pid
+    {pid: pid, reason: pid.nil? ? "the container has no running process" : nil.as(String?)}
+  end
+
+  # Whether the runtime of the node answers through its cluster-tools pod.
+  # The CNF's containers are read through it, so a node whose runtime does not
+  # answer is a broken test harness and not a CNF that has no container.
+  def self.runtime_reachable?(node) : Bool
+    exec_by_node("crictl info", node)[:status].success?
+  end
+
+  # The messages of a command that did not reach the runtime of the node: the
+  # cluster-tools pod is gone or not running, the runtime socket is not there,
+  # the API server could not reach the pod.
+  HARNESS_FAILURE_MARKERS = [
+    "failed to connect",
+    "connection refused",
+    "no such file or directory",
+    "error dialing backend",
+    "unable to upgrade connection",
+    "container not found (pod",
+    "no cluster-tools pod on node",
+    "context deadline exceeded",
+    "timed out",
+    "the server could not find the requested resource",
+    "the runtime of the node did not answer",
+  ]
+
+  # Whether the reason a container could not be read is a failure of the test
+  # harness rather than the CNF's container being absent. The runtime's own
+  # message for a container it does not know is told apart from the messages
+  # of a command that did not reach the runtime: the first is about the CNF,
+  # the second is about the suite that cannot judge it.
+  def self.harness_failure?(reason : String?) : Bool
+    return false if reason.nil?
+    text = reason.downcase
+    # The runtime's answer for a container it does not know: the CNF's
+    # container is gone, which is a finding about the CNF.
+    return false if text.includes?("try to find container")
+    HARNESS_FAILURE_MARKERS.any? { |marker| text.includes?(marker) }
   end
 
   # The node PID of a container from `crictl inspect`, or nil when the
@@ -168,8 +232,31 @@ module ClusterTools
     end
   end
 
+  # What an enumeration could not read. A container that could not be
+  # inspected is not yielded: the reason is kept here, so that a container the
+  # harness could not read is told apart from a CNF that has no container to
+  # read.
+  class InspectionOutcome
+    property reasons : Array(String) = [] of String
+    # Whether the suite, and not the CNF, is what kept the container from
+    # being read.
+    property harness_broken : Bool = false
+
+    def add(reason : String)
+      @reasons << reason
+      @harness_broken = true if ClusterTools.harness_failure?(reason)
+    end
+
+    def empty?
+      @reasons.empty?
+    end
+  end
+
   #each_container_by_resource(resource, namespace) do | container_id, container_pid_on_node, node, container_proctree_statuses, container_status|
-  def self.all_containers_by_resource?(resource, namespace, only_container_pids : Bool = false, include_proctree : Bool = true, include_zombies : Bool = false, &block) 
+  # A container that could not be inspected is not yielded: the caller gets
+  # the reason in `inspection`, so that a container the harness could not
+  # read is told apart from a CNF that has no container to read.
+  def self.all_containers_by_resource?(resource, namespace, only_container_pids : Bool = false, include_proctree : Bool = true, include_zombies : Bool = false, outcome : InspectionOutcome? = nil, &block) 
 		kind = resource["kind"].downcase
 		case kind
 		when  "deployment","statefulset","pod","replicaset", "daemonset", "job", "cronjob"
@@ -210,9 +297,11 @@ module ClusterTools
 						# next unless ready 
 						Log.debug { "containerStatuses container_id #{container_id}" }
 						#get container id's pid on the node (different from inside the container)
-						container_pid_on_node = "#{ClusterTools.node_pid_by_container_id(container_id, node)}"
+						container_inspection = ClusterTools.inspect_container(container_id, node)
+						container_pid_on_node = "#{container_inspection[:pid]}"
 						if container_pid_on_node.empty?
 							Log.debug { "no pid for (skipping): containerStatuses container_id #{container_id}" }
+							outcome.add("#{pod_name} container #{container_name}: #{container_inspection[:reason]}") if outcome
 							false
 							next
 						end
@@ -262,7 +351,61 @@ module ClusterTools
 
   def self.wait_for_cluster_tools
     Log.info { "Waiting for cluster-tools to be ready" }
-    KubectlClient::Wait.resource_wait_for_install("Daemonset", "cluster-tools", namespace: self.namespace!, wait_count: 300)
+    installed = KubectlClient::Wait.resource_wait_for_install("Daemonset", "cluster-tools", namespace: self.namespace!, wait_count: 300)
+    # The pods are waited for, but their readiness is not made a condition of
+    # the installation: a node the CNF does not run on may have no usable pod
+    # without that saying anything about the CNF. The nodes that are not ready
+    # are named, and the tests that need them say so.
+    wait_for_cluster_tools_pods_ready
+    installed
+  end
+
+  # Every cluster-tools pod is running and ready. The pod is what the tests
+  # read the CNF's containers through, and it is ready only when its runtime
+  # socket is linked, so a pod that is still pulling its image, or that has no
+  # runtime to read, is a node whose containers the suite cannot see. The
+  # nodes that are not ready are named: a node without a usable pod is the
+  # reason a test cannot judge the CNF, and it is worth saying which node.
+  def self.wait_for_cluster_tools_pods_ready(timeout : Int32 = 300) : Bool
+    Log.info { "Waiting for the cluster-tools pods to be ready on every node" }
+    started = Time.utc
+    loop do
+      status = begin
+        KubectlClient::Get.resource("daemonset", "cluster-tools", self.namespace)["status"]
+      rescue
+        nil
+      end
+      desired = status.try(&.dig?("desiredNumberScheduled")).try(&.as_i?) || 0
+      ready = status.try(&.dig?("numberReady")).try(&.as_i?) || 0
+      if desired > 0 && ready >= desired
+        Log.info { "The cluster-tools pods are ready on the #{desired} node(s) that run them" }
+        return true
+      end
+      if (Time.utc - started).total_seconds > timeout
+        not_ready = cluster_tools_pods_not_ready
+        Log.error { "The cluster-tools pods are not ready on every node: #{not_ready.join(", ")}. The CNF's containers cannot be read on those nodes." }
+        return false
+      end
+      sleep 5.seconds
+    end
+  end
+
+  # The cluster-tools pods that are not ready, by node. Every node counts,
+  # tainted ones included: the pod runs on them too.
+  def self.cluster_tools_pods_not_ready : Array(String)
+    nodes = KubectlClient::Get.resource("nodes")["items"].as_a
+    pods = KubectlClient::Get.pods_by_nodes(nodes, namespace: self.namespace, label: {"name" => "cluster-tools"})
+    pods.reject { |pod| pod_ready?(pod) }.map do |pod|
+      "#{pod.dig?("spec", "nodeName")} (#{pod.dig?("metadata", "name")}: #{pod.dig?("status", "phase")})"
+    end
+  rescue
+    [] of String
+  end
+
+  # Whether the pod's containers are ready.
+  def self.pod_ready?(pod : JSON::Any) : Bool
+    statuses = pod.dig?("status", "containerStatuses").try(&.as_a?) || [] of JSON::Any
+    !statuses.empty? && statuses.all? { |status| status["ready"]?.try(&.as_bool?) == true }
   end
 
   # https://windsock.io/explaining-docker-image-ids/

@@ -638,29 +638,38 @@ end
 
 # The effective uid and gid of each running container's first process, by
 # container name, read from /proc on the node through cluster-tools. A
-# container that is not running is absent.
-def observed_container_owners(kind : String, name : String, namespace : String?) : Hash(String, NamedTuple(uid: Int64, gid: Int64))
+# container that is not running is absent. The containers whose process could
+# not be read are returned with the reason: a container the suite could not
+# inspect is not a container that runs as root.
+def observed_container_owners(kind : String, name : String, namespace : String?) : Tuple(Hash(String, NamedTuple(uid: Int64, gid: Int64)), Hash(String, String))
   owners = {} of String => NamedTuple(uid: Int64, gid: Int64)
-  return owners unless namespace
+  unreadable = {} of String => String
+  return {owners, unreadable} unless namespace
   resource = {kind: kind, name: name, namespace: namespace}
   begin
     ClusterTools.all_containers_by_resource?(resource, namespace, include_proctree: false) do |_, pid, node, _, container_status, _|
       container = container_status["name"].as_s
       status = ClusterTools.exec_by_node("cat /proc/#{pid}/status", node)
-      next unless status[:status].success?
+      unless status[:status].success?
+        unreadable[container] = status[:error].to_s.strip
+        next
+      end
       fields = KernelIntrospection.parse_status(status[:output])
       next unless fields
       # Uid/Gid lines: real, effective, saved, filesystem.
       uid = fields["Uid"]?.try(&.split[1]?).try(&.to_i64?)
       gid = fields["Gid"]?.try(&.split[1]?).try(&.to_i64?)
-      next unless uid && gid
+      unless uid && gid
+        unreadable[container] = "the process owner could not be read"
+        next
+      end
       Log.for("observed_container_owners").info { "#{kind} #{name} container #{container} runs as uid #{uid} gid #{gid}" }
       owners[container] = {uid: uid, gid: gid}
     end
   rescue ex
     Log.for("observed_container_owners").warn { "Could not read the process owners of #{kind} #{name}: #{ex.message}" }
   end
-  owners
+  {owners, unreadable}
 end
 
 desc "Check if the containers are running with non-root user with non-root group membership"
@@ -680,13 +689,28 @@ scored_task "non_root_containers",
     # flagged container is checked on its node before it counts as a failure.
     root_found = false
     undeclared = [] of String
+    # Containers whose process could not be read: the suite could not tell
+    # whether they run as root, so they are not counted as root.
+    unchecked = [] of String
+    # The containers the suite could not reach: a failure of the harness, not
+    # a finding about the CNF.
+    harness_failures = [] of String
     test_report.failed_resources.each do |r|
-      owners = observed_container_owners(r.kind, r.name, r.namespace)
+      owners, unreadable = observed_container_owners(r.kind, r.name, r.namespace)
       paths_by_container = r.paths.group_by { |path| r.container_for(path) }
       paths_by_container.each do |container, paths|
         owner = container ? owners[container]? : nil
         if owner && owner[:uid] != 0 && owner[:gid] != 0
           undeclared << "#{r.kind} #{r.name} container #{container} runs as uid #{owner[:uid]} gid #{owner[:gid]} but the manifest does not say so: #{paths.map { |path| r.reason_for(path) }.join(", ")}"
+          next
+        end
+        if owner.nil? && container && unreadable.has_key?(container)
+          line = "#{r.kind} #{r.name} container #{container}: #{unreadable[container]}"
+          if ClusterTools.harness_failure?(unreadable[container])
+            harness_failures << line
+          else
+            unchecked << line
+          end
           next
         end
         root_found = true
@@ -708,6 +732,16 @@ scored_task "non_root_containers",
     if root_found
       result.append_remediation(test_report.remediation.to_s) if test_report.remediation
       result.failed("Found containers running as root user or with root group membership")
+    elsif !harness_failures.empty?
+      # The containers could not be inspected: the suite could not do its job.
+      harness_failures.each { |line| result.append_description(line) }
+      unchecked.each { |line| result.append_description(line) }
+      result.error("The CNF's containers could not be inspected: #{harness_failures.join("; ")}")
+    elsif !unchecked.empty?
+      # The containers that could not be read are neither a pass nor a failure:
+      # the suite could not judge them.
+      unchecked.each { |line| result.append_description(line) }
+      result.skipped("The containers' owners could not be read on their nodes: #{unchecked.join("; ")}")
     else
       result.passed("Containers run as non-root user and group")
     end

@@ -50,6 +50,42 @@ describe "ClusterTools.local_match_by_image_name" do
   end
 end
 
+describe "ClusterTools.harness_failure?" do
+  it "tells a failed runtime lookup apart from a container the runtime does not know", tags: ["harness_failure"] do
+    # The runtime's own answer for a container it does not know: the CNF's
+    # container is gone, which is a finding about the CNF.
+    ClusterTools.harness_failure?("rpc error: code = NotFound desc = an error occurred when try to find container \"abc123\": not found").should be_false
+    # A command that did not reach the runtime: the suite cannot judge the
+    # CNF, which is a finding about the harness.
+    ClusterTools.harness_failure?("failed to connect to /run/containerd/containerd.sock: no such file or directory").should be_true
+    ClusterTools.harness_failure?("error: unable to upgrade connection: container not found (pod \"cluster-tools-xyz\")").should be_true
+    ClusterTools.harness_failure?("no cluster-tools pod on node worker-1").should be_true
+    ClusterTools.harness_failure?("the runtime of the node did not answer").should be_true
+    ClusterTools.harness_failure?("error: unable to upgrade connection: rpc error: code = DeadlineExceeded desc = context deadline exceeded").should be_true
+  end
+
+  it "has no opinion about a reason that is not there", tags: ["harness_failure"] do
+    ClusterTools.harness_failure?(nil).should be_false
+    ClusterTools.harness_failure?("").should be_false
+  end
+end
+
+describe "ClusterTools::InspectionOutcome" do
+  it "keeps the reasons and tells a harness failure from a missing container", tags: ["inspection_outcome"] do
+    outcome = ClusterTools::InspectionOutcome.new
+    outcome.empty?.should be_true
+    outcome.harness_broken.should be_false
+
+    outcome.add("pod-x container app: the runtime does not know the container")
+    outcome.empty?.should be_false
+    outcome.harness_broken.should be_false
+
+    outcome.add("pod-x container app: failed to connect to the runtime socket")
+    outcome.harness_broken.should be_true
+    outcome.reasons.size.should eq(2)
+  end
+end
+
 describe "ClusterTools" do
   before_all do
     KubectlClient::Apply.namespace(ClusterTools.namespace)

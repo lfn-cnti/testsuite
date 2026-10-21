@@ -227,6 +227,9 @@ summary:                          # aggregate numbers for the whole run
   max_passed: 14                  # maximum tests that could have passed (the denominator)
   essential_passed: 8
   essential_max_passed: 10
+  essential_failed: 1               # essential tests that failed: a finding about the CNF
+  essential_skipped: 1              # essential tests that were skipped: they could not be judged
+  essential_error: 0                # essential tests that errored: the suite could not do its job
   points: 42
   maximum_points: 90
 tools:                            # versions of the tools whose verdicts the file contains
@@ -317,6 +320,7 @@ All counts/scores are scoped to the tests that actually ran.
 | `passed` / `failed` / `skipped` / `na` / `error` | Count of items in each status. |
 | `max_passed` | Maximum number of tests that could have passed (denominator for "X of Y tests passed"). |
 | `essential_passed` / `essential_max_passed` | Passed vs. maximum-passable among `essential`-tagged tests. |
+| `essential_failed` / `essential_skipped` / `essential_error` | The essential tests that did not pass, told apart by why: a failed test is a finding about the CNF, a skipped or errored test is not. |
 | `points` | Total points scored. |
 | `maximum_points` | Maximum points achievable by the tests that ran. |
 | `criteria` | Success-criterion verdict per task group that ran (see below). Absent when no such group ran. |

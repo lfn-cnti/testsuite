@@ -13,6 +13,9 @@ summary:
   max_passed: 3
   essential_passed: 1
   essential_max_passed: 2
+  essential_failed: 1
+  essential_skipped: 0
+  essential_error: 0
   failed: 1
   skipped: 1
   na: 1
