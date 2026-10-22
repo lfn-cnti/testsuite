@@ -1,0 +1,40 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: stopsignal
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stopsignal
+  namespace: stopsignal
+  labels:
+    app: stopsignal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stopsignal
+  template:
+    metadata:
+      labels:
+        app: stopsignal
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: app
+        # The nginx image declares STOPSIGNAL SIGQUIT, so the runtime stops
+        # the container with SIGQUIT whatever the cluster's feature gates;
+        # the command ignores SIGTERM and exits on SIGQUIT.
+        image: nginx:1.28.0-alpine
+        command: ["sh", "-c", "trap 'exit 0' QUIT; trap '' TERM; while :; do sleep 1; done"]
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
