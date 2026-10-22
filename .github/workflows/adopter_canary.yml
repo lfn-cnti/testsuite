@@ -67,7 +67,7 @@ jobs:
   canary:
     needs: build
     name: ${{ matrix.adopter.display_name }}
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.adopter.runner || 'ubuntu-24.04' }}
     timeout-minutes: 120
     strategy:
       fail-fast: false

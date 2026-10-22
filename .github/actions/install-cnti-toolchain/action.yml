@@ -67,8 +67,15 @@ runs:
         done
         if [ -n "$missing" ]; then
           echo "::group::Installing Crystal runtime libraries: $missing"
+          # Ubuntu 24.04 renamed the libssl and libevent packages for the
+          # 64-bit time_t transition; 22.04 keeps the old names.
+          . /etc/os-release
+          case "${VERSION_ID:-}" in
+            22.04) ssl=libssl3; event=libevent-2.1-7 ;;
+            *)     ssl=libssl3t64; event=libevent-2.1-7t64 ;;
+          esac
           sudo apt-get install -y --no-install-recommends \
-            libssl3t64 libxml2 libyaml-0-2 libgmp10 libevent-2.1-7t64 \
+            "$ssl" libxml2 libyaml-0-2 libgmp10 "$event" \
             libpcre2-8-0 zlib1g
           echo "::endgroup::"
         fi

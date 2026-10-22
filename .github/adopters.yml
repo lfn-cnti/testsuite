@@ -28,6 +28,8 @@
 #   install_timeout  seconds for cnf_install; empty for the suite's default
 #   tests            what they run (the action's tests input)
 #   env              environment their job sets
+#   runner           GitHub runner image for the canary job; empty for
+#                    ubuntu-24.04
 #   prepare          commands their job runs before the action, in their
 #                    checkout
 #   expected         changes from the adopter's own result that a suite change
@@ -119,12 +121,22 @@ adopters:
     tests: cert
     env:
       CNTI_TESTSUITE_GENERIC_OPERATION_TIMEOUT: "180"
+    # gtp5g v0.10.2 is the newest release free5GC v4.3.0's UPF accepts
+    # (free5gc/free5gc#1212, fixed in go-upf #109, not yet in an image), and it
+    # does not build against the kernel 7.0 headers of the ubuntu-24.04 image;
+    # ubuntu-22.04 (kernel 6.8) builds it. free5GC's own job moved to
+    # self-hosted runners with the module preinstalled (free5gc-helm#41).
+    runner: ubuntu-22.04
     prepare: |
       sudo apt-get update -qq
       sudo apt-get install -y -qq build-essential "linux-headers-$(uname -r)"
-      git clone --depth 1 https://github.com/free5gc/gtp5g.git /tmp/gtp5g
+      git clone --depth 1 --branch v0.10.2 https://github.com/free5gc/gtp5g.git /tmp/gtp5g
       make -C /tmp/gtp5g -j"$(nproc)"
       sudo make -C /tmp/gtp5g install
       sudo modprobe gtp5g
       lsmod | grep -q '^gtp5g'
-    expected: []
+    expected:
+      - test: node_drain
+        from: failed
+        to: passed
+        reason: "their self-hosted runner (free5gc-helm#41) recovers the evicted workloads slowly (NRF Ready after 258 s, the AMF waits for it) and the 180 s readiness window is missed there; the same chart passes on a GitHub-hosted runner, not a suite change"
