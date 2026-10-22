@@ -32,5 +32,6 @@ spec:
               value: '<%= @target_container %>'
             #- name: FILL_PERCENTAGE
             #  value: ''
+            # the runtime's directory of containers on the node (#2826)
             - name: CONTAINER_PATH
-              value: '/var/lib/containerd/io.containerd.grpc.v1.cri/containers/'
+              value: '<%= @container_path %>'

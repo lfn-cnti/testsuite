@@ -23,8 +23,10 @@ spec:
       - operator: Exists
       containers:
         - name: cluster-tools
+          # Fully qualified: CRI-O resolves no short names without a
+          # configured search registry, and would never pull the image.
           # renovate: datasource=docker depName=lfncnti/cluster-tools
-          image: lfncnti/cluster-tools:v1.0.8
+          image: docker.io/lfncnti/cluster-tools:v1.0.8
           # The tag is pinned, so there is nothing to refresh: pulling it on
           # every node only adds a wait, and a registry that is slow or
           # rate-limits leaves a node without the pod the tests read the
@@ -34,51 +36,119 @@ spec:
             - /bin/bash
             - -c
             - |
-              # Every container inspection goes through the runtime socket, and
-              # the socket is linked in here: a pod that starts before the
-              # runtime is up would break every inspection of the CNF's
-              # containers for its whole lifetime, and the CNF would then be
-              # reported as having no container at all. The link is created
-              # (and re-created) until the runtime socket is there.
-              link_runtime() {
-                CRICTL_ENDPOINT=""
-                CONTAINERD_SOCKET_DIR=$(lsof -U -bw | grep -E "/containerd\.sock\s" | awk '{print $9}' | head -n 1 | xargs -r dirname)
-                if [ -n "$CONTAINERD_SOCKET_DIR" ]; then
-                  ln -sfn /host/$CONTAINERD_SOCKET_DIR /run/containerd
-                  CRICTL_ENDPOINT="unix:///run/containerd/containerd.sock"
-                else
-                  CRIO_SOCKET_DIR=$(lsof -U -bw | grep -E "/crio\.sock\s" | awk '{print $9}' | head -n 1 | xargs -r dirname)
-                  if [ -n "$CRIO_SOCKET_DIR" ]; then
-                    ln -sfn /host/$CRIO_SOCKET_DIR /var/run/crio
-                    CRICTL_ENDPOINT="unix:///var/run/crio/crio.sock"
+              # Every container inspection goes through the node's container
+              # runtime, and crictl has to be pointed at the runtime the
+              # kubelet uses: the endpoint the kubelet was started with
+              # (--container-runtime-endpoint, or containerRuntimeEndpoint in
+              # its config file), read through /proc of the host. A node can
+              # carry a second, idle runtime (the distribution's containerd
+              # next to k3s's or RKE2's), so the first socket found is not it.
+              # Without a kubelet to ask, the sockets found on the node are
+              # tried. The outcome goes to /run/cnti-runtime, which the suite
+              # reads after the pod is ready: "ok <runtime> <version> <endpoint>"
+              # or "error <reason>".
+              kubelet_endpoint() {
+                for comm in /proc/[0-9]*/comm; do
+                  [ "$(cat "$comm" 2>/dev/null)" = kubelet ] || continue
+                  pid=${comm#/proc/}; pid=${pid%/comm}
+                  cmd=$(tr '\0' '\n' < /proc/$pid/cmdline 2>/dev/null)
+                  ep=$(printf '%s\n' "$cmd" | sed -n 's/^--container-runtime-endpoint=//p' | head -n 1)
+                  if [ -z "$ep" ]; then
+                    cfg=$(printf '%s\n' "$cmd" | sed -n 's/^--config=//p' | head -n 1)
+                    [ -n "$cfg" ] && [ -f "/host$cfg" ] && ep=$(sed -n 's/^containerRuntimeEndpoint: *//p' "/host$cfg" | tr -d '"' | head -n 1)
                   fi
-                fi
-                if [ -n "$CRICTL_ENDPOINT" ]; then
-                  # crictl takes the endpoint it talks to from its
-                  # configuration file. The command runs as root and /etc is
-                  # writable, so the endpoint is written where crictl reads it
-                  # by default; the inspections run in a fresh process, which
-                  # would not see this shell's exports. Without it, crictl
-                  # talks to containerd's socket, so every inspection of a
-                  # container fails on a node that runs CRI-O.
-                  printf 'runtime-endpoint: %s\n' "$CRICTL_ENDPOINT" > /etc/crictl.yaml
-                fi
+                  [ -n "$ep" ] && { printf '%s\n' "$ep"; return 0; }
+                done
+                return 1
               }
-              until [ -S /run/containerd/containerd.sock ] || [ -S /var/run/crio/crio.sock ]; do
-                link_runtime
+              socket_endpoint() {
+                for name in containerd crio; do
+                  dir=$(lsof -U -bw | grep -E "/$name\.sock\s" | awk '{print $9}' | head -n 1 | xargs -r dirname)
+                  [ -n "$dir" ] && { printf 'unix://%s/%s.sock\n' "$dir" "$name"; return 0; }
+                done
+                return 1
+              }
+              # The socket path of an endpoint as the node sees it, symlinks
+              # resolved inside the node's root: /var/run is a link to /run on
+              # most distributions, and an absolute link followed from /host
+              # would land in this pod's own /run.
+              host_socket() {
+                p=${1#unix://}
+                c=$(chroot /host readlink -f "$p" 2>/dev/null) || c=$p
+                [ -S "/host$c" ] && printf '%s\n' "$c"
+              }
+              link_runtime() {
+                LAST_ERROR=""
+                TRIED=""
+                HOST_SOCKET=""
+                # The kubelet's endpoint when it names one, and only that: a
+                # second socket on the node may be an idle runtime, which is
+                # what the check is there to catch. The sockets open on the
+                # node only when there is no kubelet endpoint to go by.
+                CANDIDATES=$(kubelet_endpoint) || CANDIDATES=""
+                [ -n "$CANDIDATES" ] || CANDIDATES=$(socket_endpoint)
+                for ENDPOINT in $CANDIDATES; do
+                  HOST_SOCKET=$(host_socket "$ENDPOINT") && [ -n "$HOST_SOCKET" ] && break
+                  TRIED="$TRIED${TRIED:+, }$ENDPOINT"
+                  HOST_SOCKET=""
+                done
+                [ -n "$HOST_SOCKET" ] || return 1
+                # crictl reads its endpoint from this file; the inspections
+                # run in fresh processes that would not see a shell export.
+                printf 'runtime-endpoint: unix:///host%s\nimage-endpoint: unix:///host%s\n' "$HOST_SOCKET" "$HOST_SOCKET" > /etc/crictl.yaml
+                # The runtime's socket under its usual path, for tools that
+                # expect it there (ctr, nerdctl).
+                case "$HOST_SOCKET" in
+                  */containerd.sock) ln -sfn "/host$(dirname "$HOST_SOCKET")" /run/containerd ;;
+                  */crio.sock) ln -sfn "/host$(dirname "$HOST_SOCKET")" /var/run/crio ;;
+                esac
+                return 0
+              }
+              check_runtime() {
+                # A failure is kept, not published: the loop retries it, and
+                # only one still there after a minute is the outcome. crictl
+                # logs through logrus: its error is the msg of the fatal line,
+                # next to warnings that are dropped.
+                if ! out=$(crictl version 2>&1); then
+                  rest=$(printf '%s\n' "$out" | grep -v -E 'level=(warning|info|debug)')
+                  why=$(printf '%s\n' "$rest" | sed -n -E 's/.*level=(fatal|error) msg="(([^"\\]|\\.)*)".*/\2/p' | sed 's/\\"/"/g' | head -n 1)
+                  [ -n "$why" ] || why=$(printf '%s\n' "$rest" | grep -v '^$' | head -n 1)
+                  LAST_ERROR="$ENDPOINT unreachable: $why"
+                  return 1
+                fi
+                name=$(printf '%s\n' "$out" | sed -n 's/^RuntimeName: *//p')
+                version=$(printf '%s\n' "$out" | sed -n 's/^RuntimeVersion: *//p')
+                printf 'ok %s %s %s\n' "$name" "$version" "$ENDPOINT" > /run/cnti-runtime.tmp; mv /run/cnti-runtime.tmp /run/cnti-runtime
+                return 0
+              }
+              attempts=0
+              until link_runtime && check_runtime; do
+                attempts=$((attempts + 1))
+                # After a minute the outcome is reported as it is, so the suite
+                # can say why, instead of a pod that never becomes ready.
+                if [ $attempts -ge 12 ]; then
+                  if [ -n "$LAST_ERROR" ]; then
+                    printf 'error %s\n' "$LAST_ERROR" > /run/cnti-runtime.tmp
+                  elif [ -n "$TRIED" ]; then
+                    printf 'error no container runtime socket found on the node at %s\n' "$TRIED" > /run/cnti-runtime.tmp
+                  else
+                    printf 'error no container runtime found: the kubelet names no endpoint and no containerd.sock or crio.sock is open on the node\n' > /run/cnti-runtime.tmp
+                  fi
+                  mv /run/cnti-runtime.tmp /run/cnti-runtime
+                fi
                 sleep 5
               done
               sleep infinity
-          # The pod is ready only when the runtime it exposes is there: a
-          # cluster-tools pod that cannot reach the runtime cannot inspect the
-          # CNF's containers, and the tests would read that as a CNF that has
-          # no container to judge.
+          # The pod is ready once the runtime check has an outcome, which the
+          # suite reads and acts on: a cluster-tools pod that cannot reach the
+          # runtime cannot inspect the CNF's containers, and the tests would
+          # read that as a CNF that has no container to judge.
           readinessProbe:
             exec:
               command:
                 - /bin/bash
                 - -c
-                - test -S /run/containerd/containerd.sock || test -S /var/run/crio/crio.sock
+                - test -f /run/cnti-runtime
             initialDelaySeconds: 5
             periodSeconds: 10
             failureThreshold: 3

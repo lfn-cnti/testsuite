@@ -72,13 +72,42 @@ describe "ClusterTools" do
     ClusterTools.uninstall
   end
 
-  # A unit spec: no cluster is asked anything, so it runs with the other
+  # Unit specs: no cluster is asked anything, so they run with the other
   # unit specs.
-  it "names a container ID of another runtime as the reason it cannot be inspected, without asking the node", tags: ["points"] do
+  it "names a container ID of an unsupported runtime as the reason it cannot be inspected, without asking the node", tags: ["points"] do
     node = JSON.parse(%({"metadata": {"name": "node-1"}}))
-    looked_up = ClusterTools.pid_or_reason("cri-o://0123456789abcdef", node)
+    looked_up = ClusterTools.pid_or_reason("docker://0123456789abcdef", node)
     looked_up[:pid].should be_nil
-    looked_up[:reason].should eq("container ID cri-o://0123456789abcdef is a cri-o ID; the suite inspects containers through containerd only")
+    looked_up[:reason].should eq("container ID docker://0123456789abcdef is a docker ID; the suite inspects containers through containerd or cri-o only")
+  end
+
+  it "gives crictl a containerd ID shortened and a CRI-O ID in full", tags: ["points"] do
+    ClusterTools.parse_container_id("containerd://0123456789abcdef0123456789abcdef").should eq("0123456789abcd")
+    ClusterTools.parse_container_id("cri-o://0123456789abcdef0123456789abcdef").should eq("0123456789abcdef0123456789abcdef")
+  end
+
+  it "reads the helper's runtime check line", tags: ["points"] do
+    ok = ClusterTools.parse_runtime_check("n1", "ok cri-o 1.33.2 unix:///var/run/crio/crio.sock\n")
+    ok.ok.should be_true
+    ok.runtime.should eq("cri-o")
+    ok.version.should eq("1.33.2")
+    ok.endpoint.should eq("unix:///var/run/crio/crio.sock")
+    bad = ClusterTools.parse_runtime_check("n1", "error unix:///run/containerd/containerd.sock unreachable: connection refused")
+    bad.ok.should be_false
+    bad.reason.should eq("unix:///run/containerd/containerd.sock unreachable: connection refused")
+    ClusterTools.parse_runtime_check("n1", "").reason.should eq("no outcome")
+  end
+
+  # Needs the helper installed on a cluster; the cluster_setup shard has one.
+  it "the installed helper reports a supported runtime on every node", tags: ["cluster_setup"] do
+    ShellCmd.run_testsuite("setup:install_cluster_tools")[:status].success?.should be_true
+    KubectlClient::Get.resource("nodes")["items"].as_a.each do |node|
+      next unless ClusterTools.helper_ready_on_node?(node)
+      line = ClusterTools.exec_by_node("cat /run/cnti-runtime", node)[:output]
+      check = ClusterTools.parse_runtime_check(node.dig("metadata", "name").as_s, line)
+      check.ok.should be_true
+      ClusterTools::SUPPORTED_RUNTIMES.should contain(check.runtime)
+    end
   end
 
   it "ensure_namespace_exists!", tags:["cluster_tools"] do

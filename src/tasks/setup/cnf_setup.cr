@@ -30,6 +30,10 @@ task "cnf_install", ["setup:install_local_helm", "setup:create_namespace"] do |_
     logger.error { "Error while installing cluster-tools: #{ex.message}" }
     stdout_cluster_tools_not_ready(ex)
     exit 1
+  rescue ex : ClusterTools::RuntimeException
+    logger.error { "Error while installing cluster-tools: #{ex.message}" }
+    stdout_cluster_tools_runtime_problems(ex)
+    exit 1
   end
   StatusLine.pop
 
