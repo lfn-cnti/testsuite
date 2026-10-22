@@ -8,8 +8,9 @@ module InitSystems
     property init_cmd
     property specialized : Bool
     # False when PID 1's command line could not be read: such a container is
-    # neither a pass nor a failure.
+    # neither a pass nor a failure; `reason` says why (#2824).
     property inspected : Bool
+    property reason : String
 
     def initialize(
       @kind : String,
@@ -18,7 +19,8 @@ module InitSystems
       @container : String,
       @init_cmd : String,
       @specialized : Bool = false,
-      @inspected : Bool = true
+      @inspected : Bool = true,
+      @reason : String = ""
     )
     end
   end
@@ -56,8 +58,25 @@ module InitSystems
       resource_namespace = pod.dig("metadata", "namespace").as_s
     end
 
+    # Not a pass by omission: a pod that cannot be inspected lists each of
+    # its containers as not inspected, from its spec when it has no
+    # container status yet.
+    unless pod.dig?("status", "containerStatuses").try(&.as_a?)
+      phase = pod.dig?("status", "phase").try(&.as_s?) || "unknown"
+      (pod.dig?("spec", "containers").try(&.as_a?) || [] of JSON::Any).each do |container|
+        inspected << InitSystems::InitSystemInfo.new("Pod", resource_namespace, pod_name.as_s, container["name"].as_s, "",
+          inspected: false, reason: "not started (pod #{phase}, no container status yet)")
+      end
+      return inspected
+    end
+
     if nodes.size == 0
+      node_name = pod.dig?("spec", "nodeName").try(&.as_s?) || "none"
       Log.for("InitSystems.scan").info { "No nodes found for pod '#{pod_name}' in #{resource_namespace} namespace" }
+      pod["status"]["containerStatuses"].as_a.each do |container|
+        inspected << InitSystems::InitSystemInfo.new("Pod", resource_namespace, pod_name.as_s, container["name"].as_s, "",
+          inspected: false, reason: "the pod's node (#{node_name}) could not be found")
+      end
       return inspected
     end
 
@@ -65,12 +84,25 @@ module InitSystems
     containers = pod.dig("status", "containerStatuses")
     containers.as_a.each do |container|
       container_name = container["name"].as_s
-      init_cmd = get_container_init_cmd(pod_node, container["containerID"])
+      reason = ""
+      init_cmd = nil
+      unless container_id = container["containerID"]?
+        waiting = container.dig?("state", "waiting", "reason").try(&.as_s?)
+        reason = "not started#{waiting ? " (#{waiting})" : ""}"
+      end
+      if container_id
+        read = get_container_init_cmd(pod_node, container_id)
+        init_cmd = read[:cmd]
+        reason = read[:reason]
+      end
       (INIT_CMD_ATTEMPTS - 1).times do
         break if init_cmd
         sleep INIT_CMD_RETRY_DELAY
         fresh_id = current_container_id(pod_name.as_s, resource_namespace, container_name)
-        init_cmd = get_container_init_cmd(pod_node, fresh_id) if fresh_id
+        next unless fresh_id
+        read = get_container_init_cmd(pod_node, fresh_id)
+        init_cmd = read[:cmd]
+        reason = read[:reason]
       end
       if init_cmd
         init_info = InitSystems::InitSystemInfo.new(
@@ -83,8 +115,8 @@ module InitSystems
         )
         Log.for("InitSystems.scan").info { "#{init_info.kind}/#{init_info.name} has container '#{init_info.container}' with #{init_info.init_cmd} as init process" }
       else
-        init_info = InitSystems::InitSystemInfo.new("Pod", resource_namespace, pod_name.as_s, container_name, "", inspected: false)
-        Log.for("InitSystems.scan").warn { "Pod/#{pod_name} container '#{container_name}': PID 1's command line could not be read after #{INIT_CMD_ATTEMPTS} attempts" }
+        init_info = InitSystems::InitSystemInfo.new("Pod", resource_namespace, pod_name.as_s, container_name, "", inspected: false, reason: reason)
+        Log.for("InitSystems.scan").warn { "Pod/#{pod_name} container '#{container_name}': PID 1's command line could not be read after #{INIT_CMD_ATTEMPTS} attempts: #{reason}" }
       end
       inspected << init_info
     end
@@ -102,14 +134,20 @@ module InitSystems
     nil
   end
 
-  def self.get_container_init_cmd(node, container_id) : String?
-    container_id = ClusterTools.parse_container_id(container_id.as_s)
-    pid = ClusterTools.node_pid_by_container_id(container_id, node)
+  # PID 1's executable, or why it could not be read.
+  def self.get_container_init_cmd(node, container_id) : NamedTuple(cmd: String?, reason: String)
+    looked_up = ClusterTools.pid_or_reason(container_id.as_s, node)
+    pid = looked_up[:pid]
+    return {cmd: nil, reason: looked_up[:reason].to_s} unless pid
 
-    return nil if pid == nil
-    
-    result = KernelIntrospection::K8s::Node.cmdline_by_pid(pid.not_nil!, node)
-    init_cmd_from_cmdline(result[:output])
+    result = KernelIntrospection::K8s::Node.cmdline_by_pid(pid, node)
+    unless result[:status].success?
+      why = result[:error].to_s.lines.map(&.strip).find { |l| !l.empty? } || "no output"
+      return {cmd: nil, reason: "reading /proc/#{pid}/cmdline on the node failed: #{why}"}
+    end
+    cmd = init_cmd_from_cmdline(result[:output])
+    return {cmd: cmd, reason: ""} if cmd
+    {cmd: nil, reason: "PID 1 (#{pid} on the node) has an empty command line: exited or a zombie"}
   end
 
   # The executable from a /proc/<pid>/cmdline read (NUL-separated); nil when

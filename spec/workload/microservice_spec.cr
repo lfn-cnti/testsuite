@@ -131,6 +131,23 @@ describe "Microservice" do
     end
   end
 
+  it "'single_process_type' should say why a container could not be inspected when it skips", tags: ["process_check"]  do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-not-started/cnti-testsuite.yaml --skip-wait-for-install")
+      # The image pull has to have failed once, so the container's state says why.
+      repeat_with_timeout(timeout: 120, errormsg: "the pod never reported its pull failure", delay: 3) do
+        pods = KubectlClient::Get.pods_by_resource_labels(KubectlClient::Get.resource("deployment", "not-started", DEFAULT_CNF_NAMESPACE), DEFAULT_CNF_NAMESPACE)
+        pods.any? { |pod| (pod.dig?("status", "containerStatuses").try(&.as_a?) || [] of JSON::Any).any? { |c| c.dig?("state", "waiting", "reason").try(&.as_s?).to_s =~ /ErrImagePull|ImagePullBackOff/ } }
+      end
+      result = ShellCmd.run_testsuite("single_process_type")
+      (/SKIPPED.*Process types not checked: 1 container\(s\) could not be inspected: not started \((ErrImagePull|ImagePullBackOff)\)/ =~ result[:output]).should_not be_nil
+      (/> Not inspected: Deployment\/not-started pod not-started-\S+ container app: not started \((ErrImagePull|ImagePullBackOff)\)/ =~ result[:output]).should_not be_nil
+      verify_task_result("single_process_type", "skipped")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'single_process_type' should fail if the containers in the cnf have more than one process type", tags: ["process_check"]  do
     begin
       ShellCmd.cnf_install("--cnf-config sample-cnfs/k8s-multiple-processes")

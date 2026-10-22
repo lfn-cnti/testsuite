@@ -1,0 +1,9 @@
+---
+# A Deployment whose image does not exist: its container never starts, so
+# nothing of it can be inspected on the node. Installed with
+# --skip-wait-for-install.
+config_version: v2
+deployments:
+  manifests:
+    - name: not-started
+      manifest_directory: manifests

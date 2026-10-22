@@ -91,7 +91,10 @@ module ClusterTools
   private def self.get_cluster_tools_pod_on_node(node : JSON::Any)
     pods = KubectlClient::Get.pods_by_nodes([node], namespace: self.namespace, label: {"name" => "cluster-tools"})
 
-    cluster_tools_pod_name = pods[0].dig?("metadata", "name") if pods[0]?
+    # A ready pod first: while the DaemonSet rolls, a node briefly has a
+    # terminating pod next to the new one.
+    pod = pods.find { |p| helper_pod_ready?(p) } || pods[0]?
+    cluster_tools_pod_name = pod.try &.dig?("metadata", "name")
     Log.debug { "cluster_tools_pod_name: #{cluster_tools_pod_name}"}
 
     cluster_tools_pod_name
@@ -130,19 +133,63 @@ module ClusterTools
   end
 
   def self.node_pid_by_container_id(container_id, node) : String | Nil
-    Log.debug {"node_pid_by_container_id container_id: #{container_id}" }
+    pid_or_reason(container_id, node)[:pid]
+  end
+
+  # The container's PID on its node, or why it could not be read (#2824): the
+  # one reason the tests put in their details, computed here where the
+  # look-up fails. A container ID of another runtime is refused before the
+  # node is asked anything; then the helper pod has to be on the node and
+  # ready, crictl has to know the container, and the container has to run.
+  def self.pid_or_reason(container_id : String, node : JSON::Any) : NamedTuple(pid: String?, reason: String?)
+    Log.debug { "pid_or_reason container_id: #{container_id}" }
+    if (runtime = container_id.partition("://")[0]) && container_id.includes?("://") && runtime != "containerd"
+      return {pid: nil, reason: "container ID #{container_id} is a #{runtime} ID; the suite inspects containers through containerd only"}
+    end
+    node_name = node.dig?("metadata", "name").try(&.as_s?) || "?"
+    unless helper_ready_on_node?(node)
+      return {pid: nil, reason: "cluster-tools has no ready pod on node #{node_name}"}
+    end
     short_container_id = parse_container_id(container_id)
     inspect = ClusterTools.exec_by_node("crictl inspect #{short_container_id}", node)
     unless inspect[:status].success?
-      Log.error {"container_id not found for: #{container_id}" }
-      return nil
+      why = crictl_error(inspect[:error].to_s, inspect[:output].to_s)
+      Log.error { "container_id not found for: #{container_id}: #{why}" }
+      return {pid: nil, reason: "crictl inspect #{short_container_id} on node #{node_name} failed: #{why}"}
     end
-
-    Log.debug {"node_pid_by_container_id inspect: #{inspect[:output]}" }
+    Log.debug { "pid_or_reason inspect: #{inspect[:output]}" }
     pid = running_pid_from_inspect(inspect[:output])
-    Log.debug {"node_pid_by_container_id pid: #{pid}" }
-    Log.warn {"container #{container_id} has no running process" } if pid.nil?
-    pid
+    Log.debug { "pid_or_reason pid: #{pid}" }
+    return {pid: pid, reason: nil} if pid
+    Log.warn { "container #{container_id} has no running process" }
+    {pid: nil, reason: "crictl reports no running process for container #{short_container_id} on node #{node_name} (exited?)"}
+  end
+
+  # A cluster-tools pod on the node with its container ready.
+  def self.helper_ready_on_node?(node : JSON::Any) : Bool
+    pods = KubectlClient::Get.pods_by_nodes([node], namespace: self.namespace, label: {"name" => "cluster-tools"})
+    pods.any? { |pod| helper_pod_ready?(pod) }
+  rescue KubectlClient::ShellCMD::K8sClientCMDException
+    false
+  end
+
+  private def self.helper_pod_ready?(pod : JSON::Any) : Bool
+    (pod.dig?("status", "containerStatuses").try(&.as_a?) || [] of JSON::Any).any? { |c| c["ready"]?.try(&.as_bool?) == true }
+  end
+
+  # crictl's own error from a failed call. crictl logs through logrus, so the
+  # error is a `time="…" level=fatal msg="…"` line, next to warnings such as
+  # the one about default endpoints: the warnings are dropped and the error's
+  # message is the reason. Anything else on stderr, then stdout, follows.
+  def self.crictl_error(stderr : String, stdout : String = "") : String
+    lines = stderr.lines.map(&.strip).reject(&.empty?).reject { |l| l =~ /\blevel=(warning|info|debug)\b/ }
+    if error = lines.find { |l| l =~ /\blevel=(fatal|error)\b/ }
+      if m = error.match(/\bmsg="((?:[^"\\]|\\.)*)"/)
+        return m[1].gsub(%q(\"), %q("))
+      end
+      return error
+    end
+    lines.first? || stdout.lines.map(&.strip).find { |l| !l.empty? } || "no output"
   end
 
   # The node PID of a container from `crictl inspect`, or nil when the
@@ -176,7 +223,10 @@ module ClusterTools
   end
 
   #each_container_by_resource(resource, namespace) do | container_id, container_pid_on_node, node, container_proctree_statuses, container_status|
-  def self.all_containers_by_resource?(resource, namespace, only_container_pids : Bool = false, include_proctree : Bool = true, include_zombies : Bool = false, &block) 
+  # A container the block never sees (not started, not ready, not readable
+  # on its node) is named in `not_inspected` with the reason, when given,
+  # so the test can say why it has nothing to judge (#2824).
+  def self.all_containers_by_resource?(resource, namespace, only_container_pids : Bool = false, include_proctree : Bool = true, include_zombies : Bool = false, not_inspected : Array(String)? = nil, &block) 
 		kind = resource["kind"].downcase
 		case kind
 		when  "deployment","statefulset","pod","replicaset", "daemonset", "job", "cronjob"
@@ -194,15 +244,23 @@ module ClusterTools
 					Log.debug { "pod_name: #{pod_name}" }
 					nodes = KubectlClient::Get.nodes_by_pod(pod)
 					Log.debug { "nodes_by_resource done" }
-					node = nodes.first # there should only be one node returned for one pod
+					node = nodes.first? # there should only be one node returned for one pod
+					node_name = pod.dig?("spec", "nodeName").try(&.as_s?) || "none"
 					container_status_result = container_statuses.map do |container_status|
 						container_name = container_status.dig("name")
 						previous_process_type = "initial_name"
 						# A container that has not started yet (its pod still Pending, an init
 						# container running) has no ID: it is skipped like one that is not ready.
+						label = "#{resource[:kind]}/#{resource[:name]} pod #{pod_name} container #{container_name}"
+						unless node
+							not_inspected.try(&.<< "#{label}: the pod's node (#{node_name}) could not be found")
+							next
+						end
 						prefix_container_id = container_status.dig?("containerID").try(&.as_s?)
 						unless prefix_container_id
 							Log.debug { "no containerID yet, skipping: #{container_name} in #{pod_name}" }
+							waiting = container_status.dig?("state", "waiting", "reason").try(&.as_s?)
+							not_inspected.try(&.<< "#{label}: not started#{waiting ? " (#{waiting})" : ""}")
 							next
 						end
 						container_id = strip_runtime_prefix(prefix_container_id)
@@ -211,15 +269,20 @@ module ClusterTools
 						if !ready
 							Log.debug { "container status: #{container_status} "}
 							Log.debug { "not ready! skipping: containerStatuses container_id #{container_id}" }
+							state = container_status["state"]?.try(&.as_h?).try(&.keys.first?)
+							detail = container_status.dig?("state", "waiting", "reason").try(&.as_s?) || container_status.dig?("state", "terminated", "reason").try(&.as_s?)
+							not_inspected.try(&.<< "#{label}: not ready#{state ? " (#{state}#{detail ? ": #{detail}" : ""})" : ""}")
 							false
 							next
 						end
 						# next unless ready 
 						Log.debug { "containerStatuses container_id #{container_id}" }
 						#get container id's pid on the node (different from inside the container)
-						container_pid_on_node = "#{ClusterTools.node_pid_by_container_id(container_id, node)}"
+						looked_up = ClusterTools.pid_or_reason(container_id, node)
+						container_pid_on_node = looked_up[:pid].to_s
 						if container_pid_on_node.empty?
 							Log.debug { "no pid for (skipping): containerStatuses container_id #{container_id}" }
+							not_inspected.try(&.<< "#{label}: #{looked_up[:reason]}")
 							false
 							next
 						end
@@ -241,6 +304,7 @@ module ClusterTools
 
               if pids.empty?
                 Log.debug { "pids empty #{pids}" }
+                not_inspected.try(&.<< "#{label}: no process of the container could be listed on node #{node_name}")
                 false
                 next
               end
@@ -257,6 +321,12 @@ module ClusterTools
           Log.debug { "container_status_result.all?(true): #{container_status_result.all?(true)}" }
           container_status_result.all?(true)
         else
+          # No container status yet (the pod is Pending): its containers are
+          # named from the spec, so a verdict on the other pods doesn't hide them.
+          phase = status["phase"]?.try(&.as_s?) || "unknown"
+          (pod.dig?("spec", "containers").try(&.as_a?) || [] of JSON::Any).each do |c|
+            not_inspected.try(&.<< "#{resource[:kind]}/#{resource[:name]} pod #{pod_name} container #{c["name"]?}: not started (pod #{phase}, no container status yet)")
+          end
           false
         end
 			end
