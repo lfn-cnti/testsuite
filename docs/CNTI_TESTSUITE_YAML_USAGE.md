@@ -360,6 +360,7 @@ deployments:
       # Optional keys
       helm_values: --set myvalue=42                          # Additional values that would be used for helm installation
       namespace: cnti-default                                 # Defaults to cnti-default
+      previous_chart_version: "15.9.0"                       # The chart version the rollout tests move the release to and back from; defaults to the release before chart_version in the registry
       skip_tls_verify: false                                 # Disable TLS verification
       plain_http: false                                      # optional: use HTTP instead of HTTPS
       auth:                                                  # optional per-chart override
@@ -368,6 +369,7 @@ deployments:
 
 **Notes:**
 - For OCI, `chart_version` is required.
+- The rollout tests (`rolling_update`, `rolling_downgrade`, `rolling_version_change`, `rollback`) move a chart from a repository or a registry as a release: to the chart version before the installed one, then back. `previous_chart_version` names that version when the repository's listing should not decide it.
 - `registry_url` determines the chart name automatically (last path segment).
 - Set plain_http: true only if your registry is HTTP.
 - Auth may be a bearer token or username/password. If you already logged in with `helm registry login`, you do not need to set auth.

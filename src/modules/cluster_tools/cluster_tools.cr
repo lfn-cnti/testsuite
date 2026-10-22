@@ -372,8 +372,8 @@ module ClusterTools
 
   # The tags of an image repository in its registry, listed by skopeo in
   # cluster-tools; nil when the registry cannot be read.
-  def self.image_tags(repository : String) : Array(String)?
-    result = exec("skopeo list-tags #{skopeo_creds} docker://#{repository}")
+  def self.image_tags(repository : String, plain_http : Bool = false) : Array(String)?
+    result = exec("skopeo list-tags #{skopeo_creds}#{plain_http ? " --tls-verify=false" : ""} docker://#{repository}")
     return nil unless result[:status].success?
     JSON.parse(result[:output])["Tags"]?.try(&.as_a?).try(&.map(&.as_s))
   rescue JSON::ParseException

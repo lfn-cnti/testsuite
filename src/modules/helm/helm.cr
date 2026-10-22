@@ -343,6 +343,52 @@ module Helm
     end
   end
 
+  # Moves the release to the chart at `chart` (a directory or a packaged
+  # chart) with the given values: `helm upgrade`.
+  def self.upgrade(release_name : String, chart : String, namespace : String? = nil, values : String? = nil) : CMDResult
+    logger = Log.for("upgrade")
+    logger.info { "Upgrading release #{release_name} to #{chart}" }
+    cmd = "#{Binary.get} upgrade #{release_name} #{chart}"
+    cmd = "#{cmd} -n #{namespace}" if namespace
+    cmd = "#{cmd} #{values}" if values
+    ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+  end
+
+  # Rolls the release back to its previous revision (or to `revision`).
+  def self.rollback(release_name : String, namespace : String? = nil, revision : Int32? = nil) : CMDResult
+    logger = Log.for("rollback")
+    logger.info { "Rolling release #{release_name} back#{revision ? " to revision #{revision}" : ""}" }
+    cmd = "#{Binary.get} rollback #{release_name}"
+    cmd = "#{cmd} #{revision}" if revision
+    cmd = "#{cmd} -n #{namespace}" if namespace
+    ShellCMD.raise_exc_on_error { ShellCMD.run(cmd, logger) }
+  end
+
+  # Refreshes the local index of one repository; false when that failed.
+  def self.repo_update(repo_name : String) : Bool
+    logger = Log.for("repo_update")
+    ShellCMD.run("#{Binary.get} repo update #{repo_name}", logger)[:status].success?
+  end
+
+  # Every version of a chart its repository lists, newest first, with the
+  # app version each ships; nil when the repository could not be searched.
+  alias ChartVersion = NamedTuple(version: String, app_version: String?)
+
+  def self.chart_versions(repo_name : String, chart_name : String) : Array(ChartVersion)?
+    logger = Log.for("chart_versions")
+    full_name = "#{repo_name}/#{chart_name}"
+    resp = ShellCMD.run("#{Binary.get} search repo #{full_name} --versions -o json", logger)
+    return nil unless resp[:status].success?
+    entries = JSON.parse(resp[:output]).as_a? || return nil
+    entries.compact_map do |e|
+      next unless e["name"]?.try(&.as_s?) == full_name
+      version = e["version"]?.try(&.as_s?) || next
+      {version: version, app_version: e["app_version"]?.try(&.as_s?)}
+    end
+  rescue JSON::ParseException
+    nil
+  end
+
   # The release `name` in `namespace` as `helm status` reports it (chart,
   # version, status), or nil when there is no such release.
   # The release as `helm list` reports it (name, namespace, chart as
