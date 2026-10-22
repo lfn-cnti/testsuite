@@ -101,6 +101,16 @@ describe "Compatibility" do
       ShellCmd.cnf_uninstall
     end
 
+    it "should reach a verdict on an operator-managed CNF whose workloads were read back from the cluster" do
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-operator-owned/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("deprecated_k8s_features")
+      result[:status].success?.should be_true
+      (/(PASSED).*(CNF does not use deprecated K8s features)/ =~ result[:output]).should_not be_nil
+      (/SKIPPED/ =~ result[:output]).should be_nil
+    ensure
+      ShellCmd.cnf_uninstall
+    end
+
     it "should skip if the CNF manifest is not present" do
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-deprecated-k8s-v1.32/cnti-testsuite.yaml")
       File.delete?(COMMON_MANIFEST_FILE_PATH).should be_true

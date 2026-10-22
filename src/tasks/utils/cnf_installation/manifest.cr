@@ -102,6 +102,46 @@ module CNFInstall
 
     # Apply namespaces only to resources that are retrieved from Kubernetes as namespaced resource kinds.
     # Namespaced resource kinds are utilized exclusively during the Helm installation process.
+    # The composite manifest holds two kinds of document: what the CNF ships
+    # (its charts and manifests, written with a "# Source: <type>:<name>"
+    # comment) and copies read back from the cluster (objects an operator
+    # created for the CNF's custom resources, label-identified ones, the CRDs
+    # behind its custom resources: "# Source: owned_by", "label_filter" and
+    # "crd_group_filter"). Splits the file on those comments, so a test can
+    # treat the two differently (#2809).
+    READ_BACK_SOURCES = ["owned_by", "label_filter", "crd_group_filter"]
+
+    def self.split_by_source(manifest : String) : NamedTuple(shipped: String, read_back: String)
+      shipped = String::Builder.new
+      read_back = String::Builder.new
+      manifest.split(/^(?=---\n# Source: )/m).each do |document|
+        next if document.strip.empty?
+        source = document.match(/\A---\n# Source: (\S+)/).try(&.[1]) || ""
+        if READ_BACK_SOURCES.any? { |prefix| source.starts_with?(prefix) }
+          read_back << document
+        else
+          shipped << document
+        end
+      end
+      {shipped: shipped.to_s, read_back: read_back.to_s}
+    end
+
+    # A copy read back from the cluster carries what the server assigned it;
+    # applying it again fails on exactly those fields. Without them the copy
+    # is what a client would send.
+    LIVE_METADATA_FIELDS = ["uid", "resourceVersion", "creationTimestamp", "generation", "managedFields", "selfLink"]
+
+    def self.strip_live_fields(ymls : Array(YAML::Any)) : Array(YAML::Any)
+      ymls.map do |yml|
+        hash = yml.as_h? || next yml
+        hash.delete("status")
+        if (metadata = hash["metadata"]?.try(&.as_h?))
+          LIVE_METADATA_FIELDS.each { |field| metadata.delete(field) }
+        end
+        YAML::Any.new(hash)
+      end
+    end
+
     def self.add_namespace_to_resources(manifest_string, namespace)
       logger = Log.for("add_namespace_to_resources")
       logger.info { "Updating metadata.namespace field for resources in generated manifest" }
