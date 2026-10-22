@@ -251,6 +251,25 @@ scored_task "increase_decrease_capacity",
     # Workloads scaled up and back to their deployed count, for the restart
     # check after the scaling.
     scaled_back = [] of Tuple(String, String, String)
+    # A DaemonSet runs one pod per node and has no replica count to scale
+    # (#2827): it is judged by the restart half of the test alone, one pod
+    # deleted and the DaemonSet back on every node it is scheduled for.
+    daemonsets = [] of Tuple(String, String, String)
+
+    CNFManager.resource_refs(args, config, ["daemonset"]) do |resource|
+      kind, name, namespace = resource[:kind], resource[:name], resource[:namespace]
+      # The controller fills in desiredNumberScheduled shortly after the
+      # DaemonSet is created; until then, its pods already bound to a node
+      # say how many nodes it runs on.
+      scheduled = KubectlClient::Get.resource(kind, name, namespace).dig?("status", "desiredNumberScheduled").try(&.as_i?) ||
+                  CapacityRestart.pods(kind, name, namespace).count { |pod| pod.dig?("spec", "nodeName").try(&.as_s?).try { |n| !n.empty? } }
+      if scheduled == 0
+        idle << "#{kind}/#{name} in #{namespace}: scheduled on no node, nothing to restart"
+        next
+      end
+      result.append_description("#{kind}/#{name} in #{namespace}: a DaemonSet runs one pod per node and is not scaled by replica count; judged by a pod restart (#{scheduled} node(s))")
+      daemonsets << {kind, name, namespace}
+    end
 
     begin
       CNFManager.resource_refs(args, config, ["deployment", "statefulset"]) do |resource|
@@ -307,17 +326,24 @@ scored_task "increase_decrease_capacity",
     # has to start again (#2719). One pod of every scaled workload is
     # restarted, all at once, and each workload must be Ready again, so a CNF
     # the scaling left broken fails here rather than in a later test.
-    if failures.empty? && !scaled_back.empty?
-      CapacityRestart.check(scaled_back, result).each { |failure| failures << failure }
+    # DaemonSets are not scaled, so a scaling failure elsewhere does not stop
+    # their restart; scaled workloads are restarted only after every scaling
+    # went through.
+    restarted = (failures.empty? ? scaled_back : [] of Tuple(String, String, String)) + daemonsets
+    unless restarted.empty?
+      CapacityRestart.check(restarted, result).each { |failure| failures << failure }
     end
-    if deployed.empty? && !idle.empty?
-      result.na("increase_decrease_capacity not applicable: no Deployment or StatefulSet runs pods to scale")
-    elsif !deployed.empty? && operator_owned.size == deployed.size
+    scaled = deployed.size - operator_owned.size
+    if deployed.empty? && daemonsets.empty? && !idle.empty?
+      result.na("increase_decrease_capacity not applicable: no Deployment, StatefulSet or DaemonSet runs pods to scale or restart")
+    elsif !deployed.empty? && daemonsets.empty? && operator_owned.size == deployed.size
       result.na("increase_decrease_capacity not applicable: every workload is sized by an operator's custom resource and none followed a direct scale")
-    elsif deployed.empty?
-      result.skipped("No Deployment or StatefulSet to scale")
+    elsif deployed.empty? && daemonsets.empty?
+      result.skipped("No Deployment, StatefulSet or DaemonSet to scale or restart")
+    elsif failures.empty? && scaled == 0
+      result.passed("#{daemonsets.size} DaemonSet(s) back on every node after a pod restart; nothing to scale by replica count")
     elsif failures.empty?
-      result.passed("Replicas increased to deployed count + #{increase_by} and decreased back for #{deployed.size - operator_owned.size} resource(s)")
+      result.passed("Replicas increased to deployed count + #{increase_by} and decreased back for #{scaled} resource(s)#{daemonsets.empty? ? "" : ", #{daemonsets.size} DaemonSet(s) back on every node after a pod restart"}")
     else
       failures.each { |failure| result.append_description(failure) }
       result.append_remediation(increase_decrease_remedy_msg())
@@ -345,9 +371,21 @@ module CapacityRestart
   # workload's status, which counts the deleted pod for a moment after.
   def self.recovered?(ref : Ref, deleted_uid : String) : Bool
     kind, name, namespace = ref
-    desired = deployed_replicas(kind, name, namespace)
     pods = self.pods(kind, name, namespace)
-    pods.size >= desired && pods.all? { |pod| pod_ready?(pod) && pod.dig?("metadata", "uid").try(&.as_s?) != deleted_uid }
+    return false if pods.any? { |pod| pod.dig?("metadata", "uid").try(&.as_s?) == deleted_uid }
+    # A DaemonSet asks for one Ready pod on every node it is scheduled for.
+    # A surge (maxSurge) can leave a second, not yet Ready pod on a node, so
+    # it is judged by the nodes that have a Ready pod, counted from the pods
+    # and by the DaemonSet's own status, not by every pod being Ready.
+    if kind.downcase == "daemonset"
+      status = KubectlClient::Get.resource(kind, name, namespace)["status"]?
+      desired = status.try(&.["desiredNumberScheduled"]?).try(&.as_i?) || 1
+      number_ready = status.try(&.["numberReady"]?).try(&.as_i?) || 0
+      ready_nodes = pods.select { |pod| pod_ready?(pod) }.compact_map { |pod| pod.dig?("spec", "nodeName").try(&.as_s?) }.uniq.size
+      return number_ready >= desired && ready_nodes >= desired
+    end
+    desired = deployed_replicas(kind, name, namespace)
+    pods.size >= desired && pods.all? { |pod| pod_ready?(pod) }
   rescue KubectlClient::ShellCMD::K8sClientCMDException
     false
   end
@@ -358,13 +396,27 @@ module CapacityRestart
   TIMEOUT = POD_READINESS_TIMEOUT * 2
 
   # Deletes one pod of each workload at once and waits for all of them to be
-  # Ready again. Returns a failure line per workload that is not.
+  # Ready again. Returns a failure line per workload that is not, or that had
+  # no pod to delete.
   def self.check(refs : Array(Ref), result : CNFManager::TestCaseResult) : Array(String)
     restarted = {} of Ref => String
+    # Every workload here runs pods (scaled back to a non-zero count, or a
+    # DaemonSet scheduled on a node), so one without a pod is a failure, not
+    # a workload to pass over.
+    missing = [] of String
     refs.each do |ref|
       kind, name, namespace = ref
       pod = pods(kind, name, namespace).find { |p| p.dig?("metadata", "uid") }
-      next unless pod
+      unless pod
+        why = WorkloadDiagnostics.report(result, kind, name, namespace, "#{kind}/#{name} with no pod to restart")
+        result.add_impacted_resource(kind, name, namespace,
+          reason: "no pod to restart after scaling up and back#{why.first?.try { |w| ": #{w}" }}")
+        missing << "#{kind}/#{name} in #{namespace}: no pod to restart, although it should be running one"
+        if kind.downcase == "daemonset"
+          result.append_remediation("#{kind}/#{name} in #{namespace} is scheduled on a node but runs no pod there. Check why its pods are not created: the DaemonSet's events (kubectl describe daemonset #{name} -n #{namespace}) name the cause, such as an admission policy or webhook that refuses its pod, a namespace resource quota that is used up, or a NoExecute taint added to the node that its tolerations do not cover.")
+        end
+        next
+      end
       KubectlClient::Delete.resource("pod", pod.dig("metadata", "name").as_s, namespace, extra_opts: "--wait=false")
       restarted[ref] = pod.dig("metadata", "uid").as_s
     end
@@ -377,13 +429,14 @@ module CapacityRestart
 
     took = (Time.utc - started).total_seconds.round.to_i
     result.append_description("Restart after scaling: one pod of each of #{restarted.size} workload(s) deleted at once; #{restarted.size - pending.size} Ready again within #{took} s")
-    pending.map do |ref|
+    not_ready = pending.map do |ref|
       kind, name, namespace = ref
       why = WorkloadDiagnostics.report(result, kind, name, namespace, "#{kind}/#{name} after a pod restart following the scaling")
       result.add_impacted_resource(kind, name, namespace,
         reason: "not Ready within #{TIMEOUT}s of a pod restart after scaling up and back#{why.first?.try { |w| ": #{w}" }}")
       "#{kind}/#{name} in #{namespace}: not Ready again within #{TIMEOUT}s of a pod restart after scaling up and back; the scaling may have left the application degraded"
     end
+    missing + not_ready
   end
 end
 

@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: capacity-agent
+  namespace: cnti-default
+spec:
+  selector:
+    matchLabels:
+      app: capacity-agent
+  template:
+    metadata:
+      labels:
+        app: capacity-agent
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: agent
+          image: busybox:1.37.0
+          command: ["sh", "-c", "exec sleep 1000000"]
+          readinessProbe:
+            exec:
+              command: ["true"]
+            periodSeconds: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
