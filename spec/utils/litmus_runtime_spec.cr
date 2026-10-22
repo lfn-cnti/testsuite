@@ -47,3 +47,48 @@ describe "LitmusManager.runtime_socket_for" do
     LitmusManager.runtime_socket_for("containerd").should eq({"containerd", "/run/containerd/containerd.sock"})
   end
 end
+
+# Runs the block with the chaos-charts mirror set to `value` (unset when nil)
+# and puts back whatever the environment held before.
+private def with_chaos_charts_mirror(value : String?, &)
+  previous = ENV[LitmusManager::CHAOS_CHARTS_ENV]?
+  begin
+    if value
+      ENV[LitmusManager::CHAOS_CHARTS_ENV] = value
+    else
+      ENV.delete(LitmusManager::CHAOS_CHARTS_ENV)
+    end
+    yield
+  ensure
+    if previous
+      ENV[LitmusManager::CHAOS_CHARTS_ENV] = previous
+    else
+      ENV.delete(LitmusManager::CHAOS_CHARTS_ENV)
+    end
+  end
+end
+
+describe "LitmusManager.chaos_charts" do
+  it "takes a mirror from the environment without its trailing slash", tags: ["points"] do
+    with_chaos_charts_mirror("https://mirror.example/chaos-charts/") do
+      LitmusManager.chaos_charts.should eq("https://mirror.example/chaos-charts")
+    end
+  end
+
+  it "uses the versioned chaos-charts tree when no mirror is set", tags: ["points"] do
+    with_chaos_charts_mirror(nil) do
+      LitmusManager.chaos_charts.should eq(LitmusManager::CHAOS_CHARTS)
+    end
+  end
+
+  it "refuses a mirror that is not HTTPS before fetching anything", tags: ["points"] do
+    with_chaos_charts_mirror("http://user:secret@mirror.example/chaos-charts") do
+      ex = expect_raises(LitmusManager::FaultInstallError) do
+        LitmusManager.install_fault("pod-delete", "default", "pod_delete")
+      end
+      message = ex.message.to_s
+      message.should contain("#{LitmusManager::CHAOS_CHARTS_ENV} must be an https:// URL")
+      message.should_not contain("secret")
+    end
+  end
+end
