@@ -89,10 +89,10 @@ module CLIParser
         else
           errors << "Unknown argument '#{key}='. Options are written --name VALUE.#{option_suggestion(key)}"
         end
-      elsif option = CLIOptions.retired_flag(token)
-        errors << "'#{token}' is no longer accepted: use `#{option.long}`."
       elsif task_paths.includes?(token)
         tasks << token
+      elsif option = CLIOptions.retired_flag(token)
+        errors << "'#{token}' is no longer accepted: use `#{option.long}`."
       else
         errors << "Unknown argument '#{token}'.#{word_suggestion(token, task_paths)}"
       end

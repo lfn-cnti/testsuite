@@ -219,7 +219,7 @@ module MCP
   end
 
   module Tools
-    SUITE_AGGREGATES = ["all", "workload", "cert"]
+    SUITE_AGGREGATES = ["all", "workload", "essential", "cert"]
 
     def self.valid_suite?(suite : String) : Bool
       SUITE_AGGREGATES.includes?(suite) ||

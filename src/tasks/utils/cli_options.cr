@@ -50,7 +50,8 @@ module CLIOptions
 Option.new("output-dir", Kind::Value, "evidence: the directory to write the bundle into (default: cnti/evidence)", value_label: "PATH", file: true),
     Option.new("pod-labels", Kind::Value, "label selector of the pods a chaos test targets", value_label: "LABELS", retired: "pod-labels"),
     Option.new("strict", Kind::Flag, "stop at the first failed or errored test", retired: "strict"),
-    Option.new("essential", Kind::Flag, "cert: run only the essential tests", retired: "essential"),
+    # No retired bare spelling: `essential` is the suite's name (#2812).
+    Option.new("essential", Kind::Flag, "cert: run only the essential tests"),
     Option.new("poc", Kind::Flag, "include proof-of-concept tests", retired: "poc"),
     Option.new("wip", Kind::Flag, "include work-in-progress tests", retired: "wip"),
     Option.new("alpha", Kind::Flag, "include alpha tests", retired: "alpha"),

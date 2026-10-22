@@ -50,10 +50,10 @@ source <(curl -s https://raw.githubusercontent.com/lfn-cnti/testsuite/main/curl_
 cnti-testsuite setup
 curl -o cnti-testsuite.yaml https://raw.githubusercontent.com/lfn-cnti/testsuite/main/example-cnfs/coredns/cnti-testsuite.yaml
 cnti-testsuite cnf_install --cnf-config ./cnti-testsuite.yaml
-cnti-testsuite cert
+cnti-testsuite essential
 ```
 
-`cert` runs the essential tests and takes about ten minutes for CoreDNS. `cnti-testsuite workload`
+`essential` runs the essential tests (`cert` is the same suite under its earlier name) and takes about ten minutes for CoreDNS. `cnti-testsuite workload`
 runs all of them, chaos experiments included.
 
 Next steps: the [installation guide](docs/INSTALL.md), the [usage guide](docs/USAGE.md), and how to describe
@@ -62,7 +62,7 @@ your own CNF in [`cnti-testsuite.yaml`](docs/CNTI_TESTSUITE_YAML_USAGE.md).
 ## Use it in CI
 
 The [CNTi Test Suite GitHub Action](https://github.com/lfn-cnti/testsuite-action) creates a kind
-cluster, installs your CNF and runs the essential tests (`cert`) on every pull request:
+cluster, installs your CNF and runs the essential tests on every pull request:
 
 ```yaml
 - uses: lfn-cnti/testsuite-action@v1

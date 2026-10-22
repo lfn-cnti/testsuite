@@ -101,7 +101,7 @@ errored test an `<error>`; skipped and not-applicable tests a `<skipped>`. The r
 ```
 
 - `cnti-badge.svg`: the badge, the CNTi logo, the test set and the score (`CNTi essential 17/19`
-  for a `cert` run, the task's name for any other task), green when the run met its objective,
+  for an `essential` or `cert` run, the task's name for any other task), green when the run met its objective,
   red when it did not, grey when it errored.
 - `cnti-badge.json`: the same in [shields.io endpoint](https://shields.io/badges/endpoint-badge)
   format, with the monochrome logo.
@@ -351,7 +351,7 @@ compiled with, and edits to the file were silently reverted on the next run.
 
 ##### Group success criteria
 
-Every task group — the suites (`all`, `workload`, `cert`) and the
+Every task group — the suites (`all`, `workload`, `essential` and its alias `cert`) and the
 categories (`security`, `configuration`, ...) —
 declares a success criterion in `Points::GROUP_CRITERIA`. These are group-level
 policy — what `cert` requires of the essential tests, and what the suite demands of each category — so
@@ -532,13 +532,15 @@ A namespace the suite created for a Helm deployment (`cnti-default`, or the depl
 crystal src/cnti-testsuite.cr -- workload --cnf-config <path_to_your_config_file>/cnti-testsuite.yaml
 ```
 
-#### Running the essential tests (`cert`)
+#### Running the essential tests (`essential`, or `cert`)
 
 ```
+./cnti-testsuite essential
+./cnti-testsuite essential --skip increase_decrease_capacity --skip single_process_type
 ./cnti-testsuite cert
-./cnti-testsuite cert --essential
-./cnti-testsuite cert --skip increase_decrease_capacity --skip single_process_type
 ```
+
+`essential` and `cert` run the same suite with the same threshold, output and exit code: `essential` names the set (the badge reads "CNTi essential"), `cert` is the name adopters' CI has used and keeps working.
 
 #### Running the workload tests:
 
@@ -639,7 +641,7 @@ It implements MCP protocol version `2025-06-18`. The tools:
 |---|---|---|
 | `list_tests` | Every test with its category and type (essential/normal/bonus) | read-only |
 | `run_test` | Runs one test, as `cnti-testsuite <test>` does, and returns its results document when it finishes | |
-| `start_run` | Starts a suite (`all`, `workload`, `cert`), a category or a single test, as `cnti-testsuite <name>` does, and returns a `runId` at once | |
+| `start_run` | Starts a suite (`all`, `workload`, `essential`, `cert`), a category or a single test, as `cnti-testsuite <name>` does, and returns a `runId` at once | |
 | `get_run` | The state and progress of a run, with its results document once complete | read-only |
 | `cancel_run` | Stops a run started by `start_run`, `cnf_install` or `cnf_uninstall` | |
 | `get_results` | The newest results document in the workspace | read-only |
