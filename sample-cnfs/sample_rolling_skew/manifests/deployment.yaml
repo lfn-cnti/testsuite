@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skew
+  namespace: cnti-default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: skew
+  template:
+    metadata:
+      labels:
+        app: skew
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: python:3.12-slim
+          command: ["python", "-c", "import sys, time; assert sys.version_info[:2] == (3, 12), sys.version; time.sleep(1000000)"]
+          readinessProbe:
+            exec:
+              command: ["true"]
+            periodSeconds: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
