@@ -113,3 +113,12 @@ describe "NetRetry" do
     end
   end
 end
+
+describe "url_without_credentials" do
+  it "leaves the credentials of a mirror URL out of what is logged", tags: ["points"] do
+    url_without_credentials("https://user:token@mirror.example/charts/faults/kubernetes/pod-delete/fault.yaml").should eq("https://mirror.example/charts/faults/kubernetes/pod-delete/fault.yaml")
+    url_without_credentials("http://token@mirror.example:8080/charts").should eq("http://mirror.example:8080/charts")
+    url_without_credentials("https://raw.githubusercontent.com/litmuschaos/chaos-charts/3.0.0/faults").should eq("https://raw.githubusercontent.com/litmuschaos/chaos-charts/3.0.0/faults")
+    url_without_credentials("https://mirror.example/charts?ref=a@b").should eq("https://mirror.example/charts?ref=a@b")
+  end
+end

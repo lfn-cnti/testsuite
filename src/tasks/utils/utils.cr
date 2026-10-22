@@ -541,6 +541,12 @@ def find_files(directory : String, wildcard : String)
   found_files
 end
 
+# The URL as it may be logged or reported: credentials in it (a mirror at
+# https://user:token@host/...) are left out.
+def url_without_credentials(url : String) : String
+  url.sub(/\A([a-z][a-z0-9+.-]*:\/\/)[^\/?#]*@/i, "\\1")
+end
+
 def download_file(url : String, output_path : String,
                   redirect_limit : Int = 5, headers : HTTP::Headers? = nil)
   # The display label comes from the caller's URL: redirect targets (GitHub
@@ -548,7 +554,7 @@ def download_file(url : String, output_path : String,
   # make meaningless labels.
   label = File.basename(URI.parse(url).path)
   label = File.basename(output_path) if label.empty?
-  NetRetry.with_retries("download #{url}") do
+  NetRetry.with_retries("download #{url_without_credentials(url)}") do
     follow_and_download(url, output_path, redirect_limit, headers, label)
   end
 end
