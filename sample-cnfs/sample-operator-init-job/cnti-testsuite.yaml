@@ -1,0 +1,17 @@
+---
+# The sample operator with initJob on: for its PodSet it first runs a Job it
+# owns (the way an operator runs an initdb), and deletes that Job once it has
+# succeeded. The owned Deployment is a workload of the CNF; the Job is not
+# recorded, so the tests that follow do not look for an object that is gone
+# (#2808).
+config_version: v2
+deployments:
+  helm_dirs:
+  - name: simple-pod-operator
+    helm_directory: ../sample-operator/simple_pod_operator
+    helm_values: --set initJob=true
+    priority: 1
+  manifests:
+  - name: controlling_manifest
+    manifest_directory: controlling_manifest
+    priority: 2

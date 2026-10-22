@@ -726,6 +726,10 @@ CNTI_TESTSUITE_LABEL_RESOURCE_SLEEP=5
 CNTI_TESTSUITE_OWNED_RESOURCE_DISCOVERY_TIMEOUT=60
 ```
 
+Workloads an operator creates for the CNF's custom resources are found through their owner
+references and judged with the CNF. A Job the operator creates (an initdb, a migration) is not: it
+runs once and is often deleted when it is done.
+
 #### Network retries:
 
 Network-bound fetches (chart pulls, repo adds, binary downloads) are retried on transient

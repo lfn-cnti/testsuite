@@ -163,6 +163,50 @@ spec:
                   ready_replicas = deployment_state.get("status", {}).get("readyReplicas", 0)
                   return deployment_name, ready_replicas, replicas
 
+              INIT_JOB = {{ .Values.initJob | default false | ternary "True" "False" }}
+
+              def reconcile_init_job(podset):
+                  """An init Job the PodSet owns, as an operator runs one before its
+                  workload (a database's initdb): created once, deleted when it
+                  has succeeded, the way CloudNativePG does."""
+                  name = podset["metadata"]["name"]
+                  spec = podset.get("spec", {})
+                  job_name = spec.get("podNamePrefix", name) + "-init"
+                  job_path = f"/apis/batch/v1/namespaces/{NAMESPACE}/jobs/{job_name}"
+                  try:
+                      job = json.loads(request(job_path))
+                      if job.get("status", {}).get("succeeded", 0) >= 1:
+                          request(job_path + "?propagationPolicy=Background", "DELETE")
+                          print(f"Deleted finished init job '{job_name}' of PodSet '{name}'")
+                      return
+                  except urllib.error.HTTPError as error:
+                      if error.code != 404:
+                          raise
+                  if podset.get("status", {}).get("initDone"):
+                      return
+                  job = {
+                      "apiVersion": "batch/v1",
+                      "kind": "Job",
+                      "metadata": {
+                          "name": job_name,
+                          "labels": {"app.kubernetes.io/managed-by": OPERATOR_LABEL},
+                          "ownerReferences": build_owner_references(name, podset["metadata"]["uid"], podset.get("apiVersion", "demo.example.com/v1"))
+                      },
+                      "spec": {
+                          "backoffLimit": 0,
+                          "template": {
+                              "spec": {
+                                  "restartPolicy": "Never",
+                                  "containers": [{"name": "init", "image": spec.get("image", "nginx"), "command": ["sleep", "5"]}]
+                              }
+                          }
+                      }
+                  }
+                  request(f"/apis/batch/v1/namespaces/{NAMESPACE}/jobs", "POST", json.dumps(job).encode())
+                  request(f"/apis/demo.example.com/v1/namespaces/{NAMESPACE}/podsets/{name}/status", "PATCH",
+                          json.dumps({"status": {"initDone": True}}).encode(), content_type="application/merge-patch+json")
+                  print(f"Created init job '{job_name}' for PodSet '{name}'")
+
               def delete_orphan_deployments(active_deployments):
                   try:
                       deployments_raw = request(f"/apis/apps/v1/namespaces/{NAMESPACE}/deployments")
@@ -205,6 +249,8 @@ spec:
 
                       for ps in podset_items:
                           name = ps["metadata"]["name"]
+                          if INIT_JOB:
+                              reconcile_init_job(ps)
                           deployment_name, ready_count, replicas = reconcile_deployment(ps)
                           active_deployments.add(deployment_name)
                           update_podset_status(name, ready_count, replicas)
