@@ -48,12 +48,79 @@ module NodeDrain
 
   # Waits up to `timeout` seconds for the workload to recover.
   def self.wait_recovered(ref : Ref, away_from : String?, timeout : Int32) : Bool
+    wait_recovered_or_pinned(ref, away_from, timeout, pinned: false)[:recovered]
+  end
+
+  # Waits for the workload to recover, unless it turns out to be pinned to
+  # the drained node by the cluster's own storage (#2811): the reason is
+  # then returned at once instead of waiting out the timeout.
+  def self.wait_recovered_or_pinned(ref : Ref, away_from : String?, timeout : Int32, pinned : Bool = true) : NamedTuple(recovered: Bool, pinned: String?)
     started = Time.utc
+    checks = 0
     loop do
-      return true if recovered?(ref, away_from)
-      return false if (Time.utc - started).total_seconds > timeout
+      return {recovered: true, pinned: nil} if recovered?(ref, away_from)
+      return {recovered: false, pinned: nil} if (Time.utc - started).total_seconds > timeout
+      checks += 1
+      # The scheduler's verdict takes a few seconds to appear on a new pod.
+      if pinned && checks % 10 == 0
+        reason = pinned_by_cluster_storage(ref)
+        return {recovered: false, pinned: reason} if reason
+      end
       sleep 1.seconds
     end
+  end
+
+  VOLUME_AFFINITY_CONFLICT = /volume node affinity conflict|didn't match PersistentVolume's node affinity/
+
+  # Why a pod is not scheduled, from the scheduler's own condition; nil when
+  # it is scheduled or the condition carries no message.
+  def self.unschedulable_reason(pod : JSON::Any) : String?
+    conditions = pod.dig?("status", "conditions").try(&.as_a?) || [] of JSON::Any
+    scheduled = conditions.find { |c| c["type"]?.try(&.as_s?) == "PodScheduled" }
+    return nil unless scheduled && scheduled["status"]?.try(&.as_s?) == "False"
+    scheduled["message"]?.try(&.as_s?)
+  end
+
+  # A workload that cannot come back on another node because its volume is
+  # tied to the drained one by the cluster's default storage class, not by
+  # the CNF's choice (#2811): every pending pod of it is unschedulable for
+  # the volume's node affinity, and every node-bound volume of its claims is
+  # the cluster's choice, as elastic_volumes judges it. Then the reason, per
+  # claim; nil when the workload is not in that state, or chose node-local
+  # storage itself.
+  def self.pinned_by_cluster_storage(ref : Ref) : String?
+    pending = pods(ref).select { |pod| pod.dig?("status", "phase").try(&.as_s?) == "Pending" }
+    return nil if pending.empty?
+    return nil unless pending.all? { |pod| (unschedulable_reason(pod) || "") =~ VOLUME_AFFINITY_CONFLICT }
+    live = KubectlClient::Get.resource(ref[:kind], ref[:name], ref[:namespace])
+    volumes = KubectlClient::Get.resource("pv")["items"]?.try(&.as_a?) || [] of JSON::Any
+    reasons = [] of String
+    VolumeElasticity.claim_names(live).each do |claim|
+      pv = volumes.find do |volume|
+        volume.dig?("spec", "claimRef", "name").try(&.as_s?) == claim &&
+          volume.dig?("spec", "claimRef", "namespace").try(&.as_s?) == ref[:namespace]
+      end
+      next unless pv
+      class_name = pv.dig?("spec", "storageClassName").try(&.as_s?)
+      storage_class = begin
+        KubectlClient::Get.resource("storageclasses", class_name) if class_name && !class_name.empty?
+      rescue KubectlClient::ShellCMD::NotFoundError
+        nil
+      end
+      judgement = VolumeElasticity.judge(pv, storage_class)
+      case judgement[:verdict]
+      in .elastic?
+        next
+      in .node_bound?
+        # The CNF chose storage tied to a node: its finding.
+        return nil
+      in .cluster_choice?
+        reasons << "claim #{claim}, PersistentVolume #{pv.dig?("metadata", "name")}: #{judgement[:reason]}"
+      end
+    end
+    reasons.empty? ? nil : reasons.join("; ")
+  rescue KubectlClient::ShellCMD::K8sClientCMDException
+    nil
   end
 end
 
@@ -101,6 +168,9 @@ scored_task "node_drain",
       end
     end
     failed = Set(NodeDrain::Ref).new
+    # Workloads the cluster's default storage pins to the drained node: not
+    # the CNF's doing, so listed and not judged (#2811).
+    pinned = Set(NodeDrain::Ref).new
     workloads.each do |ref|
       next if pods_of[ref].any? { |pod| NodeDrain.node_of(pod) }
       result.add_impacted_resource(ref[:kind], ref[:name], ref[:namespace], reason: "no scheduled pod to drain")
@@ -157,8 +227,16 @@ scored_task "node_drain",
           # together while they are checked one by one.
           refs.each do |ref|
             label = "#{ref[:kind]}/#{ref[:name]} in #{ref[:namespace]}"
-            if NodeDrain.wait_recovered(ref, node, POD_READINESS_TIMEOUT)
+            outcome = NodeDrain.wait_recovered_or_pinned(ref, node, POD_READINESS_TIMEOUT)
+            if outcome[:recovered]
               result.append_description("#{label}: Ready again on another node within #{(Time.utc - evicted_at).total_seconds.round.to_i} s of eviction")
+            elsif reason = outcome[:pinned]
+              # The volume the cluster's default storage class provisioned is
+              # tied to the drained node, so the pod cannot be scheduled
+              # anywhere else: the cluster's choice, as elastic_volumes judges
+              # it, not the CNF's. The workload comes back when the node does.
+              result.append_description("#{label}: cannot be rescheduled, its volume is tied to node #{node} by the cluster's default storage class (#{reason}); not judged, it comes back when the node does")
+              pinned << ref
             else
               why = WorkloadDiagnostics.report(result, ref[:kind], ref[:name], ref[:namespace], "#{label} after draining #{node}")
               result.add_impacted_resource(ref[:kind], ref[:name], ref[:namespace],
@@ -218,8 +296,14 @@ scored_task "node_drain",
       failed << ref
     end
 
-    if failed.empty?
-      result.passed("node_drain passed: #{drained} node(s) drained, #{workloads.size} workload(s) rescheduled")
+    unless pinned.empty?
+      result.append_remediation("The cluster's default storage class provisions volumes tied to one node, so a workload with such a volume cannot be rescheduled: to judge it, run on a cluster whose default storage follows a pod to another node, or have the CNF name an elastic storage class for its claims.")
+    end
+    judged = workloads.size - pinned.size
+    if failed.empty? && judged == 0
+      result.na("node_drain not applicable: every workload is tied to its node by the cluster's default storage class (#{pinned.size} workload(s), see the details)")
+    elsif failed.empty?
+      result.passed("node_drain passed: #{drained} node(s) drained, #{judged} workload(s) rescheduled#{pinned.empty? ? "" : ", #{pinned.size} not judged (tied to its node by the cluster's default storage class)"}")
     else
       result.append_remediation("Make every workload survive the loss of the node it runs on: more than one replica spread across nodes, no node-local state, readiness that reflects the service, and PodDisruptionBudgets that leave room for an eviction.")
       result.failed("node_drain failed: #{failed.size} workload(s) did not come back after a drain")
