@@ -832,6 +832,9 @@ scored_task "sbom_available",
     rescue ex : ClusterTools::NotReadyException
       result.skipped("Skipping sbom_available: #{ex.message}")
       next
+    rescue ex : ClusterTools::RuntimeException
+      result.skipped("Skipping sbom_available: cluster-tools cannot inspect containers on every node: #{ex.message.to_s.lines.join("; ")}")
+      next
     end
 
     checked_images = {} of String => NamedTuple(found: Bool?, source: String?, reason: String?)

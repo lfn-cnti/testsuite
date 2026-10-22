@@ -74,7 +74,8 @@ class ChaosTemplates
       @app_kind : String,
       @deployment_label : String,
       @deployment_label_value : String,
-      @target_container : String = ""
+      @target_container : String = "",
+      @container_path : String = "/var/lib/containerd/io.containerd.grpc.v1.cri/containers/"
     )
     end
     ECR.def_to_s("src/templates/chaos_templates/disk_fill.yml.ecr")

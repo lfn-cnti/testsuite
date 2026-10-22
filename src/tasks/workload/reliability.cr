@@ -373,6 +373,22 @@ scored_task "disk_fill",
   deps: ["setup:install_litmus"],
   emoji: "🗡️💀♻" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # The helper fills the target's directory under the runtime's container
+    # root on the node, which depends on the runtime and the distribution
+    # (#2826). Both are cluster properties, so not finding them is N/A.
+    runtimes = KubectlClient::Get.container_runtimes
+    container_runtime = LitmusManager.detect_runtime(runtimes)
+    unless container_runtime
+      result.na("#{t.name} not applicable: unsupported container runtime (#{runtimes.join(", ")})")
+      next
+    end
+    container_path = LitmusManager.detect_container_path(container_runtime)
+    unless container_path
+      result.na("#{t.name} not applicable: no #{container_runtime} container directory found on the node, set #{LitmusManager::CONTAINER_PATH_ENV}")
+      next
+    end
+    result.append_description("#{container_runtime} container directory on the node: #{container_path}")
+
     injected = 0
     task_response, tested = chaos_resource_test(args, config, result, t.name, check_containers: false) do |resource, containers, _, target_label|
       app_namespace = resource[:namespace]
@@ -403,7 +419,8 @@ scored_task "disk_fill",
           "#{resource["kind"].downcase}",
           target_label[0],
           target_label[1],
-          target_container: target_container
+          target_container: target_container,
+          container_path: container_path
         ).to_s
         chaos_template_path = File.join(CNF_TEMP_FILES_DIR, "#{chaos_experiment_name}-chaosengine.yml")
         File.write(chaos_template_path, template)

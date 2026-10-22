@@ -1,5 +1,6 @@
 require "../spec_helper"
 require "../../src/tasks/utils/litmus_manager.cr"
+require "../../src/tasks/utils/chaos_templates.cr"
 
 # The litmus chaos helpers exec into the target container through the node's
 # container runtime, so the chaos engine must advertise the runtime and its
@@ -90,5 +91,31 @@ describe "LitmusManager.chaos_charts" do
       message.should contain("#{LitmusManager::CHAOS_CHARTS_ENV} must be an https:// URL")
       message.should_not contain("secret")
     end
+  end
+end
+
+# disk_fill's helper fills the target's directory under the runtime's
+# container root, which depends on the runtime and the distribution (#2826).
+describe "LitmusManager.detect_container_path" do
+  it "honours the environment override without probing the cluster", tags: ["disk_fill"] do
+    ENV[LitmusManager::CONTAINER_PATH_ENV] = "/custom/containers/"
+    LitmusManager.detect_container_path("containerd").should eq("/custom/containers/")
+  ensure
+    ENV.delete(LitmusManager::CONTAINER_PATH_ENV)
+  end
+
+  it "has a container directory for every runtime the helpers understand", tags: ["disk_fill"] do
+    LitmusManager::RUNTIME_SOCKET_CANDIDATES.keys.each do |runtime|
+      LitmusManager::CONTAINER_PATH_CANDIDATES[runtime]?.should_not be_nil
+    end
+    LitmusManager::CONTAINER_PATH_CANDIDATES["containerd"].first.should eq("/var/lib/containerd/io.containerd.grpc.v1.cri/containers/")
+  end
+end
+
+describe "ChaosTemplates::DiskFill" do
+  it "names the runtime's container directory in the engine", tags: ["disk_fill"] do
+    template = ChaosTemplates::DiskFill.new("engine", "disk-fill", "ns", "deployment", "app", "web",
+      target_container: "web", container_path: "/var/lib/containers/storage/overlay-containers/").to_s
+    template.should contain("- name: CONTAINER_PATH\n              value: '/var/lib/containers/storage/overlay-containers/'")
   end
 end

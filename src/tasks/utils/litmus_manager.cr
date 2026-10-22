@@ -474,6 +474,52 @@ module LitmusManager
     found
   end
 
+  # Host directories where a runtime keeps one directory per container, the
+  # CONTAINER_PATH under which disk_fill's helper fills the target's
+  # directory; most common first. Distributions move containerd's root: k3s
+  # and RKE2 keep it under /var/lib/rancher (behind the same socket path),
+  # microk8s under its snap directory.
+  CONTAINER_PATH_CANDIDATES = {
+    "docker"     => ["/var/lib/docker/containers/"],
+    "containerd" => [
+      "/var/lib/containerd/io.containerd.grpc.v1.cri/containers/",
+      "/var/lib/rancher/k3s/agent/containerd/io.containerd.grpc.v1.cri/containers/",
+      "/var/lib/rancher/rke2/agent/containerd/io.containerd.grpc.v1.cri/containers/",
+      "/var/snap/microk8s/common/var/lib/containerd/io.containerd.grpc.v1.cri/containers/",
+    ],
+    "crio" => ["/var/lib/containers/storage/overlay-containers/"],
+  }
+
+  # Overrides the detected container directory, for a runtime whose root is
+  # configured elsewhere. A cluster property, like the socket.
+  CONTAINER_PATH_ENV = "CNTI_TESTSUITE_CONTAINER_PATH"
+
+  # Host directory of the runtime's containers: the environment override when
+  # set, otherwise the first candidate that exists on a node, probed through
+  # cluster-tools as the socket is. Nil when none is found.
+  def self.detect_container_path(runtime : String) : String?
+    logger = Log.for("LitmusManager.detect_container_path")
+    if (override = ENV[CONTAINER_PATH_ENV]?) && !override.empty?
+      logger.info { "Using #{CONTAINER_PATH_ENV}=#{override} for #{runtime}" }
+      return override
+    end
+
+    candidates = CONTAINER_PATH_CANDIDATES[runtime]
+    node = KubectlClient::Get.schedulable_nodes_list.first?
+    unless node
+      logger.warn { "No schedulable node to probe for the #{runtime} container directory" }
+      return nil
+    end
+    probe = "sh -c 'for p in #{candidates.join(" ")}; do [ -d \"/host$p\" ] && echo \"$p\" && exit 0; done; exit 1'"
+    found = ClusterTools.exec_by_node(probe, node)[:output].strip
+    if found.empty?
+      logger.warn { "No #{runtime} container directory on #{node.dig?("metadata", "name")} among #{candidates.join(", ")}; set #{CONTAINER_PATH_ENV}" }
+      return nil
+    end
+    logger.info { "#{runtime} container directory found at #{found}" }
+    found
+  end
+
   def self.chaos_manifests_path
     Log.info {"chaos_manifests_path"}
     chaos_manifests = "#{tools_path}/chaos-experiments"

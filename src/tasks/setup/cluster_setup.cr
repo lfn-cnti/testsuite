@@ -14,6 +14,17 @@ def stdout_cluster_tools_not_ready(ex : ClusterTools::NotReadyException)
                  "an admission policy that refuses them (Pod Security, Kyverno, a webhook), an image that cannot be pulled, or a node that cannot schedule them."
 end
 
+# The helper is up but cannot inspect containers on some node: the runtime
+# it found is unreachable, unsupported, or not the kubelet's. Setup and
+# cnf_install both stop on it.
+def stdout_cluster_tools_runtime_problems(ex : ClusterTools::RuntimeException)
+  stdout_failure "Error: cluster-tools cannot inspect containers on every node:"
+  ex.message.to_s.lines.each { |line| stdout_failure "  #{line}" }
+  stdout_failure "The suite reads the CNF's containers through the container runtime of each node (containerd or CRI-O), " +
+                 "which the cluster-tools pod reaches at the endpoint the kubelet uses. The run stops here: " +
+                 "every test that inspects containers would skip on that node otherwise."
+end
+
 namespace "setup" do
   desc "Install CNTi Test Suite Cluster Tools"
   task "install_cluster_tools", ["setup:create_namespace"] do |_, args|
@@ -27,6 +38,10 @@ namespace "setup" do
       logger.error { "Error while installing: #{ex.message}" }
       stdout_failure "Error: Namespace cnti-testsuite does not exist.\n" +
                      "Please run 'cnti-testsuite setup' to create the necessary namespace."
+      exit(1)
+    rescue ex : ClusterTools::RuntimeException
+      logger.error { "Error while installing: #{ex.message}" }
+      stdout_cluster_tools_runtime_problems(ex)
       exit(1)
     rescue ex : ClusterTools::NotReadyException
       # The run stops here: the tests that read the CNF's containers need a

@@ -591,7 +591,9 @@ scored_task "zombie_handled",
 
     containers_to_restart.each do |container_id, node|
       Log.for(t.name).info { "Shutting down container #{container_id}" }
-      ClusterTools.exec_by_node("ctr -n=k8s.io task kill --signal 9 #{container_id}", node)
+      # Through the CRI, so it works on containerd and CRI-O alike: a stop
+      # with no grace is a kill.
+      ClusterTools.exec_by_node("crictl stop --timeout 0 #{ClusterTools.parse_container_id(container_id)}", node)
     end
 
     pods_to_restart.each do |pod_name, namespace|
