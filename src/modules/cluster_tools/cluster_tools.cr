@@ -51,6 +51,59 @@ module ClusterTools
   class NotReadyException < Exception
   end
 
+  # Raised when a node's container runtime cannot be reached through the
+  # helper, or is one the suite does not inspect through (#2826): every
+  # container inspection would fail on that node, so the run stops here.
+  class RuntimeException < Exception
+  end
+
+  # The runtimes the suite inspects containers through, by the name crictl
+  # reports and by the prefix of the container IDs the kubelet reports.
+  SUPPORTED_RUNTIMES = ["containerd", "cri-o"]
+
+  record RuntimeCheck, node : String, ok : Bool, runtime : String, version : String, endpoint : String, reason : String
+
+  # The outcome of the helper's runtime check on one node, from the line it
+  # wrote: "ok <runtime> <version> <endpoint>" or "error <reason>".
+  def self.parse_runtime_check(node : String, line : String) : RuntimeCheck
+    words = line.strip.split(' ', 4)
+    if words[0]? == "ok" && words.size == 4
+      RuntimeCheck.new(node, true, words[1], words[2], words[3], "")
+    else
+      RuntimeCheck.new(node, false, "", "", "", line.strip.sub(/\Aerror\s*/, "").presence || "no outcome")
+    end
+  end
+
+  # The container runtime of every node that runs a helper pod, as the
+  # helper found it (#2826): logged per node; a node whose runtime is
+  # unreachable, unsupported, or not the one the kubelet reports raises
+  # RuntimeException with every such node's line, so the run stops before
+  # the tests instead of skipping every inspection late.
+  def self.check_runtimes
+    nodes = KubectlClient::Get.resource("nodes")["items"].as_a
+    problems = [] of String
+    nodes.each do |node|
+      node_name = node.dig?("metadata", "name").try(&.as_s?) || next
+      next unless helper_ready_on_node?(node)
+      read = exec_by_node("cat /run/cnti-runtime", node)
+      check = parse_runtime_check(node_name, read[:status].success? ? read[:output] : "error the helper's runtime check could not be read (a helper pod from an earlier suite version?): #{read[:error].to_s.lines.first?.to_s.strip}")
+      kubelet = node.dig?("status", "nodeInfo", "containerRuntimeVersion").try(&.as_s?) || ""
+      kubelet_runtime = kubelet.partition("://")[0]
+      if !check.ok
+        problems << "node #{node_name}: container runtime #{kubelet.presence || "unknown"}: #{check.reason}"
+      elsif !SUPPORTED_RUNTIMES.includes?(check.runtime)
+        problems << "node #{node_name}: container runtime #{check.runtime} #{check.version} at #{check.endpoint} is not supported; the suite inspects containers through #{SUPPORTED_RUNTIMES.join(" or ")}"
+      elsif !kubelet_runtime.empty? && kubelet_runtime != check.runtime
+        problems << "node #{node_name}: the helper reached #{check.runtime} #{check.version} at #{check.endpoint}, but the kubelet runs its containers with #{kubelet}; set the kubelet's endpoint where the helper can read it (its --container-runtime-endpoint flag or config file)"
+      else
+        line = "node #{node_name}: container runtime #{check.runtime} #{check.version} at #{check.endpoint}"
+        Log.info { line }
+        stdout_info line
+      end
+    end
+    raise RuntimeException.new(problems.join("\n")) unless problems.empty?
+  end
+
   # Seconds to wait for the DaemonSet; the first run pulls the image on
   # every node.
   def self.ready_timeout : Int32
@@ -62,7 +115,8 @@ module ClusterTools
     FileUtils.mkdir_p(File.dirname(Setup::CLUSTER_TOOLS_MANIFEST))
     File.write(Setup::CLUSTER_TOOLS_MANIFEST, ManifestTemplate.new().to_s)
     KubectlClient::Apply.file(Setup::CLUSTER_TOOLS_MANIFEST, namespace: self.namespace!)
-    # True once the DaemonSet is ready; otherwise NotReadyException.
+    # True once the DaemonSet is ready and the nodes' runtimes are checked;
+    # otherwise NotReadyException, or RuntimeException from the check.
     waited = wait_for_cluster_tools
     status_read = true
     status = begin
@@ -77,7 +131,10 @@ module ClusterTools
     # leave every inspecting test without a helper as well. A status that
     # could not be read after the wait succeeded says nothing about that:
     # the wait stands.
-    return true if waited && (desired > 0 || !status_read)
+    if waited && (desired > 0 || !status_read)
+      check_runtimes
+      return true
+    end
     if waited
       raise NotReadyException.new("cluster-tools has no pod on any node: no node of the cluster schedules the DaemonSet (taints, node selectors)")
     end
@@ -153,14 +210,12 @@ module ClusterTools
     container_id.split("://", 2).last
   end
 
+  # The ID crictl is given: a containerd ID shortened to its first 13
+  # characters, a CRI-O ID in full, anything else as it came.
   def self.parse_container_id(container_id : String)
     Log.debug { "parse_container_id container_id: #{container_id}" }
     bare_id = strip_runtime_prefix(container_id)
-    if container_id =~ /containerd/
-      bare_id[0..13]
-    else
-      bare_id
-    end
+    container_id.starts_with?("containerd://") ? bare_id[0..13] : bare_id
   end
 
   def self.node_pid_by_container_id(container_id, node) : String | Nil
@@ -174,8 +229,8 @@ module ClusterTools
   # ready, crictl has to know the container, and the container has to run.
   def self.pid_or_reason(container_id : String, node : JSON::Any) : NamedTuple(pid: String?, reason: String?)
     Log.debug { "pid_or_reason container_id: #{container_id}" }
-    if (runtime = container_id.partition("://")[0]) && container_id.includes?("://") && runtime != "containerd"
-      return {pid: nil, reason: "container ID #{container_id} is a #{runtime} ID; the suite inspects containers through containerd only"}
+    if (runtime = container_id.partition("://")[0]) && container_id.includes?("://") && !SUPPORTED_RUNTIMES.includes?(runtime)
+      return {pid: nil, reason: "container ID #{container_id} is a #{runtime} ID; the suite inspects containers through #{SUPPORTED_RUNTIMES.join(" or ")} only"}
     end
     node_name = node.dig?("metadata", "name").try(&.as_s?) || "?"
     unless helper_ready_on_node?(node)
@@ -309,7 +364,9 @@ module ClusterTools
 						# next unless ready 
 						Log.debug { "containerStatuses container_id #{container_id}" }
 						#get container id's pid on the node (different from inside the container)
-						looked_up = ClusterTools.pid_or_reason(container_id, node)
+						# With its runtime prefix: an ID of a runtime the suite does
+						# not inspect is refused with that reason.
+						looked_up = ClusterTools.pid_or_reason(prefix_container_id, node)
 						container_pid_on_node = looked_up[:pid].to_s
 						if container_pid_on_node.empty?
 							Log.debug { "no pid for (skipping): containerStatuses container_id #{container_id}" }
