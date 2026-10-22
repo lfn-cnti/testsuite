@@ -697,14 +697,29 @@ describe CntiTestSuite do
   after_all do
     result = ShellCmd.run_testsuite("uninstall_all")
   end
-  it "'alpha_k8s_apis' should fail when a manifest declares or serves only alpha APIs", tags: ["alpha_k8s_apis"] do
+  it "'alpha_k8s_apis' should fail when a manifest declares or bundles an alpha Kubernetes API", tags: ["alpha_k8s_apis"] do
     begin
-      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-alpha-apis/cnti-testsuite.yaml")
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-k8s-alpha-apis/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("alpha_k8s_apis")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(CNF uses Kubernetes alpha APIs)/ =~ result[:output]).should_not be_nil
-      (/impacted: CustomResourceDefinition\/widgets.example.com: serves only alpha version\(s\): v1alpha1/ =~ result[:output]).should_not be_nil
+      (/impacted: TCPRoute\/k8s-alpha-apis in k8s-alpha-apis: declared with the alpha API gateway.networking.k8s.io\/v1alpha2/ =~ result[:output]).should_not be_nil
+      (/impacted: CustomResourceDefinition\/tcproutes.gateway.networking.k8s.io: serves only alpha version\(s\) of the Kubernetes API gateway.networking.k8s.io: v1alpha2/ =~ result[:output]).should_not be_nil
       verify_task_result("alpha_k8s_apis", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'alpha_k8s_apis' should pass a CNF whose own CRD and resources are at v1alpha1", tags: ["alpha_k8s_apis"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-alpha-apis/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("alpha_k8s_apis")
+      result[:status].success?.should be_true
+      (/(PASSED).*(CNF does not use Kubernetes alpha APIs)/ =~ result[:output]).should_not be_nil
+      (/impacted: CustomResourceDefinition\/widgets.example.com/ =~ result[:output]).should be_nil
+      verify_task_result("alpha_k8s_apis", "passed")
     ensure
       result = ShellCmd.cnf_uninstall
       result[:status].success?.should be_true

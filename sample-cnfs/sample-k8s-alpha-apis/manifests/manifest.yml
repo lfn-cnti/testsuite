@@ -1,0 +1,41 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: k8s-alpha-apis
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TCPRoute
+metadata:
+  name: k8s-alpha-apis
+  namespace: k8s-alpha-apis
+spec:
+  rules:
+  - backendRefs:
+    - name: k8s-alpha-apis
+      port: 8080
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-alpha-apis
+  namespace: k8s-alpha-apis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-alpha-apis
+  template:
+    metadata:
+      labels:
+        app: k8s-alpha-apis
+    spec:
+      containers:
+      - name: main
+        # renovate: datasource=docker depName=busybox
+        image: busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e
+        command: ["sh", "-c", "sleep 2147483647"]

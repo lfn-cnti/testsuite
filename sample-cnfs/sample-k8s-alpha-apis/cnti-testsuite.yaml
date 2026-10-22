@@ -1,0 +1,15 @@
+---
+# A CNF that bundles and uses an experimental Kubernetes API: the Gateway API's
+# TCPRoute, served only as gateway.networking.k8s.io/v1alpha2 (the
+# experimental channel). alpha_k8s_apis must fail it; a CNF's own CRD at
+# v1alpha1 (sample-alpha-apis) passes (#2819).
+config_version: v2
+deployments:
+  manifests:
+  # The CRD first: a TCPRoute cannot be applied before its CRD is served.
+  - name: tcproute-crd
+    manifest_directory: crd
+    priority: 1
+  - name: k8s-alpha-apis
+    manifest_directory: manifests
+    priority: 2
