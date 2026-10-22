@@ -29,6 +29,9 @@ module CNFInstall
         unless response[:output].empty?
           File.open(CNF_INSTALL_LOG_FILE, "a") { |file| file.puts("#{response[:error]}\n") }
         end
+      rescue e : SuiteNamespaces::LabelRefused
+        stdout_failure e.message.to_s
+        return false
       rescue e : Helm::ShellCMD::CannotReuseReleaseNameError
         stdout_failure "Helm deployment \"#{@deployment_name}\" already exists in \"#{helm_namespace}\" namespace."
         stdout_failure "Change deployment name in CNF configuration or uninstall existing deployment."

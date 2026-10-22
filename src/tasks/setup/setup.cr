@@ -14,6 +14,10 @@ namespace "setup" do
 
     begin
       SuiteNamespaces.ensure_exists(TESTSUITE_NAMESPACE)
+    rescue ex : SuiteNamespaces::LabelRefused
+      stdout_failure ex.message.to_s
+      logger.error { ex.message }
+      exit(1)
     rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
       stdout_failure "Could not create #{TESTSUITE_NAMESPACE} namespace on the Kubernetes cluster"
       logger.error { "Failed to create #{TESTSUITE_NAMESPACE} namespace: #{ex.message}" }
