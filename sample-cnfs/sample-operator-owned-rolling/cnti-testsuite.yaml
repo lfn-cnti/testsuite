@@ -1,0 +1,21 @@
+---
+# The sample operator (a Deployment the CNF ships) with a PodSet whose
+# Deployment it owns: the rollout tests roll the operator's container and
+# leave the owned Deployment to the operator.
+config_version: v2
+common:
+  container_names:
+    - name: operator
+      rolling_update_test_tag: 3.12-slim
+      rolling_downgrade_test_tag: 3.10-slim
+      rolling_version_change_test_tag: 3.12-slim
+      rollback_from_tag: 3.12-slim
+deployments:
+  helm_dirs:
+  - name: simple-pod-operator
+    helm_directory: ../sample-operator/simple_pod_operator
+    priority: 1
+  manifests:
+  - name: controlling_manifest
+    manifest_directory: ../sample-operator-owned/controlling_manifest
+    priority: 2
