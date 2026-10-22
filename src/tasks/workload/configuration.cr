@@ -536,6 +536,19 @@ scored_task "immutable_configmap",
   end
 end
 
+# The API groups Kubernetes governs, whose alpha versions are the test's
+# subject: the core group, the legacy groups without a domain, and *.k8s.io,
+# the SIG APIs included when they come as CRDs (the Gateway API's experimental
+# channel). *.x-k8s.io is the SIG sandbox convention, a project's own API like
+# any other domain: a CNF's own versioning is not a Kubernetes alpha API
+# (#2819).
+KUBERNETES_LEGACY_API_GROUPS = ["apps", "batch", "autoscaling", "policy", "extensions", "events"]
+
+def kubernetes_api_group?(group : String) : Bool
+  return true if group.empty? || KUBERNETES_LEGACY_API_GROUPS.includes?(group)
+  group.ends_with?(".k8s.io") && !group.ends_with?(".x-k8s.io")
+end
+
 desc "Check if CNF uses Kubernetes alpha APIs"
 scored_task "alpha_k8s_apis",
   emoji: "⭕🔍" do |t, args|
@@ -548,17 +561,24 @@ scored_task "alpha_k8s_apis",
       namespace = resource.dig?("metadata", "namespace").try(&.as_s?)
       next unless api_version && kind && name
 
+      group = api_version.includes?("/") ? api_version.split("/").first : ""
       if api_version.split("/").last.includes?("alpha")
+        next unless kubernetes_api_group?(group)
         offenders += 1
         result.add_impacted_resource(kind, name, namespace, reason: "declared with the alpha API #{api_version}")
       elsif kind == "CustomResourceDefinition"
+        # A CRD is judged for its versions only when it defines a Kubernetes
+        # API (a bundled experimental Gateway API route, for example); a
+        # project's own CRD versions at v1alpha1 are the project's choice.
+        crd_group = resource.dig?("spec", "group").try(&.as_s?) || ""
+        next unless kubernetes_api_group?(crd_group)
         served = resource.dig?("spec", "versions").try(&.as_a?).try(&.compact_map do |version|
           next if version.dig?("served").try(&.as_bool?) == false
           version.dig?("name").try(&.as_s?)
         end) || [] of String
         if !served.empty? && served.all?(&.includes?("alpha"))
           offenders += 1
-          result.add_impacted_resource(kind, name, namespace, reason: "serves only alpha version(s): #{served.join(", ")}")
+          result.add_impacted_resource(kind, name, namespace, reason: "serves only alpha version(s) of the Kubernetes API #{crd_group}: #{served.join(", ")}")
         end
       end
     end

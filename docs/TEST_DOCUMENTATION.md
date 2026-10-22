@@ -1951,7 +1951,7 @@ Use immutable configmaps for any non-mutable configuration data.
 
 #### Overview
 
-This checks the CNF's rendered manifests for resources declared with alpha API versions and for CustomResourceDefinitions that serve only alpha versions.
+This checks the CNF's rendered manifests for resources declared with alpha versions of a Kubernetes API, and for CustomResourceDefinitions that define a Kubernetes API in alpha versions only. A Kubernetes API is one in a group Kubernetes governs: the core group (`v1`), the legacy groups without a domain (`apps`, `batch`, `autoscaling`, `policy`, `extensions`, `events`) and `*.k8s.io`, the SIG APIs delivered as CRDs included (a `gateway.networking.k8s.io/v1alpha2` route of the Gateway API's experimental channel is a finding). A project's own API group (`keda.sh`, `external-secrets.io`, a `*.x-k8s.io` sandbox group) is not judged: its `v1alpha1` versions are the project's own versioning, not a Kubernetes alpha feature.
 Expectation: CNF should not use Kubernetes alpha APIs
 
 #### Rationale
