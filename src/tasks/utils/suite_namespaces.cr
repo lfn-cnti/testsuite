@@ -11,21 +11,64 @@ module SuiteNamespaces
   # Saved when the namespace had no enforce label, so release removes it.
   NO_LEVEL = "none"
 
-  # Makes sure the namespace exists, with Pod Security level privileged.
+  # The cluster refused the privileged label: an admission webhook (Rancher's
+  # lets only users with the updatepsa verb change Pod Security labels), a
+  # policy. The message says what was refused, by what, and what to do (#2823).
+  class LabelRefused < Exception
+    def initialize(namespace : String, reason : String)
+      super("Pod Security: the suite could not set #{ENFORCE}=privileged on namespace #{namespace}: #{reason}. " +
+            "The suite's helper pods (privileged, hostPID) and the CNF need the privileged level there. " +
+            "Have a user allowed to change Pod Security labels set #{ENFORCE}=privileged on #{TESTSUITE_NAMESPACE}, " +
+            "the CNF's namespaces and litmus before the run, or run the suite as that user.")
+    end
+  end
+
+  # Makes sure the namespace exists, with Pod Security level privileged. A
+  # namespace that already enforces privileged is left alone, whoever created
+  # it: no label write, so a namespace an administrator labelled beforehand
+  # never meets a webhook that would refuse the change.
   def self.ensure_exists(namespace : String)
     existing = get(namespace)
+    saved_here = false
     if existing.nil?
       KubectlClient::Apply.namespace(namespace, labels: MANAGED_BY)
-    elsif !owned?(existing)
+    else
       level = existing.dig?("metadata", "labels", ENFORCE).try(&.as_s?)
-      saved = existing.dig?("metadata", "annotations", PREVIOUS_ENFORCE)
+      return if level == "privileged"
       # A second install finds privileged already set: what it replaced was
       # saved by the first.
-      if saved.nil? && level != "privileged"
+      if !owned?(existing) && existing.dig?("metadata", "annotations", PREVIOUS_ENFORCE).nil?
         KubectlClient::Utils.annotate("namespace", namespace, ["#{PREVIOUS_ENFORCE}=#{level || NO_LEVEL}"])
+        saved_here = true
       end
     end
-    KubectlClient::Utils.label("namespace", namespace, ["#{ENFORCE}=privileged"])
+    begin
+      KubectlClient::Utils.label("namespace", namespace, ["#{ENFORCE}=privileged"])
+    rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+      # The level was not replaced, so there is nothing for release to put
+      # back: a saved level left here would undo a privileged label an
+      # administrator sets after reading the message below.
+      forget_saved_level(namespace) if saved_here && !privileged_now?(namespace)
+      # kubectl's own line, past the exception's prefix and past any warning.
+      lines = ex.message.to_s.sub(/\A.*?error: /m, "").lines.map(&.strip).reject(&.empty?)
+      reason = lines.find { |l| !l.starts_with?("Warning:") } || lines.first.to_s
+      raise LabelRefused.new(namespace, reason.sub(/\Aerror: /, ""))
+    end
+  end
+
+  # Whether the namespace enforces privileged now, read again after a failed
+  # write: a write the API server applied before kubectl reported an error
+  # keeps its saved level for release. A read that fails counts as yes.
+  private def self.privileged_now?(namespace : String) : Bool
+    KubectlClient::Get.resource("namespace", namespace).dig?("metadata", "labels", ENFORCE).try(&.as_s?) == "privileged"
+  rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+    true
+  end
+
+  private def self.forget_saved_level(namespace : String)
+    KubectlClient::Utils.annotate("namespace", namespace, ["#{PREVIOUS_ENFORCE}-"])
+  rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+    Log.for("SuiteNamespaces.ensure_exists").warn { "Could not remove #{PREVIOUS_ENFORCE} from namespace #{namespace}: #{ex.message}" }
   end
 
   # Creates the namespace, as ensure_exists does, only if it doesn't exist; an
