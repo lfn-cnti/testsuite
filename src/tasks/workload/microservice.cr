@@ -698,6 +698,96 @@ def strace_termination(pid : String, node : JSON::Any) : NamedTuple(signal: Stri
   end
 end
 
+# A child that only keeps the container alive is not the workload (#2821):
+# the shell that ran it exits on its stop signal, the kernel ends the
+# keep-alive with SIGKILL, and nothing that mattered was killed. Recognised
+# by name, and by the arguments where the name alone says nothing.
+KEEP_ALIVE_PROCESSES = ["sleep", "pause"]
+
+def keep_alive_process?(info : Hash(String, String)) : Bool
+  name = info["Name"].to_s.strip
+  args = info["cmdline"]?.to_s.split('\0').reject(&.empty?)
+  return true if KEEP_ALIVE_PROCESSES.includes?(name)
+  return true if name == "tail" && (args.includes?("-f") || args.includes?("-F")) && args.includes?("/dev/null")
+  return true if name == "cat" && (args.size <= 1 || args[1..] == ["-"])
+  false
+end
+
+# The signal the runtime sends the container to stop it, as the kubelet
+# would: the stop signal in the container's runtime config (the kubelet
+# passes lifecycle.stopSignal there, on a cluster whose ContainerStopSignals
+# gate is on), else the image's STOPSIGNAL, else SIGTERM. For the details;
+# the runtime decides on its own, so the pod spec alone is not read: a
+# lifecycle.stopSignal the cluster ignores is not what the container gets.
+def container_stop_signal(pod : JSON::Any, container_name : String, short_id : String, node : JSON::Any) : String
+  inspect = ClusterTools.exec_by_node("crictl inspect #{short_id}", node)
+  info = inspect[:status].success? ? JSON.parse(inspect[:output]) : nil
+  runtime = info.try { |i| i.dig?("info", "config", "stopSignal") || i.dig?("info", "config", "stop_signal") }.try(&.as_s?)
+  return runtime if runtime && !runtime.empty?
+  image = info.try(&.dig?("status", "image", "image")).try(&.as_s?)
+  if image
+    inspecti = ClusterTools.exec_by_node("crictl inspecti #{image}", node)
+    if inspecti[:status].success?
+      signal = JSON.parse(inspecti[:output]).dig?("info", "imageSpec", "config", "StopSignal").try(&.as_s?)
+      return signal if signal && !signal.empty?
+    end
+  end
+  "SIGTERM"
+rescue JSON::ParseException
+  "SIGTERM"
+end
+
+# How long to wait for the container's exit once the judged processes are
+# gone: the rest of the grace period, when the runtime kills the container at
+# the latest, and a buffer for the runtime to record it.
+OUTCOME_BUFFER_SECONDS = 15
+
+def outcome_wait_seconds(grace_seconds : Int32, elapsed_seconds : Float64) : Int32
+  {(grace_seconds - elapsed_seconds).ceil.to_i, 0}.max + OUTCOME_BUFFER_SECONDS
+end
+
+# A failed `crictl inspect` that says the container does not exist: the
+# runtime answered with the CRI NotFound status, so the stopped container
+# was already removed, and its exit code with it. Any other failure ("sh: crictl: not found", an exec
+# error, kubectl's own "container not found" for the helper pod) says
+# nothing about the container.
+def container_not_found?(inspect_failure : String) : Bool
+  inspect_failure.includes?("code = NotFound")
+end
+
+# The container's state after the runtime stopped it: exited or not, its
+# exit code (137 is the runtime's SIGKILL at the end of the grace period),
+# and, when the outcome cannot be known, why. A container removed before
+# its exit code was read, or one whose state the runtime reports as unknown
+# until the deadline, is inconclusive: neither a pass nor still running.
+def container_outcome(short_id : String, node : JSON::Any, wait_seconds : Int32) : NamedTuple(exited: Bool, exit_code: Int32?, error: String?)
+  started = Time.utc
+  error = nil
+  loop do
+    inspect = ClusterTools.exec_by_node("crictl inspect #{short_id}", node)
+    if inspect[:status].success?
+      begin
+        status = JSON.parse(inspect[:output])["status"]?
+        state = status.try(&.["state"]?).try(&.as_s?)
+        if state == "CONTAINER_EXITED"
+          return {exited: true, exit_code: status.try(&.["exitCode"]?).try(&.as_i?), error: nil}
+        end
+        error = state == "CONTAINER_UNKNOWN" ? "the runtime reports the container's state as unknown" : nil
+      rescue JSON::ParseException
+        error = "crictl inspect returned no readable status"
+      end
+    else
+      failure = "#{inspect[:error]}\n#{inspect[:output]}"
+      # The container stopped, but how is gone with it: a PID 1 the runtime
+      # killed would look the same as one that exited on its own.
+      return {exited: false, exit_code: nil, error: "the container was removed before its exit code could be read"} if container_not_found?(failure)
+      error = failure.lines.map(&.strip).reject(&.empty?).first? || "crictl inspect failed"
+    end
+    return {exited: false, exit_code: nil, error: error} if (Time.utc - started).total_seconds >= wait_seconds
+    sleep 1.second
+  end
+end
+
 desc "Are the SIGTERM signals handled?"
 scored_task "sig_term_handled",
   type: CNFManager::TestType::Essential,
@@ -823,6 +913,13 @@ scored_task "sig_term_handled",
                                   .reject { |cpid| cpid == pid }
             judged -= init_own
           end
+          # A keep-alive child is not the workload; when nothing else is left
+          # under PID 1, PID 1 is judged itself, as a lone PID 1 is (#2821).
+          keep_alive = non_threads.select { |info| info["Pid"].to_s.strip != pid && keep_alive_process?(info) }
+          keep_alive_pids = keep_alive.map { |info| info["Pid"].to_s.strip }
+          judged -= keep_alive_pids
+          judged = [pid] if judged.empty? && supervised
+          names = non_threads.to_h { |info| {info["Pid"].to_s.strip, info["Name"].to_s.strip} }
           next skip.call("no process to judge") if judged.empty?
 
           # strace is evidence, not the verdict: for a supervised child it shows
@@ -843,13 +940,35 @@ scored_task "sig_term_handled",
           next skip.call("no process to judge") if judged.empty?
           sleep(Time::Span.new(seconds: STRACE_WAIT_BUFFER)) unless traced.empty?
 
-          judged_any = true
-          checked_containers << "#{pod_name}/#{c_name}: PID 1 #{pid}#{supervised ? " (supervisor)" : ""}, judged pid(s) #{judged.join(", ")}#{init_own.empty? ? "" : ", init's own pid(s) not judged #{init_own.join(", ")}"}, grace #{grace_seconds}s"
-          ClusterTools.exec_by_node("kill -TERM #{pid} || true", node)
+          short_id = ClusterTools.parse_container_id(c_id)
+          stop_signal = container_stop_signal(pod, c_name, short_id, node)
+          checked_containers << "#{pod_name}/#{c_name}: PID 1 #{pid}#{supervised ? " (supervisor)" : ""}, judged pid(s) #{judged.join(", ")}#{init_own.empty? ? "" : ", init's own pid(s) not judged #{init_own.join(", ")}"}#{keep_alive_pids.empty? ? "" : ", keep-alive pid(s) not judged #{keep_alive_pids.map { |k| "#{k} (#{names[k]?})" }.join(", ")}"}, stop signal #{stop_signal}, grace #{grace_seconds}s"
+          # The stop is the runtime's, the same CRI call the kubelet makes: the
+          # container's stop signal, then SIGKILL when the grace period is over.
+          # The judged processes are watched meanwhile, so the survivors are
+          # known by pid when the kill comes (#2825).
+          stopped_at = Time.utc
+          # The stop's error goes to a file on the node: a stop that failed
+          # sent no signal, and says nothing about the container.
+          stop_error_file = "/tmp/cnti-stop-#{short_id}.err"
+          stop = ClusterTools.exec_by_node_bg("sh -c 'crictl stop --timeout #{grace_seconds} #{short_id} 2>#{stop_error_file}'", node)
           survivors = wait_for_processes_to_exit(judged, node, grace_seconds)
-          # Whatever is still alive did not act on SIGTERM; end it the way the
-          # kubelet would, so the pod can restart and the next test starts clean.
-          ClusterTools.exec_by_node("kill -9 #{pid} || true", node) unless survivors.empty? && !supervised
+          # The container exits by the end of the grace period at the latest:
+          # the runtime kills it then. Its exit is waited for that long, so a
+          # PID 1 that outlives its children is caught too.
+          outcome = container_outcome(short_id, node, outcome_wait_seconds(grace_seconds, (Time.utc - stopped_at).total_seconds))
+          stopped_in = (Time.utc - stopped_at).total_seconds
+          # The stop returns by the end of the grace period; it is not waited
+          # for beyond the outcome, only read when it is over.
+          stop_failure = nil
+          if stop[:process].terminated?
+            stop_status = stop[:process].wait
+            unless stop_status.success?
+              stop_error = ClusterTools.exec_by_node("cat #{stop_error_file}", node)[:output].lines.map(&.strip).reject(&.empty?).first?
+              stop_failure = "the runtime could not stop the container: #{stop_error || "crictl stop exited with #{stop_status.exit_code}"}"
+            end
+          end
+          ClusterTools.exec_by_node("rm -f #{stop_error_file}", node)
           sleep(Time::Span.new(seconds: STRACE_WAIT_BUFFER)) unless traced.empty?
           # PID 1 is gone, so kubelet restarts the container. Give the pod the
           # readiness budget to come back before moving on: the next test
@@ -861,19 +980,44 @@ scored_task "sig_term_handled",
           # a process that exited was stopped: the signal it was sent, or none
           # (a supervisor may use a control socket or a pipe instead).
           endings = traced.to_h { |cpid| {cpid, strace_termination(cpid, node)} }
-          killed = endings.compact_map { |cpid, ending| ending[:killed_by].try { |sig| "#{cpid} (killed with #{sig})" } unless survivors.includes?(cpid) }
+          killed = endings.compact_map { |cpid, ending| ending[:killed_by].try { |sig| "#{cpid} (#{names[cpid]?}, killed with #{sig})" } unless survivors.includes?(cpid) }
           stopped = judged.reject { |cpid| survivors.includes?(cpid) || endings[cpid]?.try(&.[:killed_by]) }.map do |cpid|
             signal = endings[cpid]?.try(&.[:signal])
             "#{cpid} stopped #{signal ? "with #{signal}" : "without a signal in its trace"}"
           end
-          checked_containers[-1] += ": #{stopped.join(", ")}" unless stopped.empty?
-          logger.info { "#{pod_name}/#{c_name}: judged #{judged}, survivors after #{grace_seconds}s: #{survivors}, killed: #{killed}, stopped: #{stopped}" }
-          if survivors.empty? && killed.empty?
+          container_line = if outcome[:exited]
+                             "container stopped in #{stopped_in.round(1)} s#{outcome[:exit_code].try { |c| " (exit code #{c})" }}"
+                           elsif outcome[:error]
+                             "container state unknown after the stop: #{outcome[:error]}"
+                           else
+                             "container still running #{stopped_in.round(1)} s after the stop"
+                           end
+          # A container the runtime had to kill at the end of the grace period
+          # (exit code 137) failed on the kubelet's own terms, whoever survived.
+          killed_by_runtime = outcome[:exit_code] == 137
+          checked_containers[-1] += ": #{(stopped + [container_line]).join("; ")}"
+          logger.info { "#{pod_name}/#{c_name}: judged #{judged}, survivors after #{grace_seconds}s: #{survivors}, killed: #{killed}, stopped: #{stopped}, #{container_line}" }
+          if stop_failure
+            # No stop signal was sent, so neither a survivor nor a running
+            # container says anything about the CNF.
+            checked_containers.pop
+            next skip.call(stop_failure)
+          end
+          still_running = !outcome[:exited] && outcome[:error].nil?
+          if survivors.empty? && killed.empty? && !killed_by_runtime && outcome[:exited]
+            judged_any = true
             true
+          elsif survivors.empty? && killed.empty? && !killed_by_runtime && !still_running
+            # Nothing failed, but the container's exit could not be confirmed.
+            checked_containers.pop
+            skip.call("could not confirm the container stopped: #{outcome[:error]}")
           else
+            judged_any = true
             reason = [] of String
-            reason << "still running #{grace_seconds}s after SIGTERM: #{survivors.join(", ")}" unless survivors.empty?
+            reason << "still running #{grace_seconds}s after #{stop_signal}: #{survivors.map { |p| "#{p} (#{names[p]?})" }.join(", ")}" unless survivors.empty?
             reason << "killed instead of stopped: #{killed.join(", ")}" unless killed.empty?
+            reason << "the container did not stop within the grace period and was killed (exit code 137)" if killed_by_runtime && survivors.empty?
+            reason << "the container was still running #{stopped_in.round(1)} s after #{stop_signal}, past its #{grace_seconds}s grace period" if still_running && survivors.empty?
             failed_containers << {
               namespace: pod_namespace,
               pod: pod_name,

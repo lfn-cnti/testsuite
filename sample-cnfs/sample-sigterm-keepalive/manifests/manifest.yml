@@ -1,0 +1,36 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keepalive
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keepalive
+  namespace: keepalive
+  labels:
+    app: keepalive
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keepalive
+  template:
+    metadata:
+      labels:
+        app: keepalive
+    spec:
+      containers:
+      - name: box
+        image: busybox:1.37.0
+        command: ["sh", "-ec", "trap true INT TERM; sleep infinity & wait"]
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault

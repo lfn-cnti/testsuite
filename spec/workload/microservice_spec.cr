@@ -403,7 +403,9 @@ describe "Microservice" do
       result = ShellCmd.run_testsuite("sig_term_handled")
       result[:status].exit_code.should eq(1)
       (/(FAILED).*(Sig Term not handled)/ =~ result[:output]).should_not be_nil
-      result[:output].should contain("still running")
+      # PID 1 ignored the stop signal, so the runtime killed the container at the end of the grace period.
+      result[:output].should contain("killed instead of stopped")
+      result[:output].should contain("was killed (exit code 137)")
       verify_task_result("sig_term_handled", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
@@ -419,6 +421,52 @@ describe "Microservice" do
       (/(FAILED).*(Sig Term not handled)/ =~ result[:output]).should_not be_nil
       (/impacted: .*\(container first\)/ =~ result[:output]).should_not be_nil
       (/impacted: .*\(container second\)/ =~ result[:output]).should_not be_nil
+      verify_task_result("sig_term_handled", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'sig_term_handled' should pass a container that a shell keeps alive with a sleep, judging PID 1 and not the keep-alive", tags: ["sig_term"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-sigterm-keepalive/")
+      result = ShellCmd.run_testsuite("sig_term_handled")
+      result[:status].success?.should be_true
+      (/(PASSED).*(Sig Term handled)/ =~ result[:output]).should_not be_nil
+      # The sleep is named as the keep-alive and not judged; PID 1, the shell, stops on SIGTERM.
+      (/> Checked .*box: PID 1 (\d+) \(supervisor\), judged pid\(s\) \1, keep-alive pid\(s\) not judged \d+ \(sleep\), stop signal SIGTERM, grace 30s: \1 stopped with SIGTERM; container stopped in [\d.]+ s/ =~ result[:output]).should_not be_nil
+      verify_task_result("sig_term_handled", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'sig_term_handled' should stop the container with its own stop signal, as the kubelet does", tags: ["sig_term"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-sigterm-stopsignal/")
+      result = ShellCmd.run_testsuite("sig_term_handled")
+      result[:status].success?.should be_true
+      (/(PASSED).*(Sig Term handled)/ =~ result[:output]).should_not be_nil
+      # PID 1 ignores SIGTERM and exits on SIGQUIT, the image's STOPSIGNAL.
+      (/> Checked .*app: PID 1 \d+.*stop signal SIGQUIT, grace 10s: \d+ stopped with SIGQUIT; container stopped in [\d.]+ s/ =~ result[:output]).should_not be_nil
+      verify_task_result("sig_term_handled", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
+  it "'sig_term_handled' should fail a container whose PID 1 stops its child but not itself", tags: ["sig_term"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-sigterm-pid1-hangs/")
+      result = ShellCmd.run_testsuite("sig_term_handled")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(Sig Term not handled)/ =~ result[:output]).should_not be_nil
+      # The child stopped on the forwarded SIGTERM; PID 1 hung until the runtime killed it.
+      result[:output].should_not contain("killed instead of stopped")
+      result[:output].should contain("was killed (exit code 137)")
       verify_task_result("sig_term_handled", "failed")
     ensure
       result = ShellCmd.cnf_uninstall()
