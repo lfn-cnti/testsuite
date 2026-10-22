@@ -31,6 +31,21 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
       changed = RolloutRestore::Changed.new
       restored = true
       task_response = false
+      # Charts from a repository or an OCI registry are moved as releases,
+      # between the installed chart version and the one before it: image
+      # and pod spec together, as an upgrade does (#2820). Their workloads
+      # are judged by the release's move, not one image at a time.
+      releases = ReleaseUpgrade.releases(config)
+      release_workloads = releases.flat_map(&.workloads).to_set
+      # Releases whose previous version could not be installed: no upgrade
+      # to judge.
+      unprepared = [] of String
+      # Workloads rolled one image at a time whose previous image does not
+      # start under the pod spec the current chart renders: version skew,
+      # which no upgrade produces; named, not judged.
+      skew = Set(String).new
+      # Releases with no workload a move would roll out: not judged.
+      idle = Set(String).new
 
       begin
         task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _, live|
@@ -40,6 +55,7 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
             next true
           end
           next true if operator_owned_listed?(resource, live, owned, result)
+          next true if release_workloads.includes?({resource[:kind], resource[:name], resource[:namespace]})
           namespace = resource["namespace"]
           container_name = container.as_h["name"].as_s
           test_passed = true
@@ -52,7 +68,8 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
           # configuration gap, not a rollout failure: it is left out with the
           # remediation, and the test is skipped when no container had one
           # (#2577).
-          tag = rollout_target_tag(result, config_container.try(&.get_container_tag(tn)) || "", "#{tn}_test_tag",
+          configured_tag = config_container.try(&.get_container_tag(tn)) || ""
+          tag = rollout_target_tag(result, configured_tag, "#{tn}_test_tag",
             "#{resource["kind"]}/#{resource["name"]} in #{namespace}", container_name, container.as_h["image"].as_s)
           unless tag
             unconfigured += 1
@@ -91,6 +108,12 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
             # their last log lines, with the first reason in the finding.
             why = WorkloadDiagnostics.report(result, resource["kind"], resource["name"], namespace,
               "#{resource["kind"]}/#{resource["name"]} during the #{pretty_test_name} to #{image_name}:#{tag}")
+            if skew_line = version_skew(configured_tag, why)
+              rolled -= 1
+              skew << "#{resource["kind"]}/#{resource["name"]} in #{namespace}"
+              result.append_description("#{resource["kind"]}/#{resource["name"]} in #{namespace}, container #{container_name}: version skew, #{image_name}:#{tag} (the release before the deployed one) does not start under the pod spec the current chart renders (#{skew_line}); not judged, since an upgrade moves image and spec together and there is no previous release of the chart to upgrade from")
+              next true
+            end
             result.add_impacted_resource(resource["kind"], resource["name"], namespace, container: container_name,
               reason: "rollout to #{image_name}:#{tag} did not complete within 200s#{rollout_error ? ": #{rollout_error}" : ""}#{why.first?.try { |w| "; #{w}" }}")
             test_passed = false
@@ -98,16 +121,53 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
           Log.trace { "#{tn}: #{container} test_passed=#{test_passed}" }
           test_passed
         end
+
+        releases.each do |release|
+          if release.workloads.empty?
+            # Nothing a move would roll out: not judged, as for a Job.
+            idle << release.name
+            result.append_description("#{release.label}: no Deployment, StatefulSet or DaemonSet of the release to roll out; not judged")
+            next
+          end
+          previous = ReleaseUpgrade.previous_version(release, result)
+          unless previous
+            unconfigured += 1
+            next
+          end
+          # The downgrade is the judged move; the update is judged on the way
+          # back, from the release before to the one under test.
+          legs = tn == "rolling_downgrade" ? [{previous, true}] : [{previous, false}, {release.installed, true}]
+          outcome = true
+          legs.each do |(version, judged)|
+            reason = ReleaseUpgrade.move(release, version, result, pretty_test_name, judged)
+            next unless reason
+            unless judged
+              result.append_description("#{release.label}: the release before, #{version}, could not be installed, so there is no #{pretty_test_name} to judge: #{reason}")
+              unprepared << release.name
+              outcome = nil
+              break
+            end
+            outcome = false
+          end
+          next if outcome.nil?
+          rolled += 1
+          task_response &&= outcome
+          result.append_description("#{release.label}: #{legs.map { |(v, _)| v }.join(", then ")}: every workload of the release rolled out") if outcome
+        end
       ensure
-        # Back to the deployed images, whatever happened above, so the tests
-        # after this one start from the CNF as deployed.
+        # Back to the deployed images and releases, whatever happened above,
+        # so the tests after this one start from the CNF as deployed.
         restored = RolloutRestore.restore(changed, result, tn)
+        restored = ReleaseUpgrade.restore(releases, result, tn) && restored
       end
       Log.trace { "#{tn}: task_response=#{task_response}" }
-      if rolled == 0 && unconfigured == 0 && !(batch.empty? && owned.empty?)
-        result.na(rollout_not_applicable("a #{pretty_test_name}", batch, owned))
-      elsif rolled == 0 && unconfigured > 0
-        result.skipped("No usable #{tn}_test_tag configured for any container, and no previous release to take from the registry: see the remediation")
+      # A CNF that is not back as deployed fails, whatever was judged.
+      if !restored
+        result.failed("CNF for #{pretty_test_name_capitalized} Failed")
+      elsif rolled == 0 && unconfigured == 0 && unprepared.empty? && !(batch.empty? && owned.empty? && skew.empty? && idle.empty?)
+        result.na(rollout_not_applicable("a #{pretty_test_name}", batch, owned, skew, idle))
+      elsif rolled == 0 && (unconfigured > 0 || !unprepared.empty?)
+        result.skipped(rollout_skipped("#{tn}_test_tag", unconfigured, unprepared))
       elsif task_response && restored
         result.passed("CNF for #{pretty_test_name_capitalized} Passed")
       else
@@ -129,6 +189,16 @@ scored_task "rollback",
 
     batch = Set(String).new
     owned = Set(String).new
+    # Charts from a repository or an OCI registry: the release is moved to
+    # the version before and rolled back with `helm rollback` (#2820).
+    releases = ReleaseUpgrade.releases(config)
+    release_workloads = releases.flat_map(&.workloads).to_set
+    unprepared = [] of String
+    skew = Set(String).new
+    idle = Set(String).new
+    restored = true
+    task_response = false
+    begin
     task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _, live|
       # A Job's pod template is immutable and runs once: nothing rolls back.
       if CNFManager.batch_workload?(resource)
@@ -136,6 +206,7 @@ scored_task "rollback",
         next true
       end
       next true if operator_owned_listed?(resource, live, owned, result)
+      next true if release_workloads.includes?({resource[:kind], resource[:name], resource[:namespace]})
       resource_kind = resource["kind"]
       resource_name = resource["name"]
       namespace = resource["namespace"]
@@ -155,7 +226,8 @@ scored_task "rollback",
       # remediation, and the test is skipped when no container had one
       # (#2577).
       config_container = container_names.find{|x| x.name == container_name } if container_names
-      rollback_from_tag = rollout_target_tag(result, config_container.try(&.get_container_tag("rollback_from")) || "", "rollback_from_tag",
+      configured_tag = config_container.try(&.get_container_tag("rollback_from")) || ""
+      rollback_from_tag = rollout_target_tag(result, configured_tag, "rollback_from_tag",
         "#{resource_kind}/#{resource_name} in #{namespace}", container_name, container.as_h["image"].as_s)
       unless rollback_from_tag
         unconfigured += 1
@@ -180,11 +252,15 @@ scored_task "rollback",
       rescue ex : KubectlClient::ShellCMD::UnspecifiedError
         rollout_error = ex.message.to_s.lines.first?
       end
+      skew_line = nil
       unless rollout_status
         why = WorkloadDiagnostics.report(result, resource_kind, resource_name, namespace,
           "#{resource_kind}/#{resource_name} during the rollout to #{image_name}:#{rollback_from_tag}")
-        result.add_impacted_resource(resource_kind, resource_name, namespace, container: container_name,
-          reason: "rollout to #{image_name}:#{rollback_from_tag} did not complete within 180s#{rollout_error ? ": #{rollout_error}" : ""}#{why.first?.try { |w| "; #{w}" }}")
+        skew_line = version_skew(configured_tag, why)
+        unless skew_line
+          result.add_impacted_resource(resource_kind, resource_name, namespace, container: container_name,
+            reason: "rollout to #{image_name}:#{rollback_from_tag} did not complete within 180s#{rollout_error ? ": #{rollout_error}" : ""}#{why.first?.try { |w| "; #{w}" }}")
+        end
       end
 
       Log.for(t.name).debug { "rollback: rolling back to old version" }
@@ -209,14 +285,63 @@ scored_task "rollback",
         false
       end
 
-      !rollout_status.nil? && undo_ok
+      unless undo_ok
+        # The undo was refused: put the deployed image back directly, so the
+        # tests after this one do not start from the rolled-from image, and
+        # fail whatever the rollout did.
+        back = KubectlClient::Utils.set_image(resource_kind, resource_name, container_name, image_name, image_tag, namespace: namespace)
+        unless back[:status].success?
+          result.add_impacted_resource(resource_kind, resource_name, namespace, container: container_name,
+            reason: "could not put the deployed image #{image_name}:#{image_tag} back after the refused undo: #{back[:error].to_s.strip}")
+        end
+        next false
+      end
+      # Version skew is not judged, now that the undo has put the deployed
+      # image back.
+      if skew_line
+        rolled -= 1
+        skew << "#{resource_kind}/#{resource_name} in #{namespace}"
+        result.append_description("#{resource_kind}/#{resource_name} in #{namespace}, container #{container_name}: version skew, #{image_name}:#{rollback_from_tag} (the release before the deployed one) does not start under the pod spec the current chart renders (#{skew_line}); not judged, since an upgrade moves image and spec together and there is no previous release of the chart to roll back through")
+        next true
+      end
+      !rollout_status.nil?
     end
 
-    if rolled == 0 && unconfigured == 0 && !(batch.empty? && owned.empty?)
-      result.na(rollout_not_applicable("a rollback", batch, owned))
-    elsif rolled == 0 && unconfigured > 0
-      result.skipped("No usable rollback_from_tag configured for any container, and no previous release to take from the registry: see the remediation")
-    elsif task_response
+    releases.each do |release|
+      if release.workloads.empty?
+        # Nothing a move would roll out: not judged, as for a Job.
+        idle << release.name
+        result.append_description("#{release.label}: no Deployment, StatefulSet or DaemonSet of the release to roll out; not judged")
+        next
+      end
+      previous = ReleaseUpgrade.previous_version(release, result)
+      unless previous
+        unconfigured += 1
+        next
+      end
+      if reason = ReleaseUpgrade.move(release, previous, result, "rollback", false)
+        result.append_description("#{release.label}: the release before, #{previous}, could not be installed, so there is no rollback to judge: #{reason}")
+        unprepared << release.name
+        next
+      end
+      rolled += 1
+      reason = ReleaseUpgrade.rollback(release, result, "rollback")
+      task_response &&= reason.nil?
+      result.append_description("#{release.label}: moved to #{previous}, then rolled back to #{release.installed} with helm rollback: every workload of the release rolled out") unless reason
+    end
+    ensure
+      restored = ReleaseUpgrade.restore(releases, result, "rollback")
+    end
+
+    # A release that is not back at its installed version fails, whatever
+    # was judged.
+    if !restored
+      result.failed("CNF Rollback Failed")
+    elsif rolled == 0 && unconfigured == 0 && unprepared.empty? && !(batch.empty? && owned.empty? && skew.empty? && idle.empty?)
+      result.na(rollout_not_applicable("a rollback", batch, owned, skew, idle))
+    elsif rolled == 0 && (unconfigured > 0 || !unprepared.empty?)
+      result.skipped(rollout_skipped("rollback_from_tag", unconfigured, unprepared))
+    elsif task_response && restored
       result.passed("CNF Rollback Passed")
     else
       result.failed("CNF Rollback Failed")
@@ -474,12 +599,35 @@ def operator_owned_listed?(resource, live : JSON::Any, owned : Set(String), resu
 end
 
 # Why a rollout test does not apply: every workload either runs to
-# completion or is owned by an operator.
-def rollout_not_applicable(action : String, batch : Set(String), owned : Set(String)) : String
+# completion, is owned by an operator, or cannot be judged one image at a
+# time because its previous image does not run under the current spec.
+def rollout_not_applicable(action : String, batch : Set(String), owned : Set(String), skew : Set(String) = Set(String).new, idle : Set(String) = Set(String).new) : String
   parts = [] of String
   parts << "runs to completion (a Job or CronJob)" unless batch.empty?
   parts << "takes its image from an operator's custom resource" unless owned.empty?
+  parts << "has a previous image that does not start under the current pod spec (version skew, see the details)" unless skew.empty?
+  parts << "comes from a chart with no Deployment, StatefulSet or DaemonSet to roll out" unless idle.empty?
   "Every workload of the CNF #{parts.join(" or ")}, #{action} does not apply"
+end
+
+# Why a rollout test was skipped: nothing to roll was configured, or found
+# in a registry, or a chart's previous release could not be installed.
+def rollout_skipped(tag_key : String, unconfigured : Int32, unprepared : Array(String)) : String
+  parts = [] of String
+  parts << "No usable #{tag_key} configured for any container, and no previous release to take from the registry: see the remediation" if unconfigured > 0
+  parts << "The release before could not be installed for chart#{unprepared.size == 1 ? "" : "s"} #{unprepared.join(", ")}, so there is nothing to judge: see the details" unless unprepared.empty?
+  parts.join(". ")
+end
+
+# A previous image, taken from the registry rather than configured, that
+# crash-loops under the pod spec the current chart renders: the line that
+# says so, else nil. The old binary meets arguments, environment or mounts
+# it never shipped with; an upgrade never produces that combination. A tag
+# the user configured is their assertion that the image fits, and its crash
+# stays a failure.
+def version_skew(configured_tag : String, why : Array(String)) : String?
+  return nil unless configured_tag.empty?
+  why.find { |line| line.includes?("CrashLoopBackOff") }
 end
 
 # The tag a rollout test moves a container to, or nil when there is none, with

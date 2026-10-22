@@ -175,6 +175,7 @@
         "registry_url": { "description": "OCI chart: oci://host/path/chart. Needs chart_version, and excludes the helm_repo_* fields.", "type": "string" },
         "plain_http": { "description": "OCI chart: reach the registry over HTTP.", "type": "boolean" },
         "chart_version": { "description": "Chart version: required for OCI, optional for a classic repository.", "type": ["string", "number"] },
+        "previous_chart_version": { "description": "The chart version the rollout tests move the release to and back from (rolling_update, rolling_downgrade, rolling_version_change, rollback). Without one, the release before the installed version in the repository.", "type": ["string", "number"] },
         "pass_credentials": { "description": "Forward credentials across redirects.", "type": "boolean" },
         "auth": { "description": "Credentials for this chart, instead of common.auth_defaults.", "$ref": "#/$defs/auth" }
       }

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: sample-release
+description: A chart the release-upgrade specs package in several versions (helm package --version --app-version)
+type: application
+version: 0.0.0
+appVersion: "0.0.0"
