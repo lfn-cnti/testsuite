@@ -12,6 +12,7 @@ describe "Evidence" do
 
   it "names the test set on the badge: essential for cert, the task otherwise", tags: ["points"] do
     Evidence.label_set("cert").should eq("essential")
+    Evidence.label_set("essential").should eq("essential")
     Evidence.label_set("workload").should eq("workload")
     Evidence.label_set("security").should eq("security")
   end

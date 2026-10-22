@@ -99,7 +99,7 @@ module CLIHelp
       "setup", "cnf_install", "cnf_uninstall", "validate_config",
       "cnf_setup", "cnf_cleanup", "uninstall_all", "tools_uninstall",
     ])
-    add.call("Test suites", ["all", "workload", "cert", "static"])
+    add.call("Test suites", ["all", "workload", "essential", "cert", "static"])
 
     WORKLOAD_CATEGORIES.each do |category|
       task = find_task(category)
@@ -107,7 +107,7 @@ module CLIHelp
       add.call("Workload tests: #{category}", [category] + task.dependency_names)
     end
 
-    add.call("Essential tests (cert)", visible_tasks.map(&.path).select(&.starts_with?("cert")).sort)
+    add.call("Essential tests (essential, cert)", visible_tasks.map(&.path).select(&.starts_with?("cert")).sort)
 
     # Tools the suite can install into the cluster on demand, outside the
     # `setup:` namespace.
@@ -150,13 +150,14 @@ module CLIHelp
     TYPICAL WORKFLOW
       #{BIN_NAME} setup                                    install prerequisites (once)
       #{BIN_NAME} cnf_install --cnf-config ./cnti-testsuite.yaml
-      #{BIN_NAME} cert                                     run the essential tests
+      #{BIN_NAME} essential                                run the essential tests
       #{BIN_NAME} cnf_uninstall
 
     TEST SUITES
       all         every test
       workload    tests against the installed CNF
-      cert        the essential tests; exits 0 when enough of them pass
+      essential   the essential tests; exits 0 when enough of them pass
+      cert        the same suite under the name adopters' CI has used
 
     OPTIONS (anywhere on the line; --name VALUE or --name=VALUE)
     #{option_rows}

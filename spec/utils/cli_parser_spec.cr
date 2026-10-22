@@ -39,6 +39,19 @@ describe "CLI parser" do
     parse("all", "--skip", "resilience", "--skip=liveness").args.raw.should eq(["~resilience", "~liveness"])
   end
 
+  it "reads `essential` as the suite, in any position, and as the same suite as `cert`", tags: ["points"] do
+    parse("essential").tasks.should eq(["essential"])
+    parse("--strict", "essential").tasks.should eq(["essential"])
+    parse("essential", "--skip", "node_drain").args.raw.should contain("~node_drain")
+    # The same tests, the same criterion.
+    essential = Sam.root_namespace.all_tasks.find { |t| t.path == "essential" }.not_nil!
+    cert = Sam.root_namespace.all_tasks.find { |t| t.path == "cert" }.not_nil!
+    essential.dependency_names.should eq(cert.dependency_names)
+    CNFManager::GroupRegistry.criterion_for("essential").should eq(CNFManager::GroupRegistry.criterion_for("cert"))
+    # The flag that restricts cert to the essential tests is still an option.
+    parse("cert", "--essential").args.raw.should contain("essential")
+  end
+
   it "names the replacement for every retired spelling", tags: ["points"] do
     errors = usage_error("cnf_install", "cnf-config=x.yml", "timeout=30", "skip_wait_for_install", "~liveness", "@", "cert", "exclude=liveness readiness")
     errors.should eq([
