@@ -182,13 +182,28 @@ scored_task "rollback",
       end
 
       Log.for(t.name).debug { "rollback: rolling back to old version" }
-      undo = KubectlClient::Rollout.undo(resource_kind, resource_name, namespace: namespace)
-      unless undo[:status].success?
+      # An undo that kubectl refuses is the finding this test is for: a
+      # workload with revisionHistoryLimit 0 keeps no revision to return to
+      # ("no rollout history found"), so a rollback is impossible (#2822).
+      undo_ok = begin
+        KubectlClient::Rollout.undo(resource_kind, resource_name, namespace: namespace)
+        true
+      rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+        # kubectl's own error line, past the exception's "kubectl CMD failed,
+        # exit code: N, error: " prefix and past the warnings that precede it
+        # (an object applied with kubectl warns about its last-applied
+        # annotation before the undo is refused).
+        lines = ex.message.to_s.sub(/\A.*?error: /m, "").lines.map(&.strip).reject(&.empty?)
+        reason = (lines.find { |l| !l.starts_with?("Warning:") } || lines.first.to_s).sub(/\Aerror: /, "")
         result.add_impacted_resource(resource_kind, resource_name, namespace, container: container_name,
-          reason: "rollout undo failed: #{undo[:error].to_s.strip}")
+          reason: "rollout undo failed: #{reason}")
+        if reason.includes?("no rollout history")
+          result.append_remediation("#{resource_kind}/#{resource_name} keeps no revision to roll back to: set spec.revisionHistoryLimit to 1 or more (the default is 10), so that kubectl rollout undo has a revision to return to")
+        end
+        false
       end
 
-      !rollout_status.nil? && undo[:status].success?
+      !rollout_status.nil? && undo_ok
     end
 
     if rolled == 0 && unconfigured == 0 && !batch.empty?

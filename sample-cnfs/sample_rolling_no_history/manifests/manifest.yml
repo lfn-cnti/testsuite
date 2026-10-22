@@ -1,0 +1,38 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: no-history
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: no-history
+  namespace: no-history
+  labels:
+    app: no-history
+spec:
+  replicas: 1
+  # No old ReplicaSet is kept: a rollout cannot be undone (#2822).
+  revisionHistoryLimit: 0
+  selector:
+    matchLabels:
+      app: no-history
+  template:
+    metadata:
+      labels:
+        app: no-history
+    spec:
+      containers:
+      - name: app
+        image: busybox:1.37.0
+        command: ["/bin/sleep", "2147483647"]
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
