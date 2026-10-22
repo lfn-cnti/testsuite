@@ -159,7 +159,7 @@ Sources: [Kubernetes Deployments](https://kubernetes.io/docs/concepts/workloads/
 
 #### Remediation
 
-Ensure that you can upgrade your CNF using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) command, then rollback the upgrade using the [Kubectl Rollout Undo](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#rollout) command.
+Ensure that you can upgrade your CNF using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) command, then rollback the upgrade using the [Kubectl Rollout Undo](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#rollout) command. A workload whose undo kubectl refuses is a finding with kubectl's reason; `spec.revisionHistoryLimit: 0` keeps no revision to return to ("no rollout history found"), so set it to 1 or more (the default is 10).
 
 #### Usage
 

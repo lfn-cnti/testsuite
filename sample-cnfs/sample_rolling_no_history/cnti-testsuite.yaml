@@ -1,0 +1,14 @@
+---
+# A workload whose Deployment keeps no rollout history (revisionHistoryLimit
+# 0): the roll to rollback_from_tag completes, the old ReplicaSet is deleted
+# at once, and kubectl rollout undo finds no revision to return to. The
+# rollback test must fail with that reason, not error (#2822).
+config_version: v2
+common:
+  container_names:
+  - name: app
+    rollback_from_tag: 1.36.1
+deployments:
+  manifests:
+  - name: no-history
+    manifest_directory: manifests

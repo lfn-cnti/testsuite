@@ -368,7 +368,20 @@ describe CntiTestSuite do
     end
   end
 
-  # TODO: figure out failing test for rollback
+  it "'rollback' should fail with the reason when the rollout cannot be undone (revisionHistoryLimit 0)", tags: ["rollback"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling_no_history/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("rollback")
+      result[:status].exit_code.should eq(1)
+      (/(FAILED).*(CNF Rollback Failed)/ =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/no-history in no-history \(container app\): rollout undo failed: no rollout history found/ =~ result[:output]).should_not be_nil
+      (/remediation: Deployment\/no-history keeps no revision to roll back to: set spec\.revisionHistoryLimit to 1 or more/ =~ result[:output]).should_not be_nil
+      (/Unexpected error occurred/ =~ result[:output]).should be_nil
+      verify_task_result("rollback", "failed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
 
   it "'nodeport_not_used' should fail when a node port is being used", tags: ["nodeport_not_used"] do
     begin
