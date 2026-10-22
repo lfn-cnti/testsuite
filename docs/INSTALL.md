@@ -16,6 +16,7 @@ This will detail the required minimum requirements needed in order to support cn
 #### Minimum Requirements
 * **Kubernetes multi-node cluster** *(2 schedulable nodes minimum as a few tests require this. See [supported K8s and installation details](#Details-on-supported-k8s-clusters-and-installation) on installation.)*
 * **containerd runtime** - for K8s cluster running the CNF to be tested
+* **Pod Security: the privileged level on the suite's namespaces** - the suite's helper pods (the `cluster-tools` DaemonSet: privileged, `hostPID`) and the CNF under test run in namespaces the suite labels `pod-security.kubernetes.io/enforce=privileged` (`cnti-testsuite`, the CNF's namespaces, `litmus`). A cluster whose admission refuses that label for the user running the suite (Rancher's webhook requires the `updatepsa` verb) must have those namespaces labelled beforehand by a user who may; the suite leaves a namespace that already enforces `privileged` untouched. The run stops with the reason when the label is refused or when the helper pods do not come up.
 * **kubectl** *(run commands against K8s clusters, see [installing kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more details.)*
 * **curl**
 * **helm 3.8.2** *or newer* (helm 4 supported; cnti-testsuite installs helm 4 if not found locally)

@@ -29,6 +29,9 @@ module CNFInstall
         unless response[:output].empty?
           File.open(CNF_INSTALL_LOG_FILE, "a") { |file| file.puts("#{response[:error]}\n") }
         end
+      rescue ex : SuiteNamespaces::LabelRefused
+        stdout_failure ex.message.to_s
+        return false
       rescue ex : KubectlClient::ShellCMD::AlreadyExistsError
         stdout_failure "Error while installing manifest deployment \"#{@manifest_config.name}\": #{ex.message}"
         stdout_failure "Change CNF configuration or uninstall existing deployment."

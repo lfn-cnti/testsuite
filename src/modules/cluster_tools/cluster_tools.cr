@@ -45,12 +45,43 @@ module ClusterTools
     true
   end
 
+  # Raised when the DaemonSet has no ready pod on every node it should run
+  # on: the tests that read the CNF's containers cannot run then, and a run
+  # that went on would skip them without a cause (#2828).
+  class NotReadyException < Exception
+  end
+
+  # Seconds to wait for the DaemonSet; the first run pulls the image on
+  # every node.
+  def self.ready_timeout : Int32
+    ENV.has_key?("CNTI_TESTSUITE_CLUSTER_TOOLS_TIMEOUT") ? ENV["CNTI_TESTSUITE_CLUSTER_TOOLS_TIMEOUT"].to_i : 300
+  end
+
   def self.install()
     Log.info { "Installing cluster-tools" }
     FileUtils.mkdir_p(File.dirname(Setup::CLUSTER_TOOLS_MANIFEST))
     File.write(Setup::CLUSTER_TOOLS_MANIFEST, ManifestTemplate.new().to_s)
     KubectlClient::Apply.file(Setup::CLUSTER_TOOLS_MANIFEST, namespace: self.namespace!)
-    wait_for_cluster_tools
+    # True once the DaemonSet is ready; otherwise NotReadyException.
+    waited = wait_for_cluster_tools
+    status_read = true
+    status = begin
+      KubectlClient::Get.resource("daemonset", "cluster-tools", self.namespace)["status"]?
+    rescue KubectlClient::ShellCMD::K8sClientCMDException
+      status_read = false
+      nil
+    end
+    desired = status.try(&.["desiredNumberScheduled"]?).try(&.as_i?) || 0
+    ready = status.try(&.["numberReady"]?).try(&.as_i?) || 0
+    # A DaemonSet no node schedules counts as ready (0 of 0), and would
+    # leave every inspecting test without a helper as well. A status that
+    # could not be read after the wait succeeded says nothing about that:
+    # the wait stands.
+    return true if waited && (desired > 0 || !status_read)
+    if waited
+      raise NotReadyException.new("cluster-tools has no pod on any node: no node of the cluster schedules the DaemonSet (taints, node selectors)")
+    end
+    raise NotReadyException.new("cluster-tools did not become ready within #{ready_timeout}s: #{ready} of #{desired} pod(s) ready on the cluster's nodes")
   end
 
   def self.uninstall()
@@ -260,9 +291,9 @@ module ClusterTools
 		end
 	end
 
-  def self.wait_for_cluster_tools
+  def self.wait_for_cluster_tools : Bool
     Log.info { "Waiting for cluster-tools to be ready" }
-    KubectlClient::Wait.resource_wait_for_install("Daemonset", "cluster-tools", namespace: self.namespace!, wait_count: 300)
+    KubectlClient::Wait.resource_wait_for_install("Daemonset", "cluster-tools", namespace: self.namespace!, wait_count: ready_timeout)
   end
 
   # https://windsock.io/explaining-docker-image-ids/
