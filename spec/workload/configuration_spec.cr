@@ -260,6 +260,46 @@ describe CntiTestSuite do
     end
   end
 
+  it "'rolling_update' should roll the operator's Deployment and leave the Deployment the operator owns alone", tags: ["rolling_update"] do
+    begin
+      install = ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-operator-owned-rolling/cnti-testsuite.yaml")
+      (/Added 1 resources via ownerReferences to composite manifest/ =~ install[:output]).should_not be_nil
+      result = ShellCmd.run_testsuite("rolling_update")
+      result[:status].success?.should be_true
+      (/Deployment\/demo-owned in cnti-default: image set by PodSet\/demo-owned, not rolled; upgrade it through the custom resource/ =~ result[:output]).should_not be_nil
+      verify_task_result("rolling_update", "passed")
+      # The owned Deployment still runs what its PodSet says.
+      image = KubectlClient::Get.resource("deployment", "demo-owned", DEFAULT_CNF_NAMESPACE).dig("spec", "template", "spec", "containers", 0, "image").as_s
+      image.should eq("nginx")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
+  it "'rolling_update' and 'rollback' should be N/A when every workload of the CNF is owned by an operator", tags: ["rolling_update"] do
+    begin
+      # The operator lives outside the CNF, installed beforehand.
+      ShellCmd.run("kubectl create namespace #{DEFAULT_CNF_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -", force_output: true)
+      ShellCmd.run("kubectl label namespace #{DEFAULT_CNF_NAMESPACE} pod-security.kubernetes.io/enforce=privileged --overwrite", force_output: true)
+      Helm.install("podset-operator", "sample-cnfs/sample-operator/simple_pod_operator", namespace: DEFAULT_CNF_NAMESPACE)
+      KubectlClient::Wait.resource_wait_for_install("deployment", "podset-operator", namespace: DEFAULT_CNF_NAMESPACE).should be_true
+      install = ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-operator-owned-only/cnti-testsuite.yaml")
+      (/Added 1 resources via ownerReferences to composite manifest/ =~ install[:output]).should_not be_nil
+      result = ShellCmd.run_testsuite("rolling_update")
+      (/N\/A.*Every workload of the CNF takes its image from an operator's custom resource, a rolling update does not apply/ =~ result[:output]).should_not be_nil
+      (/Deployment\/demo-owned in cnti-default: image set by PodSet\/demo-owned, not rolled/ =~ result[:output]).should_not be_nil
+      verify_task_result("rolling_update", "na")
+      result = ShellCmd.run_testsuite("rollback")
+      (/N\/A.*Every workload of the CNF takes its image from an operator's custom resource, a rollback does not apply/ =~ result[:output]).should_not be_nil
+      verify_task_result("rollback", "na")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      # The namespace stays: the next spec installs into it, and a namespace
+      # being terminated refuses that.
+      Helm.uninstall("podset-operator", DEFAULT_CNF_NAMESPACE)
+    end
+  end
+
   it "'rolling_update' should skip with remediation when no tag is configured and the deployed tag names no version", tags: ["rolling_update"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling_moving_tag --skip-wait-for-install")

@@ -1,0 +1,10 @@
+---
+# Only a PodSet: the operator that reconciles it is installed beforehand,
+# outside the CNF (as a Kafka or MongoDB cluster is deployed against an
+# operator already in the cluster). Every workload of this CNF is one the
+# operator owns.
+config_version: v2
+deployments:
+  manifests:
+  - name: controlling_manifest
+    manifest_directory: controlling_manifest

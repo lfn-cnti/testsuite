@@ -23,6 +23,9 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
       rolled = 0
       unconfigured = 0
       batch = Set(String).new
+      # Workloads an operator owns take their image from its custom resource
+      # (#2810): listed, not rolled, not counted.
+      owned = Set(String).new
       # Every workload this test changes, with the deployed image of each
       # container it changed: put back after the test, pass or fail.
       changed = RolloutRestore::Changed.new
@@ -36,6 +39,7 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
             CNFManager.batch_workload_listed?(resource, result, t.name) if batch.add?("#{resource[:kind]}/#{resource[:name]}/#{resource[:namespace]}")
             next true
           end
+          next true if operator_owned_listed?(resource, live, owned, result)
           namespace = resource["namespace"]
           container_name = container.as_h["name"].as_s
           test_passed = true
@@ -49,7 +53,7 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
           # remediation, and the test is skipped when no container had one
           # (#2577).
           tag = rollout_target_tag(result, config_container.try(&.get_container_tag(tn)) || "", "#{tn}_test_tag",
-            "#{resource["kind"]}/#{resource["name"]} in #{namespace}", container_name, container.as_h["image"].as_s, live)
+            "#{resource["kind"]}/#{resource["name"]} in #{namespace}", container_name, container.as_h["image"].as_s)
           unless tag
             unconfigured += 1
             next true
@@ -100,8 +104,8 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
         restored = RolloutRestore.restore(changed, result, tn)
       end
       Log.trace { "#{tn}: task_response=#{task_response}" }
-      if rolled == 0 && unconfigured == 0 && !batch.empty?
-        result.na("Every workload of the CNF runs to completion (a Job or CronJob), a #{pretty_test_name} does not apply")
+      if rolled == 0 && unconfigured == 0 && !(batch.empty? && owned.empty?)
+        result.na(rollout_not_applicable("a #{pretty_test_name}", batch, owned))
       elsif rolled == 0 && unconfigured > 0
         result.skipped("No usable #{tn}_test_tag configured for any container, and no previous release to take from the registry: see the remediation")
       elsif task_response && restored
@@ -124,12 +128,14 @@ scored_task "rollback",
     unconfigured = 0
 
     batch = Set(String).new
+    owned = Set(String).new
     task_response = CNFManager.workload_resource_test(args, config) do |resource, container, _, live|
       # A Job's pod template is immutable and runs once: nothing rolls back.
       if CNFManager.batch_workload?(resource)
         CNFManager.batch_workload_listed?(resource, result, t.name) if batch.add?("#{resource[:kind]}/#{resource[:name]}/#{resource[:namespace]}")
         next true
       end
+      next true if operator_owned_listed?(resource, live, owned, result)
       resource_kind = resource["kind"]
       resource_name = resource["name"]
       namespace = resource["namespace"]
@@ -150,7 +156,7 @@ scored_task "rollback",
       # (#2577).
       config_container = container_names.find{|x| x.name == container_name } if container_names
       rollback_from_tag = rollout_target_tag(result, config_container.try(&.get_container_tag("rollback_from")) || "", "rollback_from_tag",
-        "#{resource_kind}/#{resource_name} in #{namespace}", container_name, container.as_h["image"].as_s, live)
+        "#{resource_kind}/#{resource_name} in #{namespace}", container_name, container.as_h["image"].as_s)
       unless rollback_from_tag
         unconfigured += 1
         next true
@@ -191,8 +197,8 @@ scored_task "rollback",
       !rollout_status.nil? && undo[:status].success?
     end
 
-    if rolled == 0 && unconfigured == 0 && !batch.empty?
-      result.na("Every workload of the CNF runs to completion (a Job or CronJob), a rollback does not apply")
+    if rolled == 0 && unconfigured == 0 && !(batch.empty? && owned.empty?)
+      result.na(rollout_not_applicable("a rollback", batch, owned))
     elsif rolled == 0 && unconfigured > 0
       result.skipped("No usable rollback_from_tag configured for any container, and no previous release to take from the registry: see the remediation")
     elsif task_response
@@ -383,14 +389,37 @@ end
 # could not be read.
 ROLLOUT_REGISTRY_TAGS = {} of String => Array(String)?
 
+# A workload whose controller owner is an operator's custom resource takes
+# its image from that resource: a direct change is reverted, or fought, and
+# the result would say more about the operator's reconcile timing than about
+# the CNF (#2810). Such a workload is named once in the details and left
+# alone, whatever tag is configured; it counts as neither rolled nor
+# unconfigured. True when the workload is one of those.
+def operator_owned_listed?(resource, live : JSON::Any, owned : Set(String), result) : Bool
+  owner = custom_resource_controller(live)
+  return false unless owner
+  ref = "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}"
+  if owned.add?(ref)
+    result.append_description("#{ref}: image set by #{owner}, not rolled; upgrade it through the custom resource")
+  end
+  true
+end
+
+# Why a rollout test does not apply: every workload either runs to
+# completion or is owned by an operator.
+def rollout_not_applicable(action : String, batch : Set(String), owned : Set(String)) : String
+  parts = [] of String
+  parts << "runs to completion (a Job or CronJob)" unless batch.empty?
+  parts << "takes its image from an operator's custom resource" unless owned.empty?
+  "Every workload of the CNF #{parts.join(" or ")}, #{action} does not apply"
+end
+
 # The tag a rollout test moves a container to, or nil when there is none, with
 # the reason recorded on the result. The tag configured in cnti-testsuite.yaml
 # comes first; a configured tag equal to the deployed one rolls out nothing
 # and is a configuration gap. Without one, the image's previous release in
-# its registry (#2816): the closest older tag of the same form. Workloads an
-# operator owns take their image from its custom resource and are not rolled
-# without a configured tag.
-def rollout_target_tag(result, configured : String, tag_key : String, label : String, container_name : String, image : String, workload : JSON::Any) : String?
+# its registry (#2816): the closest older tag of the same form.
+def rollout_target_tag(result, configured : String, tag_key : String, label : String, container_name : String, image : String) : String?
   deployed = ImageTag.digest?(image) ? nil : ImageTag.tag_of(image)
   unless configured.empty?
     if configured == ImageTag.tag_of(image)
@@ -398,10 +427,6 @@ def rollout_target_tag(result, configured : String, tag_key : String, label : St
       return nil
     end
     return configured
-  end
-  if owner = custom_resource_controller(workload)
-    result.append_description("#{label}, container #{container_name}: the image is set by #{owner}, so it is not rolled without a configured #{tag_key}")
-    return nil
   end
   repository = ImageTag.repository_of(image)
   tags = if deployed && ImageTag.version_form(deployed)
