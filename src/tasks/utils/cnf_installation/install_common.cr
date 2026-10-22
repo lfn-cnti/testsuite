@@ -831,10 +831,15 @@ module CNFInstall
     resources = [] of YAML::Any
     
     # Search across all configured workload resource kinds so ownerReference
-    # discovery stays aligned with workload processing logic.
+    # discovery stays aligned with workload processing logic. A Job an
+    # operator creates for its custom resource runs once and is often deleted
+    # when it is done (an initdb or a migration), so it is not a workload the
+    # CNF keeps running: recording it would make every later test fail to
+    # read it (#2808). A CronJob stays; it is long-lived, its Jobs are its own.
     workload_resource_map = KubectlClient::WORKLOAD_RESOURCES.to_h
     searchable_kinds = [] of String
     workload_resource_map.each do |key, value|
+      next if key.to_s == "job"
       searchable_kinds << value if WORKLOAD_RESOURCE_KIND_NAMES.includes?(key.to_s)
     end
     

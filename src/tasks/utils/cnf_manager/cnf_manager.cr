@@ -173,7 +173,16 @@ module CNFManager
       logger.debug { "Testing #{resource[:kind]}/#{resource[:name]}" }
       logger.trace { resource.inspect }
 
-      object = KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+      # A Job or CronJob the CNF declares can be gone by now (a Job with
+      # ttlSecondsAfterFinished, a chart hook with a delete policy): it ran to
+      # completion and was removed, which is not a finding and not an error.
+      object = begin
+        KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+      rescue ex : KubectlClient::ShellCMD::NotFoundError
+        raise ex unless batch_workload?(resource)
+        logger.info { "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]} ran to completion and was removed; not judged" }
+        next
+      end
       pod_spec = pod_spec_of(object)
       containers = pod_spec.try(&.["containers"]?) || EMPTY_JSON_ARRAY
       volumes = pod_spec.try(&.["volumes"]?) || EMPTY_JSON_ARRAY

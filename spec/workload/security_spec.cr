@@ -240,6 +240,23 @@ describe "Security" do
     end
   end
 
+  it "does not record a Job an operator creates for its custom resource and deletes when it is done; the tests judge the workloads that stay", tags: ["labels"] do
+    begin
+      install = ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-operator-init-job/cnti-testsuite.yaml", cmd_prefix: "CNTI_TESTSUITE_LOG_LEVEL=info")
+      # The owned Deployment is recorded, the owned init Job is not (#2808).
+      (/Added 1 resources via ownerReferences to composite manifest/ =~ install[:output]).should_not be_nil
+      (/Job\/demo-owned-init in cnti-default, owned by a custom resource of the CNF/ =~ install[:output]).should be_nil
+      # The operator has deleted the Job by now, or will; either way nothing reads it.
+      result = ShellCmd.run_testsuite("privileged_containers")
+      (/Unexpected error occurred/ =~ result[:output]).should be_nil
+      (/jobs\.batch "demo-owned-init" not found/ =~ result[:output]).should be_nil
+      result[:status].exit_code.should eq(0)
+      (/(PASSED).*(No privileged containers)/ =~ result[:output]).should_not be_nil
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'memory_limits' should pass on a cnf that has containers with memory limits set", tags: ["security"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf")
