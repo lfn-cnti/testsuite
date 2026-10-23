@@ -55,6 +55,20 @@ describe "Compatibility" do
     end
   end
 
+  it "'increase_decrease_capacity' should judge a DaemonSet by a pod restart instead of skipping the CNF", tags: ["increase_decrease_capacity"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_daemonset_capacity/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("increase_decrease_capacity")
+      result[:status].success?.should be_true
+      (/(PASSED).*(1 DaemonSet\(s\) back on every node after a pod restart; nothing to scale by replica count)/ =~ result[:output]).should_not be_nil
+      (/> DaemonSet\/capacity-agent in cnti-default: a DaemonSet runs one pod per node and is not scaled by replica count; judged by a pod restart \(\d+ node\(s\)\)/ =~ result[:output]).should_not be_nil
+      (/> Restart after scaling: one pod of each of 1 workload\(s\) deleted at once; 1 Ready again within \d+ s/ =~ result[:output]).should_not be_nil
+      verify_task_result("increase_decrease_capacity", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'increase_decrease_capacity' should pass ", tags: ["increase_decrease_capacity"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnti-testsuite.yaml --skip-wait-for-install")
