@@ -31,6 +31,22 @@ describe "Resilience pod delete Chaos" do
     end
   end
 
+  it "'pod_delete' is skipped with the reason when the fault template cannot be fetched", tags: ["pod_delete"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
+      # A chaos-charts mirror that does not answer, and one network attempt.
+      result = ShellCmd.run_testsuite("pod_delete", cmd_prefix: "CNTI_TESTSUITE_CHAOS_CHARTS_URL=http://127.0.0.1:9 CNTI_TESTSUITE_NETWORK_RETRY_ATTEMPTS=1")
+      (/SKIPPED.*pod_delete not run: litmus fault pod-delete could not be downloaded from http:\/\/127\.0\.0\.1:9\/faults\/kubernetes\/pod-delete\/fault\.yaml: / =~ result[:output]).should_not be_nil
+      verify_task_result("pod_delete", "skipped")
+      # Nothing of the CNF was touched: no chaos annotation, no engine.
+      deployment = KubectlClient::Get.resource("deployment", "coredns-coredns", DEFAULT_CNF_NAMESPACE)
+      deployment.dig?("metadata", "annotations", "litmuschaos.io/chaos").should be_nil
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
   it "'pod_delete' targets each Deployment by a label that selects only its own pods", tags: ["pod_delete"] do
     begin
       ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-shared-selector/cnti-testsuite.yaml")

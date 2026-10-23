@@ -47,3 +47,17 @@ describe "LitmusManager.runtime_socket_for" do
     LitmusManager.runtime_socket_for("containerd").should eq({"containerd", "/run/containerd/containerd.sock"})
   end
 end
+
+describe "LitmusManager.chaos_charts" do
+  it "takes a mirror from the environment without its trailing slash", tags: ["points"] do
+    ENV[LitmusManager::CHAOS_CHARTS_ENV] = "https://mirror.example/chaos-charts/"
+    LitmusManager.chaos_charts.should eq("https://mirror.example/chaos-charts")
+  ensure
+    ENV.delete(LitmusManager::CHAOS_CHARTS_ENV)
+  end
+
+  it "uses the versioned chaos-charts tree when no mirror is set", tags: ["points"] do
+    ENV.delete(LitmusManager::CHAOS_CHARTS_ENV)
+    LitmusManager.chaos_charts.should eq(LitmusManager::CHAOS_CHARTS)
+  end
+end

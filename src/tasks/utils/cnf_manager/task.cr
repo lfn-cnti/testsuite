@@ -81,6 +81,12 @@ module CNFManager
         # The scanner did not deliver: say so with its reason, not a trace.
         logger.error { "#{result.testcase}: #{ex.message}" }
         result.error("Kubescape scan failed: #{ex.message}")
+      rescue ex : LitmusManager::FaultInstallError
+        # The fault to inject is not there (its template could not be fetched,
+        # its experiment not applied): nothing was judged, and nothing of the
+        # CNF was touched. A skip with the reason, not an errored run (#2832).
+        logger.error { "#{result.testcase}: #{ex.message}" }
+        result.skipped("#{result.testcase} not run: #{ex.message}")
       rescue ex
         result.error("Unexpected error occurred")
         logger.error { ex.message }

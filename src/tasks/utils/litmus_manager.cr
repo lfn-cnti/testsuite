@@ -2,7 +2,24 @@ module LitmusManager
 
   # renovate: datasource=github-tags depName=litmuschaos/chaos-charts
   Version = "3.31.0"
+  # Where the fault templates come from; CNTI_TESTSUITE_CHAOS_CHARTS_URL names
+  # a mirror of the chaos-charts tree (the same layout, faults/kubernetes/...).
+  CHAOS_CHARTS_ENV = "CNTI_TESTSUITE_CHAOS_CHARTS_URL"
   CHAOS_CHARTS = "https://raw.githubusercontent.com/litmuschaos/chaos-charts/#{Version}"
+
+  # Without a trailing slash: the fault paths are appended with their own.
+  def self.chaos_charts : String
+    (ENV[CHAOS_CHARTS_ENV]?.presence || CHAOS_CHARTS).rstrip('/')
+  end
+
+  # Raised when a fault's template could not be fetched (after the network
+  # retries) or its experiment could not be applied: the test has nothing to
+  # inject and ends SKIPPED with this message, not ERROR (#2832).
+  class FaultInstallError < Exception
+    def initialize(fault : String, step : String, reason : String)
+      super("litmus fault #{fault} could not be #{step}: #{reason}")
+    end
+  end
   NODE_LABEL = "kubernetes.io/hostname"
   #https://raw.githubusercontent.com/litmuschaos/chaos-operator/v2.14.x/deploy/operator.yaml
   LITMUS_OPERATOR = "https://litmuschaos.github.io/litmus/litmus-operator-v#{LitmusManager::Version}.yaml"
@@ -470,18 +487,45 @@ module LitmusManager
   # account, role and binding embedded in the binary. Returns the path of the
   # downloaded experiment manifest.
   def self.install_fault(fault : String, namespace : String, task_name : String) : String
-    experiment_path = download_template("#{CHAOS_CHARTS}/faults/kubernetes/#{fault}/fault.yaml", "#{task_name}_experiment.yaml")
-    KubectlClient::Apply.file(experiment_path, namespace: namespace)
+    url = "#{chaos_charts}/faults/kubernetes/#{fault}/fault.yaml"
+    # The local directory first, outside the rescue: a directory that cannot
+    # be created is a problem of the machine the suite runs on, not a fault
+    # that could not be installed.
+    chaos_manifests_path
+    experiment_path = begin
+      download_template(url, "#{task_name}_experiment.yaml")
+    rescue ex : File::Error
+      # Writing the template on this machine failed (a directory that is not
+      # writable): the machine's problem, so an error, not a skipped fault.
+      raise ex
+    rescue ex : Exception
+      raise FaultInstallError.new(fault, "downloaded from #{url_without_credentials(url)}", ex.message.to_s.lines.first?.to_s.strip)
+    end
+    begin
+      KubectlClient::Apply.file(experiment_path, namespace: namespace)
+    rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+      raise FaultInstallError.new(fault, "applied in namespace #{namespace}", apply_error(ex))
+    end
 
     rbac_path = "#{chaos_manifests_path}/#{task_name}_rbac.yaml"
     File.write(rbac_path, LITMUS_RBAC[fault].gsub("namespace: default", "namespace: #{namespace}"))
-    KubectlClient::Apply.file(rbac_path)
+    begin
+      KubectlClient::Apply.file(rbac_path)
+    rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+      raise FaultInstallError.new(fault, "given its RBAC in namespace #{namespace}", apply_error(ex))
+    end
 
     experiment_path
   end
 
+  # The line of a failed kubectl apply that names the error, or its first line.
+  private def self.apply_error(ex : Exception) : String
+    lines = ex.message.to_s.lines.map(&.strip)
+    lines.find { |l| l =~ /error/i } || lines.first? || ""
+  end
+
   def self.download_template(url, filename)
-    Log.info {"download_template url, filename: #{url}, #{filename}"}
+    Log.info {"download_template url, filename: #{url_without_credentials(url)}, #{filename}"}
     cmp = chaos_manifests_path()
     filepath = "#{cmp}/#{filename}"
     Log.info {"filepath: #{filepath}"}
