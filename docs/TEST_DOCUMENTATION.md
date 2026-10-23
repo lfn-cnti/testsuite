@@ -268,7 +268,7 @@ Avoid vendor-specific network APIs, annotations and device resources in the CNF'
 
 #### Overview
 
-Checks whether any deprecated Kubernetes features (API versions, annotations, fields) are used by the CNF. The CNF's manifest is applied to the cluster as a server-side dry-run, and the deprecation warnings the API server returns are reported, each attributed to the resource that carries it. The API server is the authority on what is deprecated in the Kubernetes version the CNF runs on.
+Checks whether any deprecated Kubernetes features (API versions, annotations, fields) are used by the CNF. The CNF's manifest is applied to the cluster as a server-side dry-run, and the deprecation warnings the API server returns are reported, each attributed to the resource that carries it. The API server is the authority on what is deprecated in the Kubernetes version the CNF runs on. What the CNF ships (its charts and manifests, custom resources included) is judged as such; a failure to dry-run it is reported as the reason for a skip. The objects an operator created for the CNF's custom resources, the label-identified ones and the CRDs discovered behind its custom resources are copies read back from the cluster: they are dry-run, as a create and as an apply, without the fields the server assigned them, for a deprecated field or annotation they carry; the API version an operator chose when it created them is not visible in such a copy (the server returns its preferred version) and is not judged.
 
 #### Rationale
 

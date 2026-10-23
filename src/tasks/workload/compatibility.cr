@@ -743,9 +743,9 @@ scored_task "deprecated_k8s_features" do |t, args|
     end
 
     # The API server is the authority on what is deprecated: a server-side
-    # dry-run of the CNF's composite manifest returns the same Warning headers
-    # kubectl shows on install, for every resource whatever its install
-    # method, without depending on a log file (#2578).
+    # dry-run of the CNF's manifest returns the same Warning headers kubectl
+    # shows on install, for every resource whatever its install method,
+    # without depending on a log file (#2578).
     #
     # Some warnings are only issued on create (the Ingress strategy warns
     # about kubernetes.io/ingress.class when the annotation is new, not when
@@ -753,16 +753,57 @@ scored_task "deprecated_k8s_features" do |t, args|
     # dry-run both as a create and as an apply and the warnings are joined.
     # A resource whose *name* contains "deprecated" is not a finding: the
     # word has to stand on its own in the warning.
-    resp = KubectlClient::ShellCMD.run("kubectl apply --dry-run=server -f #{COMMON_MANIFEST_FILE_PATH}", logger)
-    create = KubectlClient::ShellCMD.run("kubectl create --dry-run=server -f #{COMMON_MANIFEST_FILE_PATH}", logger)
-    warnings = (resp[:error].lines + create[:error].lines).map(&.strip)
-      .select { |line| line.starts_with?("Warning:") && line =~ /(?<![\w-])deprecated(?![\w-])/i }
-      .map { |line| line.sub(/^Warning:\s*/, "") }
-      .uniq
+    #
+    # What the CNF ships and what was read back from the cluster are dry-run
+    # apart (#2809). A failure on the shipped part is the CNF's and is a skip
+    # with the reason. The read-back copies (an operator's workloads, the
+    # label-identified objects, discovered CRDs) are dry-run, as a create and
+    # as an apply, without the fields the server assigned them, for the
+    # warnings only: a copy that fails to dry-run says nothing about the CNF
+    # (the create of an object that exists is refused, after its warnings),
+    # and an operator's own API versions are not visible in a copy the server
+    # returns in its preferred version, so only a deprecated field or
+    # annotation can be found there. Re-applying a copy unchanged is a no-op
+    # update, on which the API server does not repeat the warnings it gives
+    # on create, so the create dry-run is the one that finds them.
+    deprecated = /(?<![\w-])deprecated(?![\w-])/i
+    collect = ->(stderr : String) do
+      stderr.lines.map(&.strip).select { |line| line.starts_with?("Warning:") && line =~ deprecated }.map { |line| line.sub(/^Warning:\s*/, "") }
+    end
+    parts = CNFInstall::Manifest.split_by_source(File.read(COMMON_MANIFEST_FILE_PATH))
+    shipped_path = "#{File.dirname(COMMON_MANIFEST_FILE_PATH)}/deprecated-shipped.yml"
+    read_back_path = "#{File.dirname(COMMON_MANIFEST_FILE_PATH)}/deprecated-read-back.yml"
+    File.write(shipped_path, parts[:shipped])
+    # Server-side apply: a client-side apply stores the whole object in the
+    # last-applied-configuration annotation, which the API server refuses
+    # beyond 256 KiB (KEDA's CRDs), and warns on every Helm-installed object
+    # that lacks the annotation; the deprecation warnings are the API's and
+    # come back either way. The conflicts a dry-run would report against
+    # Helm's field manager change nothing, so they are forced.
+    resp = KubectlClient::ShellCMD.run("kubectl apply --server-side --force-conflicts --dry-run=server -f #{shipped_path}", logger)
+    create = KubectlClient::ShellCMD.run("kubectl create --dry-run=server -f #{shipped_path}", logger)
+    warnings = collect.call(resp[:error]) + collect.call(create[:error])
+    unless parts[:read_back].strip.empty?
+      cleaned = CNFInstall::Manifest.strip_live_fields(CNFInstall::Manifest.manifest_string_to_ymls(parts[:read_back]))
+      File.write(read_back_path, CNFInstall::Manifest.combine_ymls_as_manifest_string(cleaned))
+      live = KubectlClient::ShellCMD.run("kubectl apply --server-side --force-conflicts --dry-run=server -f #{read_back_path}", logger)
+      live_create = KubectlClient::ShellCMD.run("kubectl create --dry-run=server -f #{read_back_path}", logger)
+      {"apply" => live, "create" => live_create}.each do |verb, run|
+        next if run[:status].success?
+        logger.info { "Dry-run #{verb} of the objects read back from the cluster did not succeed (not held against the CNF): #{run[:error].lines.reject(&.starts_with?("Warning:")).first?.to_s.strip}" }
+      end
+      warnings += collect.call(live[:error]) + collect.call(live_create[:error])
+    end
+    File.delete?(shipped_path)
+    File.delete?(read_back_path)
+    warnings = warnings.uniq
     logger.info { "Found #{warnings.size} deprecation warning(s)" }
 
     if warnings.empty? && !resp[:status].success?
-      result.skipped("Could not dry-run the CNF manifest against the API server: #{resp[:error].lines.first?.to_s.strip}")
+      # The first line that is an error, not a Warning.
+      reason = resp[:error].lines.map(&.strip).reject { |line| line.empty? || line.starts_with?("Warning:") }.first? || resp[:error].lines.first?.to_s.strip
+      logger.info { "Dry-run of the CNF's manifest failed:\n#{resp[:error]}" }
+      result.skipped("Could not dry-run the CNF manifest against the API server: #{reason}")
       next
     end
 
