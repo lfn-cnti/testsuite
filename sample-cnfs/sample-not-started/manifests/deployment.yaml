@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: not-started
+  namespace: cnti-default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: not-started
+  template:
+    metadata:
+      labels:
+        app: not-started
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: busybox:this_tag_does_not_exist
+          command: ["sh", "-c", "exec sleep 1000000"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
