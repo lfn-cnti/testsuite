@@ -1,14 +1,14 @@
 require "../spec_helper.cr"
 
 describe "ClusterTools.strip_runtime_prefix" do
-  it "strips the prefix of every runtime the suite supports", tags: ["cluster_tools"] do
+  it "strips the prefix of every runtime the suite supports", tags: ["points"] do
     ClusterTools.strip_runtime_prefix("containerd://abc123").should eq("abc123")
     ClusterTools.strip_runtime_prefix("cri-o://abc123").should eq("abc123")
     ClusterTools.strip_runtime_prefix("crio://abc123").should eq("abc123")
     ClusterTools.strip_runtime_prefix("docker://abc123").should eq("abc123")
   end
 
-  it "leaves a bare container ID alone", tags: ["cluster_tools"] do
+  it "leaves a bare container ID alone", tags: ["points"] do
     ClusterTools.strip_runtime_prefix("abc123").should eq("abc123")
   end
 end
