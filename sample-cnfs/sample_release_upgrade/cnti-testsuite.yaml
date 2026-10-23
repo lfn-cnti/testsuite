@@ -1,0 +1,13 @@
+---
+# A chart installed from a repository: the rollout tests move the release
+# between the installed chart version and the one before it. The spec
+# packages ./chart in several versions and serves them on the port in
+# SPEC_CHART_REPO_PORT.
+config_version: v2
+deployments:
+  helm_charts:
+    - name: sample-release
+      helm_repo_name: cnti-spec-release
+      helm_repo_url: "http://127.0.0.1:{{ ENV.SPEC_CHART_REPO_PORT }}"
+      helm_chart_name: sample-release
+      chart_version: "0.2.0"

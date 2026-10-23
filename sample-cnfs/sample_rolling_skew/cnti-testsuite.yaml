@@ -1,0 +1,9 @@
+---
+# A Deployment from manifests (no chart repository, so no previous release
+# to upgrade from) whose image's previous release does not start under the
+# current pod spec: python:3.11-slim fails the 3.12 assertion in the command.
+config_version: v2
+deployments:
+  manifests:
+    - name: skew
+      manifest_directory: manifests

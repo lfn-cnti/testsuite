@@ -249,8 +249,9 @@ describe CntiTestSuite do
 
   it "'rolling_update' should roll to the image's previous release when no test tag is configured", tags: ["rolling_update"] do
     begin
-      # sample-coredns-cnf declares no container_names at all.
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
+      # A chart directory (no previous release to install), and no container_names:
+      # the image path, with the image's previous release from its registry.
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("rolling_update")
       result[:status].success?.should be_true
       (/container coredns: no rolling_update_test_tag configured, using \S+, the release before the deployed \S+/ =~ result[:output]).should_not be_nil
@@ -386,7 +387,7 @@ describe CntiTestSuite do
 
   it "'rollback' should roll back from the image's previous release when no rollback_from_tag is configured", tags: ["rollback"] do
     begin
-      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("rollback")
       result[:status].success?.should be_true
       (/container coredns: no rollback_from_tag configured, using \S+, the release before the deployed \S+/ =~ result[:output]).should_not be_nil

@@ -104,6 +104,10 @@ module CNFInstall
 
              # Common
              chart_version = "", # required for OCI; optional for classic
+             # The chart version the rollout tests move the release to and
+             # back from; without one, the release before the installed
+             # version in the repository (#2820).
+             previous_chart_version = "",
              pass_credentials = false, # forward creds across redirects
              auth : AuthCredentials? = nil  # optional per-chart override
 

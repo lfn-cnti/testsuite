@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-app
+  labels:
+    app: {{ .Release.Name }}-app
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-app
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-app
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          # The image moves with the chart's app version, as a release does.
+          image: {{ .Values.image.repository }}:{{ .Chart.AppVersion }}
+          command: ["sh", "-c", "echo chart $CHART_VERSION app $APP_VERSION; exec sleep 1000000"]
+          env:
+            # The pod spec moves with the chart version too: an upgrade
+            # changes image and spec together.
+            - name: CHART_VERSION
+              value: {{ .Chart.Version | quote }}
+            - name: APP_VERSION
+              value: {{ .Chart.AppVersion | quote }}
+          readinessProbe:
+            exec:
+              command: ["true"]
+            periodSeconds: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

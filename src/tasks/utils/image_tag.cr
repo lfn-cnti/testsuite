@@ -61,6 +61,21 @@ module ImageTag
     best
   end
 
+  # Whether version `a` is older than `b`: by their numbers when both have
+  # the same form, else by the numbers up to the shorter one. Nil when that
+  # cannot tell ("1.2" against "1.2.3", or a version without numbers).
+  def self.older?(a : String, b : String) : Bool?
+    fa = version_form(a)
+    fb = version_form(b)
+    return nil unless fa && fb
+    if fa[0] == fb[0]
+      return compare_versions(fa[1], fb[1]) < 0
+    end
+    n = Math.min(fa[1].size, fb[1].size)
+    c = compare_versions(fa[1][0, n], fb[1][0, n])
+    c == 0 ? nil : c < 0
+  end
+
   private def self.compare_versions(a : Array(Int64), b : Array(Int64)) : Int32
     a.each_with_index do |n, i|
       return 1 if i >= b.size
