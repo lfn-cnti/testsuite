@@ -827,8 +827,10 @@ scored_task "sbom_available",
   type: CNFManager::TestType::Normal,
   emoji: "📋🔒" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    unless ClusterTools.install
-      result.skipped("Skipping sbom_available: cluster-tools failed to install")
+    begin
+      ClusterTools.install
+    rescue ex : ClusterTools::NotReadyException
+      result.skipped("Skipping sbom_available: #{ex.message}")
       next
     end
 
