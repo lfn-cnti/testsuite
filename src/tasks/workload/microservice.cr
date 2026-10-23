@@ -390,6 +390,8 @@ scored_task "single_process_type",
     fail_msgs = Set(String).new
     ignored_init_msgs = Set(String).new
     checked_process_types = [] of String
+    # Containers the test could not read, with the reason (#2824).
+    not_inspected = [] of String
     resources_checked = false
     test_passed = true
 
@@ -399,7 +401,7 @@ scored_task "single_process_type",
       namespace = resource_named_tuple[:namespace]
 
       # Iterate over every container and verify there is only one application process type.
-      ClusterTools.all_containers_by_resource?(resource_named_tuple, namespace, only_container_pids:true) do |container_id, container_pid_on_node, node, container_proctree_statuses, container_status|
+      ClusterTools.all_containers_by_resource?(resource_named_tuple, namespace, only_container_pids:true, not_inspected: not_inspected) do |container_id, container_pid_on_node, node, container_proctree_statuses, container_status|
         container_name = container_status["name"]?
         next if container_proctree_statuses.empty?
         resources_checked = true
@@ -475,6 +477,7 @@ scored_task "single_process_type",
     # Report every non-specialized init system that was found and ignored, so the
     # decision is visible in both stdout and the results file.
     ignored_init_msgs.each { |msg| result.append_description(msg) }
+    not_inspected.each { |line| result.append_description("Not inspected: #{line}") }
 
     if resources_checked
       if test_passed
@@ -485,7 +488,7 @@ scored_task "single_process_type",
         result.failed("More than one process type used")
       end
     else
-      result.skipped("Container resources not checked")
+      result.skipped(inspection_skip_message("Process types not checked", not_inspected))
     end
   end
 end
@@ -498,14 +501,16 @@ scored_task "zombie_handled",
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     injection_failures = [] of String
     probed_containers = [] of String
+    not_inspected = [] of String
     # A probe needs a running container to enter. The test before this one,
     # sig_term_handled, terminates the CNF's PID 1 and the pod restarts; an
     # enumeration that finds no container at all is retried for the readiness
     # budget rather than taken as an answer (#2576). Nothing is probed twice:
     # the retry only happens while both lists are still empty.
     repeat_with_timeout(timeout: POD_READINESS_TIMEOUT, errormsg: "No running container of the CNF could be found to probe", delay: 5) do
+      not_inspected.clear
       CNFManager.resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |resource|
-        ClusterTools.all_containers_by_resource?(resource, resource[:namespace], include_proctree: false) do |container_id, container_pid_on_node, node|
+        ClusterTools.all_containers_by_resource?(resource, resource[:namespace], include_proctree: false, not_inspected: not_inspected) do |container_id, container_pid_on_node, node|
           # The probe runs from cluster-tools' own filesystem inside the container's PID
           # namespace, so nothing is written into the container: a read-only root
           # filesystem or a distroless image is probed like any other. /zombie forks a
@@ -524,6 +529,10 @@ scored_task "zombie_handled",
       !(probed_containers.empty? && injection_failures.empty?)
     end
 
+    # Listed whatever the outcome: a container that could not be inspected is
+    # in the details next to a verdict on the others.
+    not_inspected.each { |line| result.append_description("Not inspected: #{line}") }
+
     unless injection_failures.empty?
       injection_failures.each { |failure| result.append_description(failure) }
       result.skipped("Zombie reaping not checked: the zombie probe could not be started in every container")
@@ -534,7 +543,7 @@ scored_task "zombie_handled",
     # covers the case where nothing could be attempted: a verdict needs at
     # least one probed container, so an empty list is never a pass.
     if probed_containers.empty?
-      result.skipped("Zombie reaping not checked: no running container of the CNF could be probed")
+      result.skipped(inspection_skip_message("Zombie reaping not checked", not_inspected))
       next
     end
 
@@ -582,7 +591,9 @@ scored_task "zombie_handled",
 
     containers_to_restart.each do |container_id, node|
       Log.for(t.name).info { "Shutting down container #{container_id}" }
-      ClusterTools.exec_by_node("ctr -n=k8s.io task kill --signal 9 #{container_id}", node)
+      # Through the CRI, so it works on containerd and CRI-O alike: a stop
+      # with no grace is a kill.
+      ClusterTools.exec_by_node("crictl stop --timeout 0 #{ClusterTools.parse_container_id(container_id)}", node)
     end
 
     pods_to_restart.each do |pod_name, namespace|
@@ -769,13 +780,19 @@ scored_task "sig_term_handled",
             true
           end
 
-          next skip.call("container not ready") unless c_stat["ready"].as_bool
+          unless c_stat["ready"].as_bool
+            state = c_stat["state"]?.try(&.as_h?).try(&.keys.first?)
+            detail = c_stat.dig?("state", "waiting", "reason").try(&.as_s?) || c_stat.dig?("state", "terminated", "reason").try(&.as_s?)
+            next skip.call("container not ready#{state ? " (#{state}#{detail ? ": #{detail}" : ""})" : ""}")
+          end
 
           # Find the container's host PID
           c_id = c_stat["containerID"].as_s
-          node = KubectlClient::Get.nodes_by_pod(pod).first
-          pid  = ClusterTools.node_pid_by_container_id(c_id, node)
-          next skip.call("no running process found for the container") if pid.nil?
+          node = KubectlClient::Get.nodes_by_pod(pod).first?
+          next skip.call("the pod's node (#{pod.dig?("spec", "nodeName").try(&.as_s?) || "none"}) could not be found") unless node
+          looked_up = ClusterTools.pid_or_reason(c_id, node)
+          pid = looked_up[:pid]
+          next skip.call(looked_up[:reason].to_s) if pid.nil?
 
           # The container's processes, threads excluded (Tgid != Pid means a thread).
           pids           = KernelIntrospection::K8s::Node.pids(node)
@@ -885,7 +902,7 @@ scored_task "sig_term_handled",
     if applicable == 0
       result.na("Every workload of the CNF runs to completion (a Job or CronJob), SIGTERM handling does not apply")
     elsif task_response && !judged_any
-      result.skipped("Sig Term handling not checked: no container could be traced")
+      result.skipped(inspection_skip_message("Sig Term handling not checked", skipped_containers.map { |info| "#{info[:pod]}/#{info[:container]}: #{info[:reason]}" }))
     elsif task_response
       checked_containers.each { |line| result.append_description("Checked #{line}") }
       result.passed("Sig Term handled")
@@ -994,7 +1011,7 @@ scored_task "specialized_init_system",
         end
 
         results.reject(&.inspected).each do |info|
-          not_inspected << "#{info.kind}/#{info.name} container #{info.container}: PID 1's command line could not be read"
+          not_inspected << "#{info.kind}/#{info.name} container #{info.container}: PID 1 could not be read: #{info.reason}"
         end
         results.select(&.specialized).each do |info|
           checked_inits << "#{info.kind}/#{info.name} container #{info.container}: init '#{info.init_cmd}'"
@@ -1016,13 +1033,13 @@ scored_task "specialized_init_system",
       end.all?(true)
     end
 
-    not_inspected.each { |line| result.append_description(line) }
+    not_inspected.each { |line| result.append_description("Not inspected: #{line}") }
     if error_occurred
-      result.skipped("An error occurred during container inspection")
+      result.skipped("Init systems not checked: the CNF's pods could not be listed, see the details")
     elsif checked_inits.empty? && task_response && !not_inspected.empty?
-      result.skipped("No container's init process could be read")
+      result.skipped(inspection_skip_message("Init systems not checked", not_inspected))
     elsif !resources_checked
-      result.skipped("Container checks not executed")
+      result.skipped("Init systems not checked: the CNF has no workload with pods to inspect")
     elsif !task_response
       result.failed("Containers do not use specialized init systems (ভ_ভ) ރ")
     else
@@ -1030,4 +1047,14 @@ scored_task "specialized_init_system",
       result.passed("Containers use specialized init systems 🖥️")
     end
   end
+end
+
+# The skip line of a test that could read none of the CNF's containers: how
+# many were not inspected, and the reasons when they are few, else a pointer
+# to the details (#2824).
+def inspection_skip_message(prefix : String, not_inspected : Array(String)) : String
+  return "#{prefix}: no container of the CNF could be inspected" if not_inspected.empty?
+  reasons = not_inspected.map { |line| line.partition(": ")[2].presence || line }.uniq
+  summary = reasons.size <= 2 ? reasons.join("; ") : "see the details"
+  "#{prefix}: #{not_inspected.size} container(s) could not be inspected: #{summary}"
 end

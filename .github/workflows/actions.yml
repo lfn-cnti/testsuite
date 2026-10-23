@@ -709,3 +709,68 @@ jobs:
         rm -f /tmp/cluster.yml
         rm -rf ~/.config/helm
       continue-on-error: true
+  crio:
+    # The tests that inspect containers, on a cluster whose runtime is CRI-O:
+    # the helper has to find the kubelet's endpoint and crictl has to accept
+    # cri-o container IDs (#2826). kind cannot run CRI-O; minikube can.
+    name: CRI-O (minikube)
+    runs-on: ubuntu-24.04
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+    steps:
+    - name: Login to Docker Hub
+      if: ${{ env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_PASSWORD != '' }}
+      uses: docker/login-action@v4.6.0
+      with:
+        username: ${{ env.DOCKERHUB_USERNAME }}
+        password: ${{ env.DOCKERHUB_PASSWORD }}
+    - name: Checkout code
+      uses: actions/checkout@v7.0.1
+    - name: Install the CNTi toolchain
+      uses: ./.github/actions/install-cnti-toolchain
+    - name: Build cnti-testsuite
+      run: |
+        shards install
+        crystal build src/cnti-testsuite.cr
+    - name: Install minikube
+      run: |
+        # renovate: datasource=github-releases depName=kubernetes/minikube
+        MINIKUBE_VERSION=v1.37.0
+        curl -fsSL -o minikube "https://storage.googleapis.com/minikube/releases/${MINIKUBE_VERSION}/minikube-linux-amd64"
+        sudo install minikube /usr/local/bin/minikube
+        minikube version
+    - name: Start a CRI-O cluster
+      run: |
+        minikube start --driver=docker --container-runtime=cri-o --cpus=3 --memory=6g --wait=all
+        # CRI-O resolves no short image names unless the node names a search
+        # registry, as most CRI-O installations do (OpenShift among them); the
+        # example CNF's chart uses short names (coredns/coredns).
+        minikube ssh -- "printf 'unqualified-search-registries = [\"docker.io\"]\n' | sudo tee /etc/containers/registries.conf.d/99-cnti-docker-io.conf >/dev/null && sudo systemctl restart crio"
+        kubectl wait --for=condition=Ready node --all --timeout=120s
+        # The kubelet pulls with the runner's registry credentials, as the kind jobs do.
+        if [ -f "$HOME/.docker/config.json" ]; then
+          minikube cp "$HOME/.docker/config.json" /var/lib/kubelet/config.json
+        fi
+        kubectl get nodes -o wide
+    - name: Run the container-inspecting tests against CoreDNS
+      run: |
+        set -o pipefail
+        ./cnti-testsuite setup
+        # The helper is installed by the tests' dependency; here, up front, so
+        # the runtime it found on the node is checked before anything runs.
+        ./cnti-testsuite setup:install_cluster_tools 2>&1 | tee setup.log
+        grep -E "container runtime cri-o " setup.log
+        ./cnti-testsuite cnf_install --cnf-config ./example-cnfs/coredns/cnti-testsuite.yaml
+        # CoreDNS fails some of these on its merits (exit 1); an errored test
+        # (exit 2+) or a container that could not be inspected fails the job.
+        CNTI_TESTSUITE_LOG_LEVEL=info ./cnti-testsuite single_process_type specialized_init_system sig_term_handled zombie_handled 2>&1 | tee tests.log || [ "${PIPESTATUS[0]}" -eq 1 ]
+        if grep -E "could not be inspected|Not inspected:" tests.log; then
+          echo "::error::a container could not be inspected on CRI-O"; exit 1
+        fi
+        grep -E "PASSED|FAILED" tests.log
+        ./cnti-testsuite cnf_uninstall
+    - name: Delete the cluster
+      if: ${{ always() }}
+      run: minikube delete || true
+      continue-on-error: true

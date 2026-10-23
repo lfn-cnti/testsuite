@@ -24,12 +24,18 @@ task "cnf_install", ["setup:install_local_helm", "setup:create_namespace"] do |_
 
   StatusLine.push "CNF installation in progress..."
   StatusLine.push "Installing cluster-tools on every node (first run pulls the image)..."
-  if ClusterTools.install
-    StatusLine.pop
-  else
-    stdout_failure "The ClusterTools installation timed out. Please check the status of the cluster-tools pods."
+  begin
+    ClusterTools.install
+  rescue ex : ClusterTools::NotReadyException
+    logger.error { "Error while installing cluster-tools: #{ex.message}" }
+    stdout_cluster_tools_not_ready(ex)
+    exit 1
+  rescue ex : ClusterTools::RuntimeException
+    logger.error { "Error while installing cluster-tools: #{ex.message}" }
+    stdout_cluster_tools_runtime_problems(ex)
     exit 1
   end
+  StatusLine.pop
 
   CNFInstall.install_cnf(args)
   logger.info { "CNF installed successfuly" }

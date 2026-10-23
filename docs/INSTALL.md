@@ -15,7 +15,8 @@ This will detail the required minimum requirements needed in order to support cn
 
 #### Minimum Requirements
 * **Kubernetes multi-node cluster** *(2 schedulable nodes minimum as a few tests require this. See [supported K8s and installation details](#Details-on-supported-k8s-clusters-and-installation) on installation.)*
-* **containerd runtime** - for K8s cluster running the CNF to be tested
+* **containerd or CRI-O runtime** - for K8s cluster running the CNF to be tested; the suite inspects the CNF's containers through the runtime of each node, at the endpoint the kubelet uses, and stops at setup with the reason when a node's runtime is unreachable or another one (docker)
+* **Pod Security: the privileged level on the suite's namespaces** - the suite's helper pods (the `cluster-tools` DaemonSet: privileged, `hostPID`) and the CNF under test run in namespaces the suite labels `pod-security.kubernetes.io/enforce=privileged` (`cnti-testsuite`, the CNF's namespaces, `litmus`). A cluster whose admission refuses that label for the user running the suite (Rancher's webhook requires the `updatepsa` verb) must have those namespaces labelled beforehand by a user who may; the suite leaves a namespace that already enforces `privileged` untouched. The run stops with the reason when the label is refused or when the helper pods do not come up.
 * **kubectl** *(run commands against K8s clusters, see [installing kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) for more details.)*
 * **curl**
 * **helm 3.8.2** *or newer* (helm 4 supported; cnti-testsuite installs helm 4 if not found locally)
@@ -52,7 +53,9 @@ What "supported" means here: the platform is built and tested by the project's C
 |---|---|---|
 | [kind](https://kind.sigs.k8s.io/), three nodes, containerd | supported | Every CI job creates one. The kind version is pinned in `.github/actions/install-kind`; the Kubernetes version is the one that kind release brings. |
 | Other Kubernetes clusters with containerd and at least two schedulable nodes | expected to work | Not tested in CI. |
-| Clusters with CRI-O or docker as container runtime, OpenShift among them | not tested | The suite has not been examined on them, and containerd is listed as a requirement. |
+| [minikube](https://minikube.sigs.k8s.io/), one node, CRI-O | supported | A CI job runs the tests that inspect containers against CoreDNS on it. |
+| Other clusters with CRI-O, OpenShift among them | expected to work | Not tested in CI. |
+| Clusters with docker (cri-dockerd) as container runtime | not supported | The suite stops at setup and says so: it inspects containers through containerd or CRI-O only. |
 
 The suite changes the cluster it runs against and should be used on development and test clusters only.
 
