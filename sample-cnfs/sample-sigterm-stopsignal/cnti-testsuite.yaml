@@ -1,0 +1,9 @@
+---
+# A container whose stop signal is SIGQUIT, from its image's STOPSIGNAL (nginx):
+# PID 1 ignores SIGTERM and exits on SIGQUIT, so the test must stop it the
+# way the runtime does, with the image's signal, to see it handled.
+config_version: v2
+deployments:
+  manifests:
+  - name: stopsignal
+    manifest_directory: manifests
