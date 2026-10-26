@@ -2,7 +2,7 @@ require "http/client"
 
 module Kyverno
   # renovate: datasource=github-releases depName=kyverno/kyverno
-  VERSION = "1.19.1"
+  VERSION = "1.19.2"
   # Branch of github.com/kyverno/policies the sample policies are taken from.
   POLICIES_BRANCH = "release-1.19"
 
