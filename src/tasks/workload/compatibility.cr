@@ -59,7 +59,7 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
           namespace = resource["namespace"]
           container_name = container.as_h["name"].as_s
           test_passed = true
-          Log.for(t.name).debug { "container: #{container}" }
+          Log.for(t.name).debug { "container: #{container_name} (#{container.as_h["image"]?})" }
           config_container = container_names.find{|x| x.name == container_name} if container_names
           Log.debug { "config_container: #{config_container}" }
 

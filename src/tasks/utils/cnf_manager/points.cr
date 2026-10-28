@@ -1,4 +1,5 @@
 require "totem"
+require "../run_log"
 require "../cli_invocation"
 require "colorize"
 require "../../../modules/helm"
@@ -194,6 +195,7 @@ module CNFManager
       private def self.create_file
         File.open(@@file, "w") { |f| YAML.dump(CNFManager::Points.template_results_yml, f) }
         point_latest_at(@@file)
+        RunLog.attach(@@file)
       end
 
       # Repoint `latest` at `path` without a window where it is missing: link

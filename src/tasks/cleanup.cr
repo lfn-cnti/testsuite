@@ -47,11 +47,15 @@ desc "Cleans up the CNF and the helper tools the suite deployed into the cluster
 task "uninstall_all", ["cnf_uninstall", "tools_uninstall"] do |_, args|
 end
 
-desc "Deletes all results files from the results directory"
+desc "Deletes all results files from the results directory, with the runs' debug logs"
 task "delete_results" do |_, args|
-  files = Dir.glob(File.join(CNFManager::Points::Results.dir, "cnti-testsuite-results-*.yml"))
+  dir = CNFManager::Points::Results.dir
+  files = Dir.glob(File.join(dir, "cnti-testsuite-results-*.yml"))
   files.each { |f| File.delete(f) }
   File.delete?(CNFManager::Points::Results.latest)
+  # The runs' directories (debug logs) and the logs waiting for a run go too.
+  Dir.glob(File.join(dir, RunLog::RUN_DIR_GLOB)).each { |path| FileUtils.rm_rf(path) if Dir.exists?(path) }
+  FileUtils.rm_rf(File.join(dir, RunLog::PENDING_DIR))
   Log.info { "Deleted #{files.size} results file(s)" }
   stdout_success "Deleted #{files.size} results file(s)."
 end

@@ -18,7 +18,7 @@ The suite is one Crystal binary, `cnti-testsuite`, built from `src/cnti-testsuit
   the platform record, workload enumeration.
 - `tasks/utils/`: the CLI (`cli_*.cr`), the tools' managers (`kubescape.cr`, `kyverno.cr`,
   `litmus_manager.cr`, `jaeger.cr`, ...), diagnostics, the JUnit report, the evidence bundle,
-  the stop handling (`run_stop.cr`).
+  the stop handling (`run_stop.cr`), the run's debug log (`run_log.cr`).
 - `tasks/mcp/`: the MCP server (`cnti-testsuite mcp`).
 - `modules/`: libraries with no suite logic: `kubectl_client`, `helm`, `cluster_tools`,
   `net_retry`, `docker_client`, and the kernel and network introspection helpers.

@@ -1,5 +1,6 @@
 require "colorize"
 require "./cli_invocation"
+require "./run_log"
 
 private class CLILogLevel
   class_property level : String = ""
@@ -29,7 +30,13 @@ end
 # First Log.setup is necessary to make sure loglevel
 # method will report errors during execution.
 Log.setup(Log::Severity::Error, log_backend)
-Log.setup(loglevel, log_backend)
+# The console (stderr or CNTI_TESTSUITE_LOG_PATH) at the level asked for, and
+# the run's own log at debug, whatever that level is (run_log.cr).
+console_level = loglevel
+Log.setup do |c|
+  c.bind("*", console_level, log_backend)
+  c.bind("*", Log::Severity::Debug, RunLog.backend)
+end
 
 # Define top level loggers for workload and setup tasks.
 # Modules and Classes should have their own loggers.
