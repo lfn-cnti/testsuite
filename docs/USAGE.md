@@ -179,6 +179,8 @@ any other CI.
 To write somewhere else, pass `--results-dir PATH` on the command line or set the
 `CNTI_TESTSUITE_RESULTS_DIR` environment variable; the option wins over the variable. The
 timestamped file and `latest.yml` both go there, and `delete_results` honours the same setting.
+Next to each results file, a directory of the same name holds the run's debug log; see
+[The run's debug log](#the-runs-debug-log).
 
 The file is rewritten after every test. While the run is in progress it says `status: running`
 and `exit_code: null`; the verdict is written only when the run ends (or stops on `--strict`).
@@ -429,6 +431,9 @@ Each `impacted_resources` entry has `kind` and `name`, plus optional `namespace`
 - **CNTI_TESTSUITE_LOG_LEVEL** environment variable: sets minimal log level to display: error (default); info; debug.
 - **CNTI_TESTSUITE_LOG_PATH** environment variable: if set - all logs would be appended to the file defined by that variable.
 
+Both decide only what the console shows. Every run also keeps its own log at debug level,
+whatever they are set to: see [The run's debug log](#the-runs-debug-log).
+
 #### Output streams
 
 Result lines, scores and summaries are the suite's output and go to **stdout**; log messages are
@@ -437,6 +442,39 @@ diagnostics and go to **stderr** (or to the `CNTI_TESTSUITE_LOG_PATH` file when 
 `CNTI_TESTSUITE_LOG_LEVEL=debug`. When capturing the streams separately, their relative ordering is not
 guaranteed — merge them with `2>&1` if strict interleaving matters. Cursor-control progress
 rewrites and colors are only emitted when stdout is a terminal.
+
+#### The run's debug log
+
+Every run that writes a results file also keeps its log at **debug** level, whatever level the
+console shows, in a directory named like the results file:
+
+```
+cnti/results/
+  cnti-testsuite-results-<YYYYMMDD-HHMMSS-mmm>.yml    # the results file, as before
+  cnti-testsuite-results-<YYYYMMDD-HHMMSS-mmm>/
+    run.log                                           # the run, at debug level
+    cnf_install-<YYYYMMDD-HHMMSS-mmm>.log             # the cnf_install before it, if any
+```
+
+So the detail of a failed run is there without running it again with `-l debug`, when the cluster
+has changed or the failure does not come back. Trace-level entries (whole command outputs) stay on
+the console only, with `-l trace`.
+
+- **One entry per line**: `[time] LEVEL test=<name> -- source: message`. `test=` names the test
+  that was running when the entry was logged, so one test's entries can be cut out; lines that
+  continue a multi-line message are indented by two spaces.
+- **`setup` and `cnf_install`** run in processes of their own, without a results file: their log
+  waits in `pending/` in the results directory, and the next run moves it into its directory.
+- **Size**: run.log stops at 50 MB, with a line saying so.
+- **Retention**: the newest 5 run directories are kept; set `CNTI_TESTSUITE_KEEP_RUNS` to keep
+  another number. Results files are never removed by it. `delete_results` removes the directories
+  with the results files.
+- The directory follows `--results-dir` and `CNTI_TESTSUITE_RESULTS_DIR` like the results file. It
+  is not part of the [evidence bundle](#evidence-bundle). A CI job that uploads the whole results
+  directory as an artifact uploads the debug logs too: the values of Helm's `--set` flags and the
+  credentials in chart and values-file URLs are masked in the logged commands, and the CNF's
+  resources are named, not dumped. Command outputs
+  are logged at trace level only, which run.log does not keep.
 
 ---
 
@@ -752,6 +790,7 @@ CNTI_TESTSUITE_NETWORK_RETRY_BACKOFF=10   # base seconds between attempts (attem
 - **CNTI_TESTSUITE_RESULTS_DIR**: redirect the results directory; see [Results file](#results-file).
 - **CNTI_TESTSUITE_CHAOS_CHARTS_URL**: where the LitmusChaos fault templates are fetched from, for a mirror of the [chaos-charts](https://github.com/litmuschaos/chaos-charts) tree with the same layout (`<url>/faults/kubernetes/<fault>/fault.yaml`); by default the pinned release on raw.githubusercontent.com. A template that cannot be fetched after the network retries, or an experiment or its RBAC that cannot be applied, ends the test as an error with the reason: the CNF was not judged, so the run has no verdict (exit code 2) and a published badge keeps its last score. The templates are applied with the suite's cluster credentials, so only an `https://` mirror is accepted; any other scheme ends the Litmus tests as errors with that reason. Point it only at a mirror you trust.
 - **CNTI_TESTSUITE_CONTAINER_PATH**: host directory where the container runtime keeps one directory per container, which `disk_fill` fills. By default the suite probes a node for the usual one of the detected runtime (containerd, including the k3s, RKE2 and microk8s roots; CRI-O; Docker); set this when the runtime's root is configured elsewhere. A cluster property, not part of the CNF config.
+- **CNTI_TESTSUITE_KEEP_RUNS**: how many run directories (the runs' debug logs) to keep, at least 1 (default 5); see [The run's debug log](#the-runs-debug-log).
 - **CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET**: host path of the container runtime socket the LitmusChaos helpers use for `pod_io_stress`. By default the suite detects the runtime from the nodes and probes the usual socket locations (including the k3s, RKE2 and microk8s ones) on a node; set this when the cluster keeps the socket elsewhere. A cluster property, not part of the CNF config.
 
 Every variable that configures the suite's own behavior carries the `CNTI_TESTSUITE_` prefix.

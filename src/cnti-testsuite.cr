@@ -71,6 +71,9 @@ begin
   # terminal) undoes what the running test changed, records it as an error,
   # finalizes the results file as `stopped` and exits 128 + the signal.
   RunStop.install_traps
+  # The run's debug log goes next to the results file once there is one; an
+  # install or setup keeps its log for the run that follows (run_log.cr).
+  RunLog.start(CNFManager::Points::Results.dir, invocation.tasks)
   invocation.tasks.each { |task| Sam.invoke(task, invocation.args) }
 
   if CNFManager::Points::Results.file_exists?

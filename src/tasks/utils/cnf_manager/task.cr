@@ -63,50 +63,55 @@ module CNFManager
 
       result = CNFManager::TestCaseResult.empty
       result.set_start_time()
-      if task
-        result.set_testcase(task.as(Sam::Task).name.as(String))
-        logger.for(result.testcase).info { "Starting test" }
-        stdout_info("🎬 Testing: [#{result.testcase}]")
-        # A stop (SIGTERM, SIGINT) records the test under way as an error.
-        RunStop.current = result
-      end
+      # Every entry logged while the test runs carries its name, so the run's
+      # debug log can be cut per test (run_log.cr).
+      Log.with_context do
+        if task
+          result.set_testcase(task.as(Sam::Task).name.as(String))
+          Log.context.set(test: result.testcase)
+          logger.for(result.testcase).info { "Starting test" }
+          stdout_info("🎬 Testing: [#{result.testcase}]")
+          # A stop (SIGTERM, SIGINT) records the test under way as an error.
+          RunStop.current = result
+        end
 
-      begin
-        yield args, config, result
-      rescue ex : CNFManager::NoWorkloadResources
-        # One clear verdict per test, not a failure about the test's subject.
-        logger.warn { "#{result.testcase}: #{ex.message}" }
-        result.na("#{result.testcase} not applicable: #{ex.message}")
-      rescue ex : Kubescape::ScanError
-        # The scanner did not deliver: say so with its reason, not a trace.
-        logger.error { "#{result.testcase}: #{ex.message}" }
-        result.error("Kubescape scan failed: #{ex.message}")
-      rescue ex : LitmusManager::FaultInstallError
-        # The fault to inject is not there (its template could not be fetched,
-        # its experiment not applied): the test could not judge the CNF, and
-        # nothing of the CNF was touched. An error, as the suite failed, with
-        # the reason (#2832); a skip would cost the CNF the test (#2806).
-        logger.error { "#{result.testcase}: #{ex.message}" }
-        result.error("#{result.testcase} not run: #{ex.message}")
-      rescue ex
-        result.error("Unexpected error occurred")
-        logger.error { ex.message }
-        ex.backtrace.each do |x|
-          logger.error { x }
-        end
-      ensure
-        result.set_end_time()
-        # A failure that brought no remediation of its own gets the one the
-        # test documentation gives, so every failed item says what to do.
-        if result.status.failed? && result.result_remediation.empty?
-          if remedy = DocRemediation.for(result.testcase)
-            result.append_remediation(remedy)
+        begin
+          yield args, config, result
+        rescue ex : CNFManager::NoWorkloadResources
+          # One clear verdict per test, not a failure about the test's subject.
+          logger.warn { "#{result.testcase}: #{ex.message}" }
+          result.na("#{result.testcase} not applicable: #{ex.message}")
+        rescue ex : Kubescape::ScanError
+          # The scanner did not deliver: say so with its reason, not a trace.
+          logger.error { "#{result.testcase}: #{ex.message}" }
+          result.error("Kubescape scan failed: #{ex.message}")
+        rescue ex : LitmusManager::FaultInstallError
+          # The fault to inject is not there (its template could not be fetched,
+          # its experiment not applied): the test could not judge the CNF, and
+          # nothing of the CNF was touched. An error, as the suite failed, with
+          # the reason (#2832); a skip would cost the CNF the test (#2806).
+          logger.error { "#{result.testcase}: #{ex.message}" }
+          result.error("#{result.testcase} not run: #{ex.message}")
+        rescue ex
+          result.error("Unexpected error occurred")
+          logger.error { ex.message }
+          ex.backtrace.each do |x|
+            logger.error { x }
           end
+        ensure
+          result.set_end_time()
+          # A failure that brought no remediation of its own gets the one the
+          # test documentation gives, so every failed item says what to do.
+          if result.status.failed? && result.result_remediation.empty?
+            if remedy = DocRemediation.for(result.testcase)
+              result.append_remediation(remedy)
+            end
+          end
+          # Recording the result is what drives the run's exit code: the summary
+          # (recomputed on every upsert) derives it from the item outcomes.
+          upsert_decorated_task(result)
+          RunStop.current = nil
         end
-        # Recording the result is what drives the run's exit code: the summary
-        # (recomputed on every upsert) derives it from the item outcomes.
-        upsert_decorated_task(result)
-        RunStop.current = nil
       end
 
       # todo lax mode, never returns 1

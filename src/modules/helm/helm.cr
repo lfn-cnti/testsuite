@@ -8,11 +8,70 @@ module Helm
 
   alias CMDResult = NamedTuple(status: Process::Status, output: String, error: String)
 
+  # What a logged helm command or helm_values must not show, since the run's
+  # debug log is kept and uploaded with the results (run_log.cr):
+  # - the values of --set, --set-string, --set-json and --set-literal;
+  #   --set-file names files and is kept as written;
+  # - the credentials in a URL (a chart or a values file): its userinfo and
+  #   its query values.
+  # The text is split into words the way the shell splits it, so neither
+  # quotes nor backslash escapes can carry part of a value past the masking.
+  SET_VALUE_FLAG   = /\A--set(?:-string|-json|-literal)?\z/
+  SET_VALUE_INLINE = /\A(?<flag>--set(?:-string|-json|-literal)?)=(?<arg>.*)\z/m
+  # The key of a key=value pair as Helm writes it (a.b[0].c, escaped dots).
+  SET_KEY         = /\A(?<key>[A-Za-z0-9_.\[\]\/\\-]+)=/
+  # The userinfo is everything in the authority up to its last @, which a
+  # password may contain; the authority ends at the first / ? or #.
+  URL_USERINFO    = %r{(?<scheme>[A-Za-z][A-Za-z0-9+.-]*://)[^/?#\s]*@}
+  URL_QUERY_VALUE = /(?<name>[?&][^=&\s#]+=)[^&\s#]*/
+
+  # *text* with the value of every key=value of a --set flag replaced by ***,
+  # and URLs without their userinfo and query values.
+  def self.redact_for_log(text : String) : String
+    words = Process.parse_arguments_posix(text)
+    redacted = [] of String
+    flag = nil
+    words.each do |word|
+      if pending = flag
+        redacted << mask_set_argument(pending, word)
+        flag = nil
+      elsif word.matches?(SET_VALUE_FLAG)
+        redacted << word
+        flag = word
+      elsif inline = word.match(SET_VALUE_INLINE)
+        redacted << "#{inline["flag"]}=#{mask_set_argument(inline["flag"], inline["arg"])}"
+      else
+        redacted << redact_urls(word)
+      end
+    end
+    redacted.join(" ") { |word| word.matches?(/[\s'"\\]/) ? Process.quote_posix(word) : word }
+  rescue ArgumentError
+    # An unclosed quote: nothing from the first --set on is shown.
+    head, set, _ = text.partition("--set")
+    redact_urls(head) + (set.empty? ? "" : "--set ... (rest not logged: unbalanced quotes)")
+  end
+
+  # The keys of a --set argument with their values masked. --set and
+  # --set-string take comma-separated pairs (a comma escaped with a
+  # backslash is part of the value); --set-json and --set-literal take one
+  # key and a value that may hold anything, commas and key-like text
+  # included, so only the leading key is kept.
+  private def self.mask_set_argument(flag : String, arg : String) : String
+    pairs = flag.in?("--set", "--set-string") ? arg.split(/(?<!\\),/) : [arg]
+    keys = pairs.compact_map { |pair| pair.match(SET_KEY).try { |m| "#{m["key"]}=***" } }
+    keys.empty? ? "***" : keys.join(",")
+  end
+
+  private def self.redact_urls(text : String) : String
+    return text unless text.includes?("://")
+    text.gsub(URL_USERINFO) { "#{$~["scheme"]}***@" }.gsub(URL_QUERY_VALUE) { "#{$~["name"]}***" }
+  end
+
   module ShellCMD
     # logger should have method name (any other scopes, if necessary) that is calling attached using .for() method.
     def self.run(cmd, logger : ::Log = Log, force_output = false, stdin : String? = nil) : CMDResult
       logger = logger.for("cmd")
-      logger.debug { "command: #{cmd}" }
+      logger.debug { "command: #{Helm.redact_for_log(cmd)}" }
 
       input_io = stdin ? IO::Memory.new(stdin) : nil
 
@@ -95,7 +154,7 @@ module Helm
   def self.workload_resource_by_kind(ymls : Array(YAML::Any), kind : String) : Array(YAML::Any)
     logger = Log.for("workload_resource_by_kind")
     logger.debug { "kind: #{kind}" }
-    logger.debug { "ymls: #{ymls}" }
+    logger.debug { "ymls: #{ymls.size} resource(s)" }
 
     resources = ymls.select { |x| x["kind"]? == kind }.reject! do |x|
       # reject resources that contain the 'helm.sh/hook: test' annotation
@@ -144,7 +203,9 @@ module Helm
     resources_with_namespace = resources.map do |resource|
       ensure_resource_with_namespace(resource, default_namespace)
     end
-    Log.for("all_workload_resources").debug { "#{resources_with_namespace}" }
+    Log.for("all_workload_resources").debug do
+      resources_with_namespace.map { |r| "#{r["kind"]?}/#{r.dig?("metadata", "name")} in #{r.dig?("metadata", "namespace")}" }.join(", ")
+    end
     resources_with_namespace
   end
 
@@ -328,7 +389,7 @@ module Helm
   ) : CMDResult
     logger = Log.for("install")
     logger.info { "Installing helm chart: #{helm_chart}" }
-    logger.debug { "Values: #{values}" }
+    logger.debug { "Values: #{values.try { |v| redact_for_log(v) }}" }
 
     cmd = "#{Binary.get} install #{release_name} #{helm_chart}"
     cmd = "#{cmd} -n #{namespace}" if namespace
