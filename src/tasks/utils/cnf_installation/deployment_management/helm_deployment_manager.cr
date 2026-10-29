@@ -21,9 +21,11 @@ module CNFInstall
 
     def install_from_folder(chart_path, helm_namespace, helm_values)
       begin
+        # Creating the namespace touches the cluster even if its label then
+        # fails, so the flag is set first (see the manifest manager).
+        @cluster_touched = true
         CNFManager.ensure_namespace_exists!(helm_namespace)
         values = helm_values ? CNFInstall.resolve_helm_values(helm_values, CNFInstall.installed_config_dir) : helm_values
-        @cluster_touched = true
         response = Helm.install(@deployment_name, chart_path, namespace: helm_namespace, values: values)
         # Save the stderr from installation command for usage in other tests.
         unless response[:output].empty?
@@ -39,6 +41,9 @@ module CNFInstall
       rescue e : Helm::ShellCMD::HelmCMDException
         stdout_failure "Helm installation failed with message:"
         stdout_failure "\t#{e.message}"
+        return false
+      rescue e : SuiteNamespaces::StillTerminatingError
+        stdout_failure e.message.to_s
         return false
       end
 

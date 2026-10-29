@@ -23,12 +23,23 @@ module SuiteNamespaces
     end
   end
 
+  # A namespace that is still being deleted when the suite needs it again.
+  class StillTerminatingError < Exception
+  end
+
   # Makes sure the namespace exists, with Pod Security level privileged. A
   # namespace that already enforces privileged is left alone, whoever created
   # it: no label write, so a namespace an administrator labelled beforehand
-  # never meets a webhook that would refuse the change.
+  # never meets a webhook that would refuse the change. A namespace still
+  # being deleted (a release whose deletion outlived its timeout) is waited
+  # out first: labelling it would succeed, and what is installed next would
+  # find it gone ("namespaces ... not found").
   def self.ensure_exists(namespace : String)
     existing = get(namespace)
+    if existing && terminating?(existing)
+      wait_until_deleted(namespace)
+      existing = nil
+    end
     saved_here = false
     if existing.nil?
       KubectlClient::Apply.namespace(namespace, labels: MANAGED_BY)
@@ -72,9 +83,10 @@ module SuiteNamespaces
   end
 
   # Creates the namespace, as ensure_exists does, only if it doesn't exist; an
-  # existing one is left as it is.
+  # existing one is left as it is. One still being deleted counts as missing.
   def self.create_missing(namespace : String)
-    ensure_exists(namespace) if get(namespace).nil?
+    existing = get(namespace)
+    ensure_exists(namespace) if existing.nil? || terminating?(existing)
   end
 
   # Deletes the namespace if the suite created it; otherwise puts back the Pod
@@ -96,6 +108,27 @@ module SuiteNamespaces
     end
   rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
     Log.for("SuiteNamespaces.release").warn { "Could not release namespace #{namespace}: #{ex.message}" }
+  end
+
+  def self.terminating?(namespace_json : JSON::Any) : Bool
+    namespace_json.dig?("status", "phase").try(&.as_s?) == "Terminating" ||
+      !namespace_json.dig?("metadata", "deletionTimestamp").nil?
+  end
+
+  # Waits up to GENERIC_OPERATION_TIMEOUT for the namespace to be gone, and
+  # raises with what still holds it (the namespace's conditions) otherwise.
+  private def self.wait_until_deleted(namespace : String)
+    Log.for("SuiteNamespaces.ensure_exists").info { "Namespace #{namespace} is still being deleted; waiting for it to be gone" }
+    gone = repeat_with_timeout(GENERIC_OPERATION_TIMEOUT, "Namespace #{namespace} is still being deleted", delay: 1) do
+      get(namespace).nil?
+    end
+    return if gone
+
+    conditions = get(namespace).try(&.dig?("status", "conditions")).try(&.as_a?) || [] of JSON::Any
+    reasons = conditions.select { |c| c["status"]?.try(&.as_s?) == "True" }
+      .compact_map { |c| c["message"]?.try(&.as_s?) || c["reason"]?.try(&.as_s?) }
+    detail = reasons.empty? ? "" : ": #{reasons.join("; ")}"
+    raise StillTerminatingError.new("Namespace #{namespace} is still being deleted after #{GENERIC_OPERATION_TIMEOUT}s#{detail}. Wait until it is gone, or remove what holds it, then install again.")
   end
 
   def self.owned?(namespace_json : JSON::Any) : Bool

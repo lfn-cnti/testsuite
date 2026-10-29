@@ -22,6 +22,10 @@ module CNFInstall
       begin
         # A namespace the manifests use but don't define is created here, so
         # that they don't depend on one left behind by an earlier install.
+        # Creating a namespace touches the cluster even when a later step of
+        # it (the Pod Security label) or a later namespace fails, so the flag
+        # is set first and a failed install leaves cnf_uninstall to clean up.
+        @cluster_touched = true unless referenced_namespaces.empty?
         referenced_namespaces.each { |namespace| SuiteNamespaces.create_missing(namespace) }
         @cluster_touched = true
         response = KubectlClient::Apply.file(@manifest_directory_path)
@@ -37,6 +41,9 @@ module CNFInstall
         stdout_failure "Change CNF configuration or uninstall existing deployment."
         return false
       rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+        stdout_failure "Error while installing manifest deployment \"#{@manifest_config.name}\": #{ex.message}"
+        return false
+      rescue ex : SuiteNamespaces::StillTerminatingError
         stdout_failure "Error while installing manifest deployment \"#{@manifest_config.name}\": #{ex.message}"
         return false
       end

@@ -97,6 +97,33 @@ describe "Installation" do
     end
   end
 
+  it "waits out a namespace that is still being deleted, then creates it again", tags: ["cnf_installation1"] do
+    namespace = "cnti-terminating-spec"
+    finalizer = "cnti-testsuite.spec/hold"
+    begin
+      ShellCmd.run("kubectl create namespace #{namespace}")
+      ShellCmd.run(%(kubectl create configmap held -n #{namespace} --from-literal=a=b))
+      ShellCmd.run(%(kubectl patch configmap held -n #{namespace} --type=merge -p '{"metadata":{"finalizers":["#{finalizer}"]}}'))
+      # The finalizer keeps the namespace terminating until it is removed.
+      ShellCmd.run("kubectl delete namespace #{namespace} --wait=false")
+      SuiteNamespaces.terminating?(KubectlClient::Get.resource("namespace", namespace)).should be_true
+
+      spawn do
+        sleep 5.seconds
+        ShellCmd.run(%(kubectl patch configmap held -n #{namespace} --type=merge -p '{"metadata":{"finalizers":[]}}'))
+      end
+      SuiteNamespaces.ensure_exists(namespace)
+
+      recreated = KubectlClient::Get.resource("namespace", namespace)
+      SuiteNamespaces.terminating?(recreated).should be_false
+      SuiteNamespaces.owned?(recreated).should be_true
+      recreated.dig("metadata", "labels", SuiteNamespaces::ENFORCE).as_s.should eq("privileged")
+    ensure
+      ShellCmd.run(%(kubectl patch configmap held -n #{namespace} --type=merge -p '{"metadata":{"finalizers":[]}}'))
+      ShellCmd.run("kubectl delete namespace #{namespace} --wait=false")
+    end
+  end
+
   it "'tools_purge' should delete the suite's local downloads", tags: ["cnf_installation1"] do
     begin
       ShellCmd.run_testsuite("setup:install_kubescape")[:status].success?.should be_true
