@@ -314,6 +314,11 @@ scored_task "reasonable_image_size",
   type: CNFManager::TestType::Bonus,
   emoji: "⚖👀" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    if Offline.enabled?
+      result.skipped("Offline mode: the image size is measured by pulling the image from its registry")
+      next
+    end
+
     docker_insecure_registries = config.common.docker_insecure_registries || [] of String
     unless Dockerd.install(docker_insecure_registries)
       result.skipped("Skipping reasonable_image_size: Dockerd tool failed to install")

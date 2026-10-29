@@ -744,10 +744,52 @@ CNTI_TESTSUITE_NETWORK_RETRY_ATTEMPTS=5   # attempts per fetch
 CNTI_TESTSUITE_NETWORK_RETRY_BACKOFF=10   # base seconds between attempts (attempt N waits N x backoff: 10s, 20s, 30s, 40s)
 ```
 
+#### Air-gapped runs:
+
+On a connected host, prepare a bundle with the files the suite would otherwise download (Helm,
+Kubescape, the Kyverno CLI and policies, the LitmusChaos operator and the fault manifests):
+
+```
+./cnti-testsuite airgap_prepare --cnf-config ./cnti-testsuite.yaml
+```
+
+With the CNF installed on the connected host, `airgap_prepare` reads its manifests. Without an
+installation, `--cnf-config` makes it scan that config's directory instead. It writes the bundle to
+`~/.cnti-testsuite/airgap` by default and lists the images it
+finds in `airgap/images.txt`: the suite's cluster-tools image, the LitmusChaos operator, runner and
+fault images, and the images declared by the installed CNF (or by the directory of
+`--cnf-config`). When the config sets `rolling_*_test_tag` or `rollback_from_tag` for a container,
+it also adds those target images for that container's deployed repository, so a rollout or
+rollback does not wait for an image the cluster cannot pull. A chart that templates its image
+references may need entries added by hand. The bundle holds host binaries, so prepare it for the
+OS and architecture of the disconnected host.
+Copy the bundle to that host, load those images into the cluster, and run the suite with:
+
+```
+export CNTI_TESTSUITE_OFFLINE=true
+export CNTI_TESTSUITE_OFFLINE_DIR=/path/to/airgap
+./cnti-testsuite setup
+./cnti-testsuite cnf_install --cnf-config ./cnti-testsuite.yaml
+./cnti-testsuite workload
+```
+
+In offline mode every download is resolved from the bundle, and a missing file fails the task with
+the URL and the bundle path instead of waiting on a network timeout. The CNF must install from
+local sources (`helm_dirs` or `manifests` in `cnti-testsuite.yaml`), not from a chart repository.
+Tests that read a registry cannot judge a disconnected cluster and report skipped with the reason:
+`sbom_available`, `reasonable_image_size`, `helm_chart_published` (for charts served from a Helm
+repository), and the registry lookup of a previous release in the rolling-update and rollback
+tests when no `*_test_tag`/`rollback_from_tag` is configured.
+
+`./cnti-testsuite airgap_status` shows what the bundle has and what is missing without touching the
+cluster.
+
 #### Other environment variables:
 
 - **CNTI_TESTSUITE_DIR**: the suite home (default `~/.cnti-testsuite`): where `config.yml` is looked up and where the tools the suite installs for itself are cached under `tools/`. Each cached tool carries a `<tool>.version` marker with the version it was installed at; a suite that pins a different version reinstalls it on the next run, so the cache never serves a stale tool.
 - **CNTI_TESTSUITE_FORCE_INSTALL**: set (to any value) to reinstall the suite-managed local Helm even when an installation is already present.
+- **CNTI_TESTSUITE_OFFLINE**: set to `true`, `1`, `yes` or `on` to resolve every download from the air-gap bundle instead of the network; see [Air-gapped runs](#air-gapped-runs).
+- **CNTI_TESTSUITE_OFFLINE_DIR**: the air-gap bundle directory (default `~/.cnti-testsuite/airgap`).
 - **CNTI_TESTSUITE_ENV**: set to `TEST` for test-mode shortcuts (smaller samples, quicker checks). Used by the spec suite; not meant for normal runs.
 - **CNTI_TESTSUITE_RESULTS_DIR**: redirect the results directory; see [Results file](#results-file).
 - **CNTI_TESTSUITE_CHAOS_CHARTS_URL**: where the LitmusChaos fault templates are fetched from, for a mirror of the [chaos-charts](https://github.com/litmuschaos/chaos-charts) tree with the same layout (`<url>/faults/kubernetes/<fault>/fault.yaml`); by default the pinned release on raw.githubusercontent.com. A template that cannot be fetched after the network retries, or an experiment or its RBAC that cannot be applied, ends the test as an error with the reason: the CNF was not judged, so the run has no verdict (exit code 2) and a published badge keeps its last score. The templates are applied with the suite's cluster credentials, so only an `https://` mirror is accepted; any other scheme ends the Litmus tests as errors with that reason. Point it only at a mirror you trust.

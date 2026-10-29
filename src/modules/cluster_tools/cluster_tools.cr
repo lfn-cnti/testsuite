@@ -12,6 +12,9 @@ module ClusterTools
   # Default installation namespace
   @@namespace = "cnti-testsuite"
 
+  # renovate: datasource=docker depName=lfncnti/cluster-tools
+  IMAGE = "lfncnti/cluster-tools:v1.0.8"
+
   class ManifestTemplate
     def initialize
     end
