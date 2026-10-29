@@ -4,6 +4,59 @@ require "../../src/tasks/utils/utils.cr"
 require "../../src/tasks/utils/fluent_manager.cr"
 require "../../src/tasks/setup/jaeger_setup.cr"
 
+# renovate: datasource=helm depName=prometheus registryUrl=https://prometheus-community.github.io/helm-charts
+PROMETHEUS_CHART_VERSION = "29.39.0"
+
+# Installs Prometheus into the suite's namespace and waits for its server.
+# Through the suite's Helm helpers, so a transient network error is retried
+# and a failed install fails the example with Helm's own message, instead of
+# leaving it to fail later on a server that was never installed.
+private def install_prometheus
+  fail "helm repo add prometheus-community failed" unless Helm.helm_repo_add("prometheus-community", "https://prometheus-community.github.io/helm-charts")
+  # repo add leaves a repository that already exists as it is, and the
+  # self-hosted runners keep Helm's repositories between jobs: refresh the
+  # index, or the pinned version may not be in it.
+  updated = false
+  3.times do |attempt|
+    break if (updated = Helm.repo_update("prometheus-community"))
+    sleep 5.seconds unless attempt == 2
+  end
+  fail "helm repo update prometheus-community failed" unless updated
+  Helm.install("prometheus", "prometheus-community/prometheus", namespace: TESTSUITE_NAMESPACE,
+    values: "--version #{PROMETHEUS_CHART_VERSION} --set alertmanager.persistence.enabled=false --set server.persistentVolume.enabled=false")
+  KubectlClient::Wait.resource_wait_for_install("deployment", "prometheus-server", namespace: TESTSUITE_NAMESPACE).should be_true
+end
+
+# Deletes the Prometheus release: nil when that worked or there was none,
+# the error otherwise.
+private def delete_prometheus : String?
+  result = ShellCmd.run("#{Helm::Binary.get} delete prometheus -n #{TESTSUITE_NAMESPACE} --ignore-not-found", "helm_delete_prometheus")
+  result[:status].success? ? nil : (result[:error].presence || result[:output]).strip
+rescue ex
+  ex.message.to_s
+end
+
+# Runs the block with Prometheus installed, and removes it afterwards. A
+# removal that fails fails an example that passed, so no release is left for
+# the next install to trip over; after a failure in the block it is only
+# printed, so it cannot replace that failure.
+private def with_prometheus(&)
+  passed = false
+  begin
+    install_prometheus
+    yield
+    passed = true
+  ensure
+    if error = delete_prometheus
+      if passed
+        fail "cleanup: helm delete prometheus: #{error}"
+      else
+        puts "cleanup: helm delete prometheus: #{error}"
+      end
+    end
+  end
+end
+
 describe "Observability" do
   before_all do
     result = ShellCmd.run_testsuite("setup")
@@ -69,34 +122,22 @@ describe "Observability" do
 
   it "'prometheus_traffic' should pass if there is prometheus traffic", tags: ["observability_prometheus_traffic"] do
     ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-prom-pod-discovery/cnti-testsuite.yaml")
-    helm = Helm::Binary.get
-
-    Log.info { "Add prometheus helm repo" }
-    ShellCmd.run("#{helm} repo add prometheus-community https://prometheus-community.github.io/helm-charts", "helm_repo_add_prometheus", force_output: true)
-
-    Log.info { "Installing prometheus server" }
-    install_cmd = "#{helm} install -n #{TESTSUITE_NAMESPACE} --set alertmanager.persistentVolume.enabled=false --set server.persistentVolume.enabled=false --set pushgateway.persistentVolume.enabled=false prometheus prometheus-community/prometheus"
-    ShellCmd.run(install_cmd, "helm_install_prometheus", force_output: true)
-
-    KubectlClient::Wait.resource_wait_for_install("deployment", "prometheus-server", namespace: TESTSUITE_NAMESPACE)
-    ShellCmd.run("kubectl describe deployment prometheus-server -n #{TESTSUITE_NAMESPACE}", "k8s_describe_prometheus", force_output: true)
-
-    test_result = ShellCmd.run_testsuite("prometheus_traffic")
-    (/(PASSED).*(Your cnf is sending prometheus traffic)/ =~ test_result[:output]).should_not be_nil
-    (/> Prometheus: pod prometheus-server-\S+ in cnti-testsuite, Service prometheus-server, targets API at http:\/\/prometheus-server.cnti-testsuite.svc.cluster.local:80, \d+ active target\(s\)/ =~ test_result[:output]).should_not be_nil
-    (/> Deployment\/coredns-coredns in .*: scraped at http:\/\/[\d.]+:9153\/metrics \(health \w+/ =~ test_result[:output]).should_not be_nil
-    verify_task_result("prometheus_traffic", "passed")
+    with_prometheus do
+      test_result = ShellCmd.run_testsuite("prometheus_traffic")
+      (/(PASSED).*(Your cnf is sending prometheus traffic)/ =~ test_result[:output]).should_not be_nil
+      (/> Prometheus: pod prometheus-server-\S+ in cnti-testsuite, Service prometheus-server, targets API at http:\/\/prometheus-server.cnti-testsuite.svc.cluster.local:80, \d+ active target\(s\)/ =~ test_result[:output]).should_not be_nil
+      (/> Deployment\/coredns-coredns in .*: scraped at http:\/\/[\d.]+:9153\/metrics \(health \w+/ =~ test_result[:output]).should_not be_nil
+      verify_task_result("prometheus_traffic", "passed")
+    end
   ensure
     ShellCmd.cnf_uninstall()
-    result = ShellCmd.run("#{helm} delete prometheus -n #{TESTSUITE_NAMESPACE}", "helm_delete_prometheus")
-    result[:status].success?.should be_true
   end
 
   it "'prometheus_traffic' should skip if there is no prometheus installed", tags: ["observability_prometheus_traffic"] do
 
       ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
-      helm = Helm::Binary.get
-      result = ShellCmd.run("#{helm} delete prometheus -n #{TESTSUITE_NAMESPACE}", force_output: true)
+      # No Prometheus for this one: a release left behind must be removed first.
+      delete_prometheus.should be_nil
 
       result = ShellCmd.run_testsuite("prometheus_traffic")
       (/(N\/A).*(Prometheus server not found)/ =~ result[:output]).should_not be_nil
@@ -109,64 +150,40 @@ describe "Observability" do
   it "'prometheus_traffic' should fail if the cnf is not registered with prometheus", tags: ["observability_prometheus_traffic"] do
 
       ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-coredns-cnf/cnti-testsuite.yaml")
-      Log.info { "Installing prometheus server" }
-      helm = Helm::Binary.get
-      result = ShellCmd.run("helm repo add prometheus-community https://prometheus-community.github.io/helm-charts", force_output: true)
-      result = ShellCmd.run("#{helm} install -n #{TESTSUITE_NAMESPACE} --set alertmanager.persistentVolume.enabled=false --set server.persistentVolume.enabled=false --set pushgateway.persistentVolume.enabled=false prometheus prometheus-community/prometheus", force_output: true)
-      KubectlClient::Wait.resource_wait_for_install("deployment", "prometheus-server", namespace: TESTSUITE_NAMESPACE)
-      result = ShellCmd.run("kubectl describe deployment prometheus-server", force_output: true)
-      #todo logging on prometheus pod
-
-      result = ShellCmd.run_testsuite("prometheus_traffic")
-      (/(FAILED).*(Your cnf is not sending prometheus traffic: 1 workload\(s\) not scraped)/ =~ result[:output]).should_not be_nil
-      (/> Prometheus: pod prometheus-server-\S+ in cnti-testsuite, Service prometheus-server, targets API at http:\/\/prometheus-server.cnti-testsuite.svc.cluster.local:80/ =~ result[:output]).should_not be_nil
-      (/impacted: Deployment\/coredns-coredns in cnti-default: none of Prometheus's \d+ active targets scrapes its pods \(pod IPs [\d., ]+\)/ =~ result[:output]).should_not be_nil
-      verify_task_result("prometheus_traffic", "failed")
+      with_prometheus do
+        result = ShellCmd.run_testsuite("prometheus_traffic")
+        (/(FAILED).*(Your cnf is not sending prometheus traffic: 1 workload\(s\) not scraped)/ =~ result[:output]).should_not be_nil
+        (/> Prometheus: pod prometheus-server-\S+ in cnti-testsuite, Service prometheus-server, targets API at http:\/\/prometheus-server.cnti-testsuite.svc.cluster.local:80/ =~ result[:output]).should_not be_nil
+        (/impacted: Deployment\/coredns-coredns in cnti-default: none of Prometheus's \d+ active targets scrapes its pods \(pod IPs [\d., ]+\)/ =~ result[:output]).should_not be_nil
+        verify_task_result("prometheus_traffic", "failed")
+      end
   ensure
-      result = ShellCmd.cnf_uninstall()
-      result = ShellCmd.run("#{helm} delete prometheus -n #{TESTSUITE_NAMESPACE}", force_output: true)
-      result[:status].success?.should be_true
+      ShellCmd.cnf_uninstall()
   end
 
   it "'open_metrics' should fail if there is not a valid open metrics response from the cnf", tags: ["observability_open_metrics"] do
     ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-prom-pod-discovery/cnti-testsuite.yaml")
-    result = ShellCmd.run("helm repo add prometheus-community https://prometheus-community.github.io/helm-charts", force_output: true)
-    Log.info { "Installing prometheus server" }
-    helm = Helm::Binary.get
-    result = ShellCmd.run("#{helm} install -n #{TESTSUITE_NAMESPACE} --set alertmanager.persistentVolume.enabled=false --set server.persistentVolume.enabled=false --set pushgateway.persistentVolume.enabled=false prometheus prometheus-community/prometheus", force_output: true)
-    KubectlClient::Wait.resource_wait_for_install("deployment", "prometheus-server", namespace: TESTSUITE_NAMESPACE)
-    result = ShellCmd.run("kubectl describe deployment prometheus-server -n #{TESTSUITE_NAMESPACE}", force_output: true)
-    #todo logging on prometheus pod
-
-    result = ShellCmd.run_testsuite("open_metrics")
-    (/(FAILED).*(Your cnf's metrics traffic is not OpenMetrics compatible)/ =~ result[:output]).should_not be_nil
-    (/> Deployment\/coredns-coredns in .*: http:\/\/[\d.]+:9153\/metrics failed validation: / =~ result[:output]).should_not be_nil
-    (/impacted: Deployment\/coredns-coredns in .*: metrics at http:\/\/[\d.]+:9153\/metrics are not OpenMetrics compatible: / =~ result[:output]).should_not be_nil
-    verify_task_result("open_metrics", "failed")
+    with_prometheus do
+      result = ShellCmd.run_testsuite("open_metrics")
+      (/(FAILED).*(Your cnf's metrics traffic is not OpenMetrics compatible)/ =~ result[:output]).should_not be_nil
+      (/> Deployment\/coredns-coredns in .*: http:\/\/[\d.]+:9153\/metrics failed validation: / =~ result[:output]).should_not be_nil
+      (/impacted: Deployment\/coredns-coredns in .*: metrics at http:\/\/[\d.]+:9153\/metrics are not OpenMetrics compatible: / =~ result[:output]).should_not be_nil
+      verify_task_result("open_metrics", "failed")
+    end
   ensure
-    result = ShellCmd.cnf_uninstall()
-    result = ShellCmd.run("#{helm} delete prometheus -n #{TESTSUITE_NAMESPACE}", force_output: true)
-    result[:status].success?.should be_true
+    ShellCmd.cnf_uninstall()
   end
 
   it "'open_metrics' should pass if there is a valid open metrics response from the cnf", tags: ["observability_open_metrics"] do
     ShellCmd.cnf_install("--cnf-config sample-cnfs/sample-openmetrics/cnti-testsuite.yaml")
-    result = ShellCmd.run("helm repo add prometheus-community https://prometheus-community.github.io/helm-charts", force_output: true)
-    Log.info { "Installing prometheus server" }
-    helm = Helm::Binary.get
-    result = ShellCmd.run("#{helm} install -n #{TESTSUITE_NAMESPACE} --set alertmanager.persistentVolume.enabled=false --set server.persistentVolume.enabled=false --set pushgateway.persistentVolume.enabled=false prometheus prometheus-community/prometheus", force_output: true)
-    KubectlClient::Wait.resource_wait_for_install("deployment", "prometheus-server", namespace: TESTSUITE_NAMESPACE)
-    result = ShellCmd.run("kubectl describe deployment prometheus-server -n #{TESTSUITE_NAMESPACE}", force_output: true)
-    #todo logging on prometheus pod
-
-    result = ShellCmd.run_testsuite("open_metrics")
-    (/(PASSED).*(Your cnf's metrics traffic is OpenMetrics compatible)/ =~ result[:output]).should_not be_nil
-    (/> Pod\/metrics-example in cnfspace: http:\/\/[\d.]+:80\/metrics is OpenMetrics compatible/ =~ result[:output]).should_not be_nil
-    verify_task_result("open_metrics", "passed")
+    with_prometheus do
+      result = ShellCmd.run_testsuite("open_metrics")
+      (/(PASSED).*(Your cnf's metrics traffic is OpenMetrics compatible)/ =~ result[:output]).should_not be_nil
+      (/> Pod\/metrics-example in cnfspace: http:\/\/[\d.]+:80\/metrics is OpenMetrics compatible/ =~ result[:output]).should_not be_nil
+      verify_task_result("open_metrics", "passed")
+    end
   ensure
-    result = ShellCmd.cnf_uninstall()
-    result = ShellCmd.run("#{helm} delete prometheus -n #{TESTSUITE_NAMESPACE}", force_output: true)
-    result[:status].success?.should be_true
+    ShellCmd.cnf_uninstall()
   end
 
   it "'routed_logs' should pass if cnfs logs are captured by fluentd", tags: ["observability_routed_logs"] do
