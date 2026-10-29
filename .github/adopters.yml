@@ -51,11 +51,7 @@ adopters:
     tests: cert
     env: {}
     prepare: ""
-    expected:
-      - test: sig_term_handled
-        from: failed
-        to: passed
-        reason: "#2718, released in v2.2.0: s6-overlay's own processes are not the workload"
+    expected: []
 
   - name: sdcore
     display_name: Aether SD-Core
@@ -73,15 +69,7 @@ adopters:
       helm repo add bitnami https://charts.bitnami.com/bitnami
       helm dependency build 5g-control-plane
       helm dependency build sdcore-helm-charts
-    expected:
-      - test: increase_decrease_capacity
-        from: passed
-        to: failed
-        reason: "#2726, released in v2.2.0: a pod restart after scaling finds MongoDB's replica set degraded (sdcore-helm-charts#195)"
-      - test: node_drain
-        from: failed
-        to: passed
-        reason: "#2725 and #2726, released in v2.2.0: compatibility runs last, so the scale-in no longer breaks the drain"
+    expected: []
 
   # The job runs in the ocudu-gnb chart's child pipeline, on merge requests
   # and on main when the chart or its test values change; the artifacts of a
