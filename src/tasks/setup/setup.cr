@@ -14,7 +14,7 @@ namespace "setup" do
 
     begin
       SuiteNamespaces.ensure_exists(TESTSUITE_NAMESPACE)
-    rescue ex : SuiteNamespaces::LabelRefused
+    rescue ex : SuiteNamespaces::LabelRefused | SuiteNamespaces::StillTerminatingError
       stdout_failure ex.message.to_s
       logger.error { ex.message }
       exit(1)
