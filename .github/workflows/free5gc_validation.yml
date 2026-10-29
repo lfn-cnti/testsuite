@@ -33,4 +33,11 @@ jobs:
       # spec/free5gc_spec.cr for a run by hand.
       suites: '["workload", "long_chaos"]'
       gtp5g: true
+      # As in the adopter canary (adopters.yml): gtp5g v0.10.2 is the newest
+      # release free5GC v4.3.0's UPF accepts (free5gc/free5gc#1212, fixed in
+      # go-upf #109, not yet in an image), and gtp5g does not build against
+      # the kernel 7.0 headers of the ubuntu-24.04 image (free5gc/gtp5g#183);
+      # ubuntu-22.04 (kernel 6.8) builds it.
+      runs_on: ubuntu-22.04
+      gtp5g_ref: v0.10.2
     secrets: inherit
