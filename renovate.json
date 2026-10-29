@@ -24,10 +24,10 @@
     },
     {
       "customType": "regex",
-      "description": "Container image with tag and digest in a Crystal string, or a YAML image: line, after a '# renovate:' annotation",
+      "description": "Container image with tag and digest in a Crystal constant or string, or a YAML image: line, after a '# renovate:' annotation",
       "managerFilePatterns": ["/\\.cr$/", "/\\.ecr$/", "/\\.ya?ml$/"],
       "matchStrings": [
-        "# renovate: datasource=docker depName=(?<depName>[^\\s]+)\\n[^\\S\\n]*(?:image: |\")(?:[^\\s\"@:]+/)?[^\\s\"@:]+:(?<currentValue>[^\\s\"@]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?\"?"
+        "# renovate: datasource=docker depName=(?<depName>[^\\s]+)\\n[^\\S\\n]*(?:[A-Za-z0-9_]+\\s*=\\s*)?(?:image: |\")(?:[^\\s\"@:]+/)?[^\\s\"@:]+:(?<currentValue>[^\\s\"@]+)(?:@(?<currentDigest>sha256:[a-f0-9]{64}))?\"?"
       ],
       "datasourceTemplate": "docker"
     },

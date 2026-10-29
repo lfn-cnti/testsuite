@@ -24,18 +24,52 @@ module LitmusManager
   NODE_LABEL = "kubernetes.io/hostname"
   #https://raw.githubusercontent.com/litmuschaos/chaos-operator/v2.14.x/deploy/operator.yaml
   LITMUS_OPERATOR = "https://litmuschaos.github.io/litmus/litmus-operator-v#{LitmusManager::Version}.yaml"
+  # The faults the workload tests install. airgap_prepare fetches their
+  # manifests so a disconnected run can install them from the bundle.
+  FAULTS = [
+    "disk-fill",
+    "pod-delete",
+    "pod-dns-error",
+    "pod-io-stress",
+    "pod-memory-hog",
+    "pod-network-corruption",
+    "pod-network-duplication",
+    "pod-network-latency",
+  ]
+
   # for node drain; live with the chaos templates, not in the CWD
   def self.downloaded_operator_file : String
     File.join(chaos_manifests_path, "litmus-operator-downloaded.yaml")
   end
 
+  # The operator manifest to apply. Online it is the released URL, as before;
+  # offline it is the bundle's cached copy written next to the experiments.
+  def self.operator_manifest : String
+    return LITMUS_OPERATOR unless Offline.enabled?
+    path = downloaded_operator_file
+    download_file(LITMUS_OPERATOR, path)
+    use_local_images(path)
+  end
+
+  # The released manifests pull every pod image, which fails on a cluster that
+  # cannot reach a registry even when the images were loaded into its nodes.
+  # Rewrite that policy in the copy the offline run applies, keeping the
+  # bundle's original manifest untouched.
+  def self.use_local_images(path : String) : String
+    return path unless Offline.enabled?
+    content = File.read(path)
+    patched = content.gsub(OFFLINE_PULL_POLICY, "\\1imagePullPolicy: IfNotPresent")
+    File.write(path, patched) if patched != content
+    path
+  end
+
   def self.modified_operator_file : String
     File.join(chaos_manifests_path, "litmus-operator-modified.yaml")
   end
+
   LITMUS_NAMESPACE = "litmus"
   LITMUS_K8S_DOMAIN = "litmuschaos.io"
-
-
+  OFFLINE_PULL_POLICY = /^(\s*)imagePullPolicy:\s*["']?Always["']?\s*$/m
 
   # Label pair that selects exactly the pods of `resource`, so a chaos engine
   # appinfo targets this workload and not every pod sharing a broad selector.
@@ -538,6 +572,7 @@ module LitmusManager
     Log.info {"filepath: #{filepath}"}
 
     download_file(url, filepath)
+    use_local_images(filepath)
 
     filepath
   end

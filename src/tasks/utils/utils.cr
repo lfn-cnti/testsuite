@@ -8,6 +8,7 @@ require "option_parser"
 require "../constants.cr"
 require "semantic_version"
 require "./dockerd.cr"
+require "./offline.cr"
 require "./kyverno.cr"
 require "./tool_install.cr"
 require "./workload_diagnostics.cr"
@@ -550,6 +551,12 @@ end
 
 def download_file(url : String, output_path : String,
                   redirect_limit : Int = 5, headers : HTTP::Headers? = nil)
+  # An air-gapped run never reaches the internet: the bundle prepared on a
+  # connected host is the only source.
+  if Offline.enabled?
+    return Offline.fetch_cached(url, output_path)
+  end
+
   # The display label comes from the caller's URL: redirect targets (GitHub
   # serves release assets under opaque UUID names) and temp output files both
   # make meaningless labels.

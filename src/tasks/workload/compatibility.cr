@@ -614,7 +614,10 @@ end
 # in a registry, or a chart's previous release could not be installed.
 def rollout_skipped(tag_key : String, unconfigured : Int32, unprepared : Array(String)) : String
   parts = [] of String
-  parts << "No usable #{tag_key} configured for any container, and no previous release to take from the registry: see the remediation" if unconfigured > 0
+  if unconfigured > 0
+    previous = Offline.enabled? ? "offline mode cannot list a previous release" : "no previous release could be taken from the registry"
+    parts << "No usable #{tag_key} configured for any container, and #{previous}: see the remediation"
+  end
   parts << "The release before could not be installed for chart#{unprepared.size == 1 ? "" : "s"} #{unprepared.join(", ")}, so there is nothing to judge: see the details" unless unprepared.empty?
   parts.join(". ")
 end
@@ -645,6 +648,10 @@ def rollout_target_tag(result, configured : String, tag_key : String, label : St
     return configured
   end
   repository = ImageTag.repository_of(image)
+  if Offline.enabled? && deployed && ImageTag.version_form(deployed)
+    result.append_remediation("No #{tag_key} configured for container #{container_name}, and offline mode cannot list the releases of #{repository}: add container_names with a #{tag_key} to cnti-testsuite.yaml")
+    return nil
+  end
   tags = if deployed && ImageTag.version_form(deployed)
            ROLLOUT_REGISTRY_TAGS.fetch(repository) { ROLLOUT_REGISTRY_TAGS[repository] = ClusterTools.image_tags(repository) }
          end
@@ -793,12 +800,16 @@ scored_task "helm_chart_published",
   deps: ["setup:install_local_helm"],
   emoji: "⎈📦🌐" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    helm = Helm::Binary.get
     charts = config.deployments.helm_charts
     if charts.empty?
       result.na("The CNF has no Helm chart deployment; only charts can be published in a repository")
       next
     end
+    if Offline.enabled? && charts.any? { |deployment| deployment.registry_url.empty? }
+      result.skipped("Offline mode: a chart served from a Helm repository is looked up there, which this run cannot reach")
+      next
+    end
+    helm = Helm::Binary.get
 
     # Every chart is reported with where it was looked for and what came
     # back; each one the repository does not know is a finding (#2598).

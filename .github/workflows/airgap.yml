@@ -1,0 +1,247 @@
+name: airgap
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: airgap-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  airgap:
+    name: Air-gapped run
+    # The iptables rules below are host-wide. On a shared/self-hosted runner
+    # they can cut off another kind cluster that uses the same Docker network
+    # and pod CIDR, so this job needs the isolated VM of a GitHub-hosted runner.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      KIND_CLUSTER_NAME: airgap-${{ github.run_id }}
+    steps:
+      - name: Set runner paths
+        run: |
+          echo "KUBECONFIG=$RUNNER_TEMP/airgap-kubeconfig" >> "$GITHUB_ENV"
+          echo "CNTI_TESTSUITE_OFFLINE_DIR=$RUNNER_TEMP/airgap-bundle" >> "$GITHUB_ENV"
+      - name: Checkout Code
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install the CNTi toolchain
+        uses: ./.github/actions/install-cnti-toolchain
+      - name: Install kind
+        uses: ./.github/actions/install-kind
+      - name: Build CNTi Test Suite
+        run: |
+          shards install
+          crystal build src/cnti-testsuite.cr
+      - name: Prepare the CNF chart for a local install
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/airgap-cnf"
+          helm pull coredns --repo https://cncf.gitlab.io/stable --version 1.13.8 \
+            --untar --untardir "$RUNNER_TEMP/airgap-cnf"
+          cat > "$RUNNER_TEMP/airgap-cnf/cnti-testsuite.yaml" <<'EOF'
+          ---
+          config_version: v2
+          common:
+            container_names:
+            - name: coredns
+              rollback_from_tag: 1.8.0
+              rolling_update_test_tag: 1.8.0
+              rolling_downgrade_test_tag: 1.6.7
+              rolling_version_change_test_tag: 1.8.0
+          deployments:
+            helm_dirs:
+            - name: coredns
+              helm_directory: coredns
+          EOF
+      - name: Prepare the offline bundle
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          ./cnti-testsuite airgap_prepare \
+            --cnf-config "$RUNNER_TEMP/airgap-cnf/cnti-testsuite.yaml"
+          # The coredns chart's image is a template, so airgap_prepare cannot
+          # read it; render the chart and add what the compatibility tests use.
+          helm template coredns "$RUNNER_TEMP/airgap-cnf/coredns" \
+            | awk '$1 == "image:" { gsub(/"/, "", $2); print $2 }' \
+            >> "$CNTI_TESTSUITE_OFFLINE_DIR/images.txt"
+          printf 'coredns/coredns:1.6.7\ncoredns/coredns:1.8.0\nbusybox:1.36\n' \
+            >> "$CNTI_TESTSUITE_OFFLINE_DIR/images.txt"
+          sort -u -o "$CNTI_TESTSUITE_OFFLINE_DIR/images.txt" \
+            "$CNTI_TESTSUITE_OFFLINE_DIR/images.txt"
+          cat "$CNTI_TESTSUITE_OFFLINE_DIR/images.txt"
+          ./cnti-testsuite airgap_status
+      - name: Write the kind cluster config
+        run: |
+          cat > "$RUNNER_TEMP/airgap-cluster.yml" <<'EOF'
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          nodes:
+          - role: control-plane
+            kubeadmConfigPatches:
+            - |
+              kind: ClusterConfiguration
+              etcd:
+                local:
+                  dataDir: /tmp/etcd
+          - role: worker
+          - role: worker
+          EOF
+      - name: Create the kind cluster
+        uses: ./.github/actions/create-kind-cluster
+        with:
+          name: ${{ env.KIND_CLUSTER_NAME }}
+          config: ${{ runner.temp }}/airgap-cluster.yml
+          kubeconfig: ${{ runner.temp }}/airgap-kubeconfig
+      - name: Check for Docker Hub credentials
+        id: dockerhub
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+        run: |
+          if [ -n "$DOCKERHUB_USERNAME" ] && [ -n "$DOCKERHUB_PASSWORD" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Login to Docker Hub
+        if: steps.dockerhub.outputs.available == 'true'
+        uses: docker/login-action@v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Load the bundle images into kind
+        run: |
+          set -euo pipefail
+          while IFS= read -r image; do
+            [ -z "$image" ] && continue
+            echo "Loading $image"
+            docker pull "$image"
+            kind load docker-image "$image" --name "$KIND_CLUSTER_NAME"
+          done < "$CNTI_TESTSUITE_OFFLINE_DIR/images.txt"
+      - name: Logout of Docker Hub
+        if: always() && steps.dockerhub.outputs.available == 'true'
+        run: docker logout
+      - name: Cut the kind network off from the internet
+        run: |
+          set -euo pipefail
+          KIND_SUBNET=$(docker network inspect kind \
+            -f '{{(index .IPAM.Config 0).Subnet}}')
+          echo "KIND_SUBNET=$KIND_SUBNET" >> "$GITHUB_ENV"
+          echo "Blocking new connections from $KIND_SUBNET outside the kind network"
+          # Pod traffic leaves the node SNATed to the kind network; the pod
+          # range is covered too for a CNI that does not SNAT.
+          sudo iptables -I DOCKER-USER -s "$KIND_SUBNET" \
+            -m conntrack --ctstate NEW ! -d "$KIND_SUBNET" -j REJECT
+          sudo iptables -I DOCKER-USER -s 10.244.0.0/16 \
+            -m conntrack --ctstate NEW \
+            ! -d "$KIND_SUBNET" ! -d 10.244.0.0/16 ! -d 10.96.0.0/16 \
+            -j REJECT
+      - name: Verify the cluster cannot reach the internet
+        run: |
+          set -euo pipefail
+          kubectl run airgap-check --image=busybox:1.36 --restart=Never \
+            --command -- sleep 300
+          kubectl wait --for=condition=Ready pod/airgap-check --timeout=120s
+          if kubectl exec airgap-check -- sh -c 'nc -w 5 1.1.1.1 443 </dev/null'; then
+            echo "::error::a pod reached 1.1.1.1:443; the kind network is not air-gapped"
+            exit 1
+          fi
+          echo "No route to 1.1.1.1:443 from a pod"
+          kubectl delete pod airgap-check --wait=false
+      - name: Run cert in offline mode
+        env:
+          CNTI_TESTSUITE_OFFLINE: "1"
+        run: |
+          set -euo pipefail
+          # The suite runs on the runner, not only in the cluster. Block its
+          # process group from reaching anything but loopback, while leaving
+          # the Actions runner's own connections alone: the kind API is on
+          # 127.0.0.1, and every host fetch must come from the bundle.
+          SUITE_GROUP=airgap-suite
+          sudo groupadd -f "$SUITE_GROUP"
+          SUITE_GID=$(getent group "$SUITE_GROUP" | cut -d: -f3)
+          HOST_RULES_ADDED=0
+          remove_host_egress_block() {
+            if [ "$HOST_RULES_ADDED" = 1 ]; then
+              sudo iptables -D OUTPUT -m owner --gid-owner "$SUITE_GID" -o lo -j ACCEPT || true
+              sudo iptables -D OUTPUT -m owner --gid-owner "$SUITE_GID" \
+                -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT || true
+              sudo iptables -D OUTPUT -m owner --gid-owner "$SUITE_GID" -j REJECT || true
+            fi
+          }
+          trap remove_host_egress_block EXIT
+          HOST_RULES_ADDED=1
+          sudo iptables -I OUTPUT 1 -m owner --gid-owner "$SUITE_GID" -j REJECT
+          sudo iptables -I OUTPUT 1 -m owner --gid-owner "$SUITE_GID" \
+            -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+          sudo iptables -I OUTPUT 1 -m owner --gid-owner "$SUITE_GID" -o lo -j ACCEPT
+          run_offline() {
+            sudo -u "$(id -un)" -g "$SUITE_GROUP" \
+              --preserve-env=PATH,HOME,KUBECONFIG,CNTI_TESTSUITE_OFFLINE,CNTI_TESTSUITE_OFFLINE_DIR \
+              "$@"
+          }
+          if run_offline timeout 5 bash -c 'cat < /dev/null > /dev/tcp/1.1.1.1/443'; then
+            echo "::error::the suite process reached 1.1.1.1:443; host-side egress is not blocked"
+            exit 1
+          fi
+          echo "No route to 1.1.1.1:443 from the suite process"
+          run_offline ./cnti-testsuite setup
+          run_offline ./cnti-testsuite cnf_install \
+            --cnf-config "$RUNNER_TEMP/airgap-cnf/cnti-testsuite.yaml"
+          set +e
+          run_offline ./cnti-testsuite cert 2>&1 | tee airgap-cert.log
+          status=${PIPESTATUS[0]}
+          set -e
+          run_offline ./cnti-testsuite cnf_uninstall || true
+          run_offline ./cnti-testsuite uninstall_all || true
+          if [ "$status" -ne 0 ]; then
+            echo "::error::cert exited $status in offline mode"
+            exit 1
+          fi
+          if ! grep -q '^Cert: PASSED ' airgap-cert.log; then
+            echo "::error::cert did not report PASSED in offline mode"
+            exit 1
+          fi
+      - name: Upload the suite log and results
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: airgap
+          path: |
+            airgap-cert.log
+            cnti/results/
+          if-no-files-found: warn
+      - name: Remove the network block and the kind cluster
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          SUITE_GID=$(getent group airgap-suite | cut -d: -f3 || true)
+          if [ -n "$SUITE_GID" ]; then
+            sudo iptables -D OUTPUT -m owner --gid-owner "$SUITE_GID" -o lo -j ACCEPT || true
+            sudo iptables -D OUTPUT -m owner --gid-owner "$SUITE_GID" \
+              -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT || true
+            sudo iptables -D OUTPUT -m owner --gid-owner "$SUITE_GID" -j REJECT || true
+          fi
+          if [ -n "${KIND_SUBNET:-}" ]; then
+            sudo iptables -D DOCKER-USER -s "$KIND_SUBNET" \
+              -m conntrack --ctstate NEW ! -d "$KIND_SUBNET" -j REJECT || true
+            sudo iptables -D DOCKER-USER -s 10.244.0.0/16 \
+              -m conntrack --ctstate NEW \
+              ! -d "$KIND_SUBNET" ! -d 10.244.0.0/16 ! -d 10.96.0.0/16 \
+              -j REJECT || true
+          fi
+          if command -v kind >/dev/null 2>&1 && \
+             kind get clusters 2>/dev/null | grep -qx "$KIND_CLUSTER_NAME"; then
+            until kind delete cluster --name "$KIND_CLUSTER_NAME" --verbosity 1; do sleep 1; done
+          else
+            echo "kind cluster $KIND_CLUSTER_NAME is not present; nothing to delete"
+          fi
