@@ -10,6 +10,7 @@ require "../../modules/k8s_netstat"
 require "../../modules/kernel_introspection"
 require "../../modules/k8s_kernel_introspection"
 require "../utils/utils.cr"
+require "../utils/stop_outcome.cr"
 
 desc "The CNF test suite checks to see if CNFs follows microservice principles"
 category_task "microservice", ["reasonable_image_size", "reasonable_startup_time", "single_process_type", "service_discovery", "shared_database", "specialized_init_system", "sig_term_handled", "zombie_handled"]
@@ -980,6 +981,7 @@ scored_task "sig_term_handled",
           # a process that exited was stopped: the signal it was sent, or none
           # (a supervisor may use a control socket or a pipe instead).
           endings = traced.to_h { |cpid| {cpid, strace_termination(cpid, node)} }
+          survivors = StopOutcome.survivors_after_runtime_kill(survivors, endings, outcome[:exit_code])
           killed = endings.compact_map { |cpid, ending| ending[:killed_by].try { |sig| "#{cpid} (#{names[cpid]?}, killed with #{sig})" } unless survivors.includes?(cpid) }
           stopped = judged.reject { |cpid| survivors.includes?(cpid) || endings[cpid]?.try(&.[:killed_by]) }.map do |cpid|
             signal = endings[cpid]?.try(&.[:signal])
