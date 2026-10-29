@@ -99,8 +99,14 @@ module KubectlClient
           return false
         end
       when "deployment", "statefulset", "daemonset", "replicaset"
-        # Standard Kubernetes workload resources - check replica counts
-        replicas = KubectlClient::Get.replica_count(kind, resource_name, namespace)
+        # Standard Kubernetes workload resources - check replica counts. One
+        # that does not exist yet is not ready yet, as for the other kinds:
+        # the caller is waiting for it to be installed.
+        begin
+          replicas = KubectlClient::Get.replica_count(kind, resource_name, namespace)
+        rescue KubectlClient::ShellCMD::NotFoundError
+          return false
+        end
         ready = replicas[:current] == replicas[:desired]
         if replicas[:desired] == 0 && replicas[:unavailable] >= 1
           ready = false
