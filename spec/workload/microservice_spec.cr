@@ -458,6 +458,22 @@ describe "Microservice" do
     end
   end
 
+  it "'sig_term_handled' should pass a child that ends on SIGTERM's default action", tags: ["sig_term"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-sigterm-default-action/")
+      result = ShellCmd.run_testsuite("sig_term_handled")
+      result[:status].success?.should be_true
+      (/(PASSED).*(Sig Term handled)/ =~ result[:output]).should_not be_nil
+      # The child has no SIGTERM handler: it was stopped by the signal's default action, not killed.
+      result[:output].should contain("stopped by SIGTERM (no handler: its default action)")
+      result[:output].should_not contain("killed instead of stopped")
+      verify_task_result("sig_term_handled", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+      result[:status].success?.should be_true
+    end
+  end
+
   it "'sig_term_handled' should fail a container whose PID 1 stops its child but not itself", tags: ["sig_term"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-sigterm-pid1-hangs/")

@@ -670,10 +670,7 @@ def wait_for_processes_to_exit(pids : Array(String), node : JSON::Any, seconds :
   survivors
 end
 
-# The signals that ask a process to shut down. A supervisor is free to stop a
-# service with the one it wants (SIGQUIT for nginx, SIGUSR1 for haproxy);
-# any of them delivered by PID 1 is the container's SIGTERM being acted on.
-TERMINATION_SIGNALS = ["SIGTERM", "SIGINT", "SIGQUIT", "SIGHUP", "SIGUSR1", "SIGUSR2"]
+TERMINATION_SIGNALS = StopOutcome::TERMINATION_SIGNALS
 
 # How a traced process ended, from its strace logs (one file per thread):
 # the termination signal it was sent, if any, and the signal it was killed
@@ -978,16 +975,23 @@ scored_task "sig_term_handled",
           # (zombie_handled) needs a running container to probe (#2576).
           KubectlClient::Wait.wait_for_resource_availability("pod", pod_name, pod_namespace, POD_READINESS_TIMEOUT)
 
-          # The verdict is the outcome: a process still running failed, a process
-          # killed with SIGKILL did not shut down but was ended. strace says how
-          # a process that exited was stopped: the signal it was sent, or none
-          # (a supervisor may use a control socket or a pipe instead).
+          # The verdict is the outcome: a process still running failed; a process
+          # killed with SIGKILL, or one that crashed (SIGABRT, SIGSEGV), did not
+          # shut down. strace says how a process that exited was stopped: the
+          # signal it was sent, or none (a supervisor may use a control socket
+          # or a pipe instead); one with no handler for that signal ended on its
+          # default action, which is stopping too (StopOutcome.killed?).
           endings = traced.to_h { |cpid| {cpid, strace_termination(cpid, node)} }
           survivors = StopOutcome.survivors_after_runtime_kill(survivors, endings, outcome[:exit_code])
-          killed = endings.compact_map { |cpid, ending| ending[:killed_by].try { |sig| "#{cpid} (#{names[cpid]?}, killed with #{sig})" } unless survivors.includes?(cpid) }
-          stopped = judged.reject { |cpid| survivors.includes?(cpid) || endings[cpid]?.try(&.[:killed_by]) }.map do |cpid|
-            signal = endings[cpid]?.try(&.[:signal])
-            "#{cpid} stopped #{signal ? "with #{signal}" : "without a signal in its trace"}"
+          killed = endings.compact_map { |cpid, ending| ending[:killed_by].try { |sig| "#{cpid} (#{names[cpid]?}, killed with #{sig})" if StopOutcome.killed?(sig) } unless survivors.includes?(cpid) }
+          stopped = judged.reject { |cpid| survivors.includes?(cpid) || StopOutcome.killed?(endings[cpid]?.try(&.[:killed_by])) }.map do |cpid|
+            ending = endings[cpid]?
+            if by = ending.try(&.[:killed_by])
+              "#{cpid} stopped by #{by} (no handler: its default action)"
+            else
+              signal = ending.try(&.[:signal])
+              "#{cpid} stopped #{signal ? "with #{signal}" : "without a signal in its trace"}"
+            end
           end
           container_line = if outcome[:exited]
                              "container stopped in #{stopped_in.round(1)} s#{outcome[:exit_code].try { |c| " (exit code #{c})" }}"
