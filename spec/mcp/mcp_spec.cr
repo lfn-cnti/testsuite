@@ -214,6 +214,8 @@ describe "mcp server" do
         call(2, "explain_test"),
         call(3, "explain_test", {"name" => "no_such_test"}),
         call(4, "explain_test", {"name" => 7}),
+        call(5, "explain_test", {"no_logs" => true}),
+        call(6, "explain_test", {"no_logs" => "yes"}),
       ], ["--results-dir", dir]))
       t = replies[2]["result"]["structuredContent"]["tests"][0]
       t["name"].as_s.should eq("node_drain")
@@ -221,6 +223,10 @@ describe "mcp server" do
       t["log"]["lines"][0].as_s.should contain("drain refused")
       error_text(replies[3]).should contain("No test 'no_such_test'")
       error_text(replies[4]).should contain("'name' must be a string")
+      quiet = replies[5]["result"]["structuredContent"]
+      quiet["logs"].as_bool.should be_false
+      quiet["tests"][0].as_h.has_key?("log").should be_false
+      error_text(replies[6]).should contain("'no_logs' must be a boolean")
     ensure
       FileUtils.rm_rf(dir) if dir
     end
