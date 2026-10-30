@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: single-identity
+  namespace: cnti-default
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: single-identity
+  template:
+    metadata:
+      labels:
+        app: single-identity
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nf
+          image: busybox:1.37.0
+          command: ["sh", "-c", "exec sleep 1000000"]
+          readinessProbe:
+            exec:
+              command: ["true"]
+            periodSeconds: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

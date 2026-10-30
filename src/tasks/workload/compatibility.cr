@@ -380,6 +380,11 @@ scored_task "increase_decrease_capacity",
     # (#2827): it is judged by the restart half of the test alone, one pod
     # deleted and the DaemonSet back on every node it is scheduled for.
     daemonsets = [] of Tuple(String, String, String)
+    # A Deployment the chart runs with strategy Recreate and one replica must
+    # never have two pods at once (a single identity, a volume only one pod
+    # can mount): scaling it would contradict its own spec, so it is judged
+    # by the restart half alone, like a DaemonSet (#2847).
+    single_instance = [] of Tuple(String, String, String)
 
     CNFManager.resource_refs(args, config, ["daemonset"]) do |resource|
       kind, name, namespace = resource[:kind], resource[:name], resource[:namespace]
@@ -408,7 +413,13 @@ scored_task "increase_decrease_capacity",
           idle << "#{ref} in #{namespace}: deployed with 0 replicas, not scaled"
           next
         end
-        owner = custom_resource_controller(KubectlClient::Get.resource(kind, name, namespace))
+        live = KubectlClient::Get.resource(kind, name, namespace)
+        if single_instance_by_strategy?(live, replicas)
+          result.append_description("#{ref} in #{namespace}: strategy Recreate, never more than one pod at once; not scaled by replica count, judged by a pod restart")
+          single_instance << {kind, name, namespace}
+          next
+        end
+        owner = custom_resource_controller(live)
         deployed[{kind, name, namespace}] = replicas
         target = replicas + increase_by
         Log.for(t.name).info { "#{ref} in #{namespace}: deployed with #{replicas} replicas; scaling to #{target}, then back" }
@@ -451,24 +462,29 @@ scored_task "increase_decrease_capacity",
     # has to start again (#2719). One pod of every scaled workload is
     # restarted, all at once, and each workload must be Ready again, so a CNF
     # the scaling left broken fails here rather than in a later test.
-    # DaemonSets are not scaled, so a scaling failure elsewhere does not stop
-    # their restart; scaled workloads are restarted only after every scaling
-    # went through.
-    restarted = (failures.empty? ? scaled_back : [] of Tuple(String, String, String)) + daemonsets
+    # DaemonSets and single-instance Deployments are not scaled, so a scaling
+    # failure elsewhere does not stop their restart; scaled workloads are
+    # restarted only after every scaling went through.
+    restart_only = daemonsets + single_instance
+    restarted = (failures.empty? ? scaled_back : [] of Tuple(String, String, String)) + restart_only
     unless restarted.empty?
       CapacityRestart.check(restarted, result).each { |failure| failures << failure }
     end
     scaled = deployed.size - operator_owned.size
-    if deployed.empty? && daemonsets.empty? && !idle.empty?
+    restart_summary = [
+      daemonsets.empty? ? nil : "#{daemonsets.size} DaemonSet(s) back on every node",
+      single_instance.empty? ? nil : "#{single_instance.size} single-instance Deployment(s) Ready again",
+    ].compact.join(", ") + " after a pod restart"
+    if deployed.empty? && restart_only.empty? && !idle.empty?
       result.na("increase_decrease_capacity not applicable: no Deployment, StatefulSet or DaemonSet runs pods to scale or restart")
-    elsif !deployed.empty? && daemonsets.empty? && operator_owned.size == deployed.size
+    elsif !deployed.empty? && restart_only.empty? && operator_owned.size == deployed.size
       result.na("increase_decrease_capacity not applicable: every workload is sized by an operator's custom resource and none followed a direct scale")
-    elsif deployed.empty? && daemonsets.empty?
+    elsif deployed.empty? && restart_only.empty?
       result.skipped("No Deployment, StatefulSet or DaemonSet to scale or restart")
     elsif failures.empty? && scaled == 0
-      result.passed("#{daemonsets.size} DaemonSet(s) back on every node after a pod restart; nothing to scale by replica count")
+      result.passed("#{restart_summary}; nothing to scale by replica count")
     elsif failures.empty?
-      result.passed("Replicas increased to deployed count + #{increase_by} and decreased back for #{scaled} resource(s)#{daemonsets.empty? ? "" : ", #{daemonsets.size} DaemonSet(s) back on every node after a pod restart"}")
+      result.passed("Replicas increased to deployed count + #{increase_by} and decreased back for #{scaled} resource(s)#{restart_only.empty? ? "" : ", #{restart_summary}"}")
     else
       failures.each { |failure| result.append_description(failure) }
       result.append_remediation(increase_decrease_remedy_msg())
@@ -675,6 +691,13 @@ def custom_resource_controller(workload : JSON::Any) : String?
   group = api_version.includes?('/') ? api_version.split('/').first : ""
   return nil if ["", "apps", "batch"].includes?(group)
   "#{controller["kind"]?.try(&.as_s?)}/#{controller["name"]?.try(&.as_s?)}"
+end
+
+# A Deployment run with strategy Recreate and one replica: never more than one
+# pod at once, so it is not scaled by replica count (#2847).
+def single_instance_by_strategy?(resource : JSON::Any, replicas : Int32) : Bool
+  resource["kind"]?.try(&.as_s?) == "Deployment" && replicas == 1 &&
+    resource.dig?("spec", "strategy", "type").try(&.as_s?) == "Recreate"
 end
 
 def deployed_replicas(kind : String, name : String, namespace : String) : Int32
