@@ -213,7 +213,7 @@ Ask in plain language; the agent picks the tools. Prompts like these lead to the
 | "Which essential tests are there, and what does each check?" | The agent lists the tests with their categories and types and explains them. | `list_tests` |
 | "Check liveness, readiness and the resource limits of the installed CNF, and tell me what to fix." | Each test runs and the agent explains every failure from its impacted resources and remediation. | `run_test` |
 | "Run the essential tests and tell me the result when it's done." | A run of `essential` starts and the agent follows it to the end. | `start_run`, `get_run` |
-| "Why did `node_drain` fail in the last run?" | The agent reads the test's result, what the test checks and its own lines of the run's debug log, and explains the finding. | `explain_test` |
+| "Why did `node_drain` fail in the last run?" | The agent reads the test's result, what the test checks, what the cluster showed when it failed and its own lines of the run's debug log, and explains the finding. | `explain_test` |
 | "Install the CNF in this directory, run the liveness and readiness tests, fix what fails in chart/values.yaml, reinstall and check again." | The full loop, as in the recording. Needs `--allow-install`. | `cnf_install`, `get_run`, `run_test`, `cnf_uninstall` |
 | "Stop the run." | The run in progress ends and cleans up. | `cancel_run` |
 

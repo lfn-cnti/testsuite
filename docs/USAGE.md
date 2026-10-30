@@ -526,6 +526,7 @@ warning and the test's result stands.
 ./cnti-testsuite explain node_drain            # one test, whatever its status
 ./cnti-testsuite explain --results-file PATH   # another run
 ./cnti-testsuite explain --output json         # the same, as one JSON document on stdout
+./cnti-testsuite explain --no-logs             # without the debug log and the containers' log lines
 ```
 
 For each test it shows the result (status, message, details, impacted resources, remediation),
@@ -533,6 +534,17 @@ what the test checks and how to fix a failure, from the test's section of
 [TEST_DOCUMENTATION](TEST_DOCUMENTATION.md) with its link, and the test's own lines of the run's
 debug log, cut out by `test=<name>`. A long log is cut to 200 lines: its warnings and errors are
 kept, the rest is taken from the end, and the output says how many lines were left out.
+
+For a test that failed or errored, it also shows what the cluster showed at that moment, from the
+run's [failure diagnostics](#failure-diagnostics): the observed conditions, and a summary of the
+capture with its path. The summary has the pods and whether they were Ready (the text shows those
+that were not), the nodes that were not Ready or under pressure, the impacted objects' status and what a finding on them points to
+(the volume behind `spec.template.spec.volumes[0]`, for example), the
+newest 30 events (warnings first) and each container's last 20 lines; it is cut to 16 KB, and
+says what it cut. The capture itself has the
+rest. `--no-logs` leaves out every log line, the debug log's and the containers': what remains is
+what the suite recorded about the failure, for sharing it or sending it to a model. Event
+messages stay, and can still quote the workload (a probe's output in `Readiness probe failed`).
 
 It reads files only: no cluster and no model, so it works after `cnf_uninstall`, offline, and on a
 results directory downloaded from a CI job. A run whose directory is gone (removed by the
@@ -748,7 +760,7 @@ It implements MCP protocol version `2025-06-18`. The tools:
 | `get_run` | The state and progress of a run, with its results document once complete | read-only |
 | `cancel_run` | Stops a run started by `start_run`, `cnf_install` or `cnf_uninstall` | |
 | `get_results` | The newest results document in the workspace | read-only |
-| `explain_test` | The tests of the newest run that did not pass, or one named test: the result, what the test checks and how to fix it, and its own lines of the run's debug log, as `cnti-testsuite explain --output json` gives them | read-only |
+| `explain_test` | The tests of the newest run that did not pass, or one named test: the result, what the test checks and how to fix it, the conditions seen and the summary of the capture taken when it failed, and its own lines of the run's debug log, as `cnti-testsuite explain --output json` gives them; `no_logs` leaves the log lines out | read-only |
 | `validate_config` | Checks a `cnti-testsuite.yaml`, as `cnti-testsuite validate_config` does, without installing anything; returns `valid` and the suite's messages | read-only |
 | `cnf_install` / `cnf_uninstall` | Install or uninstall the CNF; only with `--allow-install`. Return a `runId`. | destructive |
 
