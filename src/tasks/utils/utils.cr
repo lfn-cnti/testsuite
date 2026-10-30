@@ -243,6 +243,9 @@ def upsert_decorated_task(result : CNFManager::TestCaseResult)
     location += ": #{r["reason"]}" if r["reason"]?
     stdout_info "   > impacted: #{location}"
   end
+  result.observed_conditions.each do |c|
+    stdout_info "   > observed: #{c["kind"]?} #{c["object"]?}: #{c["detail"]?}"
+  end
   result.result_remediation.each do |remedy|
     stdout_info "   > remediation: #{remedy}"
   end

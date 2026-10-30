@@ -39,6 +39,20 @@ module CNFManager
       single_task_runner(args, task, &block)
     end
 
+    # The namespaces whose pods and events are captured when a test fails:
+    # its CNF's workloads' and its impacted resources'.
+    def self.diagnostic_namespaces(args, config, result) : Array(String)
+      namespaces = result.result_impacted_resources.compact_map(&.["namespace"]?)
+      if args.named["cnf-config"]? && (result.status.failed? || result.status.error?)
+        begin
+          CNFManager.resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) { |ref| namespaces << ref[:namespace] }
+        rescue ex
+          @@logger.for("diagnostic_namespaces").warn { "CNF namespaces not read: #{ex.message}" }
+        end
+      end
+      namespaces.uniq
+    end
+
     # TODO give example for calling
     def self.single_task_runner(args, task : Sam::Task? = nil, 
                                 &block : (Sam::Args, CNFInstall::Config::Config, CNFManager::TestCaseResult) -> (
@@ -107,6 +121,8 @@ module CNFManager
               result.append_remediation(remedy)
             end
           end
+          # A failure or an error is captured while the cluster still shows it.
+          FailureDiagnostics.capture(result, diagnostic_namespaces(args, config, result))
           # Recording the result is what drives the run's exit code: the summary
           # (recomputed on every upsert) derives it from the item outcomes.
           upsert_decorated_task(result)

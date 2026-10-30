@@ -36,6 +36,15 @@ describe "Security" do
       (/Found 1 privileged containers/ =~ result[:output]).should_not be_nil
       (/impacted: .*\(container privileged-setup\): privileged init container/ =~ result[:output]).should_not be_nil
       verify_task_result("privileged_containers", "failed")
+      # The failure is captured while the CNF is still installed (#2807).
+      results_file = File.realpath(CNFManager::Points::Results.latest)
+      item = YAML.parse(File.read(results_file))["items"].as_a.find! { |i| i["name"] == "privileged_containers" }
+      diagnostics = JSON.parse(File.read(File.join(File.dirname(results_file), item["diagnostics"].as_s)))
+      diagnostics["status"].should eq("failed")
+      diagnostics["impacted_objects"].as_a.map { |o| o["kind"].as_s }.should contain("Deployment")
+      diagnostics["impacted_objects"].to_json.should_not contain("managedFields")
+      diagnostics["logs"].as_h.keys.any?(&.ends_with?("/app")).should be_true
+      diagnostics["logs"].as_h.keys.any?(&.ends_with?("/privileged-setup")).should be_true
     ensure
       result = ShellCmd.cnf_uninstall()
       result[:status].success?.should be_true

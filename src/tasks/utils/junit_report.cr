@@ -101,7 +101,11 @@ module JUnitReport
       reason = res["reason"]?
       out << "impacted: #{ref}#{reason ? ": #{reason}" : ""}"
     end
+    (item["observed_conditions"]?.try(&.as_a?) || [] of YAML::Any).each do |c|
+      out << "observed: #{c["kind"]?} #{c["object"]?}: #{c["detail"]?}"
+    end
     lines(item["remediation"]?).each { |line| out << "remediation: #{line}" }
+    item["diagnostics"]?.try { |path| out << "diagnostics: #{path}" }
     out.join("\n")
   end
 
