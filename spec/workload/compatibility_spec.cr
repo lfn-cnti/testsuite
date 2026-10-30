@@ -69,6 +69,20 @@ describe "Compatibility" do
     end
   end
 
+  it "'increase_decrease_capacity' should judge a Recreate Deployment with one replica by a pod restart, not scale it", tags: ["increase_decrease_capacity"] do
+    begin
+      ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_recreate_capacity/cnti-testsuite.yaml")
+      result = ShellCmd.run_testsuite("increase_decrease_capacity")
+      result[:status].success?.should be_true
+      (/(PASSED).*(1 single-instance Deployment\(s\) Ready again after a pod restart; nothing to scale by replica count)/ =~ result[:output]).should_not be_nil
+      (/> Deployment\/single-identity in cnti-default: strategy Recreate, never more than one pod at once; not scaled by replica count, judged by a pod restart/ =~ result[:output]).should_not be_nil
+      (/> Restart after scaling: one pod of each of 1 workload\(s\) deleted at once; 1 Ready again within \d+ s/ =~ result[:output]).should_not be_nil
+      verify_task_result("increase_decrease_capacity", "passed")
+    ensure
+      result = ShellCmd.cnf_uninstall()
+    end
+  end
+
   it "'increase_decrease_capacity' should pass ", tags: ["increase_decrease_capacity"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_coredns/cnti-testsuite.yaml --skip-wait-for-install")
