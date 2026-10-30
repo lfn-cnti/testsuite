@@ -34,6 +34,10 @@ module CNFManager
     property end_time : Time
     property result_remediation : Array(String)
     property result_impacted_resources : Array(Hash(String, String))
+    # What the cluster showed when the test failed or errored, and where the
+    # capture of it is (failure_diagnostics.cr).
+    property observed_conditions : Array(Hash(String, String)) = [] of Hash(String, String)
+    property diagnostics : String? = nil
 
     def initialize(@testcase : String = "",
                    @status : CNFManager::ResultStatus = CNFManager::ResultStatus::Skipped,
@@ -572,6 +576,12 @@ module CNFManager
       end
       unless result.result_impacted_resources.empty?
         item_node[YAML::Any.new("impacted_resources")] = YAML.parse(result.result_impacted_resources.to_yaml)
+      end
+      unless result.observed_conditions.empty?
+        item_node[YAML::Any.new("observed_conditions")] = YAML.parse(result.observed_conditions.to_yaml)
+      end
+      if diagnostics = result.diagnostics
+        item_node[YAML::Any.new("diagnostics")] = YAML::Any.new(diagnostics)
       end
       result_items << YAML::Any.new(item_node)
 

@@ -51,6 +51,11 @@ items:
     type: normal
     points: 0
     task_runtime: 0.25
+    observed_conditions:
+      - kind: image_pull_failed
+        object: Pod/coredns-coredns-0 in cnti-default
+        detail: "container coredns image coredns/coredns:9.9.9: ImagePullBackOff"
+    diagnostics: cnti-testsuite-results-20260707-100000-000/diagnostics/reasonable_startup_time.json
   - name: helm_chart_published
     status: skipped
     message: Chart is not published
