@@ -28,7 +28,10 @@ describe "JUnitReport" do
 
     doc.xpath_nodes("//testcase[@name='liveness']").first["classname"].should eq("resilience")
     doc.xpath_nodes("//testcase[@name='liveness']/*").should be_empty
-    doc.xpath_nodes("//testcase[@name='reasonable_startup_time']/error").first["message"].should eq("Unexpected error occurred")
+    error = doc.xpath_nodes("//testcase[@name='reasonable_startup_time']/error").first
+    error["message"].should eq("Unexpected error occurred")
+    error.content.should contain("observed: image_pull_failed Pod/coredns-coredns-0 in cnti-default: container coredns image coredns/coredns:9.9.9: ImagePullBackOff")
+    error.content.should contain("diagnostics: cnti-testsuite-results-20260707-100000-000/diagnostics/reasonable_startup_time.json")
     doc.xpath_nodes("//testcase[@name='helm_chart_published']/skipped").first["message"].should eq("Chart is not published")
     doc.xpath_nodes("//testcase[@name='operator_installed']/skipped").first["message"].should start_with("not applicable: ")
 

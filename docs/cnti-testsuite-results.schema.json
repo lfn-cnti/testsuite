@@ -364,6 +364,37 @@
           "items": {
             "$ref": "#/$defs/impacted_resource"
           }
+        },
+        "observed_conditions": {
+          "description": "Cluster conditions seen when the test failed or errored (a pod that could not be scheduled, an image that could not be pulled, a node not Ready or under pressure). Facts next to the verdict, not its cause. Present only when non-empty.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observed_condition"
+          }
+        },
+        "diagnostics": {
+          "description": "Path, relative to the results file's directory, of the JSON capture of the cluster taken when the test failed or errored. Present only when one was written.",
+          "type": "string"
+        }
+      }
+    },
+    "observed_condition": {
+      "description": "A cluster condition seen when a test failed or errored.",
+      "type": "object",
+      "required": ["kind", "object", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "description": "scheduling_failed, image_pull_failed, pod_sandbox_not_created, node_not_ready or node_pressure.",
+          "type": "string"
+        },
+        "object": {
+          "description": "The object it was seen on, e.g. Pod/web-0 in cnf-default or Node/worker-1.",
+          "type": "string"
+        },
+        "detail": {
+          "description": "What was seen, from the cluster's own status or event.",
+          "type": "string"
         }
       }
     },
