@@ -17,6 +17,13 @@ category_task "microservice", ["reasonable_image_size", "reasonable_startup_time
 
 STRACE_WAIT_BUFFER = 3
 
+# crictl's request timeout for a stop. The CRI client's deadline for
+# StopContainer is this timeout plus the grace period: crictl's default (2 s)
+# leaves a busy runtime too little time to kill the container and report its
+# exit, and the call fails though the stop signal was sent. 120 s is the
+# kubelet's own default (--runtime-request-timeout).
+CRI_STOP_REQUEST_TIMEOUT = "120s"
+
 enum StraceAttachResult
   Attached
   NotPermitted
@@ -594,7 +601,7 @@ scored_task "zombie_handled",
       Log.for(t.name).info { "Shutting down container #{container_id}" }
       # Through the CRI, so it works on containerd and CRI-O alike: a stop
       # with no grace is a kill.
-      ClusterTools.exec_by_node("crictl stop --timeout 0 #{ClusterTools.parse_container_id(container_id)}", node)
+      ClusterTools.exec_by_node("crictl --timeout #{CRI_STOP_REQUEST_TIMEOUT} stop --timeout 0 #{ClusterTools.parse_container_id(container_id)}", node)
     end
 
     pods_to_restart.each do |pod_name, namespace|
@@ -951,7 +958,7 @@ scored_task "sig_term_handled",
           # The stop's error goes to a file on the node: a stop that failed
           # sent no signal, and says nothing about the container.
           stop_error_file = "/tmp/cnti-stop-#{short_id}.err"
-          stop = ClusterTools.exec_by_node_bg("sh -c 'crictl stop --timeout #{grace_seconds} #{short_id} 2>#{stop_error_file}'", node)
+          stop = ClusterTools.exec_by_node_bg("sh -c 'crictl --timeout #{CRI_STOP_REQUEST_TIMEOUT} stop --timeout #{grace_seconds} #{short_id} 2>#{stop_error_file}'", node)
           survivors = wait_for_processes_to_exit(judged, node, grace_seconds)
           # The container exits by the end of the grace period at the latest:
           # the runtime kills it then. Its exit is waited for that long, so a
