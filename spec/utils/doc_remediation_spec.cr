@@ -16,4 +16,10 @@ describe "DocRemediation" do
     DocRemediation.for("any:node_drain").should eq(DocRemediation.for("node_drain"))
     DocRemediation.for("no_such_test").should be_nil
   end
+
+  it "links to the documentation of the version the binary was built from", tags: ["points"] do
+    ReleaseManager::DOC_REF.should_not be_empty
+    DocRemediation.entry("node_drain").not_nil!.url.should eq(
+      "https://github.com/lfn-cnti/testsuite/blob/#{ReleaseManager::DOC_REF}/docs/TEST_DOCUMENTATION.md#node-drain")
+  end
 end

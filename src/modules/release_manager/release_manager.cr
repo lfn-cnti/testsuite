@@ -17,8 +17,13 @@ module ReleaseManager
       {% puts "current_tag during compile: #{current_tag}" %}
       {% if current_tag.strip == "" %}
         VERSION = {{current_branch}} + "-#{Time.local.to_s("%Y-%m-%d-%H%M%S")}-{{current_hash.strip}}"
+        # The git ref of the sources this binary was built from: its tag, else
+        # its commit. Links to the repository's documentation use it, so they
+        # show the text the binary carries, not whatever main says now.
+        DOC_REF = "{{`git rev-parse HEAD`.strip}}"
       {% else %}
         VERSION = {{current_tag.strip}}
+        DOC_REF = {{current_tag.strip}}
       {% end %}
     end
   end
