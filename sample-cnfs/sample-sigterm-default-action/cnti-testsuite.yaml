@@ -1,0 +1,10 @@
+---
+# PID 1 forwards SIGTERM to its child and exits once the child has gone. The
+# child has no handler for SIGTERM and ends on its default action ("+++ killed
+# by SIGTERM +++"), as many service processes do: it stopped when asked, so
+# the container passes.
+config_version: v2
+deployments:
+  manifests:
+  - name: default-action
+    manifest_directory: manifests
