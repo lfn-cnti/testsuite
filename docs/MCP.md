@@ -145,7 +145,7 @@ arguments `mcp` and, optionally, `--allow-install`, started in your CNF's direct
 - **Every run acts on the cluster.** Tests kill containers, change images, scale workloads, drain
   nodes, inject faults and install the tools they need. The server says so: none of the tools that
   run tests claims to be read-only, so your host treats them as destructive and asks before each
-  call. Only `list_tests`, `get_run`, `get_results` and `validate_config` only read.
+  call. Only `list_tests`, `get_run`, `get_results`, `explain_test` and `validate_config` only read.
 - **Installing or removing a CNF needs `--allow-install`.** Without it, `cnf_install` and
   `cnf_uninstall` aren't offered at all.
 - **One run at a time.** A second run while one is going is refused, not queued: the runs share the
@@ -165,7 +165,7 @@ directory:
   "permissions": {
     "allow": [
       "mcp__cnti__list_tests", "mcp__cnti__get_run", "mcp__cnti__get_results",
-      "mcp__cnti__validate_config",
+      "mcp__cnti__explain_test", "mcp__cnti__validate_config",
       "mcp__cnti__run_test", "mcp__cnti__start_run",
       "mcp__cnti__cnf_install", "mcp__cnti__cnf_uninstall"
     ]
@@ -213,7 +213,7 @@ Ask in plain language; the agent picks the tools. Prompts like these lead to the
 | "Which essential tests are there, and what does each check?" | The agent lists the tests with their categories and types and explains them. | `list_tests` |
 | "Check liveness, readiness and the resource limits of the installed CNF, and tell me what to fix." | Each test runs and the agent explains every failure from its impacted resources and remediation. | `run_test` |
 | "Run the essential tests and tell me the result when it's done." | A run of `essential` starts and the agent follows it to the end. | `start_run`, `get_run` |
-| "Why did `node_drain` fail in the last run?" | The agent reads the newest results file and explains the finding. | `get_results` |
+| "Why did `node_drain` fail in the last run?" | The agent reads the test's result, what the test checks and its own lines of the run's debug log, and explains the finding. | `explain_test` |
 | "Install the CNF in this directory, run the liveness and readiness tests, fix what fails in chart/values.yaml, reinstall and check again." | The full loop, as in the recording. Needs `--allow-install`. | `cnf_install`, `get_run`, `run_test`, `cnf_uninstall` |
 | "Stop the run." | The run in progress ends and cleans up. | `cancel_run` |
 
