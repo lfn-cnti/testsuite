@@ -37,6 +37,11 @@ on:
         required: false
         type: boolean
         default: false
+      gtp5g_ref:
+        description: "gtp5g tag or branch to build when gtp5g is set; empty: its default branch"
+        required: false
+        type: string
+        default: ""
       suites:
         description: "JSON list of the suites to run, one job each; every one needs a spec tagged <cnf>_<suite>"
         required: false
@@ -86,11 +91,13 @@ jobs:
       # the runner is enough for the UPF pods to load it.
       - name: Build and load the gtp5g kernel module
         if: ${{ inputs.gtp5g }}
+        env:
+          GTP5G_REF: ${{ inputs.gtp5g_ref }}
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq build-essential "linux-headers-$(uname -r)"
-          git clone --depth 1 https://github.com/free5gc/gtp5g.git "$RUNNER_TEMP/gtp5g"
+          git clone --depth 1 ${GTP5G_REF:+--branch "$GTP5G_REF"} https://github.com/free5gc/gtp5g.git "$RUNNER_TEMP/gtp5g"
           make -C "$RUNNER_TEMP/gtp5g" -j"$(nproc)"
           sudo make -C "$RUNNER_TEMP/gtp5g" install
           sudo modprobe gtp5g
