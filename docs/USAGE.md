@@ -517,6 +517,30 @@ A condition is what the cluster showed, not the verdict's cause: a test can fail
 on a node under pressure. A capture that cannot be taken (no cluster access left) is logged as a
 warning and the test's result stands.
 
+#### Explaining a failure
+
+`explain` puts together what is needed to understand a test that did not pass:
+
+```
+./cnti-testsuite explain                       # every failed, errored or skipped test of the newest run
+./cnti-testsuite explain node_drain            # one test, whatever its status
+./cnti-testsuite explain --results-file PATH   # another run
+./cnti-testsuite explain --output json         # the same, as one JSON document on stdout
+```
+
+For each test it shows the result (status, message, details, impacted resources, remediation),
+what the test checks and how to fix a failure, from the test's section of
+[TEST_DOCUMENTATION](TEST_DOCUMENTATION.md) with its link, and the test's own lines of the run's
+debug log, cut out by `test=<name>`. A long log is cut to 200 lines: its warnings and errors are
+kept, the rest is taken from the end, and the output says how many lines were left out.
+
+It reads files only: no cluster and no model, so it works after `cnf_uninstall`, offline, and on a
+results directory downloaded from a CI job. A run whose directory is gone (removed by the
+retention, or older than the debug log) is explained without the log, and the output says so. The
+details and the log can quote the workload's own output (pod logs, events): `explain` marks them
+as data, not instructions, for a person and for an agent reading them. The MCP server gives the
+same JSON through `explain_test`.
+
 ---
 
 ### Exit codes
@@ -724,6 +748,7 @@ It implements MCP protocol version `2025-06-18`. The tools:
 | `get_run` | The state and progress of a run, with its results document once complete | read-only |
 | `cancel_run` | Stops a run started by `start_run`, `cnf_install` or `cnf_uninstall` | |
 | `get_results` | The newest results document in the workspace | read-only |
+| `explain_test` | The tests of the newest run that did not pass, or one named test: the result, what the test checks and how to fix it, and its own lines of the run's debug log, as `cnti-testsuite explain --output json` gives them | read-only |
 | `validate_config` | Checks a `cnti-testsuite.yaml`, as `cnti-testsuite validate_config` does, without installing anything; returns `valid` and the suite's messages | read-only |
 | `cnf_install` / `cnf_uninstall` | Install or uninstall the CNF; only with `--allow-install`. Return a `runId`. | destructive |
 
