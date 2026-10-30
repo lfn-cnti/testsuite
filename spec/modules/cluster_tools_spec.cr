@@ -86,6 +86,24 @@ describe "ClusterTools" do
     ClusterTools.parse_container_id("cri-o://0123456789abcdef0123456789abcdef").should eq("0123456789abcdef0123456789abcdef")
   end
 
+  it "finds a runtime's socket in /proc/net/unix, without lsof (#2863)", tags: ["points"] do
+    proc_net_unix = File.tempname("proc-net-unix")
+    File.write(proc_net_unix, <<-UNIX)
+      Num       RefCount Protocol Flags    Type St Inode Path
+      0000000000000000: 00000002 00000000 00010000 0001 01 21282 /run/systemd/journal/stdout
+      0000000000000000: 00000003 00000000 00000000 0001 03 31337
+      0000000000000000: 00000002 00000000 00010000 0001 01 40001 /run/containerd/containerd.sock.ttrpc
+      0000000000000000: 00000002 00000000 00010000 0001 01 40002 /run/k3s/containerd/containerd.sock
+      0000000000000000: 00000002 00000000 00010000 0001 01 40003 /var/run/crio/crio.sock
+      UNIX
+    scan = ->(name : String) { ShellCmd.run("name=#{name}; #{ClusterTools.unix_socket_scan(proc_net_unix)}")[:output].strip }
+    scan.call("containerd").should eq("/run/k3s/containerd/containerd.sock")
+    scan.call("crio").should eq("/var/run/crio/crio.sock")
+    scan.call("docker").should eq("")
+  ensure
+    File.delete(proc_net_unix) if proc_net_unix && File.exists?(proc_net_unix)
+  end
+
   it "reads the helper's runtime check line", tags: ["points"] do
     ok = ClusterTools.parse_runtime_check("n1", "ok cri-o 1.33.2 unix:///var/run/crio/crio.sock\n")
     ok.ok.should be_true

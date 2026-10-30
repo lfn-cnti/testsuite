@@ -63,7 +63,7 @@ spec:
               }
               socket_endpoint() {
                 for name in containerd crio; do
-                  dir=$(lsof -U -bw | grep -E "/$name\.sock\s" | awk '{print $9}' | head -n 1 | xargs -r dirname)
+                  dir=$(<%= ClusterTools.unix_socket_scan %> | xargs -r dirname)
                   [ -n "$dir" ] && { printf 'unix://%s/%s.sock\n' "$dir" "$name"; return 0; }
                 done
                 return 1

@@ -12,6 +12,16 @@ module ClusterTools
   # Default installation namespace
   @@namespace = "cnti-testsuite"
 
+  # The shell command the helper's start script finds a runtime's socket
+  # with, for the socket name in $name (containerd, crio): the first bound
+  # Unix socket in /proc/net/unix whose path ends in /$name.sock. The helper
+  # runs with hostNetwork, so that file lists the node's sockets, and reading
+  # it touches no filesystem: lsof walked every open file on the node, and a
+  # node with NFS mounts made it fail or hang (#2863).
+  def self.unix_socket_scan(proc_net_unix : String = "/proc/net/unix") : String
+    %(awk -v s="/$name.sock" 'NR > 1 && substr($NF, length($NF) - length(s) + 1) == s { print $NF; exit }' #{proc_net_unix})
+  end
+
   class ManifestTemplate
     def initialize
     end
