@@ -123,6 +123,44 @@ a job is the caller's decision. A missing file, an expectations file that isn't 
 results file without a list of items, each with a name and a status, is a usage error (exit code
 64).
 
+#### AI analysis of the failed tests (opt-in)
+
+`analyze` prepares a request asking a model of your choice why the tests that failed or errored did,
+and turns its answer into an advisory summary. The suite never sends it: the caller does, with the
+key from its own secret. So the key never enters the suite, whose debug log goes into CI artifacts,
+and the decision to send a CNF's data to a model, and to which one, is in the caller's script.
+
+```
+./cnti-testsuite analyze prepare --provider anthropic --model claude-opus-5-5 --dir cnti/analysis \
+    [--expected .github/cnti/expected.yaml] [--include facts|logs] [--max-facts-kb 48] [--results-file PATH]
+# the caller sends it, e.g.
+. cnti/analysis/request.env
+status=$(curl -sS -o cnti/analysis/response.json -w '%{http_code}' -H @cnti/analysis/request.headers \
+    -H "$KEY_HEADER: $KEY_PREFIX$API_KEY" --data-binary @cnti/analysis/request.json "$URL")
+./cnti-testsuite analyze render --dir cnti/analysis --response cnti/analysis/response.json --http-status "$status"
+```
+
+- **`prepare`** writes `request.json` (the body, in the provider's format), `request.env` (`URL`,
+  and `KEY_HEADER`/`KEY_PREFIX`: where the key goes), `request.headers` (the other headers) and
+  `state.json` (what `render` needs). `--provider` is `anthropic` (the Messages API; the default) or
+  `openai-compatible` (any `/chat/completions` server, with `--endpoint`; a server of your own needs
+  no key). For `openai-compatible` it also writes `request.retry.json`, the same without
+  `response_format`, for a server that answers 400 to that field. When no test failed or errored, or
+  every one is a result `--expected` lists, it writes no request, and `analysis.md` lists the
+  expected ones.
+- **What is sent** is `explain --output json` of the failed and errored tests, without log lines
+  unless `--include logs`, the expected ones left out (unless `--analyze-expected`), plus the
+  suite's and its tools' versions, at most `--max-facts-kb` (48 KB, some 12,000 tokens). Above it,
+  the debug log is cut first, then the containers' lines, then the cluster's state, each cut noted.
+  Every fact has an id (`T2-R1`: the second test's first impacted resource), and the model is asked
+  to cite ids, not text.
+- **`render`** reads the answer and writes `analysis.md` and `analysis.json`: per test the likely
+  cause, the facts cited, in the suite's own words, a confidence and one next step; an id that isn't
+  one of the facts is left out, a cause with no fact left is low confidence, a test the answer leaves
+  out is said so, and the model's text is plain text (no HTML, links or images). An HTTP error, a
+  refusal, a cut answer or one that isn't the expected JSON is a `warning:` line, never a failure.
+  The analysis is advisory: it changes no result, exit code, badge or evidence.
+
 #### Evidence bundle
 
 `evidence` writes what a project publishes next to its badge, from the newest results file (or
