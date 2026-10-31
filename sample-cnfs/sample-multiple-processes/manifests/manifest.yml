@@ -18,7 +18,7 @@ spec:
   containers:
   - name: multiple-processes
     # renovate: datasource=docker depName=busybox
-    image: busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e
+    image: busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4
     # The loop keeps the shell as PID 1 (busybox sh would exec a trailing command).
     command: ["sh", "-c", "httpd -f -p 8080 -h /tmp & while true; do sleep 3600; done"]
     livenessProbe:
