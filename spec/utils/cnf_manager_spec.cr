@@ -257,10 +257,12 @@ describe "SampleUtils" do
   it "results file conforms to docs/cnti-testsuite-results.schema.json", tags: ["points"] do
     CNFManager::Points.clean_results_yml
 
-    # Exercise every status plus all three optional detail buckets.
+    # Exercise every status plus every optional field of an item.
     failed = CNFManager::TestCaseResult.new("privileged_containers", CNFManager::ResultStatus::Failed, "Found 1 privileged container")
     failed.add_impacted_resource("Deployment", "coredns", "cnti-default", container: "coredns", reason: "privileged container")
     failed.append_remediation("Set securityContext.privileged=false")
+    failed.observed_conditions << {"kind" => "node_pressure", "object" => "Node/worker", "detail" => "DiskPressure=True"}
+    failed.diagnostics = "cnti-testsuite-results-20260707-100000-000/diagnostics/privileged_containers.json"
     CNFManager::Points.upsert_task(failed)
 
     CNFManager::Points.upsert_task(CNFManager::TestCaseResult.new("liveness", CNFManager::ResultStatus::Passed, "ok"))

@@ -53,7 +53,9 @@ Every run prints a per-test line to stdout **and** writes a full results file.
 - 💥 **ERROR** — the test errored while running.
 
 Failed/errored tests also print indented detail lines beneath the result:
-`> impacted: <resource>`, `> remediation: <guidance>`, and free-form `> <note>` lines.
+`> impacted: <resource>`, `> observed: <condition>`, `> remediation: <guidance>`, and free-form
+`> <note>` lines. An `observed` line is a condition of the cluster seen when the test failed or
+errored (see [Failure diagnostics](#failure-diagnostics)).
 
 #### Results file
 
@@ -85,8 +87,8 @@ Most CI systems render JUnit XML natively (GitLab's merge request widget, Jenkin
 
 By default the report is written next to the results file with the `.xml` extension. It holds one
 `<testsuite>` per test category and one `<testcase>` per test: a failed test carries a `<failure>`
-with the message, and the `details`, `impacted_resources` and `remediation` as its body; an
-errored test an `<error>`; skipped and not-applicable tests a `<skipped>`. The run's `status`,
+with the message, and the `details`, `impacted_resources`, `observed_conditions`, `remediation`
+and `diagnostics` as its body; an errored test an `<error>` with the same body; skipped and not-applicable tests a `<skipped>`. The run's `status`,
 `exit_code` and every `summary` field are `<properties>` of the root, so a consumer can show
 "17 of 19 essential tests passed, threshold 15" without opening the YAML.
 
@@ -421,8 +423,12 @@ Cert: PASSED (17 of 19 essential tests passed, threshold 15)
 | `details` | *(optional)* Free-form reason/evidence strings; omitted when empty. |
 | `remediation` | *(optional)* Guidance on how to fix the failure; omitted when empty. A failed test that provides none of its own carries the *Remediation* section of its entry in [TEST_DOCUMENTATION](TEST_DOCUMENTATION.md). |
 | `impacted_resources` | *(optional)* Structured list of offending resources; omitted when empty. |
+| `observed_conditions` | *(optional)* Conditions of the cluster seen when the test failed or errored; omitted when none was seen. See [Failure diagnostics](#failure-diagnostics). |
+| `diagnostics` | *(optional)* Path of the capture taken when the test failed or errored, relative to the results file's directory; omitted when none was written. |
 
 Each `impacted_resources` entry has `kind` and `name`, plus optional `namespace`, `container`, `pod`, and `reason` (present only when known).
+
+Each `observed_conditions` entry has `kind`, `object` and `detail`.
 
 ---
 
@@ -475,6 +481,77 @@ the console only, with `-l trace`.
   credentials in chart and values-file URLs are masked in the logged commands, and the CNF's
   resources are named, not dumped. Command outputs
   are logged at trace level only, which run.log does not keep.
+
+#### Failure diagnostics
+
+When a test fails or errors, the suite captures the cluster right away, while it still shows what
+went wrong, into the run's directory:
+
+```
+cnti/results/cnti-testsuite-results-<YYYYMMDD-HHMMSS-mmm>/
+  run.log
+  diagnostics/<test>.json
+```
+
+The capture holds the test's impacted resources as the cluster has them, their pods and the last
+40 lines of each container, init containers included (and of its previous run, after a restart), the pods and the events of
+the CNF's namespaces since the test started, and every node's conditions and allocatable
+resources. It is cut to 256 KB, logs first, and says what it left out. Objects are captured without
+`managedFields` and the last-applied annotation, every literal `env` value is masked, and Secrets
+are never read. Logs and events are the workload's own output, captured as they are: they are not
+redacted and can hold whatever the workload printed, credentials included. Treat the run's
+directory like the workload's logs when uploading it as a CI artifact.
+
+The conditions found in the capture are listed in the item's `observed_conditions`, on stdout as
+`> observed:` lines, and in the JUnit report:
+
+| `kind` | Seen when |
+|--------|-----------|
+| `scheduling_failed` | A `FailedScheduling` event; the detail adds the pod's requests and the largest node's allocatable resources. |
+| `image_pull_failed` | A container waiting in `ErrImagePull` or `ImagePullBackOff`. |
+| `pod_sandbox_not_created` | A Pending pod whose `PodReadyToStartContainers` condition is `False`. |
+| `node_not_ready` | A node whose `Ready` condition is not `True`. |
+| `node_pressure` | A node with `DiskPressure`, `MemoryPressure` or `PIDPressure`, or a pod `Evicted`. |
+
+A condition is what the cluster showed, not the verdict's cause: a test can fail for its own reason
+on a node under pressure. A capture that cannot be taken (no cluster access left) is logged as a
+warning and the test's result stands.
+
+#### Explaining a failure
+
+`explain` puts together what is needed to understand a test that did not pass:
+
+```
+./cnti-testsuite explain                       # every failed, errored or skipped test of the newest run
+./cnti-testsuite explain node_drain            # one test, whatever its status
+./cnti-testsuite explain --results-file PATH   # another run
+./cnti-testsuite explain --output json         # the same, as one JSON document on stdout
+./cnti-testsuite explain --no-logs             # without the debug log and the containers' log lines
+```
+
+For each test it shows the result (status, message, details, impacted resources, remediation),
+what the test checks and how to fix a failure, from the test's section of
+[TEST_DOCUMENTATION](TEST_DOCUMENTATION.md) with its link, and the test's own lines of the run's
+debug log, cut out by `test=<name>`. A long log is cut to 200 lines: its warnings and errors are
+kept, the rest is taken from the end, and the output says how many lines were left out.
+
+For a test that failed or errored, it also shows what the cluster showed at that moment, from the
+run's [failure diagnostics](#failure-diagnostics): the observed conditions, and a summary of the
+capture with its path. The summary has the pods and whether they were Ready (the text shows those
+that were not), the nodes that were not Ready or under pressure, the impacted objects' status and what a finding on them points to
+(the volume behind `spec.template.spec.volumes[0]`, for example), the
+newest 30 events (warnings first) and each container's last 20 lines; it is cut to 16 KB, and
+says what it cut. The capture itself has the
+rest. `--no-logs` leaves out every log line, the debug log's and the containers': what remains is
+what the suite recorded about the failure, for sharing it or sending it to a model. Event
+messages stay, and can still quote the workload (a probe's output in `Readiness probe failed`).
+
+It reads files only: no cluster and no model, so it works after `cnf_uninstall`, offline, and on a
+results directory downloaded from a CI job. A run whose directory is gone (removed by the
+retention, or older than the debug log) is explained without the log, and the output says so. The
+details and the log can quote the workload's own output (pod logs, events): `explain` marks them
+as data, not instructions, for a person and for an agent reading them. The MCP server gives the
+same JSON through `explain_test`.
 
 ---
 
@@ -683,6 +760,7 @@ It implements MCP protocol version `2025-06-18`. The tools:
 | `get_run` | The state and progress of a run, with its results document once complete | read-only |
 | `cancel_run` | Stops a run started by `start_run`, `cnf_install` or `cnf_uninstall` | |
 | `get_results` | The newest results document in the workspace | read-only |
+| `explain_test` | The tests of the newest run that did not pass, or one named test: the result, what the test checks and how to fix it, the conditions seen and the summary of the capture taken when it failed, and its own lines of the run's debug log, as `cnti-testsuite explain --output json` gives them; `no_logs` leaves the log lines out | read-only |
 | `validate_config` | Checks a `cnti-testsuite.yaml`, as `cnti-testsuite validate_config` does, without installing anything; returns `valid` and the suite's messages | read-only |
 | `cnf_install` / `cnf_uninstall` | Install or uninstall the CNF; only with `--allow-install`. Return a `runId`. | destructive |
 

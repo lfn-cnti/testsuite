@@ -45,7 +45,7 @@ module CLIOptions
     Option.new("skip", Kind::Multi, "skip a task within a suite; repeatable", value_label: "TASK", retired: "exclude"),
     Option.new("input-config", Kind::Value, "update_config: the cnti-testsuite.yaml to convert", value_label: "PATH", file: true, retired: "input-config"),
     Option.new("output-config", Kind::Value, "update_config: where to write the converted file", value_label: "PATH", file: true, retired: "output-config"),
-    Option.new("results-file", Kind::Value, "results_junit, evidence: the results file to use (default: the newest)", value_label: "PATH", file: true),
+    Option.new("results-file", Kind::Value, "results_junit, evidence, explain: the results file to use (default: the newest)", value_label: "PATH", file: true),
     Option.new("junit-file", Kind::Value, "results_junit: where to write the report (default: next to the results file, as .xml)", value_label: "PATH", file: true),
 Option.new("output-dir", Kind::Value, "evidence: the directory to write the bundle into (default: cnti/evidence)", value_label: "PATH", file: true),
     Option.new("pod-labels", Kind::Value, "label selector of the pods a chaos test targets", value_label: "LABELS", retired: "pod-labels"),
@@ -59,6 +59,7 @@ Option.new("output-dir", Kind::Value, "evidence: the directory to write the bund
     Option.new("destructive", Kind::Flag, "allow destructive tests", retired: "destructive"),
     Option.new("skip-wait-for-install", Kind::Flag, "do not wait for resources to become ready after install", internal: "skip_wait_for_install", retired: "skip_wait_for_install"),
     Option.new("skip-wait-for-uninstall", Kind::Flag, "do not wait for resources to be removed after uninstall", internal: "skip_wait_for_uninstall", retired: "skip_wait_for_uninstall"),
+    Option.new("no-logs", Kind::Flag, "explain: leave out the run's debug log and the containers' log lines", internal: "no_logs"),
     Option.new("allow-install", Kind::Flag, "mcp: expose the cluster-mutating cnf_install/cnf_uninstall tools", internal: "allow_install"),
   ]
 

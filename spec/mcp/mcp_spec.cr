@@ -50,10 +50,10 @@ describe "mcp server" do
     replies[1]["result"]["capabilities"]["resources"]?.should_not be_nil
 
     tools = replies[2]["result"]["tools"].as_a.to_h { |t| {t["name"].as_s, t} }
-    tools.keys.should eq(["list_tests", "run_test", "start_run", "get_run", "cancel_run", "get_results", "validate_config"])
+    tools.keys.should eq(["list_tests", "run_test", "start_run", "get_run", "cancel_run", "get_results", "explain_test", "validate_config"])
     # Install and uninstall are hidden unless --allow-install is passed.
     tools.has_key?("cnf_install").should be_false
-    ["list_tests", "get_run", "get_results", "validate_config"].each do |name|
+    ["list_tests", "get_run", "get_results", "explain_test", "validate_config"].each do |name|
       tools[name]["annotations"]["readOnlyHint"].as_bool.should be_true
     end
     # Running tests changes the cluster: no hint claims otherwise, so the MCP
@@ -198,5 +198,37 @@ describe "mcp server" do
     install = tools.find { |t| t["name"].as_s == "cnf_install" }
     install.should_not be_nil
     install.not_nil!["annotations"]["destructiveHint"].as_bool.should be_true
+  end
+
+  it "explains the newest run's failures with explain_test", tags: ["points"] do
+    dir = File.tempname("mcp-explain")
+    begin
+      FileUtils.mkdir_p(File.join(dir, "cnti-testsuite-results-20261030-120000-000"))
+      File.write(File.join(dir, "cnti-testsuite-results-20261030-120000-000.yml"),
+        "status: failed\nitems:\n- name: node_drain\n  status: failed\n  type: essential\n  message: Node drain failed\n")
+      File.symlink("cnti-testsuite-results-20261030-120000-000.yml", File.join(dir, "latest.yml"))
+      File.write(File.join(dir, "cnti-testsuite-results-20261030-120000-000", "run.log"),
+        "[2026-10-30 12:00:01.000 +00:00] ERROR test=node_drain -- CNTI-X: drain refused\n")
+      replies = by_id(mcp_exchange([
+        %({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}),
+        call(2, "explain_test"),
+        call(3, "explain_test", {"name" => "no_such_test"}),
+        call(4, "explain_test", {"name" => 7}),
+        call(5, "explain_test", {"no_logs" => true}),
+        call(6, "explain_test", {"no_logs" => "yes"}),
+      ], ["--results-dir", dir]))
+      t = replies[2]["result"]["structuredContent"]["tests"][0]
+      t["name"].as_s.should eq("node_drain")
+      t["documentation"]["url"].as_s.should end_with("#node-drain")
+      t["log"]["lines"][0].as_s.should contain("drain refused")
+      error_text(replies[3]).should contain("No test 'no_such_test'")
+      error_text(replies[4]).should contain("'name' must be a string")
+      quiet = replies[5]["result"]["structuredContent"]
+      quiet["logs"].as_bool.should be_false
+      quiet["tests"][0].as_h.has_key?("log").should be_false
+      error_text(replies[6]).should contain("'no_logs' must be a boolean")
+    ensure
+      FileUtils.rm_rf(dir) if dir
+    end
   end
 end

@@ -240,6 +240,26 @@ module MCP
         else
           write_tool_error(id, "No results file yet; run a test first")
         end
+      when "explain_test"
+        name = args.try(&.dig?("name"))
+        if name && !name.raw.nil? && !name.as_s?
+          write_tool_error(id, "explain_test: 'name' must be a string, the name of a test")
+          return
+        end
+        no_logs = args.try(&.dig?("no_logs"))
+        if no_logs && !no_logs.raw.nil? && no_logs.as_bool?.nil?
+          write_tool_error(id, "explain_test: 'no_logs' must be a boolean")
+          return
+        end
+        begin
+          if doc = Tools.explain_json(name.try(&.as_s?), !(no_logs.try(&.as_bool?) || false))
+            write_tool_result(id, doc)
+          else
+            write_tool_error(id, "No results file yet; run a test first")
+          end
+        rescue ex : Explain::UnknownTest
+          write_tool_error(id, ex.message.to_s)
+        end
       when "validate_config"
         cfg = args.try(&.dig?("cnf_config")).try(&.as_s?)
         unless cfg
