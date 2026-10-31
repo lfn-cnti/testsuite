@@ -128,3 +128,19 @@ adopters:
         from: failed
         to: passed
         reason: "their self-hosted runner (free5gc-helm#41) recovers the evicted workloads slowly (NRF Ready after 258 s, the AMF waits for it) and the 180 s readiness window is missed there; the same chart passes on a GitHub-hosted runner, not a suite change"
+
+  # eUPF's badge job runs nightly. Its kind config mounts the host's bpffs into
+  # every node: eUPF runs as a non-root user and can't mount it itself.
+  - name: eupf
+    display_name: eUPF
+    host: github
+    repo: edgecomllc/eupf
+    workflow: cnti.yml
+    artifact: cnti-testsuite-results
+    cnf_config: .github/cnti/cnti-testsuite.yaml
+    kind_config: .github/cnti/kind.yaml
+    install_timeout: ""
+    tests: cert
+    env: {}
+    prepare: ""
+    expected: []
