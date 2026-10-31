@@ -92,6 +92,37 @@ and `diagnostics` as its body; an errored test an `<error>` with the same body; 
 `exit_code` and every `summary` field are `<properties>` of the root, so a consumer can show
 "17 of 19 essential tests passed, threshold 15" without opening the YAML.
 
+#### Comparing with expected results
+
+A results file says how each test did, not whether that is what you expected. `compare` checks a
+run against a list of the results you know and accept:
+
+```
+./cnti-testsuite compare --expected .github/cnti/expected.yaml                 # the newest results file
+./cnti-testsuite compare --expected FILE --results-file PATH --output json     # another run, as JSON
+```
+
+```yaml
+# .github/cnti/expected.yaml
+- test: hostpath_mounts
+  status: failed
+  reason: /sys/fs/bpf from the node is required by the non-root design
+```
+
+A test the list doesn't name is expected to pass. Every test whose result differs is listed: a
+**regression** when it failed or errored though expected to pass, be skipped or be n/a; an
+**improvement** when it passed though listed as not passing (remove its entry, so the list stays
+the record); **changed** for any other difference (`failed` to `error`, `skipped` to `na`). Entries
+for tests the run didn't include are ignored, so one list serves a `cert` run and a `workload`
+run. An entry without a status of a results file (`passed`, `failed`, `skipped`, `na`, `error`) is a
+warning, and its test isn't compared, so a typo never turns a known failure into a regression;
+an entry without a test, or a second entry for a test, is a warning too. The output is a Markdown
+table (or, with `--output json`, the report with `regressions`, `improvements`, `changed`,
+`uncompared` and `warnings`), and the exit code is 0 whatever differs: what a difference means for
+a job is the caller's decision. A missing file, an expectations file that isn't a YAML list, or a
+results file without a list of items, each with a name and a status, is a usage error (exit code
+64).
+
 #### Evidence bundle
 
 `evidence` writes what a project publishes next to its badge, from the newest results file (or
