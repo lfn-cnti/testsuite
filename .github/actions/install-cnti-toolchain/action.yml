@@ -79,6 +79,6 @@ runs:
             libpcre2-8-0 zlib1g
           echo "::endgroup::"
         fi
-    - uses: crystal-lang/install-crystal@v1.9.4
+    - uses: crystal-lang/install-crystal@v1.9.5
       with:
         crystal: ${{ inputs.crystal }}
