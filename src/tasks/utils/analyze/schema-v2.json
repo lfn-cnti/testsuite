@@ -1,0 +1,68 @@
+{
+  "type": "object",
+  "properties": {
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "likely_cause": {
+            "type": "string"
+          },
+          "supported_by": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "the id of a fact, e.g. T1-R1"
+            }
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low",
+              "insufficient_evidence"
+            ]
+          },
+          "next_step": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "chart_change",
+                  "check_runner_or_cluster",
+                  "re_run"
+                ]
+              },
+              "detail": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "detail"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "name",
+          "likely_cause",
+          "supported_by",
+          "confidence",
+          "next_step"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "tests"
+  ],
+  "additionalProperties": false
+}
