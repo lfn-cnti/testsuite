@@ -25,7 +25,7 @@ module CLIParser
   end
 
   # Tasks that take a free-form topic rather than options.
-  POSITIONAL_TASKS = ["help", "completion", "explain"]
+  POSITIONAL_TASKS = ["help", "completion", "explain", "analyze"]
   RETIRED_SEPARATOR = "@"
 
   record Invocation, tasks : Array(String), args : Sam::Args
