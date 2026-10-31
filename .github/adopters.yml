@@ -31,7 +31,9 @@
 #   runner           GitHub runner image for the canary job; empty for
 #                    ubuntu-24.04
 #   prepare          commands their job runs before the action, in their
-#                    checkout
+#                    checkout, before the cluster exists
+#   prepare_cluster  commands their job runs on the cluster before the action,
+#                    in their checkout, right after the canary creates it
 #   expected         changes from the adopter's own result that a suite change
 #                    makes on purpose: test, from, to (a status, or "-" when the
 #                    test is missing from one run) and reason. Any other change
@@ -65,10 +67,25 @@ adopters:
     tests: cert
     env:
       CNTI_TESTSUITE_GENERIC_OPERATION_TIMEOUT: "180"
+    # /tmp/kind-shared-storage is the directory their kind config mounts into
+    # every node.
     prepare: |
-      helm repo add bitnami https://charts.bitnami.com/bitnami
-      helm dependency build 5g-control-plane
       helm dependency build sdcore-helm-charts
+      mkdir -p /tmp/kind-shared-storage
+    # kind's storage provisioner in its shared mode, so volumes follow their
+    # pod and node_drain can move MongoDB's members; MongoDB's operator, a
+    # prerequisite of the chart since their v6.0.0.
+    prepare_cluster: |
+      kubectl -n local-path-storage patch configmap local-path-config --type merge \
+        -p '{"data":{"config.json":"{\"nodePathMap\":[],\"sharedFileSystemPath\":\"/var/local-path-provisioner\"}"}}'
+      kubectl -n local-path-storage rollout restart deployment local-path-provisioner
+      kubectl -n local-path-storage rollout status deployment local-path-provisioner --timeout 2m
+      helm repo add mongodb https://mongodb.github.io/helm-charts
+      helm install mongodb-kubernetes mongodb/mongodb-kubernetes \
+        --version 1.14.0 \
+        --namespace sdcore --create-namespace \
+        --set operator.watchNamespace=sdcore \
+        --wait --timeout 5m
     expected: []
 
   # The job runs in the ocudu-gnb chart's child pipeline, on merge requests

@@ -163,6 +163,12 @@ jobs:
         with:
           cluster_name: cnti-testsuite
           config: ${{ matrix.adopter.kind_config != '' && format('adopter/{0}', matrix.adopter.kind_config) || format('{0}/kind.yaml', runner.temp) }}
+      - name: Prepare the cluster as the adopter's job does
+        if: matrix.adopter.prepare_cluster != ''
+        working-directory: adopter
+        env:
+          PREPARE_CLUSTER: ${{ matrix.adopter.prepare_cluster }}
+        run: bash -euo pipefail -c "$PREPARE_CLUSTER"
       - name: Run the suite
         id: run
         working-directory: adopter
