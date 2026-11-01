@@ -115,7 +115,7 @@ describe "Release upgrade", tags: ["release_upgrade"] do
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample_rolling_skew/cnti-testsuite.yaml")
       result = ShellCmd.run_testsuite("rolling_update")
       (/N\/A.*Every workload of the CNF has a previous image that does not start under the current pod spec \(version skew, see the details\), a rolling update does not apply/ =~ result[:output]).should_not be_nil
-      (/Deployment\/skew in cnti-default, container app: version skew, python:3\.11-slim \(the release before the deployed one\) does not start under the pod spec the current chart renders \(.*CrashLoopBackOff.*\); not judged/ =~ result[:output]).should_not be_nil
+      (/Deployment\/skew in cnti-default, container app: version skew, python:3\.11-slim \(the release before the deployed one\) does not start under the pod spec the current chart renders \(.*(CrashLoopBackOff|crash-looping).*\); not judged/ =~ result[:output]).should_not be_nil
       verify_task_result("rolling_update", "na")
       # And the deployed image is back.
       deployment = KubectlClient::Get.resource("deployment", "skew", DEFAULT_CNF_NAMESPACE)

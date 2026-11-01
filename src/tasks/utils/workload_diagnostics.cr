@@ -5,6 +5,8 @@
 # leaving the user to reconstruct it from a cluster that has moved on.
 module WorkloadDiagnostics
   EVENT_LIMIT = 8
+  # One restart can be a crash for any reason; a loop takes more.
+  CRASH_LOOP_RESTARTS = 2
 
   # One line per pod that is not Ready, then the recent Warning events about
   # the workload, its ReplicaSets and its pods.
@@ -30,6 +32,7 @@ module WorkloadDiagnostics
             detail = [waiting.dig?("reason").try(&.as_s), waiting.dig?("message").try(&.as_s)].compact.join(": ")
             why << "container #{cs.dig?("name").try(&.as_s)} waiting#{detail.empty? ? "" : " (#{detail})"}"
           end
+          crash_loop(cs).try { |line| why << line }
         end
         lines << "pod #{pod_name}: #{phase}#{why.empty? ? "" : "; " + why.join("; ")}"
       end
@@ -38,6 +41,27 @@ module WorkloadDiagnostics
       Log.for("WorkloadDiagnostics").warn { "could not collect diagnostics for #{kind}/#{name} in #{namespace}: #{ex.message}" }
     end
     lines
+  end
+
+  # A container caught between the restarts of a crash loop: it shows
+  # CrashLoopBackOff only while it waits for the next one, and a read at another
+  # moment finds it running or just ended. Its restarts and last exit code say
+  # the same at any moment. Nil for a container that is ready or that waits.
+  def self.crash_loop(container_status : JSON::Any) : String?
+    return nil if container_status["ready"]?.try(&.as_bool?) || container_status.dig?("state", "waiting")
+    restarts = container_status["restartCount"]?.try(&.as_i?) || 0
+    return nil if restarts < CRASH_LOOP_RESTARTS
+    terminated = container_status.dig?("state", "terminated") || container_status.dig?("lastState", "terminated")
+    exit_code = terminated.try(&.dig?("exitCode")).try(&.as_i?) || 0
+    return nil if exit_code.zero?
+    "container #{container_status.dig?("name").try(&.as_s)} crash-looping (restarted #{restarts} times, last exit code #{exit_code})"
+  end
+
+  # Whether a line of problems says this container is in a crash loop. A pod's
+  # line holds the reasons of all its containers, so a sidecar's loop says
+  # nothing about the container beside it.
+  def self.crash_looping?(line : String, container : String) : Bool
+    line.includes?("container #{container} waiting (CrashLoopBackOff") || line.includes?("container #{container} crash-looping")
   end
 
   # Recent Warning events whose object is the workload, one of its pods, or a

@@ -108,7 +108,7 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
             # their last log lines, with the first reason in the finding.
             why = WorkloadDiagnostics.report(result, resource["kind"], resource["name"], namespace,
               "#{resource["kind"]}/#{resource["name"]} during the #{pretty_test_name} to #{image_name}:#{tag}")
-            if skew_line = version_skew(configured_tag, why)
+            if skew_line = version_skew(configured_tag, why, container_name)
               rolled -= 1
               skew << "#{resource["kind"]}/#{resource["name"]} in #{namespace}"
               result.append_description("#{resource["kind"]}/#{resource["name"]} in #{namespace}, container #{container_name}: version skew, #{image_name}:#{tag} (the release before the deployed one) does not start under the pod spec the current chart renders (#{skew_line}); not judged, since an upgrade moves image and spec together and there is no previous release of the chart to upgrade from")
@@ -256,7 +256,7 @@ scored_task "rollback",
       unless rollout_status
         why = WorkloadDiagnostics.report(result, resource_kind, resource_name, namespace,
           "#{resource_kind}/#{resource_name} during the rollout to #{image_name}:#{rollback_from_tag}")
-        skew_line = version_skew(configured_tag, why)
+        skew_line = version_skew(configured_tag, why, container_name)
         unless skew_line
           result.add_impacted_resource(resource_kind, resource_name, namespace, container: container_name,
             reason: "rollout to #{image_name}:#{rollback_from_tag} did not complete within 180s#{rollout_error ? ": #{rollout_error}" : ""}#{why.first?.try { |w| "; #{w}" }}")
@@ -641,9 +641,9 @@ end
 # it never shipped with; an upgrade never produces that combination. A tag
 # the user configured is their assertion that the image fits, and its crash
 # stays a failure.
-def version_skew(configured_tag : String, why : Array(String)) : String?
+def version_skew(configured_tag : String, why : Array(String), container : String) : String?
   return nil unless configured_tag.empty?
-  why.find { |line| line.includes?("CrashLoopBackOff") }
+  why.find { |line| WorkloadDiagnostics.crash_looping?(line, container) }
 end
 
 # The tag a rollout test moves a container to, or nil when there is none, with
