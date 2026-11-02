@@ -1,5 +1,5 @@
 name: "Create kind cluster"
-description: "Create a kind cluster from a config file, retrying once when the node containers miss kind's fixed boot deadline. This action is the single place that creates kind clusters in actions.yml."
+description: "Create a kind cluster from a config file, retrying once when the node containers miss kind's fixed boot deadline. A failed attempt leaves its nodes' logs and the host's state in the artifact kind-diagnostics-<name>. This action is the single place that creates kind clusters in actions.yml."
 inputs:
   name:
     description: "Cluster name"
@@ -23,14 +23,38 @@ runs:
         set -euo pipefail
         cat "${{ inputs.config }}"
         kind --version
+        diagnostics="$RUNNER_TEMP/kind-diagnostics/${{ inputs.name }}"
+        # What the cluster had to start on: the host's load, the pressure the
+        # kernel reports (PSI, host-wide), and the other kind clusters sharing
+        # this Docker host.
+        host_state() {
+          echo "load: $(cat /proc/loadavg)"
+          for resource in cpu io memory; do
+            echo "pressure $resource: $(tr '\n' ' ' < "/proc/pressure/$resource" 2>/dev/null || echo n/a)"
+          done
+          echo "kind clusters on this Docker host: $(docker ps --filter label=io.x-k8s.kind.cluster --format '{{.Label "io.x-k8s.kind.cluster"}}' | sort -u | wc -l)"
+        }
         # kind gives the node containers a fixed 60 s to boot systemd; when several
         # jobs boot clusters on one host at once that deadline is occasionally
         # missed, and a host that busy can also leave the control plane too slow
-        # for kubeadm. kind removes its own failed nodes, so retrying is just
-        # trying again -- after a pause long enough for the burst to pass.
+        # for kubeadm. Retrying is just trying again -- after a pause long enough
+        # for the burst to pass.
         for attempt in 1 2; do
+          host_state
           kind create cluster --name "${{ inputs.name }}" --config="${{ inputs.config }}" \
-            --kubeconfig "${{ inputs.kubeconfig }}" --wait "${{ inputs.wait }}" && break
+            --kubeconfig "${{ inputs.kubeconfig }}" --wait "${{ inputs.wait }}" --retain && break
+          # --retain keeps the failed nodes so their logs can be read: kubeadm's
+          # own output says only that the API server did not answer, the
+          # kubelet's journal and the control plane's containers say why. They
+          # are deleted once read.
+          dir="$diagnostics/attempt-$attempt"
+          mkdir -p "$dir"
+          host_state > "$dir/host.txt" 2>&1 || true
+          docker ps -a > "$dir/docker-ps.txt" 2>&1 || true
+          echo "Control plane containers after attempt $attempt:"
+          docker exec "${{ inputs.name }}-control-plane" crictl ps -a 2>&1 || true
+          kind export logs "$dir" --name "${{ inputs.name }}" > /dev/null 2>&1 || true
+          kind delete cluster --name "${{ inputs.name }}" || true
           if [ "$attempt" = 2 ]; then echo "::error::kind create cluster failed twice"; exit 1; fi
           # The retry is transparent when it works, so this is a notice and not
           # a warning: a warning here is reported as an annotation on the run
@@ -39,3 +63,13 @@ runs:
           sleep 60
         done
         KUBECONFIG="${{ inputs.kubeconfig }}" kubectl get nodes
+    # Also after a retry that worked: a first attempt that failed is evidence
+    # too. Nothing is uploaded when every attempt worked.
+    - if: always()
+      uses: actions/upload-artifact@v7.0.2
+      continue-on-error: true
+      with:
+        name: kind-diagnostics-${{ inputs.name }}
+        path: ${{ runner.temp }}/kind-diagnostics/${{ inputs.name }}
+        if-no-files-found: ignore
+        retention-days: 7
