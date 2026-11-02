@@ -160,6 +160,8 @@ jobs:
         containerdConfigPatches:
         - |-
           root = "/tmp/containerd"
+          [plugins."io.containerd.grpc.v1.cri".registry]
+            config_path = "/etc/containerd/certs.d"
         nodes:
         - role: control-plane
           kubeadmConfigPatches:
@@ -185,14 +187,23 @@ jobs:
             propagation: None
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+          - containerPath: /etc/containerd/certs.d/registry.k8s.io
+            hostPath: /shared/kind-registry-cache/registry.k8s.io
+            readOnly: true
         - role: worker
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+          - containerPath: /etc/containerd/certs.d/registry.k8s.io
+            hostPath: /shared/kind-registry-cache/registry.k8s.io
+            readOnly: true
         - role: worker
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+          - containerPath: /etc/containerd/certs.d/registry.k8s.io
+            hostPath: /shared/kind-registry-cache/registry.k8s.io
+            readOnly: true
         EOF
     - name: sysctls specs kind config override
       if: matrix.spec == 'sysctls'
@@ -204,6 +215,8 @@ jobs:
         containerdConfigPatches:
         - |-
           root = "/tmp/containerd"
+          [plugins."io.containerd.grpc.v1.cri".registry]
+            config_path = "/etc/containerd/certs.d"
         nodes:
         - role: control-plane
           kubeadmConfigPatches:
@@ -232,14 +245,23 @@ jobs:
             propagation: None
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+          - containerPath: /etc/containerd/certs.d/registry.k8s.io
+            hostPath: /shared/kind-registry-cache/registry.k8s.io
+            readOnly: true
         - role: worker
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+          - containerPath: /etc/containerd/certs.d/registry.k8s.io
+            hostPath: /shared/kind-registry-cache/registry.k8s.io
+            readOnly: true
         - role: worker
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+          - containerPath: /etc/containerd/certs.d/registry.k8s.io
+            hostPath: /shared/kind-registry-cache/registry.k8s.io
+            readOnly: true
         EOF
     - name: Mirror Override
       if: startsWith(matrix.spec, 'private_registry_')
@@ -278,6 +300,9 @@ jobs:
             propagation: None
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+          - containerPath: /etc/containerd/certs.d/registry.k8s.io
+            hostPath: /shared/kind-registry-cache/registry.k8s.io
+            readOnly: true
         EOF
     - name: Install kind
       uses: ./.github/actions/install-kind
@@ -457,6 +482,8 @@ jobs:
         containerdConfigPatches:
         - |-
           root = "/tmp/containerd"
+          [plugins."io.containerd.grpc.v1.cri".registry]
+            config_path = "/etc/containerd/certs.d"
         nodes:
         - role: control-plane
           kubeadmConfigPatches:
@@ -468,14 +495,23 @@ jobs:
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+          - containerPath: /etc/containerd/certs.d/registry.k8s.io
+            hostPath: /shared/kind-registry-cache/registry.k8s.io
+            readOnly: true
         - role: worker
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+          - containerPath: /etc/containerd/certs.d/registry.k8s.io
+            hostPath: /shared/kind-registry-cache/registry.k8s.io
+            readOnly: true
         - role: worker
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+          - containerPath: /etc/containerd/certs.d/registry.k8s.io
+            hostPath: /shared/kind-registry-cache/registry.k8s.io
+            readOnly: true
         EOF
         export CLUSTER=$(cat /proc/sys/kernel/random/uuid)
         echo "export CLUSTER=$CLUSTER" > cluster.env
@@ -556,6 +592,8 @@ jobs:
         containerdConfigPatches:
         - |-
           root = "/tmp/containerd"
+          [plugins."io.containerd.grpc.v1.cri".registry]
+            config_path = "/etc/containerd/certs.d"
         nodes:
         - role: control-plane
           kubeadmConfigPatches:
@@ -567,14 +605,23 @@ jobs:
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+          - containerPath: /etc/containerd/certs.d/registry.k8s.io
+            hostPath: /shared/kind-registry-cache/registry.k8s.io
+            readOnly: true
         - role: worker
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+          - containerPath: /etc/containerd/certs.d/registry.k8s.io
+            hostPath: /shared/kind-registry-cache/registry.k8s.io
+            readOnly: true
         - role: worker
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+          - containerPath: /etc/containerd/certs.d/registry.k8s.io
+            hostPath: /shared/kind-registry-cache/registry.k8s.io
+            readOnly: true
         EOF
         export CLUSTER=$(cat /proc/sys/kernel/random/uuid)
         echo "export CLUSTER=$CLUSTER" > cluster.env
@@ -654,6 +701,8 @@ jobs:
         containerdConfigPatches:
         - |-
           root = "/tmp/containerd"
+          [plugins."io.containerd.grpc.v1.cri".registry]
+            config_path = "/etc/containerd/certs.d"
         nodes:
         - role: control-plane
           kubeadmConfigPatches:
@@ -665,14 +714,23 @@ jobs:
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+          - containerPath: /etc/containerd/certs.d/registry.k8s.io
+            hostPath: /shared/kind-registry-cache/registry.k8s.io
+            readOnly: true
         - role: worker
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+          - containerPath: /etc/containerd/certs.d/registry.k8s.io
+            hostPath: /shared/kind-registry-cache/registry.k8s.io
+            readOnly: true
         - role: worker
           extraMounts:
           - containerPath: /var/lib/kubelet/config.json
             hostPath: $HOME/.docker/config.json
+          - containerPath: /etc/containerd/certs.d/registry.k8s.io
+            hostPath: /shared/kind-registry-cache/registry.k8s.io
+            readOnly: true
         EOF
         export CLUSTER=$(cat /proc/sys/kernel/random/uuid)
         echo "export CLUSTER=$CLUSTER" > cluster.env

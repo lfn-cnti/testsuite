@@ -23,6 +23,28 @@ runs:
         set -euo pipefail
         cat "${{ inputs.config }}"
         kind --version
+        # The nodes keep containerd in memory (root = "/tmp/containerd"), so they
+        # start without the images kindest/node preloads and pull the control
+        # plane at every cluster creation; when registry.k8s.io is slow, it
+        # misses kubeadm's deadline (#2883). A pull-through cache on the Docker
+        # host serves those pulls after the first: one container for the
+        # host's runners, on kind's network, left running. The configs mount
+        # the hosts.toml below into the nodes, and containerd falls back to
+        # registry.k8s.io itself whenever the cache does not answer. A host
+        # without kind's network yet gets the cache from its next job.
+        if [ -d /shared ] && [ -w /shared ]; then
+          mirror=/shared/kind-registry-cache/registry.k8s.io
+          mkdir -p "$mirror"
+          printf '%s\n' 'server = "https://registry.k8s.io"' '' \
+            '[host."http://kind-registry-cache-k8s:5000"]' '  capabilities = ["pull", "resolve"]' \
+            > "$mirror/hosts.toml.$$" && mv "$mirror/hosts.toml.$$" "$mirror/hosts.toml"
+          if docker network inspect kind > /dev/null 2>&1 && ! docker inspect kind-registry-cache-k8s > /dev/null 2>&1; then
+            # Another runner on this host may start it at the same moment.
+            docker run -d --restart=always --name kind-registry-cache-k8s --network kind \
+              -e REGISTRY_PROXY_REMOTEURL=https://registry.k8s.io registry:2.8.3 > /dev/null 2>&1 || true
+          fi
+          echo "registry.k8s.io cache: $(docker inspect -f '{{.State.Status}}' kind-registry-cache-k8s 2>/dev/null || echo none)"
+        fi
         diagnostics="$RUNNER_TEMP/kind-diagnostics/${{ inputs.name }}"
         # What the cluster had to start on: the host's load, the pressure the
         # kernel reports (PSI, host-wide), and the other kind clusters sharing
