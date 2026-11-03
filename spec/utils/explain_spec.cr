@@ -74,10 +74,10 @@ describe "Explain" do
       t = tests[0]
       t["impacted_resources"][0]["reason"].as_s.should eq("not Ready again")
       t["documentation"]["url"].as_s.should end_with("TEST_DOCUMENTATION.md#node-drain")
-      t["documentation"]["overview"].as_s.should start_with("Every node that hosts a pod of the CNF")
-      # node_drain has no Details yet: null, and no common rules.
-      t["documentation"]["details"].raw.should be_nil
-      t["documentation"]["common_rules"].as_a.should be_empty
+      t["documentation"]["overview"].as_s.should start_with("Every schedulable node that hosts a pod of the CNF")
+      # The test's complete behaviour, and the common rule it links to.
+      t["documentation"]["details"].as_s.should contain("**Verdicts**")
+      t["documentation"]["common_rules"].as_a.map(&.["heading"].as_s).should eq(["Jobs and CronJobs"])
       lines = t["log"]["lines"].as_a.map(&.as_s)
       lines.should contain("  [third] line")
       lines.any?(&.includes?("early error")).should be_true

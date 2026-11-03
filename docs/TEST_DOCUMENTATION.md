@@ -32,7 +32,7 @@
 
 * [**Common rules**](#common-rules)
 
-   [[Rollout tests]](#rollout-tests) | [[Jobs and CronJobs]](#jobs-and-cronjobs)
+   [[Rollout tests]](#rollout-tests) | [[Containers that cannot be inspected]](#containers-that-cannot-be-inspected) | [[Jobs and CronJobs]](#jobs-and-cronjobs)
 
 ----------
 
@@ -52,18 +52,17 @@ All compatibility: `./cnti-testsuite compatibility`
 
 #### Overview
 
-HPA (horizontal pod autoscale) will autoscale replicas to accommodate when there is an increase of CPU, memory or other configured metrics to prevent disruption by allowing more requests
-by balancing out the utilisation across all of the pods.
-Decreasing replicas works the same as increase but rather scale down the number of replicas when the traffic decreases to the number of pods that can handle the requests.
-You can read more about horizontal pod autoscaling to create replicas [here](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/) and in the [K8s scaling cheatsheet](https://kubernetes.io/docs/reference/kubectl/cheatsheet/#scaling-resources).
-The test scales each Deployment and StatefulSet from its deployed replica count up by two, then back to the deployed count. Scaling back restores the replica counts, not the application's state: a clustered StatefulSet (a database replica set, a quorum) can keep the members it lost and stay degraded, which shows only when a pod has to start again. So once every workload is back at its count, one pod of each is deleted, all at the same time, and every workload must be Ready again within twice the pod readiness timeout (`CNTI_TESTSUITE_POD_READINESS_TIMEOUT`), as the CNF's start-up dependencies resolve one after another; a workload that is not fails the test, with the reason in the details. A DaemonSet runs one pod per node and has no replica count to scale: it is named in the details and judged by the restart alone, one pod deleted and the DaemonSet Ready again on every node it is scheduled for, so a per-node workload (a router, a CNI, a node agent) earns the point for what it can do. A Deployment the chart runs with `strategy: Recreate` and one replica must never have two pods at once (a single identity such as a gNB-DU or an IMSI, or a volume only one pod can mount), so scaling it would contradict its own spec: it is named in the details and judged by the same restart, one pod deleted and the Deployment Ready again. A workload deployed with zero replicas runs nothing to scale and is only named in the details. A workload whose controller owner is an operator's custom resource takes its size from that resource: it is scaled like the others, and if it does not follow the direct change (the operator reverts it, or never configures pods it did not ask for) it is named in the details instead of failing the CNF. A CNF whose workloads all have zero replicas (or are DaemonSets scheduled on no node), or are all operator-sized with none following, is not applicable.
+Scales each running Deployment and StatefulSet up by two replicas and back to its deployed count, then deletes one pod of each of them, of every DaemonSet and of every single-instance Deployment at once, and checks that each is Ready again. The restart shows a clustered workload that lost members while scaling down.
 Expectation: The number of replicas for a Pod increases and then decreases, and the CNF still starts its pods afterwards.
 
 #### Rationale
 
 A CNF should be able to increase and decrease its capacity without running into errors.
 
-Sources: [Kubernetes Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/); [Horizontal Pod Autoscaling](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/); [CNCF Cloud Native Definition](https://github.com/cncf/toc/blob/main/DEFINITION.md).
+HPA (horizontal pod autoscale) will autoscale replicas to accommodate when there is an increase of CPU, memory or other configured metrics to prevent disruption by allowing more requests
+by balancing out the utilisation across all of the pods.
+Decreasing replicas works the same as increase but rather scale down the number of replicas when the traffic decreases to the number of pods that can handle the requests.
+You can read more about it in [Horizontal Pod Autoscaling](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/) and in the [K8s scaling cheatsheet](https://kubernetes.io/docs/reference/kubectl/cheatsheet/#scaling-resources).
 
 #### Remediation
 
@@ -73,6 +72,18 @@ Also here is some info about [things that could cause failures.](https://kuberne
 #### Usage
 
 `./cnti-testsuite increase_decrease_capacity`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: Deployments and StatefulSets are scaled from their deployed replica count up by two, then back to it. A DaemonSet runs one pod per node and has no replica count to scale: it is named in the details and judged by the restart alone, one pod deleted and the DaemonSet Ready again on every node it is scheduled for, so a per-node workload (a router, a CNI, a node agent) earns the point for what it can do. A Deployment the chart runs with one replica and `strategy: Recreate` is taken as single-instance: Recreate does not limit the replica count, but it is how a chart says that a pod must never run beside its replacement (a single identity such as a gNB-DU or an IMSI, or a volume only one pod can mount), so the test does not scale it: it is named in the details and judged by the same restart, one pod deleted and the Deployment Ready again. A workload deployed with zero replicas runs nothing to scale and is only named in the details.
+* **Configuration**: `CNTI_TESTSUITE_POD_READINESS_TIMEOUT`: after the restart, every workload must be Ready again within twice this timeout, as the CNF's start-up dependencies resolve one after another.
+* **Verdicts**: scaling back restores the replica counts, not the application's state: a clustered StatefulSet (a database replica set, a quorum) can keep the members it lost and stay degraded, which shows only when a pod has to start again. So once every scaled workload is back at its count, one pod of each is deleted, together with the pods of the DaemonSets and single-instance Deployments, all at the same time, and a workload that is not Ready again in time fails the test, with the reason in the details. When a workload fails to scale, the scaled workloads are not restarted; an operator-owned workload that does not follow the scale is named, not failed, and does not stop the restart. A workload whose controller owner is an operator's custom resource takes its size from that resource: it is scaled like the others, and if it does not follow the direct change (the operator reverts it, or never configures pods it did not ask for) it is named in the details instead of failing the CNF. The test is not applicable when every workload has zero replicas (or is a DaemonSet scheduled on no node), or is operator-sized with none following, and skipped when the CNF has no Deployment, StatefulSet or DaemonSet at all.
+* **Side effects**: the replica counts change, and one pod is deleted from each workload the restart judges (see Verdicts): not from a workload with zero replicas, a DaemonSet scheduled on no node, an operator-owned workload that did not follow the scale, or the scaled workloads when a scale failed. Every workload ends back at its deployed count.
+
+</details>
 
 ----------
 
@@ -546,7 +557,7 @@ Run the application itself as PID 1, or under an init made for containers (tini,
 
 #### Overview
 
-This tests whether each container stops on its stop signal, the way the kubelet stops it. The container is stopped through the container runtime, as the kubelet does: the runtime sends the container's stop signal (the image's `STOPSIGNAL`, or the container's `lifecycle.stopSignal`; SIGTERM when neither is set) to PID 1 and kills the container when the pod's `terminationGracePeriodSeconds` (default 30 s) is over. A container the runtime had to kill fails: its exit is waited for until the grace period is over, so a PID 1 that stops its children but not itself fails too. When PID 1 supervises child processes, the children are judged: each must be stopped, with whatever shutdown signal the supervisor uses for it (SIGTERM, SIGINT, SIGQUIT, SIGHUP, SIGUSR1 or SIGUSR2), and terminate within the grace period; a child still running, one killed with SIGKILL rather than stopped, or one that crashes on the signal (SIGABRT, SIGSEGV), fails the container. A child with no handler for the signal it is sent ends on that signal's default action: it has stopped, and the details say so. When PID 1 is a specialized init system, the init's own processes are not judged, only the services it runs: s6-overlay, for example, ends its supervision tree (every `s6-*` process) itself once its services have stopped. A child that only keeps the container alive (`sleep`, `pause`, `tail -f /dev/null`, `cat` on stdin) is not the workload and is not judged; when it is the only child, PID 1 is judged itself, as a lone PID 1 is. The details say which signal was sent, which signal stopped each process, and how long the container took to stop. Containers that cannot be traced, or whose state cannot be read after the stop, are reported as skipped and do not fail the test. A Job's process is its work, and ending it would change the Job's outcome: a Job or CronJob is listed in the test details as not applicable, and the test is not applicable when the CNF has no other workload. A container that could not be inspected on its node is listed in the details with the reason (not started or not ready, with the container's state; no ready cluster-tools pod on the node; a container ID of a runtime other than containerd or CRI-O; a container crictl does not know or that has no running process); the test is skipped, naming how many containers could not be inspected and why, only when none could.
+Stops each container through the container runtime, as the kubelet does, and checks that it stops on its stop signal within the pod's termination grace period. When PID 1 supervises other processes, each of them must stop on the signal it is sent. A container the runtime has to kill fails.
 Expectation: Sigterm is handled by PID 1 process of containers.
 
 #### Rationale
@@ -562,6 +573,19 @@ Make the PID 1 container process handle the container's stop signal (SIGTERM unl
 #### Usage
 
 `./cnti-testsuite sig_term_handled`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: every container of the CNF's workloads. A Job's process is its work, and ending it would change the Job's outcome: a Job or CronJob is listed in the test details as not applicable, and the test is not applicable when the CNF has no other workload.
+* **Configuration**: the stop signal is the container's `lifecycle.stopSignal` when the cluster passes it to the runtime (Kubernetes' ContainerStopSignals feature), else the image's `STOPSIGNAL`, else SIGTERM. The runtime sends it to PID 1 and kills the container when the grace period is over: the pod's `terminationGracePeriodSeconds` (default 30 s), at most `CNTI_TESTSUITE_GENERIC_OPERATION_TIMEOUT` (default 60 s), so a longer grace period is judged at that limit.
+* **Verdicts**: a container the runtime had to kill fails: its exit is waited for until the grace period is over, so a PID 1 that stops its children but not itself fails too. A process the tracer cannot attach to is judged by its outcome alone. A container is reported as skipped, and does not fail the test, when it could not be inspected (see the common rule), has no process to judge, cannot be stopped by the runtime, or when nothing failed but its exit could not be confirmed; one whose state cannot be read after the stop still fails when a process survived or was killed. A pod with no container status yet is left out. The details say which signal was sent, which signal stopped each process, and how long the container took to stop.
+* **Verdicts**: when PID 1 supervises child processes, the children are judged: each must be stopped, with whatever shutdown signal the supervisor uses for it (SIGTERM, SIGINT, SIGQUIT, SIGHUP, SIGUSR1 or SIGUSR2), and terminate within the grace period; a child still running, one killed with SIGKILL rather than stopped, or one that crashes on the signal (SIGABRT, SIGSEGV), fails the container. A child with no handler for the signal it is sent ends on that signal's default action: it has stopped, and the details say so. When PID 1 is a specialized init system, the init's own processes are not judged, only the services it runs: s6-overlay, for example, ends its supervision tree (every `s6-*` process) itself once its services have stopped. A child that only keeps the container alive (`sleep`, `pause`, `tail -f /dev/null`, `cat` on stdin) is not the workload and is not judged; when it is the only child, PID 1 is judged itself, as a lone PID 1 is.
+* **Common rules**: [Containers that cannot be inspected](#containers-that-cannot-be-inspected), [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
 
 ----------
 
@@ -607,8 +631,7 @@ All state: `./cnti-testsuite state`
 
 #### Overview
 
-Every node that hosts a pod of the CNF is cordoned and drained once, one node at a time, and every Deployment, StatefulSet or ReplicaSet that has a pod there when the drain starts must be Ready again on another node while the drained node is still cordoned. The pods on a node are read just before it is drained, so pods an earlier drain moved there are judged with it, and the test ends only when every workload is Ready again, so the tests after it start from a settled CNF. The details record, per node, how many pods were evicted and how long it took, and per workload how long it took to be Ready again; a workload that does not come back, or whose eviction the API refuses (a PodDisruptionBudget, usually), is a finding with the reason. A workload that cannot be rescheduled because its volume is tied to the drained node by the cluster's default storage class (the scheduler reports a volume node affinity conflict, and `elastic_volumes` would call the volume the cluster's choice) is listed with the reason and not judged: the CNF took the storage the cluster offers, and the same chart passes where the default storage follows a pod; it comes back when the node does, and the test is not applicable when every workload is in that state. Storage tied to a node that the CNF chose itself (a `local` or `hostPath` PersistentVolume, a node-local storage class it names) stays a finding. Bare Pods, DaemonSets, Jobs and CronJobs are reported as not applicable: a drain deletes a bare Pod for good, leaves a DaemonSet's pods in place, and a Job's pod runs to completion. Skipped when the cluster has fewer than two schedulable nodes.
-Measurement: `kubectl drain` of each node hosting the CNF's pods, with DaemonSet pods ignored and emptyDir data deleted, and the recovery read from the workloads' pods: as many as the workload asks for, all Ready and none on the drained node; no chaos tool is involved. The node stays cordoned for `CNTI_TESTSUITE_NODE_DRAIN_TOTAL_CHAOS_DURATION` seconds (30 by default) after the drain.
+Every schedulable node that hosts a pod of the CNF's Deployments, StatefulSets or ReplicaSets is cordoned and drained once, one node at a time, and every Deployment, StatefulSet or ReplicaSet with a pod there must be Ready again on another node while the drained node is still cordoned.
 Expectation: All workload resources are successfully rescheduled onto other available node(s).
 
 #### Rationale
@@ -625,6 +648,20 @@ Ensure that your CNF can be successfully rescheduled when a node fails or is [dr
 #### Usage
 
 `./cnti-testsuite node_drain`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the Deployments, StatefulSets and ReplicaSets that have a pod on a node when its drain starts. The pods on a node are read just before it is drained, so pods an earlier drain moved there are judged with it. A node hosting only bare Pods, DaemonSet, Job or CronJob pods is not drained. Which nodes are schedulable is read once, when the test starts: a hosting node that was not schedulable then is named in the details and not drained, and a node cordoned while the test runs is still drained. Bare Pods, DaemonSets, Jobs and CronJobs are reported as not applicable: a drain deletes a bare Pod for good, leaves a DaemonSet's pods in place, and a Job's pod runs to completion. Skipped when the cluster has fewer than two schedulable nodes.
+* **Configuration**: `CNTI_TESTSUITE_NODE_DRAIN_TOTAL_CHAOS_DURATION`: how long a node stays cordoned, in seconds (30 by default), counted from the start of its drain, so a drain and recovery that take longer than this uncordon the node as soon as they end. A node whose drain does not complete is uncordoned at once, without the hold.
+* **Verdicts**: a workload is Ready again when it has as many pods as it asks for, all Ready and none on the drained node. A workload that does not come back, whose eviction the API refuses (a PodDisruptionBudget, usually), or that has no scheduled pod to drain when the test starts, is a finding with the reason. The details record, per node, how many pods were evicted and how long it took, and per workload how long it took to be Ready again.
+* **Verdicts**: a workload that cannot be rescheduled because its volume is tied to the drained node by the cluster's default storage class (the scheduler reports a volume node affinity conflict, and `elastic_volumes` would call the volume the cluster's choice) is listed with the reason and not judged: the CNF took the storage the cluster offers, and the same chart passes where the default storage follows a pod; it comes back when the node does, and the test is not applicable when every workload is in that state. Storage tied to a node that the CNF chose itself (a `local` or `hostPath` PersistentVolume, a node-local storage class it names) stays a finding.
+* **Side effects**: each node is drained with `kubectl drain`, DaemonSet pods ignored and emptyDir data deleted; no chaos tool is involved. Before it ends, the test waits for every workload it has not already failed to be Ready again, so the tests after it start from a settled CNF; a workload that is still not Ready then fails too.
+* **Common rules**: [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
 
 ----------
 
@@ -2114,17 +2151,23 @@ Rules that several tests share. A test's Details links to the ones that apply to
 
 ### Rollout tests
 
-Rolling update, Rolling version change, Rolling downgrade and Rollback move the CNF to the version before the installed one, and each judges one step of that change, as its Details say: the upgrade back, the move down, or Rollback's `helm rollback` and `kubectl rollout undo`. They share these rules.
+Rolling update, Rolling version change, Rolling downgrade and Rollback move the CNF to the version before the installed one, or to the tag configured for the test, and each judges one step of that change, as its Details say: the upgrade back, the move down, or Rollback's `helm rollback` and `kubectl rollout undo`. They share these rules.
 
 * **Two paths**: a chart installed from a Helm repository or an OCI registry (`helm_charts`) is moved as a release, image and pod spec together, as an upgrade does: to its previous version with `helm upgrade` and the configured values. Workloads the CNF ships from a chart directory or from manifests have no previous release to install and are moved one image at a time with [kubectl set image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-).
 * **The previous chart version**: `previous_chart_version` when configured, else the chart version before the installed one in the repository: the closest older version of the same form. A version that ships the same app version as the installed chart is a chart-only change, so the search goes on to the closest older one with another app version.
-* **The previous image**: the container's tag for the test in the `container_names` section of `cnti-testsuite.yaml` (`rolling_update_test_tag`, `rolling_version_change_test_tag`, `rolling_downgrade_test_tag`, `rollback_from_tag`), else the image's previous release in its registry, named in the details: the closest older tag of the same form as the deployed one (`v4.3.0` takes `v4.2.3`, never `v4.3.0-rc1`; a commit hash in the tag is a label, so `…-20261016_52af3689` takes `…-20261015_de11750b`).
+* **The previous image**: the container's tag for the test in the `container_names` section of `cnti-testsuite.yaml` (`rolling_update_test_tag`, `rolling_version_change_test_tag`, `rolling_downgrade_test_tag`, `rollback_from_tag`), used as given: it only has to differ from the deployed tag and is not checked to be older; else the image's previous release in its registry, named in the details: the closest older tag of the same form as the deployed one (`v4.3.0` takes `v4.2.3`, never `v4.3.0-rc1`; a commit hash in the tag is a label, so `…-20261016_52af3689` takes `…-20261015_de11750b`).
 * **Left out with a remediation**: a release whose older versions all ship the installed app version; a configured `previous_chart_version` that is not older than the installed one; a container whose configured tag is the one it already runs (that rolls nothing out); a container with no tag configured whose tag names no version (`latest`, `stable`, or a tag ending in `-latest`) or that has no older release.
 * **Version skew**: a previous image taken from the registry that crash-loops under the pod spec the current chart renders is version skew, which no upgrade produces (an upgrade moves image and spec together). The workload is named in the details with the reason and not judged, and a CNF whose workloads all do that is not applicable. A configured tag is the user's assertion that the image fits, so its crash stays a failure.
 * **Operator-owned workloads**: a workload whose controller owner is an operator's custom resource takes its image from that resource. It is named in the details and not rolled, whatever is configured, since a direct change is reverted or fought by the operator and the outcome would measure its reconcile timing; upgrade it through the custom resource. A CNF whose workloads are all operator-owned (or Jobs) is not applicable.
 * **Jobs and CronJobs**: not applicable, since nothing of theirs rolls out: a Job's pod template cannot change and its pods run once, and a change to a CronJob's job template applies only to the Jobs it creates afterwards.
 * **When nothing is judged**: a release with no Deployment, StatefulSet or DaemonSet is named in the details and not judged. The test is not applicable when every workload is a Job or CronJob, operator-owned, version skew, or in such a release; it is skipped when nothing has a usable previous version, or when a release's previous version could not be installed, except for Rolling downgrade, where that move is the judged step and a release that cannot be moved down fails the test.
 * **Restoring images** (Rolling update, Rolling version change, Rolling downgrade): afterwards every workload the test changed is put back to its deployed image and must be ready again within the pod readiness timeout, so the next test starts from the CNF as deployed. A StatefulSet pod that never became Ready is deleted so that it is recreated from the deployed template (a forced rollback).
+
+----------
+
+### Containers that cannot be inspected
+
+The tests that read a container's processes on its node, through the cluster-tools pod there, list a container they could not inspect in the details with the reason, among them: not started or not ready, with the container's state; no ready cluster-tools pod on the node; a container ID of a runtime other than containerd or CRI-O; a container that crictl does not know about, or that has no running process. A test can add reasons of its own, as Sigterm Handled's Details say. Such a container does not fail the test, and the test is skipped, naming how many containers could not be inspected and why, only when none could.
 
 ----------
 
