@@ -99,6 +99,12 @@ module CNFManager
           # The scanner did not deliver: say so with its reason, not a trace.
           logger.error { "#{result.testcase}: #{ex.message}" }
           result.error("Kubescape scan failed: #{ex.message}")
+        rescue ex : Kyverno::AuditError
+          # Kyverno did not deliver (its policies could not be downloaded, its
+          # CLI printed no report): the test could not judge the CNF, so an
+          # error with the reason, as for a Litmus fault (#2891).
+          logger.error { "#{result.testcase}: #{ex.message}" }
+          result.error("#{result.testcase} not run: #{ex.message}")
         rescue ex : LitmusManager::FaultInstallError
           # The fault to inject is not there (its template could not be fetched,
           # its experiment not applied): the test could not judge the CNF, and

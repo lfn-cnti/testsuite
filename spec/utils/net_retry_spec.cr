@@ -28,7 +28,8 @@ describe "NetRetry" do
     ["connection reset by peer", "dial tcp: lookup x: i/o timeout", "unexpected EOF",
      "TLS handshake timeout", "Temporary failure in name resolution",
      "Unsuccessful request, status code: [503], msg: Service Unavailable",
-     "server responded with 502 Bad Gateway"].each do |message|
+     "server responded with 502 Bad Gateway",
+     "fatal: unable to access 'https://github.com/kyverno/policies.git/': Could not resolve host: github.com"].each do |message|
       NetRetry.transient?(Exception.new(message)).should be_true
     end
 

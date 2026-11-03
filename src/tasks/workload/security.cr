@@ -49,7 +49,7 @@ desc "Check if pods in the CNF use sysctls with restricted values"
 scored_task "sysctls",
   emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    Kyverno.install
+    Kyverno.install!
     policy_path = Kyverno.policy_path("pod-security/baseline/restrict-sysctls/restrict-sysctls.yaml")
     failures = Kyverno::PolicyAudit.run(policy_path, EXCLUDE_NAMESPACES)
     resource_keys = CNFManager.workload_resource_keys(args, config)
@@ -74,7 +74,7 @@ desc "Check if the CNF has services with external IPs configured"
 scored_task "external_ips",
   emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    Kyverno.install
+    Kyverno.install!
     policy_path = Kyverno.best_practice_policy("restrict-service-external-ips/restrict-service-external-ips.yaml")
     failures = Kyverno::PolicyAudit.run(policy_path, EXCLUDE_NAMESPACES)
 
@@ -102,7 +102,7 @@ scored_task "selinux_options",
   type: CNFManager::TestType::Essential,
   emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    Kyverno.install
+    Kyverno.install!
     check_policy_path = Kyverno::CustomPolicies::SELinuxEnabled.new.policy_path
     check_failures = Kyverno::PolicyAudit.run(check_policy_path, EXCLUDE_NAMESPACES)
 
@@ -151,7 +151,7 @@ scored_task "container_sock_mounts",
   type: CNFManager::TestType::Essential,
   emoji: "🔓🔑" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    Kyverno.install
+    Kyverno.install!
     policy_path = Kyverno.best_practice_policy("disallow-cri-sock-mount/disallow-cri-sock-mount.yaml")
     failures = Kyverno::PolicyAudit.run(policy_path, EXCLUDE_NAMESPACES)
 

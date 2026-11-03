@@ -41,6 +41,8 @@ module NetRetry
     /temporary failure/i,
     /no such host/i,
     /name resolution/i,
+    # git and curl, when the resolver fails.
+    /could not resolve host/i,
     /unexpected end of/i,
     /status code: \[5\d\d\]/,
     /internal server error/i,

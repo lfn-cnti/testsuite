@@ -6,6 +6,14 @@ module Kyverno
   # Branch of github.com/kyverno/policies the sample policies are taken from.
   POLICIES_BRANCH = "release-1.19"
 
+  # Raised when a Kyverno-based test cannot judge the CNF: the CLI or the
+  # policies are not there, or the CLI printed no policy report. The task
+  # runner reports the test as not run, with this reason (#2891).
+  class AuditError < Exception; end
+
+  # Why the last install did not complete, for AuditError.
+  @@install_error : String? = nil
+
   def self.cli_dir
     "#{tools_path}/kyverno-cli"
   end
@@ -14,14 +22,30 @@ module Kyverno
     "#{cli_dir}/kyverno"
   end
 
+  # Installs the CLI and the policies, or raises AuditError with the reason:
+  # a test that went on without them would read no report (#2891).
+  def self.install!
+    @@install_error = nil
+    return if install
+    raise AuditError.new(@@install_error || "the Kyverno CLI #{VERSION} or its policies #{POLICIES_BRANCH} could not be installed")
+  end
+
   def self.install
     cli = ToolInstall.ensure("kyverno CLI", VERSION, binary_path) do
       FileUtils.rm_rf(cli_dir)
       FileUtils.mkdir_p(cli_dir)
       tempfile = File.tempfile("kyverno", ".tar.gz")
-      download_file(download_url, tempfile.path)
+      begin
+        download_file(download_url, tempfile.path)
+      rescue ex
+        # download_file retries a transient failure, then raises.
+        tempfile.delete
+        @@install_error = "the Kyverno CLI #{VERSION} could not be downloaded from #{download_url}: #{ex.message.to_s.lines.first?.to_s.strip}"
+        next false
+      end
       result = TarClient.untar(tempfile.path, cli_dir)
       tempfile.delete
+      @@install_error = "the Kyverno CLI #{VERSION} could not be unpacked" unless result[:status].success?
       result[:status].success?
     end
     return false unless cli
@@ -70,11 +94,24 @@ module Kyverno
     "#{tools_path}/kyverno-policies"
   end
 
-  def self.download_policies_repo
-    delete_policies_repo
+  # Clones the policies, retrying a failure that looks transient (a DNS or
+  # network blip) as the suite's other downloads do.
+  def self.download_policies_repo : Bool
     url = "https://github.com/kyverno/policies.git"
-    result = GitClient.clone("--depth 1 --branch #{POLICIES_BRANCH} #{url} #{policies_repo_path}")
-    result[:status].success?
+    NetRetry.with_retries("git clone #{url}") do
+      delete_policies_repo
+      result = GitClient.clone("--depth 1 --branch #{POLICIES_BRANCH} #{url} #{policies_repo_path}")
+      unless result[:status].success?
+        message = result[:error].to_s.strip
+        raise NetRetry::TransientError.new(message) if NetRetry.transient?(Exception.new(message))
+        @@install_error = "the Kyverno policies #{POLICIES_BRANCH} could not be cloned from #{url}: #{message.lines.last? || "git clone failed"}"
+        return false
+      end
+    end
+    true
+  rescue ex : NetRetry::TransientError
+    @@install_error = "the Kyverno policies #{POLICIES_BRANCH} could not be cloned from #{url}: #{ex.message.to_s.lines.last? || "git clone failed"}"
+    false
   end
 
   def self.delete_policies_repo
@@ -109,8 +146,12 @@ module Kyverno
     struct PolicyFailure
       property message
       property resources
+      # Kyverno could not evaluate the policy for these resources (a report
+      # result of `error`): filter_failures_for_cnf_resources raises for the
+      # CNF's own, so a test does not pass on what Kyverno could not tell.
+      property error : Bool
 
-      def initialize(@message : String, @resources : Array(FailedResource))
+      def initialize(@message : String, @resources : Array(FailedResource), @error : Bool = false)
       end
     end
 
@@ -123,27 +164,44 @@ module Kyverno
     end
 
     def self.run(policy_path : String, exclude_namespaces : Array(String) = [] of String)
+      raise AuditError.new("the Kyverno policy #{policy_path} is not there") unless File.exists?(policy_path)
       cmd = "#{Kyverno.binary_path} apply #{policy_path} --cluster --policy-report"
-      ShellCmd.run("ls #{policy_path}", "kyverno_policy_path", force_output: true)
       result = ShellCmd.run(cmd, "Kyverno::PolicyAudit.run", force_output: true)
-      policy_report = YAML.parse(report_document(result[:output]))
+      failures_from(result[:output], exclude_namespaces, result[:status].exit_code, result[:error])
+    end
+
+    # The failures in the CLI's output. Kyverno 1.19 prints no report when no
+    # rule matched a resource, and exits 0; it also exits 0 without a report
+    # when it cannot reach the cluster, but then writes the client's errors
+    # to stderr. So no report is no failures when stderr is clean and the exit
+    # code 0, and an AuditError otherwise (#2891).
+    def self.failures_from(output : String, exclude_namespaces : Array(String) = [] of String,
+                           exit_code : Int32 = 0, stderr : String = "") : Array(PolicyFailure)
+      unless output.lines.any?(&.starts_with?("apiVersion:"))
+        problems = stderr.lines.map(&.strip).select { |line| line =~ /\A(E\d{4} |Error:|error:)/ }
+        return [] of PolicyFailure if exit_code == 0 && problems.empty?
+        said = (problems.empty? ? stderr.lines.map(&.strip).reject(&.empty?) : problems).last(3).join(" ")
+        raise AuditError.new("kyverno apply printed no policy report (exit code #{exit_code})#{said.empty? ? "" : ": #{said[0, 300]}"}")
+      end
+      policy_report = YAML.parse(report_document(output))
 
       failures = [] of PolicyFailure
-      policy_report["results"].as_a.each do |test_result|
-        if test_result["result"] == "fail"
-          failed_resources = test_result["resources"].as_a.reduce([] of FailedResource) do |acc, resource|
-            if exclude_namespaces.includes?(resource["namespace"])
-              acc
-            else
-              acc << FailedResource.new(resource["kind"].to_s, resource["name"].to_s, resource["namespace"].to_s)
-            end
-          end
-
-          if failed_resources.size > 0
-            policy_failure = PolicyFailure.new(test_result["message"].to_s, failed_resources)
-            failures.push(policy_failure)
-          end
+      (policy_report["results"]?.try(&.as_a?) || [] of YAML::Any).each do |test_result|
+        outcome = test_result["result"]?.try(&.as_s?)
+        next unless outcome == "fail" || outcome == "error"
+        listed = test_result["resources"]?.try(&.as_a?) || [] of YAML::Any
+        # An error that names no resource is the policy's own: it cannot be
+        # narrowed to the CNF, and the audit did not run.
+        if outcome == "error" && listed.empty?
+          raise AuditError.new("Kyverno could not evaluate the policy: #{test_result["message"]?.to_s[0, 300]}")
         end
+        resources = listed.compact_map do |resource|
+          namespace = resource["namespace"]?.try(&.as_s?) || ""
+          next if exclude_namespaces.includes?(namespace)
+          FailedResource.new(resource["kind"]?.to_s, resource["name"]?.to_s, namespace)
+        end
+        next if resources.empty?
+        failures.push(PolicyFailure.new(test_result["message"]?.to_s, resources, error: outcome == "error"))
       end
 
       failures
@@ -211,18 +269,27 @@ module Kyverno
     end
   end
 
+  # The failures on the CNF's own resources. An evaluation error on one of
+  # them raises AuditError: the test does not pass on what Kyverno could not
+  # tell. Errors on the cluster's other resources are not the CNF's.
   def self.filter_failures_for_cnf_resources(resource_keys, failures)
     filtered = failures.map do |failure|
       failed_resources = failure.resources.select do |resource|
         CNFManager.resources_includes?(resource_keys, resource.kind, resource.name, resource.namespace)
       end
-      PolicyAudit::PolicyFailure.new(failure.message, failed_resources)
+      PolicyAudit::PolicyFailure.new(failure.message, failed_resources, failure.error)
     end
     filtered = filtered.select do |failure|
       failure.resources.size > 0
     end
 
-    filtered
+    errors = filtered.select(&.error).map do |failure|
+      names = failure.resources.map { |r| "#{r.kind}/#{r.name}#{r.namespace.empty? ? "" : " in #{r.namespace}"}" }
+      "#{names.join(", ")}: #{failure.message}"
+    end
+    raise AuditError.new("Kyverno could not evaluate the policy for #{errors.first(3).join("; ")[0, 400]}#{errors.size > 3 ? " (#{errors.size} in all)" : ""}") unless errors.empty?
+
+    filtered.reject(&.error)
   end
 
 end
