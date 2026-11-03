@@ -32,7 +32,7 @@ desc "Check if the CNF is running containers with labels configured?"
 scored_task "require_labels",
   emoji: "🏷️" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    Kyverno.install
+    Kyverno.install!
     policy_path = Kyverno.best_practice_policy("require-labels/require-labels.yaml")
     failures = Kyverno::PolicyAudit.run(policy_path, EXCLUDE_NAMESPACES)
 
@@ -56,7 +56,7 @@ desc "Check if the CNF installs resources in the default namespace"
 scored_task "default_namespace",
   emoji: "🏷️" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    Kyverno.install
+    Kyverno.install!
     policy_path = Kyverno.best_practice_policy("disallow-default-namespace/disallow-default-namespace.yaml")
     failures = Kyverno::PolicyAudit.run(policy_path, EXCLUDE_NAMESPACES)
 
@@ -81,7 +81,7 @@ scored_task "latest_tag",
   type: CNFManager::TestType::Essential,
   emoji: "🏷️" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    Kyverno.install
+    Kyverno.install!
 
     policy_path = Kyverno.best_practice_policy("disallow-latest-tag/disallow-latest-tag.yaml")
     failures = Kyverno::PolicyAudit.run(policy_path, EXCLUDE_NAMESPACES)
