@@ -13,7 +13,7 @@ require "../utils/utils.cr"
 require "../utils/stop_outcome.cr"
 
 desc "The CNF test suite checks to see if CNFs follows microservice principles"
-category_task "microservice", ["reasonable_image_size", "reasonable_startup_time", "single_process_type", "service_discovery", "shared_database", "specialized_init_system", "sig_term_handled", "zombie_handled"]
+category_task "microservice", ["reasonable_image_size", "reasonable_startup_time", "single_process_type", "service_discovery", "shared_database", "specialized_init_system", "system_init_not_used", "sig_term_handled", "zombie_handled"]
 
 STRACE_WAIT_BUFFER = 3
 
@@ -1202,6 +1202,83 @@ scored_task "specialized_init_system",
     else
       checked_inits.each { |line| result.append_description(line) }
       result.passed("Containers use specialized init systems 🖥️")
+    end
+  end
+end
+
+desc "To check that no container of the CNF runs an operating-system init as its PID 1"
+scored_task "system_init_not_used",
+  type: CNFManager::TestType::Normal,
+  deps: ["setup:install_cluster_tools"],
+  emoji: "🧰" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    error_occurred    = false
+    resources_checked = false
+    checked_inits     = [] of String
+    not_inspected     = [] of String
+
+    task_response = CNFManager.workload_resource_test(args, config, check_containers: false) do |resource, _, _, yaml|
+      Log.for(t.name).info { "Checking #{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}" }
+
+      pods = begin
+        KubectlClient::Get.pods_by_resource_labels(yaml, resource[:namespace])
+      rescue ex
+        result.append_description("Could not list pods for #{resource[:kind]}/#{resource[:name]}: #{ex.message}")
+        error_occurred = true
+        next false
+      end
+
+      resources_checked = true
+
+      # Every pod is inspected and reported, as by specialized_init_system;
+      # the verdict comes afterwards.
+      pods.map do |pod|
+        pod_name = pod.dig("metadata", "name").as_s
+        phase = pod.dig?("status", "phase").try(&.as_s?) || "Unknown"
+        if CNFManager.batch_workload?(resource) && phase != "Running"
+          not_inspected << "#{resource[:kind]}/#{resource[:name]} pod #{pod_name}: pod is #{phase}, its init process cannot be read"
+          next true
+        end
+
+        results = InitSystems.scan(pod, executable: true)
+        if results.nil?
+          result.append_description("Error scanning init system in pod #{pod_name}")
+          error_occurred = true
+          next false
+        end
+
+        results.reject(&.inspected).each do |info|
+          not_inspected << "#{info.kind}/#{info.name} container #{info.container}: PID 1 could not be read: #{info.reason}"
+        end
+        inspected = results.select(&.inspected)
+        failed = inspected.select { |info| InitSystems.system_init?(info.exe, info.applet) }
+        (inspected - failed).each do |info|
+          checked_inits << "#{info.kind}/#{info.name} container #{info.container}: PID 1 runs '#{info.exe}'"
+        end
+        next true if failed.empty?
+
+        failed.each do |info|
+          result.add_impacted_resource(info.kind.to_s, info.name.to_s, info.namespace.to_s, container: info.container.to_s,
+            reason: "PID 1 is the operating-system init '#{info.exe}' (started as '#{info.init_cmd}')")
+        end
+        next false
+      end.all?(true)
+    end
+
+    not_inspected.each { |line| result.append_description("Not inspected: #{line}") }
+    if error_occurred
+      result.skipped("Init systems not checked: the CNF's pods could not be listed, see the details")
+    elsif !resources_checked
+      result.skipped("Init systems not checked: the CNF has no workload with pods to inspect")
+    elsif checked_inits.empty? && task_response
+      # No container's PID 1 was read, whether listed as not inspected or
+      # because the workloads have no pods: nothing to pass on.
+      result.skipped(inspection_skip_message("Init systems not checked", not_inspected))
+    elsif !task_response
+      result.failed("Containers run an operating-system init as their PID 1")
+    else
+      checked_inits.each { |line| result.append_description(line) }
+      result.passed("No container runs an operating-system init as its PID 1")
     end
   end
 end

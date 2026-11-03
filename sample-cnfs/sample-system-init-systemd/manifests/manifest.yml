@@ -1,0 +1,47 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sysinit-systemd
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+
+---
+# systemd as PID 1, as an image made to boot it runs (Red Hat's ubi-init:
+# CMD /sbin/init, a symlink to /usr/lib/systemd/systemd). systemd needs a
+# writable cgroup tree, so the container is privileged, and a tmpfs on /run
+# and /tmp. system_init_not_used must FAIL here.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: system-init-systemd
+  namespace: sysinit-systemd
+  labels:
+    app: system-init-systemd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: system-init-systemd
+  template:
+    metadata:
+      labels:
+        app: system-init-systemd
+    spec:
+      containers:
+      - name: systemd
+        image: registry.access.redhat.com/ubi9/ubi-init:9.8
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: run
+          mountPath: /run
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: run
+        emptyDir:
+          medium: Memory
+      - name: tmp
+        emptyDir:
+          medium: Memory

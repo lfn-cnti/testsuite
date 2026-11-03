@@ -8,7 +8,7 @@
 
 * [**Category: Microservice Tests**](#category-microservice-tests)
 
-   [[Reasonable Image Size]](#reasonable-image-size) | [[Reasonable Startup Time]](#reasonable-startup-time) | [[Single Process Type in One Container]](#single-process-type-in-one-container) | [[Service Discovery]](#service-discovery) | [[Shared Database]](#shared-database) | [[Specialized Init Systems]](#specialized-init-systems) | [[Sigterm Handled]](#sigterm-handled) | [[Zombie Handled]](#zombie-handled)
+   [[Reasonable Image Size]](#reasonable-image-size) | [[Reasonable Startup Time]](#reasonable-startup-time) | [[Single Process Type in One Container]](#single-process-type-in-one-container) | [[Service Discovery]](#service-discovery) | [[Shared Database]](#shared-database) | [[Specialized Init Systems]](#specialized-init-systems) | [[System Init Not Used]](#system-init-not-used) | [[Sigterm Handled]](#sigterm-handled) | [[Zombie Handled]](#zombie-handled)
 
 * [**Category: State Tests**](#category-state-tests)
 
@@ -464,6 +464,29 @@ Use init systems that are purpose-built for containers like tini, dumb-init, cat
 #### Usage
 
 `./cnti-testsuite specialized_init_system`
+
+----------
+
+### System Init Not Used
+
+#### Overview
+
+This tests that no container in the CNF's pods runs an init system made for a whole operating system as its PID 1 process: systemd, SysV init, upstart and BusyBox init (which all run as `init`), OpenRC (`openrc-init`) or runit (`runit`, `runit-init`). The check is on the executable PID 1 runs, read on the node from `/proc/<pid>/exe`, not on its command line: systemd is usually started as `/sbin/init`, a symlink to systemd itself, and a script named `init` runs as its interpreter. BusyBox resolves to `busybox` whichever applet it runs, so it fails the test only when that applet is `init`: the name it was started under (`/proc/<pid>/comm`), as for Alpine's `/sbin/init` symlink, or its first argument when it was started as `busybox init`. A BusyBox PID 1 whose name cannot be read is listed as not inspected. Of a Job's or CronJob's pods only the running ones can be inspected, and a container that could not be inspected is listed in the details with the reason, as in [Specialized Init Systems](#specialized-init-systems); the test is skipped when no container's PID 1 could be read, including when the CNF's workloads have no pods.
+Expectation: No container runs an operating-system init as its PID 1.
+
+#### Rationale
+
+An operating-system init boots a whole user space inside the container, which works against how Kubernetes runs it. It runs several services next to the application (journald, logind, udev, cron) that Kubernetes can neither observe nor restart or scale on their own, and it restarts a failing service itself, so the container's probes and restart count do not show the failure. Its services log to the journal rather than to stdout and stderr, out of reach of `kubectl logs` and log collectors. systemd needs a writable `/sys/fs/cgroup` and a tmpfs on `/run`, which usually means a privileged container. And it does not stop on SIGTERM, which Kubernetes sends unless the image declares another stop signal: systemd re-executes itself on SIGTERM and halts only on `SIGRTMIN+3`, so a container whose image does not declare that signal is killed at the end of its termination grace period, without a clean shutdown.
+
+Sources: [systemd(1), Signals](https://www.freedesktop.org/software/systemd/man/latest/systemd.html#Signals); [CNTi CBPP-0005, single concern per container](https://github.com/lfn-cnti/bestpractices/blob/main/doc/cbpps/0005-single-concern-per-container.md); [Docker, running multiple services in a container](https://docs.docker.com/engine/containers/multi-service_container/).
+
+#### Remediation
+
+Run the application itself as PID 1, or under an init made for containers (tini, dumb-init, catatonit, s6-overlay, gopherd; see [Specialized Init Systems](#specialized-init-systems)). Move each service the operating-system init ran into its own container, send logs to stdout and stderr, and let Kubernetes probes and restart policies do what the init's service manager did.
+
+#### Usage
+
+`./cnti-testsuite system_init_not_used`
 
 ----------
 
@@ -2038,5 +2061,5 @@ A Job's pods run to completion, its pod template cannot change, and it serves no
 | [Reasonable Startup Time](#reasonable-startup-time), [Service Discovery](#service-discovery), [Sigterm Handled](#sigterm-handled), [Liveness probe](#liveness-probe), [Readiness probe](#readiness-probe), [Prometheus installed](#prometheus-installed) | Not applicable. When the CNF has no other workload, the test is not applicable. |
 | [Rollback](#rollback), [Rolling update](#rolling-update), [Rolling version change](#rolling-version-change), [Rolling downgrade](#rolling-downgrade), [Node drain](#node-drain), [OpenMetrics compatible](#openmetrics-compatible) | Not applicable. |
 | The chaos tests of [Reliability, Resilience and Availability](#category-reliability-resilience-and-availability-tests) | Left out: Litmus cannot target them. |
-| [Specialized Init Systems](#specialized-init-systems), [Routed logs](#routed-logs) | Only the pods still running are inspected. |
+| [Specialized Init Systems](#specialized-init-systems), [System Init Not Used](#system-init-not-used), [Routed logs](#routed-logs) | Only the pods still running are inspected. |
 | [Use stdout/stderr for logs](#use-stdoutstderr-for-logs) | Finished pods are read like running ones. |

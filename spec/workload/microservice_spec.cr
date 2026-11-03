@@ -294,6 +294,38 @@ describe "Microservice" do
     result = ShellCmd.cnf_uninstall()
   end
 
+  it "'system_init_not_used' should fail if a container runs systemd as its PID 1", tags: ["system_init_not_used"] do
+    ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-system-init-systemd")
+    result = ShellCmd.run_testsuite("system_init_not_used")
+    (/Containers run an operating-system init as their PID 1/ =~ result[:output]).should_not be_nil
+    (/Pod\/system-init-systemd-.* \(container systemd\): PID 1 is the operating-system init '\/usr\/lib\/systemd\/systemd' \(started as '\/sbin\/init'\)/ =~ result[:output]).should_not be_nil
+    verify_task_result("system_init_not_used", "failed")
+  ensure
+    result = ShellCmd.cnf_uninstall()
+  end
+
+  it "'system_init_not_used' should fail if a container runs BusyBox init as its PID 1", tags: ["system_init_not_used"] do
+    ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-system-init-busybox")
+    result = ShellCmd.run_testsuite("system_init_not_used")
+    (/Containers run an operating-system init as their PID 1/ =~ result[:output]).should_not be_nil
+    (/\(container busybox-init\): PID 1 is the operating-system init '\/bin\/init'/ =~ result[:output]).should_not be_nil
+    verify_task_result("system_init_not_used", "failed")
+  ensure
+    result = ShellCmd.cnf_uninstall()
+  end
+
+  it "'system_init_not_used' should pass if containers run the application or a container init as PID 1", tags: ["system_init_not_used"] do
+    ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-init-systems")
+    result = ShellCmd.run_testsuite("system_init_not_used")
+    result[:status].success?.should be_true
+    (/No container runs an operating-system init as its PID 1/ =~ result[:output]).should_not be_nil
+    # s6-overlay is started as /init, a script: PID 1 ends up as s6-svscan.
+    (/> Pod\/nginx-s6-overlay-sample container nginx-dumb-init: PID 1 runs '.*s6-svscan'/ =~ result[:output]).should_not be_nil
+    verify_task_result("system_init_not_used", "passed")
+  ensure
+    result = ShellCmd.cnf_uninstall()
+  end
+
   it "'specialized_init_system' should include label-selected resources", tags: ["labels"] do
     begin
       ShellCmd.cnf_install("--cnf-config ./sample-cnfs/sample-operator/cnti-testsuite.yaml")

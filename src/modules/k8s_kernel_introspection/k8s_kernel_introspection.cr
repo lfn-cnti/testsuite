@@ -90,6 +90,18 @@ module KernelIntrospection
         cmdline
       end
 
+      # The executable the process runs, resolved: a command line can name a
+      # symlink (/sbin/init for systemd) or anything at all.
+      def self.exe_by_pid(pid : String, node)
+        ClusterTools.exec_by_node("readlink /proc/#{pid}/exe", node)
+      end
+
+      # The name the process was started under: a symlink's name, where
+      # /proc/<pid>/exe gives the file it points to.
+      def self.comm_by_pid(pid : String, node)
+        ClusterTools.exec_by_node("cat /proc/#{pid}/comm", node)
+      end
+
       def self.proctree_by_pid(potential_parent_pid : String, node : JSON::Any, proc_statuses : (Array(String) | Nil) = nil) : Array(Hash(String, String)) # array of status hashes
         Log.for("proctree_by_pid").info { "proctree_by_pid potential_parent_pid: #{potential_parent_pid}" }
         proctree = [] of Hash(String, String)

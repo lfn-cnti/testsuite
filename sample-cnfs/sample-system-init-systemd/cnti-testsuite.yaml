@@ -1,0 +1,6 @@
+---
+config_version: v2
+deployments:
+  manifests:
+  - name: system-init-systemd
+    manifest_directory: manifests
