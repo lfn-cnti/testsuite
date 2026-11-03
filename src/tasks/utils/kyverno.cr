@@ -71,6 +71,20 @@ module Kyverno
   end
 
   def self.download_policies_repo
+    FileUtils.mkdir_p(File.dirname(policies_repo_path))
+    if Offline.enabled?
+      source = Offline.bundle_path("kyverno-policies")
+      unless Dir.exists?(source)
+        raise Offline::MissingArtifactError.new(
+          "Offline mode: the Kyverno policies are not in the air-gap bundle at #{source}. " \
+          "Run `cnti-testsuite airgap_prepare` on a connected host."
+        )
+      end
+      delete_policies_repo
+      FileUtils.cp_r(source, policies_repo_path)
+      return true
+    end
+
     delete_policies_repo
     url = "https://github.com/kyverno/policies.git"
     result = GitClient.clone("--depth 1 --branch #{POLICIES_BRANCH} #{url} #{policies_repo_path}")

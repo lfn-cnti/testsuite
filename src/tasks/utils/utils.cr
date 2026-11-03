@@ -8,6 +8,7 @@ require "option_parser"
 require "../constants.cr"
 require "semantic_version"
 require "./dockerd.cr"
+require "./offline.cr"
 require "./kyverno.cr"
 require "./tool_install.cr"
 require "./workload_diagnostics.cr"
@@ -17,6 +18,7 @@ require "./suite_namespaces.cr"
 require "./timeouts.cr"
 require "./cnf_installation/config.cr"
 require "ecr"
+require "base64"
 require "http/client"
 require "../../modules/net_retry"
 
@@ -553,14 +555,34 @@ end
 
 def download_file(url : String, output_path : String,
                   redirect_limit : Int = 5, headers : HTTP::Headers? = nil)
+  # An air-gapped run never reaches the internet: the bundle prepared on a
+  # connected host is the only source.
+  if Offline.enabled?
+    return Offline.fetch_cached(url, output_path)
+  end
+
   # The display label comes from the caller's URL: redirect targets (GitHub
   # serves release assets under opaque UUID names) and temp output files both
   # make meaningless labels.
-  label = File.basename(URI.parse(url).path)
+  uri = URI.parse(url)
+  label = File.basename(uri.path)
   label = File.basename(output_path) if label.empty?
+  headers = add_basic_auth(uri, headers)
   NetRetry.with_retries("download #{url_without_credentials(url)}") do
     follow_and_download(url, output_path, redirect_limit, headers, label)
   end
+end
+
+# An authenticated mirror puts its credentials in the URL. Crystal's
+# HTTP::Client.new(uri) does not apply them, so turn them into Basic auth. A
+# caller-supplied Authorization header wins.
+private def add_basic_auth(uri : URI, headers : HTTP::Headers?) : HTTP::Headers?
+  return headers unless user = uri.user
+  result = headers.try(&.dup) || HTTP::Headers.new
+  unless result.has_key?("Authorization")
+    result["Authorization"] = "Basic #{Base64.strict_encode("#{user}:#{uri.password}")}"
+  end
+  result
 end
 
 # Streams the response straight to `<output_path>.part` (so a long download
@@ -639,6 +661,23 @@ private def follow_and_download(url : String, output_path : String,
 
   if location = redirect_location
     # Location may be relative; resolve it against the URI that redirected.
-    return follow_and_download(uri.resolve(location).to_s, output_path, redirect_limit - 1, headers, label)
+    target = uri.resolve(location)
+    uri_scheme = uri.scheme.try(&.downcase)
+    target_scheme = target.scheme.try(&.downcase)
+    if headers && uri_scheme == "https" && target_scheme != "https"
+      raise "Refusing to send credentials to #{target.scheme}://#{target.host} after an HTTPS redirect"
+    end
+    redirect_headers = headers
+    if redirect_headers
+      target_host = target.host.to_s.downcase
+      uri_host = uri.host.to_s.downcase
+      target_port = target.port || (target_scheme == "https" ? 443 : 80)
+      uri_port = uri.port || (uri_scheme == "https" ? 443 : 80)
+      if target_host != uri_host || target_port != uri_port
+        redirect_headers = redirect_headers.dup
+        redirect_headers.delete("Authorization")
+      end
+    end
+    return follow_and_download(target.to_s, output_path, redirect_limit - 1, redirect_headers, label)
   end
 end

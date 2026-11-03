@@ -22,6 +22,11 @@ module ClusterTools
     %(awk -v s="/$name.sock" 'NR > 1 && substr($NF, length($NF) - length(s) + 1) == s { print $NF; exit }' #{proc_net_unix})
   end
 
+  # Fully qualified: CRI-O resolves no short names without a configured
+  # search registry, and would never pull the image.
+  # renovate: datasource=docker depName=lfncnti/cluster-tools
+  IMAGE = "docker.io/lfncnti/cluster-tools:v1.0.8"
+
   class ManifestTemplate
     def initialize
     end
