@@ -136,6 +136,18 @@ module Explain
                       j.field "url", doc.url
                       j.field "overview", doc.overview
                       j.field "remediation", doc.remediation
+                      j.field "details", doc.details
+                      j.field "common_rules" do
+                        j.array do
+                          doc.common_rules.each do |rule|
+                            j.object do
+                              j.field "heading", rule.heading
+                              j.field "url", rule.url
+                              j.field "text", rule.text
+                            end
+                          end
+                        end
+                      end
                     end
                   end
                 end
@@ -199,6 +211,14 @@ module Explain
           io << "\nWhat the test checks (" << doc["url"].as_s << "):\n"
           io << "  " << doc["overview"].as_s? << "\n" if doc["overview"]?.try(&.as_s?)
           io << "How to fix it:\n  " << doc["remediation"].as_s? << "\n" if doc["remediation"]?.try(&.as_s?)
+          if details = doc["details"]?.try(&.as_s?)
+            io << "How the test works:\n"
+            details.each_line { |line| io << "  " << line << "\n" }
+          end
+          # The rules themselves are in the JSON; the text names them.
+          doc["common_rules"]?.try(&.as_a?).try &.each do |rule|
+            io << "  See also: " << rule["heading"].as_s? << " (" << rule["url"].as_s? << ")\n"
+          end
         end
         # The result's own remediation, unless it is the documentation's, as
         # it is for a failure that brought none of its own.

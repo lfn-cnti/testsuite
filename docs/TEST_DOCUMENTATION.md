@@ -30,6 +30,10 @@
 
    [[Default namespaces]](#default-namespaces) | [[Latest tag]](#latest-tag) | [[Require labels]](#require-labels) | [[Versioned tag]](#versioned-tag) | [[NodePort not used]](#nodeport-not-used) | [[HostPort not used]](#hostport-not-used) | [[Hardcoded IP addresses in K8s runtime configuration]](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | [[Secrets used]](#secrets-used) | [[Immutable configmap]](#immutable-configmap) | [[Kubernetes Alpha APIs]](#kubernetes-alpha-apis) | [[Operator installed]](#operator-installed) | [[Hugepages volumes]](#hugepages-volumes) | [[Exclusive CPUs]](#exclusive-cpus)
 
+* [**Common rules**](#common-rules)
+
+   [[Rollout tests]](#rollout-tests) | [[Jobs and CronJobs]](#jobs-and-cronjobs)
+
 ----------
 
 ## Category: Compatibility, Installability and Upgradability Tests
@@ -147,9 +151,8 @@ Make sure your helm charts are valid and can be deployed to clusters.
 
 #### Overview
 
-Checks if the Pod can be upgraded to a new software version, then restored back to the original software version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) and [Kubectl Rollout Undo](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#rollout) commands.
+Checks that a version change can be undone: the CNF is moved to the version before the installed one, then rolled back to the installed one with `helm rollback` or [kubectl rollout undo](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#rollout), and every workload must roll out within the timeout.
 Expectation: The CNF Software version can be successfully incremented, then rolled back.
-A chart installed from a Helm repository or an OCI registry (`helm_charts`) is moved as a release, image and pod spec together, as an upgrade does: the test takes the chart version before the installed one from the repository (the closest older version of the same form; a version that ships the same app version as the installed chart is a chart-only change, so the search goes on to the closest older one with another app version, and a release whose older versions all ship the installed app version is left out with a remediation), or `previous_chart_version` when configured (a configured version that is not older than the installed one is left out with a remediation), and moves the release there with `helm upgrade` and the configured values, without judging that move; it then rolls the release back to the installed revision with `helm rollback`, and that rollback is judged: every workload of the release must roll out within the timeout. A release whose previous version cannot be installed is named in the details and not judged, since no rollback needs a downgrade. The release is brought back to the installed version afterwards. Workloads the CNF ships from a chart directory or from manifests have no previous release to install and are rolled one image at a time: The version to move to is the container's `rollback_from_tag` in the `container_names` section of `cnti-testsuite.yaml`; without one, the test takes the image's previous release from its registry: the closest older tag of the same form as the deployed one (`v4.3.0` takes `v4.2.3`, never `v4.3.0-rc1`; a commit hash in the tag is a label, so `…-20261016_52af3689` takes `…-20261015_de11750b`), named in the details. A container is left out with a remediation when its configured tag is the one it already runs (that rolls nothing out), when no tag is configured and its tag names no version (`latest`, `stable`, or a tag ending in `-latest`) or no older release exists; the test is skipped when no container could be rolled. A previous image taken from the registry that crash-loops under the pod spec the current chart renders is version skew, which no upgrade produces (an upgrade moves image and spec together): the workload is named in the details with the reason and not judged, and a CNF whose workloads all do that is not applicable; a configured tag is the user's assertion that the image fits, so its crash stays a failure. A workload whose controller owner is an operator's custom resource takes its image from that resource: it is named in the details and not rolled, whatever is configured, since a direct change is reverted or fought by the operator and the outcome would measure its reconcile timing; upgrade it through the custom resource. A CNF whose workloads are all operator-owned (or Jobs) is not applicable. A rollout that does not complete is reported per resource with the image and the reason. A Job or CronJob is not applicable: its pod template cannot change.
 
 #### Rationale
 
@@ -165,15 +168,27 @@ For a chart installed from a Helm repository or an OCI registry, ensure that the
 
 `./cnti-testsuite rollback`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: Deployments, StatefulSets and DaemonSets, as a Helm release (`helm_charts`) or one container image at a time; Jobs and CronJobs are not applicable.
+* **Configuration**: `previous_chart_version` for a release; `rollback_from_tag` per container in `container_names`.
+* **Verdicts**: a release is moved to its previous chart version with `helm upgrade`, without judging that move, then rolled back to the installed revision with `helm rollback`; that rollback is judged: every workload of the release must roll out within the timeout. A release whose previous version cannot be installed is named in the details and not judged, since no rollback needs a downgrade. A container is moved to its previous image with kubectl set image and rolled back with kubectl rollout undo; a workload whose undo kubectl refuses is a finding with kubectl's reason (`spec.revisionHistoryLimit: 0` keeps no revision to return to). A rollout that does not complete is reported per resource with the image and the reason.
+* **Side effects**: the release is brought back to the installed version afterwards; the undo returns each workload to its deployed image, and when kubectl refuses the undo the deployed image is set back directly.
+* **Common rules**: [Rollout tests](#rollout-tests) (the previous version, what is left out, version skew, operator-owned workloads), [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
+
 ----------
 
 ### Rolling version change
 
 #### Overview
 
-Checks if the Pod can be rolled back to the original software version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) to perform a rollback.
+Checks that the CNF can change its version in place and return to the installed one: it is moved to the version before the installed one and back, and every workload must roll out within the timeout. A chart from a repository is moved as a Helm release; other workloads have each container's image changed with [kubectl set image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-).
 Expectation: The CNF Software version is successfully rolled back to its original version.
-A chart installed from a Helm repository or an OCI registry (`helm_charts`) is moved as a release, image and pod spec together, as an upgrade does: the test takes the chart version before the installed one from the repository (the closest older version of the same form; a version that ships the same app version as the installed chart is a chart-only change, so the search goes on to the closest older one with another app version, and a release whose older versions all ship the installed app version is left out with a remediation), or `previous_chart_version` when configured (a configured version that is not older than the installed one is left out with a remediation), and moves the release there with `helm upgrade` and the configured values, without judging that move; it then upgrades the release back to the installed version, and that upgrade is judged: every workload of the release must roll out within the timeout. A release whose previous version cannot be installed is named in the details and not judged, since no upgrade needs a downgrade. The release is brought back to the installed version afterwards. Workloads the CNF ships from a chart directory or from manifests have no previous release to install and are rolled one image at a time: The version to move to is the container's `rolling_version_change_test_tag` in the `container_names` section of `cnti-testsuite.yaml`; without one, the test takes the image's previous release from its registry: the closest older tag of the same form as the deployed one (`v4.3.0` takes `v4.2.3`, never `v4.3.0-rc1`; a commit hash in the tag is a label, so `…-20261016_52af3689` takes `…-20261015_de11750b`), named in the details. A container is left out with a remediation when its configured tag is the one it already runs (that rolls nothing out), when no tag is configured and its tag names no version (`latest`, `stable`, or a tag ending in `-latest`) or no older release exists; the test is skipped when no container could be rolled. A previous image taken from the registry that crash-loops under the pod spec the current chart renders is version skew, which no upgrade produces (an upgrade moves image and spec together): the workload is named in the details with the reason and not judged, and a CNF whose workloads all do that is not applicable; a configured tag is the user's assertion that the image fits, so its crash stays a failure. A workload whose controller owner is an operator's custom resource takes its image from that resource: it is named in the details and not rolled, whatever is configured, since a direct change is reverted or fought by the operator and the outcome would measure its reconcile timing; upgrade it through the custom resource. A CNF whose workloads are all operator-owned (or Jobs) is not applicable. A rollout that does not complete is reported per resource with the image and the reason. Afterwards every workload the test changed is put back to its deployed image and must be ready again within the pod readiness timeout, so the next test starts from the CNF as deployed; a StatefulSet pod that never became Ready is deleted so that it is recreated from the deployed template (a forced rollback). A workload that does not come back is a finding of this test. A Job or CronJob is not applicable: its pod template cannot change.
 
 #### Rationale
 
@@ -191,15 +206,27 @@ For a chart installed from a Helm repository or an OCI registry, ensure that the
 
 `./cnti-testsuite rolling_version_change`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: Deployments, StatefulSets and DaemonSets, as a Helm release (`helm_charts`) or one container image at a time; Jobs and CronJobs are not applicable.
+* **Configuration**: `previous_chart_version` for a release; `rolling_version_change_test_tag` per container in `container_names`.
+* **Verdicts**: a release is moved to its previous chart version with `helm upgrade`, without judging that move, then upgraded back to the installed version; that upgrade is judged: every workload of the release must roll out within the timeout. A release whose previous version cannot be installed is named in the details and not judged, since no upgrade needs a downgrade. A container's rollout to its previous image must complete within the timeout; one that does not is reported per resource with the image and the reason.
+* **Side effects**: the release is brought back to the installed version, and the images the test changed are restored as described in [Rollout tests](#rollout-tests); a workload that does not come back is a finding of this test.
+* **Common rules**: [Rollout tests](#rollout-tests) (the previous version, what is left out, version skew, operator-owned workloads), [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
+
 ----------
 
 ### Rolling update
 
 #### Overview
 
-Checks if the Pod can be upgraded to a new software version by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-)
+Checks that the CNF can be upgraded in place: it is moved to the version before the installed one and upgraded back, and every workload must roll out within the timeout. A chart from a repository is moved as a Helm release; other workloads have each container's image changed with [kubectl set image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-).
 Expectation: The CNF Software version can be successfully incremented.
-A chart installed from a Helm repository or an OCI registry (`helm_charts`) is moved as a release, image and pod spec together, as an upgrade does: the test takes the chart version before the installed one from the repository (the closest older version of the same form; a version that ships the same app version as the installed chart is a chart-only change, so the search goes on to the closest older one with another app version, and a release whose older versions all ship the installed app version is left out with a remediation), or `previous_chart_version` when configured (a configured version that is not older than the installed one is left out with a remediation), and moves the release there with `helm upgrade` and the configured values, without judging that move; it then upgrades the release back to the installed version, and that upgrade is judged: every workload of the release must roll out within the timeout. A release whose previous version cannot be installed is named in the details and not judged, since no upgrade needs a downgrade. The release is brought back to the installed version afterwards. Workloads the CNF ships from a chart directory or from manifests have no previous release to install and are rolled one image at a time: The version to move to is the container's `rolling_update_test_tag` in the `container_names` section of `cnti-testsuite.yaml`; without one, the test takes the image's previous release from its registry: the closest older tag of the same form as the deployed one (`v4.3.0` takes `v4.2.3`, never `v4.3.0-rc1`; a commit hash in the tag is a label, so `…-20261016_52af3689` takes `…-20261015_de11750b`), named in the details. A container is left out with a remediation when its configured tag is the one it already runs (that rolls nothing out), when no tag is configured and its tag names no version (`latest`, `stable`, or a tag ending in `-latest`) or no older release exists; the test is skipped when no container could be rolled. A previous image taken from the registry that crash-loops under the pod spec the current chart renders is version skew, which no upgrade produces (an upgrade moves image and spec together): the workload is named in the details with the reason and not judged, and a CNF whose workloads all do that is not applicable; a configured tag is the user's assertion that the image fits, so its crash stays a failure. A workload whose controller owner is an operator's custom resource takes its image from that resource: it is named in the details and not rolled, whatever is configured, since a direct change is reverted or fought by the operator and the outcome would measure its reconcile timing; upgrade it through the custom resource. A CNF whose workloads are all operator-owned (or Jobs) is not applicable. A rollout that does not complete is reported per resource with the image and the reason. Afterwards every workload the test changed is put back to its deployed image and must be ready again within the pod readiness timeout, so the next test starts from the CNF as deployed; a StatefulSet pod that never became Ready is deleted so that it is recreated from the deployed template (a forced rollback). A workload that does not come back is a finding of this test. A Job or CronJob is not applicable: its pod template cannot change.
 
 #### Rationale
 
@@ -215,15 +242,27 @@ For a chart installed from a Helm repository or an OCI registry, ensure that the
 
 `./cnti-testsuite rolling_update`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: Deployments, StatefulSets and DaemonSets, as a Helm release (`helm_charts`) or one container image at a time; Jobs and CronJobs are not applicable.
+* **Configuration**: `previous_chart_version` for a release; `rolling_update_test_tag` per container in `container_names`.
+* **Verdicts**: a release is moved to its previous chart version with `helm upgrade`, without judging that move, then upgraded back to the installed version; that upgrade is judged: every workload of the release must roll out within the timeout. A release whose previous version cannot be installed is named in the details and not judged, since no upgrade needs a downgrade. A container's rollout to its previous image must complete within the timeout; one that does not is reported per resource with the image and the reason.
+* **Side effects**: the release is brought back to the installed version, and the images the test changed are restored as described in [Rollout tests](#rollout-tests); a workload that does not come back is a finding of this test.
+* **Common rules**: [Rollout tests](#rollout-tests) (the previous version, what is left out, version skew, operator-owned workloads), [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
+
 ----------
 
 ### Rolling downgrade
 
 #### Overview
 
-Checks if the Pod can be rolled back older software version(Older than the original software version) by using the [Kubectl Set Image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-) to perform a downgrade.
+Checks that the CNF can be downgraded in place: it is moved to the version before the installed one, and every workload must roll out within the timeout. A chart from a repository is moved as a Helm release; other workloads have each container's image changed with [kubectl set image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-). The CNF is put back to the installed version afterwards.
 Expectation: The CNF Software version is successfully downgraded to a software version older than the original installation version.
-A chart installed from a Helm repository or an OCI registry (`helm_charts`) is moved as a release, image and pod spec together, as an upgrade does: the test takes the chart version before the installed one from the repository (the closest older version of the same form; a version that ships the same app version as the installed chart is a chart-only change, so the search goes on to the closest older one with another app version, and a release whose older versions all ship the installed app version is left out with a remediation), or `previous_chart_version` when configured (a configured version that is not older than the installed one is left out with a remediation), and moves the release there with `helm upgrade` and the configured values; that move down is judged: every workload of the release must roll out within the timeout, and a release that cannot be moved down is a failure. The release is brought back to the installed version afterwards. Workloads the CNF ships from a chart directory or from manifests have no previous release to install and are rolled one image at a time: The version to move to is the container's `rolling_downgrade_test_tag` in the `container_names` section of `cnti-testsuite.yaml`; without one, the test takes the image's previous release from its registry: the closest older tag of the same form as the deployed one (`v4.3.0` takes `v4.2.3`, never `v4.3.0-rc1`; a commit hash in the tag is a label, so `…-20261016_52af3689` takes `…-20261015_de11750b`), named in the details. A container is left out with a remediation when its configured tag is the one it already runs (that rolls nothing out), when no tag is configured and its tag names no version (`latest`, `stable`, or a tag ending in `-latest`) or no older release exists; the test is skipped when no container could be rolled. A previous image taken from the registry that crash-loops under the pod spec the current chart renders is version skew, which no upgrade produces (an upgrade moves image and spec together): the workload is named in the details with the reason and not judged, and a CNF whose workloads all do that is not applicable; a configured tag is the user's assertion that the image fits, so its crash stays a failure. A workload whose controller owner is an operator's custom resource takes its image from that resource: it is named in the details and not rolled, whatever is configured, since a direct change is reverted or fought by the operator and the outcome would measure its reconcile timing; upgrade it through the custom resource. A CNF whose workloads are all operator-owned (or Jobs) is not applicable. A rollout that does not complete is reported per resource with the image and the reason. Afterwards every workload the test changed is put back to its deployed image and must be ready again within the pod readiness timeout, so the next test starts from the CNF as deployed; a StatefulSet pod that never became Ready is deleted so that it is recreated from the deployed template (a forced rollback). A workload that does not come back is a finding of this test. A Job or CronJob is not applicable: its pod template cannot change.
 
 #### Rationale
 
@@ -238,6 +277,19 @@ For a chart installed from a Helm repository or an OCI registry, ensure that the
 #### Usage
 
 `./cnti-testsuite rolling_downgrade`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: Deployments, StatefulSets and DaemonSets, as a Helm release (`helm_charts`) or one container image at a time; Jobs and CronJobs are not applicable.
+* **Configuration**: `previous_chart_version` for a release; `rolling_downgrade_test_tag` per container in `container_names`.
+* **Verdicts**: a release is moved down to its previous chart version with `helm upgrade`, and that move is judged: every workload of the release must roll out within the timeout, and a release that cannot be moved down is a failure. A container's rollout to its previous image must complete within the timeout; one that does not is reported per resource with the image and the reason.
+* **Side effects**: the release is brought back to the installed version, and the images the test changed are restored as described in [Rollout tests](#rollout-tests); a workload that does not come back is a finding of this test.
+* **Common rules**: [Rollout tests](#rollout-tests) (the previous version, what is left out, version skew, operator-owned workloads), [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
 
 ----------
 
@@ -2052,7 +2104,33 @@ For each latency-sensitive workload make its pods Guaranteed (set cpu and memory
 
 ----------
 
-**Jobs and CronJobs.** The tests inspect a CNF's Jobs and CronJobs as they inspect its Deployments, StatefulSets, DaemonSets, ReplicaSets and bare Pods. The configuration and security tests judge their pod templates the same way: a privileged container in a database setup Job is a finding, as it would be in a Deployment.
+----------
+
+## Common rules
+
+Rules that several tests share. A test's Details links to the ones that apply to it.
+
+----------
+
+### Rollout tests
+
+Rolling update, Rolling version change, Rolling downgrade and Rollback move the CNF to the version before the installed one, and each judges one step of that change, as its Details say: the upgrade back, the move down, or Rollback's `helm rollback` and `kubectl rollout undo`. They share these rules.
+
+* **Two paths**: a chart installed from a Helm repository or an OCI registry (`helm_charts`) is moved as a release, image and pod spec together, as an upgrade does: to its previous version with `helm upgrade` and the configured values. Workloads the CNF ships from a chart directory or from manifests have no previous release to install and are moved one image at a time with [kubectl set image](https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-image-em-).
+* **The previous chart version**: `previous_chart_version` when configured, else the chart version before the installed one in the repository: the closest older version of the same form. A version that ships the same app version as the installed chart is a chart-only change, so the search goes on to the closest older one with another app version.
+* **The previous image**: the container's tag for the test in the `container_names` section of `cnti-testsuite.yaml` (`rolling_update_test_tag`, `rolling_version_change_test_tag`, `rolling_downgrade_test_tag`, `rollback_from_tag`), else the image's previous release in its registry, named in the details: the closest older tag of the same form as the deployed one (`v4.3.0` takes `v4.2.3`, never `v4.3.0-rc1`; a commit hash in the tag is a label, so `…-20261016_52af3689` takes `…-20261015_de11750b`).
+* **Left out with a remediation**: a release whose older versions all ship the installed app version; a configured `previous_chart_version` that is not older than the installed one; a container whose configured tag is the one it already runs (that rolls nothing out); a container with no tag configured whose tag names no version (`latest`, `stable`, or a tag ending in `-latest`) or that has no older release.
+* **Version skew**: a previous image taken from the registry that crash-loops under the pod spec the current chart renders is version skew, which no upgrade produces (an upgrade moves image and spec together). The workload is named in the details with the reason and not judged, and a CNF whose workloads all do that is not applicable. A configured tag is the user's assertion that the image fits, so its crash stays a failure.
+* **Operator-owned workloads**: a workload whose controller owner is an operator's custom resource takes its image from that resource. It is named in the details and not rolled, whatever is configured, since a direct change is reverted or fought by the operator and the outcome would measure its reconcile timing; upgrade it through the custom resource. A CNF whose workloads are all operator-owned (or Jobs) is not applicable.
+* **Jobs and CronJobs**: not applicable, since nothing of theirs rolls out: a Job's pod template cannot change and its pods run once, and a change to a CronJob's job template applies only to the Jobs it creates afterwards.
+* **When nothing is judged**: a release with no Deployment, StatefulSet or DaemonSet is named in the details and not judged. The test is not applicable when every workload is a Job or CronJob, operator-owned, version skew, or in such a release; it is skipped when nothing has a usable previous version, or when a release's previous version could not be installed, except for Rolling downgrade, where that move is the judged step and a release that cannot be moved down fails the test.
+* **Restoring images** (Rolling update, Rolling version change, Rolling downgrade): afterwards every workload the test changed is put back to its deployed image and must be ready again within the pod readiness timeout, so the next test starts from the CNF as deployed. A StatefulSet pod that never became Ready is deleted so that it is recreated from the deployed template (a forced rollback).
+
+----------
+
+### Jobs and CronJobs
+
+The tests inspect a CNF's Jobs and CronJobs as they inspect its Deployments, StatefulSets, DaemonSets, ReplicaSets and bare Pods. The configuration and security tests judge their pod templates the same way: a privileged container in a database setup Job is a finding, as it would be in a Deployment.
 
 A Job's pods run to completion, its pod template cannot change, and it serves nothing. The tests that need a long-running workload therefore list each Job and CronJob in the test details as not applicable and judge the CNF's other workloads:
 

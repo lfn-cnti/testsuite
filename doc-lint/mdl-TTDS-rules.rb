@@ -10,11 +10,11 @@ rule "TTDS001", "Testsuite documentation header format" do
         line_number = element.options[:location]
         case element.options[:level]
         when 2
-          unless text == "Table of Contents" || text.start_with?("Category:")
+          unless text == "Table of Contents" || text == "Common rules" || text.start_with?("Category:")
             violation_lines << line_number
           end
         when 4
-          allowed_texts = ["Overview", "Rationale", "Remediation", "Usage"]
+          allowed_texts = ["Overview", "Rationale", "Remediation", "Usage", "Details"]
           unless allowed_texts.include?(text)
             violation_lines << line_number
           end
@@ -88,24 +88,34 @@ rule "TTDS004", "Tests should have all required sub-sections" do
     parsed = doc.parsed
     violation_lines = []
     required_subsections = ["Overview", "Rationale", "Remediation", "Usage"]
+    optional_subsections = ["Details"]
     current_test_header = nil
     found_subsections = []
-    parsed.root.children.each do |element|
-      if element.type == :header
-        if element.options[:level] == 3 && element.options[:raw_text] != "Usage"
-          unless found_subsections.sort == required_subsections.sort || current_test_header.nil?
-            violation_lines << current_test_header.options[:location]
-          end
-          current_test_header = element
-          found_subsections = []
-        elsif element.options[:level] == 4
-          found_subsections << element.options[:raw_text]
-        end
+    in_common_rules = false
+    close = lambda do
+      next if current_test_header.nil?
+      unless (found_subsections - optional_subsections).sort == required_subsections.sort
+        violation_lines << current_test_header.options[:location]
       end
     end
-    unless found_subsections.sort == required_subsections.sort
-      violation_lines << current_test_header.options[:location]
+    parsed.root.children.each do |element|
+      next unless element.type == :header
+      case element.options[:level]
+      when 2
+        # The sections under "Common rules" are shared rules, not tests.
+        close.call
+        current_test_header = nil
+        in_common_rules = element.options[:raw_text] == "Common rules"
+      when 3
+        next if element.options[:raw_text] == "Usage"
+        close.call
+        current_test_header = in_common_rules ? nil : element
+        found_subsections = []
+      when 4
+        found_subsections << element.options[:raw_text]
+      end
     end
+    close.call
     violation_lines.empty? ? nil : violation_lines
   end
 end
@@ -192,6 +202,87 @@ rule "TTDS007", "Every Rationale names the source of the practice (at least one 
       elsif in_rationale && line =~ /\]\(https?:\/\//
         has_link = true
       end
+    end
+    close.call
+    violation_lines.empty? ? nil : violation_lines
+  end
+end
+
+# A test whose behaviour is written out under Details keeps its Overview brief:
+# what it checks, for a person reading the page. Applies to the tests with a
+# Details section, which are being moved there (#2888).
+OVERVIEW_WORD_LIMIT = 60
+
+rule "TTDS008", "An Overview stays within #{OVERVIEW_WORD_LIMIT} words, its Expectation line apart, when the test has Details" do
+  tags :documentation
+  check do |doc|
+    violation_lines = []
+    sections = []
+    doc.lines.each_with_index do |line, index|
+      if line.start_with?("### ")
+        sections << {overview_line: nil, words: 0, details: false, in_overview: false}
+      elsif (section = sections.last)
+        if line.start_with?("#### ")
+          section[:in_overview] = line.strip == "#### Overview"
+          section[:overview_line] = index + 1 if section[:in_overview]
+          section[:details] = true if line.strip == "#### Details"
+        elsif section[:in_overview] && !line.start_with?("Expectation:")
+          section[:words] += line.split.size
+        end
+      end
+    end
+    sections.each do |section|
+      if section[:details] && section[:overview_line] && section[:words] > OVERVIEW_WORD_LIMIT
+        violation_lines << section[:overview_line]
+      end
+    end
+    violation_lines.empty? ? nil : violation_lines
+  end
+end
+
+DETAILS_LABELS = ["Scope", "Configuration", "Verdicts", "Side effects", "Limits", "Common rules"]
+
+rule "TTDS009", "Details is a collapsed list whose items start with one of #{DETAILS_LABELS.join(", ")}" do
+  tags :documentation
+  check do |doc|
+    violation_lines = []
+    in_details = false
+    details_line = nil
+    items = 0
+    # :before the <details> tag, :open inside it, :closed after </details>.
+    state = :before
+    previous = ""
+    close = lambda do
+      violation_lines << details_line if in_details && (items.zero? || state != :closed)
+    end
+    doc.lines.each_with_index do |line, index|
+      if line.strip == "#### Details"
+        close.call
+        in_details = true
+        details_line = index + 1
+        items = 0
+        state = :before
+      elsif line.start_with?("#### ") || line.start_with?("### ") || line.start_with?("## ") || line.strip == "----------"
+        close.call
+        in_details = false
+      elsif in_details
+        if line.strip == "<details>"
+          state = state == :before ? :open : :closed_twice
+        elsif line.strip == "</details>"
+          state = state == :open ? :closed : :closed_twice
+        elsif line.start_with?("* ")
+          # Only inside the collapsed block, and only under the fixed labels.
+          # The first item follows a blank line: without one, GitHub keeps
+          # the list in the HTML block and shows it as plain text.
+          label = line[/\A\* \*\*([^*]+)\*\*:/, 1]
+          if state == :open && label && DETAILS_LABELS.include?(label) && (items > 0 || previous.strip.empty?)
+            items += 1
+          else
+            violation_lines << index + 1
+          end
+        end
+      end
+      previous = line
     end
     close.call
     violation_lines.empty? ? nil : violation_lines
