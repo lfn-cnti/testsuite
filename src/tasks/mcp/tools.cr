@@ -274,7 +274,7 @@ module MCP
                      %("untrusted_content":{"type":"string"},) +
                      %("tests":{"type":"array","items":{"type":"object","properties":{) +
                      %("name":{"type":"string"},"status":{"type":["string","null"]},"type":{"type":["string","null"]},"message":{"type":["string","null"]},) +
-                     %("documentation":{"type":"object","description":"the test's section of TEST_DOCUMENTATION: heading, url, overview, remediation"},) +
+                     %("documentation":{"type":"object","description":"the test's section of TEST_DOCUMENTATION: heading, url, overview, remediation, details (the complete behaviour, or null) and common_rules (the shared rules its details link to: heading, url, text)"},) +
                      %("log":{"type":"object","description":"the test's own lines of the run's debug log; omitted counts the lines left out"}},) +
                      %("required":["name"]}}},) +
                      %("required":["results_file","tests"]})
