@@ -28,7 +28,11 @@ namespace "setup" do
     begin
       KubectlClient::Utils.label("namespace", LitmusManager::LITMUS_NAMESPACE,
         ["pod-security.kubernetes.io/enforce=privileged"])
-      KubectlClient::Apply.file(LitmusManager::LITMUS_OPERATOR, namespace: LitmusManager::LITMUS_NAMESPACE)
+      KubectlClient::Apply.file(LitmusManager.operator_manifest, namespace: LitmusManager::LITMUS_NAMESPACE)
+    rescue ex : Offline::MissingArtifactError
+      logger.error { "Error while installing Litmus tool: #{ex.message}" }
+      stdout_failure(ex.message)
+      exit(1)
     rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
       logger.error { "Error while installing Litmus tool: #{ex.message}" }
       stdout_failure(failed_msg)
@@ -52,7 +56,11 @@ namespace "setup" do
     end
 
     begin
-      KubectlClient::Delete.file(LitmusManager::LITMUS_OPERATOR, namespace: LitmusManager::LITMUS_NAMESPACE)
+      KubectlClient::Delete.file(LitmusManager.operator_manifest, namespace: LitmusManager::LITMUS_NAMESPACE)
+    rescue ex : Offline::MissingArtifactError
+      logger.error { "Error while deleting Litmus operator: #{ex.message}" }
+      stdout_failure("Task 'uninstall_litmus' failed")
+      exit(1)
     rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
       logger.error { "Error while deleting Litmus operator: #{ex.message}" }
       stdout_failure("Task 'uninstall_litmus' failed")

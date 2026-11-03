@@ -97,6 +97,20 @@ module Kyverno
   # Clones the policies, retrying a failure that looks transient (a DNS or
   # network blip) as the suite's other downloads do.
   def self.download_policies_repo : Bool
+    FileUtils.mkdir_p(File.dirname(policies_repo_path))
+    if Offline.enabled?
+      source = Offline.bundle_path("kyverno-policies")
+      unless Dir.exists?(source)
+        raise Offline::MissingArtifactError.new(
+          "Offline mode: the Kyverno policies are not in the air-gap bundle at #{source}. " \
+          "Run `cnti-testsuite airgap_prepare` on a connected host."
+        )
+      end
+      delete_policies_repo
+      FileUtils.cp_r(source, policies_repo_path)
+      return true
+    end
+
     url = "https://github.com/kyverno/policies.git"
     NetRetry.with_retries("git clone #{url}") do
       delete_policies_repo
