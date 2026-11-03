@@ -1,0 +1,51 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sysinit-busybox
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+
+---
+# BusyBox init as PID 1: /bin/init is BusyBox itself, run under the name init.
+# Its inittab only respawns a sleep, so it needs no privileges.
+# system_init_not_used must FAIL here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inittab
+  namespace: sysinit-busybox
+data:
+  inittab: |
+    ::respawn:/bin/sleep 3600
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: system-init-busybox
+  namespace: sysinit-busybox
+  labels:
+    app: system-init-busybox
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: system-init-busybox
+  template:
+    metadata:
+      labels:
+        app: system-init-busybox
+    spec:
+      containers:
+      - name: busybox-init
+        image: busybox:1.38.0
+        command: ["/bin/init"]
+        volumeMounts:
+        - name: inittab
+          mountPath: /etc/inittab
+          subPath: inittab
+      volumes:
+      - name: inittab
+        configMap:
+          name: inittab

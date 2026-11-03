@@ -6,6 +6,10 @@ module InitSystems
     property name
     property container
     property init_cmd
+    # The executable PID 1 runs, resolved, and when that is BusyBox the applet
+    # it runs; read only when the scan asks for them.
+    property exe : String
+    property applet : String
     property specialized : Bool
     # False when PID 1's command line could not be read: such a container is
     # neither a pass nor a failure; `reason` says why (#2824).
@@ -19,6 +23,8 @@ module InitSystems
       @container : String,
       @init_cmd : String,
       @specialized : Bool = false,
+      @exe : String = "",
+      @applet : String = "",
       @inspected : Bool = true,
       @reason : String = ""
     )
@@ -36,6 +42,26 @@ module InitSystems
     SPECIALIZED_INIT_SYSTEMS.includes?(File.basename(cmd))
   end
 
+  # An init that boots a whole operating system, by the basename of the
+  # executable PID 1 runs (#2886). The executable, not the command line:
+  # systemd is usually started as /sbin/init, and a script named init runs
+  # as its interpreter. BusyBox resolves to busybox whichever applet it runs,
+  # so BusyBox is an init only when its applet is init; its other applets are
+  # not inits.
+  def self.system_init?(exe : String, applet : String = "") : Bool
+    name = File.basename(exe)
+    SYSTEM_INIT_SYSTEMS.includes?(name) || (name == "busybox" && applet == "init")
+  end
+
+  # The applet a BusyBox PID 1 runs: the name it was started under
+  # (/proc/<pid>/comm), as for an init symlink (Alpine's /sbin/init), else,
+  # when started as busybox itself (`/bin/busybox init`), its first argument.
+  def self.busybox_applet(comm : String, cmdline : String) : String
+    name = comm.strip
+    return name unless name == "busybox"
+    File.basename(cmdline.split("\u0000")[1]?.to_s.strip)
+  end
+
   # A process that belongs to a specialized init system rather than to the
   # workload. tini, dumb-init and catatonit are single binaries; s6 is a family
   # of cooperating processes under s6-svscan (s6-supervise, s6-linux-init-
@@ -45,9 +71,10 @@ module InitSystems
     SPECIALIZED_INIT_SYSTEMS.includes?(name) || name.starts_with?("s6-")
   end
 
-  # Every container's PID 1 with whether it is a specialized init system;
-  # nil when a container could not be inspected.
-  def self.scan(pod : JSON::Any) : Array(InitSystemInfo) | Nil
+  # Every container's PID 1 with whether it is a specialized init system, and
+  # with the executable it runs when `executable` is set; nil when a container
+  # could not be inspected.
+  def self.scan(pod : JSON::Any, executable : Bool = false) : Array(InitSystemInfo) | Nil
     inspected = [] of InitSystemInfo
     error_occurred = false
 
@@ -86,13 +113,17 @@ module InitSystems
       container_name = container["name"].as_s
       reason = ""
       init_cmd = nil
+      exe = ""
+      applet = ""
       unless container_id = container["containerID"]?
         waiting = container.dig?("state", "waiting", "reason").try(&.as_s?)
         reason = "not started#{waiting ? " (#{waiting})" : ""}"
       end
       if container_id
-        read = get_container_init_cmd(pod_node, container_id)
+        read = get_container_init_cmd(pod_node, container_id, executable)
         init_cmd = read[:cmd]
+        exe = read[:exe]
+        applet = read[:applet]
         reason = read[:reason]
       end
       (INIT_CMD_ATTEMPTS - 1).times do
@@ -100,8 +131,10 @@ module InitSystems
         sleep INIT_CMD_RETRY_DELAY
         fresh_id = current_container_id(pod_name.as_s, resource_namespace, container_name)
         next unless fresh_id
-        read = get_container_init_cmd(pod_node, fresh_id)
+        read = get_container_init_cmd(pod_node, fresh_id, executable)
         init_cmd = read[:cmd]
+        exe = read[:exe]
+        applet = read[:applet]
         reason = read[:reason]
       end
       if init_cmd
@@ -111,7 +144,9 @@ module InitSystems
           pod_name.as_s,
           container_name,
           init_cmd,
-          InitSystems.is_specialized_init_system?(init_cmd)
+          InitSystems.is_specialized_init_system?(init_cmd),
+          exe: exe,
+          applet: applet
         )
         Log.for("InitSystems.scan").info { "#{init_info.kind}/#{init_info.name} has container '#{init_info.container}' with #{init_info.init_cmd} as init process" }
       else
@@ -134,20 +169,45 @@ module InitSystems
     nil
   end
 
-  # PID 1's executable, or why it could not be read.
-  def self.get_container_init_cmd(node, container_id) : NamedTuple(cmd: String?, reason: String)
+  # PID 1's command, and the executable it runs (with its BusyBox applet) when
+  # `executable` is set, or why they could not be read.
+  def self.get_container_init_cmd(node, container_id, executable : Bool = false) : NamedTuple(cmd: String?, exe: String, applet: String, reason: String)
     looked_up = ClusterTools.pid_or_reason(container_id.as_s, node)
     pid = looked_up[:pid]
-    return {cmd: nil, reason: looked_up[:reason].to_s} unless pid
+    return {cmd: nil, exe: "", applet: "", reason: looked_up[:reason].to_s} unless pid
 
     result = KernelIntrospection::K8s::Node.cmdline_by_pid(pid, node)
     unless result[:status].success?
       why = result[:error].to_s.lines.map(&.strip).find { |l| !l.empty? } || "no output"
-      return {cmd: nil, reason: "reading /proc/#{pid}/cmdline on the node failed: #{why}"}
+      return {cmd: nil, exe: "", applet: "", reason: "reading /proc/#{pid}/cmdline on the node failed: #{why}"}
     end
     cmd = init_cmd_from_cmdline(result[:output])
-    return {cmd: cmd, reason: ""} if cmd
-    {cmd: nil, reason: "PID 1 (#{pid} on the node) has an empty command line: exited or a zombie"}
+    return {cmd: nil, exe: "", applet: "", reason: "PID 1 (#{pid} on the node) has an empty command line: exited or a zombie"} unless cmd
+    return {cmd: cmd, exe: "", applet: "", reason: ""} unless executable
+
+    link = KernelIntrospection::K8s::Node.exe_by_pid(pid, node)
+    exe = exe_from_link(link[:output])
+    unless link[:status].success? && exe
+      why = link[:error].to_s.lines.map(&.strip).find { |l| !l.empty? } || "no output"
+      return {cmd: nil, exe: "", applet: "", reason: "reading /proc/#{pid}/exe on the node failed: #{why}"}
+    end
+    return {cmd: cmd, exe: exe, applet: "", reason: ""} unless File.basename(exe) == "busybox"
+
+    # BusyBox runs any of its applets: which one is in the name it was
+    # started under, without which its PID 1 cannot be judged.
+    named = KernelIntrospection::K8s::Node.comm_by_pid(pid, node)
+    unless named[:status].success? && !named[:output].to_s.strip.empty?
+      why = named[:error].to_s.lines.map(&.strip).find { |l| !l.empty? } || "no output"
+      return {cmd: nil, exe: "", applet: "", reason: "PID 1 is BusyBox, and reading /proc/#{pid}/comm on the node failed: #{why}"}
+    end
+    {cmd: cmd, exe: exe, applet: busybox_applet(named[:output].to_s, result[:output].to_s), reason: ""}
+  end
+
+  # The path from a /proc/<pid>/exe read, without the " (deleted)" the kernel
+  # adds when the file was replaced since; nil when it is empty.
+  def self.exe_from_link(link : String) : String?
+    path = link.strip.rchop(" (deleted)")
+    path.empty? ? nil : path
   end
 
   # The executable from a /proc/<pid>/cmdline read (NUL-separated); nil when

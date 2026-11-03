@@ -26,6 +26,10 @@ EMPTY_JSON_ARRAY = JSON.parse(%([]))
 # s6-svscan (PID 1 once s6-overlay's /init has handed over), and catatonit (the
 # init podman ships; packaged as `catatonit` on Debian/Ubuntu/Fedora/openSUSE).
 SPECIALIZED_INIT_SYSTEMS = ["tini", "tini-static", "docker-init", "dumb-init", "s6-svscan", "catatonit", "gopherd"]
+# Inits that boot a whole operating system, by the basename of the executable
+# PID 1 runs: systemd (usually started as /sbin/init), SysV init, upstart and
+# BusyBox init (all run as "init"), OpenRC and runit (#2886).
+SYSTEM_INIT_SYSTEMS = ["systemd", "init", "openrc-init", "runit-init", "runit"]
 ROLLING_VERSION_CHANGE_TEST_NAMES = ["rolling_update", "rolling_downgrade", "rolling_version_change"]
 WORKLOAD_RESOURCE_KIND_NAMES = ["replicaset", "deployment", "statefulset", "pod", "daemonset", "job", "cronjob"]
 # The workload kinds whose pods run to completion: judged on what they

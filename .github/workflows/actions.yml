@@ -764,7 +764,7 @@ jobs:
         ./cnti-testsuite cnf_install --cnf-config ./example-cnfs/coredns/cnti-testsuite.yaml
         # CoreDNS fails some of these on its merits (exit 1); an errored test
         # (exit 2+) or a container that could not be inspected fails the job.
-        CNTI_TESTSUITE_LOG_LEVEL=info ./cnti-testsuite single_process_type specialized_init_system sig_term_handled zombie_handled 2>&1 | tee tests.log || [ "${PIPESTATUS[0]}" -eq 1 ]
+        CNTI_TESTSUITE_LOG_LEVEL=info ./cnti-testsuite single_process_type specialized_init_system system_init_not_used sig_term_handled zombie_handled 2>&1 | tee tests.log || [ "${PIPESTATUS[0]}" -eq 1 ]
         if grep -E "could not be inspected|Not inspected:" tests.log; then
           echo "::error::a container could not be inspected on CRI-O"; exit 1
         fi
