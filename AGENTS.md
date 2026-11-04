@@ -29,6 +29,8 @@ the [README](README.md#documentation); start with [CODE_STRUCTURE.md](docs/CODE_
   one external source (by convention on a `Sources:` line). A test may add Details after Usage:
   its complete behaviour as a collapsed `<details>` list under the labels Scope, Configuration,
   Verdicts, Side effects, Limits and Common rules, and then its Overview stays within 60 words.
+  Inside Details, a placeholder is written in capitals (`/proc/PID/status`), never in angle
+  brackets, which the Markdown parser reads as HTML there.
   `Test types` lists the Essential and Bonus tests; `spec/utils/doc_remediation_spec.cr` checks it
   against the type each test declares, so a change of type updates that table too.
 
