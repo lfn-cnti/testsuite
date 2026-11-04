@@ -10,7 +10,7 @@ rule "TTDS001", "Testsuite documentation header format" do
         line_number = element.options[:location]
         case element.options[:level]
         when 2
-          unless text == "Table of Contents" || text == "Common rules" || text.start_with?("Category:")
+          unless ["Table of Contents", "Test types", "Common rules"].include?(text) || text.start_with?("Category:")
             violation_lines << line_number
           end
         when 4
