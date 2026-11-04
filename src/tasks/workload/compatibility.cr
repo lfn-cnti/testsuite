@@ -22,6 +22,7 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
       Log.for(t.name).debug { "container_names: #{container_names}" }
       rolled = 0
       unconfigured = 0
+      unconfigured_reasons = Set(String).new
       batch = Set(String).new
       # Workloads an operator owns take their image from its custom resource
       # (#2810): listed, not rolled, not counted.
@@ -70,7 +71,8 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
           # (#2577).
           configured_tag = config_container.try(&.get_container_tag(tn)) || ""
           tag = rollout_target_tag(result, configured_tag, "#{tn}_test_tag",
-            "#{resource["kind"]}/#{resource["name"]} in #{namespace}", container_name, container.as_h["image"].as_s)
+            "#{resource["kind"]}/#{resource["name"]} in #{namespace}", container_name,
+            container.as_h["image"].as_s, unconfigured_reasons)
           unless tag
             unconfigured += 1
             next true
@@ -129,9 +131,16 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
             result.append_description("#{release.label}: no Deployment, StatefulSet or DaemonSet of the release to roll out; not judged")
             next
           end
+          if reason = ReleaseUpgrade.offline_reason(release)
+            unconfigured += 1
+            unconfigured_reasons << "#{release.label}: #{reason}"
+            result.append_remediation("Run the rollout on a connected host, or prepare both chart versions locally and set previous_chart_version in cnti-testsuite.yaml")
+            next
+          end
           previous = ReleaseUpgrade.previous_version(release, result)
           unless previous
             unconfigured += 1
+            unconfigured_reasons << "#{release.label} has no previous release"
             next
           end
           # The downgrade is the judged move; the update is judged on the way
@@ -167,7 +176,7 @@ ROLLING_VERSION_CHANGE_TEST_NAMES.each do |tn|
       elsif rolled == 0 && unconfigured == 0 && unprepared.empty? && !(batch.empty? && owned.empty? && skew.empty? && idle.empty?)
         result.na(rollout_not_applicable("a #{pretty_test_name}", batch, owned, skew, idle))
       elsif rolled == 0 && (unconfigured > 0 || !unprepared.empty?)
-        result.skipped(rollout_skipped("#{tn}_test_tag", unconfigured, unprepared))
+        result.skipped(rollout_skipped("#{tn}_test_tag", unconfigured, unprepared, unconfigured_reasons))
       elsif task_response && restored
         result.passed("CNF for #{pretty_test_name_capitalized} Passed")
       else
@@ -186,6 +195,7 @@ scored_task "rollback",
 
     rolled = 0
     unconfigured = 0
+    unconfigured_reasons = Set(String).new
 
     batch = Set(String).new
     owned = Set(String).new
@@ -228,7 +238,8 @@ scored_task "rollback",
       config_container = container_names.find{|x| x.name == container_name } if container_names
       configured_tag = config_container.try(&.get_container_tag("rollback_from")) || ""
       rollback_from_tag = rollout_target_tag(result, configured_tag, "rollback_from_tag",
-        "#{resource_kind}/#{resource_name} in #{namespace}", container_name, container.as_h["image"].as_s)
+        "#{resource_kind}/#{resource_name} in #{namespace}", container_name,
+        container.as_h["image"].as_s, unconfigured_reasons)
       unless rollback_from_tag
         unconfigured += 1
         next true
@@ -314,9 +325,16 @@ scored_task "rollback",
         result.append_description("#{release.label}: no Deployment, StatefulSet or DaemonSet of the release to roll out; not judged")
         next
       end
+      if reason = ReleaseUpgrade.offline_reason(release)
+        unconfigured += 1
+        unconfigured_reasons << "#{release.label}: #{reason}"
+        result.append_remediation("Run the rollback on a connected host, or prepare both chart versions locally and set previous_chart_version in cnti-testsuite.yaml")
+        next
+      end
       previous = ReleaseUpgrade.previous_version(release, result)
       unless previous
         unconfigured += 1
+        unconfigured_reasons << "#{release.label} has no previous release"
         next
       end
       if reason = ReleaseUpgrade.move(release, previous, result, "rollback", false)
@@ -340,7 +358,7 @@ scored_task "rollback",
     elsif rolled == 0 && unconfigured == 0 && unprepared.empty? && !(batch.empty? && owned.empty? && skew.empty? && idle.empty?)
       result.na(rollout_not_applicable("a rollback", batch, owned, skew, idle))
     elsif rolled == 0 && (unconfigured > 0 || !unprepared.empty?)
-      result.skipped(rollout_skipped("rollback_from_tag", unconfigured, unprepared))
+      result.skipped(rollout_skipped("rollback_from_tag", unconfigured, unprepared, unconfigured_reasons))
     elsif task_response && restored
       result.passed("CNF Rollback Passed")
     else
@@ -628,9 +646,13 @@ end
 
 # Why a rollout test was skipped: nothing to roll was configured, or found
 # in a registry, or a chart's previous release could not be installed.
-def rollout_skipped(tag_key : String, unconfigured : Int32, unprepared : Array(String)) : String
+def rollout_skipped(tag_key : String, unconfigured : Int32, unprepared : Array(String), reasons : Set(String)) : String
   parts = [] of String
-  parts << "No usable #{tag_key} configured for any container, and no previous release to take from the registry: see the remediation" if unconfigured > 0
+  if unconfigured > 0
+    why = reasons.to_a.sort.join("; ")
+    why = "no previous release to take from the registry" unless Offline.enabled? && !why.empty?
+    parts << "No usable #{tag_key} configured for any container, and #{why}: see the remediation"
+  end
   parts << "The release before could not be installed for chart#{unprepared.size == 1 ? "" : "s"} #{unprepared.join(", ")}, so there is nothing to judge: see the details" unless unprepared.empty?
   parts.join(". ")
 end
@@ -651,16 +673,22 @@ end
 # comes first; a configured tag equal to the deployed one rolls out nothing
 # and is a configuration gap. Without one, the image's previous release in
 # its registry (#2816): the closest older tag of the same form.
-def rollout_target_tag(result, configured : String, tag_key : String, label : String, container_name : String, image : String) : String?
+def rollout_target_tag(result, configured : String, tag_key : String, label : String, container_name : String, image : String, reasons : Set(String)) : String?
   deployed = ImageTag.digest?(image) ? nil : ImageTag.tag_of(image)
   unless configured.empty?
     if configured == ImageTag.tag_of(image)
+      reasons << "#{tag_key} is the deployed tag"
       result.append_remediation("#{tag_key} #{configured} for container #{container_name} is the deployed tag, so nothing would roll out: set it to another released version")
       return nil
     end
     return configured
   end
   repository = ImageTag.repository_of(image)
+  if Offline.enabled? && deployed && ImageTag.version_form(deployed)
+    reasons << "offline mode cannot list the releases of #{repository}"
+    result.append_remediation("No #{tag_key} configured for container #{container_name}, and offline mode cannot list the releases of #{repository}: add container_names with a #{tag_key} to cnti-testsuite.yaml")
+    return nil
+  end
   tags = if deployed && ImageTag.version_form(deployed)
            ROLLOUT_REGISTRY_TAGS.fetch(repository) { ROLLOUT_REGISTRY_TAGS[repository] = ClusterTools.image_tags(repository) }
          end
@@ -680,6 +708,7 @@ def rollout_target_tag(result, configured : String, tag_key : String, label : St
         else
           "#{repository} has no older release of the form of #{deployed}"
         end
+  reasons << why
   result.append_remediation("No #{tag_key} configured for container #{container_name}, and #{why}: add container_names with a #{tag_key} to cnti-testsuite.yaml")
   nil
 end
@@ -816,12 +845,16 @@ scored_task "helm_chart_published",
   deps: ["setup:install_local_helm"],
   emoji: "⎈📦🌐" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
-    helm = Helm::Binary.get
     charts = config.deployments.helm_charts
     if charts.empty?
       result.na("The CNF has no Helm chart deployment; only charts can be published in a repository")
       next
     end
+    if Offline.enabled? && charts.any? { |deployment| deployment.registry_url.empty? }
+      result.skipped("Offline mode: a chart served from a Helm repository is looked up there, which this run cannot reach")
+      next
+    end
+    helm = Helm::Binary.get
 
     # Every chart is reported with where it was looked for and what came
     # back; each one the repository does not know is a finding (#2598).

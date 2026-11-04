@@ -133,6 +133,28 @@ module ReleaseUpgrade
     chosen
   end
 
+  # Whether the chart of `version` is on disk, so moving the release to it
+  # does not need a pull.
+  def self.chart_cached?(release : Release, version : String) : Bool
+    installed_path = File.join(DEPLOYMENTS_DIR, release.name, release.chart_name)
+    return true if version == release.installed && Dir.exists?(installed_path)
+    Dir.exists?(File.join(DEPLOYMENTS_DIR, "#{release.name}-#{version}", release.chart_name))
+  end
+
+  # In offline mode the repository cannot be listed and a chart that is not
+  # on disk cannot be pulled. Nil when the move can be judged from local files.
+  def self.offline_reason(release : Release) : String?
+    return nil unless Offline.enabled?
+    configured = release.config.previous_chart_version
+    if configured.empty?
+      return "offline mode cannot list the chart versions of #{release.chart_name}; set previous_chart_version and prepare that chart locally"
+    end
+    unless chart_cached?(release, configured) && chart_cached?(release, release.installed)
+      return "offline mode cannot pull the chart #{release.chart_name} #{configured} or #{release.installed}; prepare both locally"
+    end
+    nil
+  end
+
   def self.repository_versions(release : Release) : Array(Helm::ChartVersion)?
     cfg = release.config
     if release.oci?

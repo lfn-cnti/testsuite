@@ -827,6 +827,26 @@ scored_task "sbom_available",
   type: CNFManager::TestType::Normal,
   emoji: "📋🔒" do |t, args|
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    # Applicability comes before offline mode: a CNF that declares no image
+    # is N/A, not skipped, even when its registry would be unreachable.
+    declares_images = false
+    CNFManager.cnf_workload_resources(args, config) do |resource|
+      pod_spec = CNFManager.pod_spec_of(resource)
+      declares_images ||= CNFManager.all_containers_of(pod_spec).any? do |container|
+        image = container["image"]?.try(&.as_s?)
+        !image.nil? && !image.empty?
+      end
+    end
+    unless declares_images
+      result.na("The CNF declares no container images; SBOM availability does not apply")
+      next
+    end
+
+    if Offline.enabled?
+      result.skipped("Offline mode: an SBOM is read from the image's registry, which this run cannot reach")
+      next
+    end
+
     begin
       ClusterTools.install
     rescue ex : ClusterTools::NotReadyException
