@@ -17,6 +17,20 @@ describe "DocRemediation" do
     DocRemediation.for("no_such_test").should be_nil
   end
 
+  it "lists every Essential and Bonus test under Test types, as the code declares them", tags: ["points"] do
+    section = TEST_DOCUMENTATION_MD.partition(/^## Test types$/m)[2].partition(/^## /m)[0]
+    section.should_not be_empty
+    listed = ->(kind : String) do
+      table = section.partition("**#{kind}**")[2].partition(/^\*\*/m)[0]
+      table.scan(/^\|[^\n]*\| `([a-z0-9_]+)` \|$/m).map(&.[1]).sort
+    end
+    of_type = ->(type : CNFManager::TestType) do
+      CNFManager::TestRegistry.all.select { |_, m| m.type == type }.keys.sort
+    end
+    listed.call("Essential").should eq(of_type.call(CNFManager::TestType::Essential))
+    listed.call("Bonus").should eq(of_type.call(CNFManager::TestType::Bonus))
+  end
+
   it "links to the documentation of the version the binary was built from", tags: ["points"] do
     ReleaseManager::DOC_REF.should_not be_empty
     DocRemediation.entry("node_drain").not_nil!.url.should eq(

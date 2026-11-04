@@ -23,12 +23,14 @@ the [README](README.md#documentation); start with [CODE_STRUCTURE.md](docs/CODE_
 - A failed shard may be the runner, not the change: a download that timed out, a port taken on
   a shared host. Read its log before changing code, and rerun it.
 - `docs/TEST_DOCUMENTATION.md` is linted by `mdl` with the rules in `doc-lint/`: level-2 headings
-  only for the table of contents, the categories and `Common rules`; level-3 headings for tests,
+  only for the table of contents, `Test types`, the categories and `Common rules`; level-3 headings for tests,
   and under `Common rules` for the rules several tests share. Each test is in the table of
   contents with Overview, Rationale, Remediation and Usage, and every Rationale links at least
   one external source (by convention on a `Sources:` line). A test may add Details after Usage:
   its complete behaviour as a collapsed `<details>` list under the labels Scope, Configuration,
   Verdicts, Side effects, Limits and Common rules, and then its Overview stays within 60 words.
+  `Test types` lists the Essential and Bonus tests; `spec/utils/doc_remediation_spec.cr` checks it
+  against the type each test declares, so a change of type updates that table too.
 
 ## How a test behaves
 

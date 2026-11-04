@@ -2,9 +2,11 @@
 
 ## Table of Contents
 
+* [**Test types**](#test-types): the Essential and Bonus tests
+
 * [**Category: Compatibility, Installability and Upgradability Tests**](#category-compatibility-installability-and-upgradability-tests)
 
-   [[Increase decrease capacity]](#increase-decrease-capacity) | [[Helm chart published]](#helm-chart-published) | [[Helm chart valid]](#helm-chart-valid) | [[Helm deploy]](#helm-deploy) | [[Rollback]](#rollback) | [[Rolling version change]](#rolling-version-change) | [[Rolling update]](#rolling-update) | [[Rolling downgrade]](#rolling-downgrade) | [[CNI compatible]](#cni-compatible) | [[Deprecated K8s Features](#deprecated-k8s-features)] | [[Dual stack]](#dual-stack)
+   [[Increase decrease capacity]](#increase-decrease-capacity) | [[Helm chart published]](#helm-chart-published) | [[Helm chart valid]](#helm-chart-valid) | [[Helm deploy]](#helm-deploy) | [[Rollback]](#rollback) | [[Rolling version change]](#rolling-version-change) | [[Rolling update]](#rolling-update) | [[Rolling downgrade]](#rolling-downgrade) | [[CNI compatible]](#cni-compatible) | [[Deprecated K8s Features]](#deprecated-k8s-features) | [[Dual stack]](#dual-stack)
 
 * [**Category: Microservice Tests**](#category-microservice-tests)
 
@@ -33,6 +35,61 @@
 * [**Common rules**](#common-rules)
 
    [[Rollout tests]](#rollout-tests) | [[Containers that cannot be inspected]](#containers-that-cannot-be-inspected) | [[Jobs and CronJobs]](#jobs-and-cronjobs)
+
+----------
+
+## Test types
+
+Every test is Essential, Normal or Bonus, as the suite's code declares it. A passed test scores 100 points when it is Essential, 5 when Normal and 1 when Bonus; a failed one scores 0, except [Database persistence](#database-persistence), which scores −1. The Essential tests are the ones `./cnti-testsuite essential` runs, the set the CNTi essential badge counts. A test not listed below is Normal.
+
+**Essential** (19 tests):
+
+| Test | Category | Command |
+| --- | --- | --- |
+| [Increase decrease capacity](#increase-decrease-capacity) | Compatibility | `increase_decrease_capacity` |
+| [Single Process Type in One Container](#single-process-type-in-one-container) | Microservice | `single_process_type` |
+| [Specialized Init Systems](#specialized-init-systems) | Microservice | `specialized_init_system` |
+| [Sigterm Handled](#sigterm-handled) | Microservice | `sig_term_handled` |
+| [Zombie Handled](#zombie-handled) | Microservice | `zombie_handled` |
+| [Node drain](#node-drain) | State | `node_drain` |
+| [Liveness probe](#liveness-probe) | Reliability | `liveness` |
+| [Readiness probe](#readiness-probe) | Reliability | `readiness` |
+| [Use stdout/stderr for logs](#use-stdoutstderr-for-logs) | Observability | `log_output` |
+| [Container socket mounts](#container-socket-mounts) | Security | `container_sock_mounts` |
+| [Privileged Containers](#privileged-containers) | Security | `privileged_containers` |
+| [SELinux Options](#selinux-options) | Security | `selinux_options` |
+| [Non-root containers](#non-root-containers) | Security | `non_root_containers` |
+| [CPU limits](#cpu-limits) | Security | `cpu_limits` |
+| [Memory limits](#memory-limits) | Security | `memory_limits` |
+| [HostPath Mounts](#hostpath-mounts) | Security | `hostpath_mounts` |
+| [Latest tag](#latest-tag) | Configuration | `latest_tag` |
+| [HostPort not used](#hostport-not-used) | Configuration | `hostport_not_used` |
+| [Hardcoded IP addresses in K8s runtime configuration](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | Configuration | `hardcoded_ip_addresses_in_k8s_runtime_configuration` |
+
+**Bonus** (20 tests):
+
+| Test | Category | Command |
+| --- | --- | --- |
+| [Dual stack](#dual-stack) | Compatibility | `dual_stack` |
+| [Reasonable Image Size](#reasonable-image-size) | Microservice | `reasonable_image_size` |
+| [Service Discovery](#service-discovery) | Microservice | `service_discovery` |
+| [No local volume configuration](#no-local-volume-configuration) | State | `no_local_volume_configuration` |
+| [Elastic volumes](#elastic-volumes) | State | `elastic_volumes` |
+| [CNF under network latency](#cnf-under-network-latency) | Reliability | `pod_network_latency` |
+| [IO Stress](#io-stress) | Reliability | `pod_io_stress` |
+| [Network corruption](#network-corruption) | Reliability | `pod_network_corruption` |
+| [Network duplication](#network-duplication) | Reliability | `pod_network_duplication` |
+| [Prometheus installed](#prometheus-installed) | Observability | `prometheus_traffic` |
+| [Routed logs](#routed-logs) | Observability | `routed_logs` |
+| [OpenMetrics compatible](#openmetrics-compatible) | Observability | `open_metrics` |
+| [Jaeger tracing](#jaeger-tracing) | Observability | `tracing` |
+| [Termination message policy](#termination-message-policy) | Observability | `termination_message_policy` |
+| [Ingress and Egress blocked](#ingress-and-egress-blocked) | Security | `ingress_egress_blocked` |
+| [Linux hardening](#linux-hardening) | Security | `linux_hardening` |
+| [Immutable File Systems](#immutable-file-systems) | Security | `immutable_file_systems` |
+| [Secrets used](#secrets-used) | Configuration | `secrets_used` |
+| [Immutable configmap](#immutable-configmap) | Configuration | `immutable_configmap` |
+| [Operator installed](#operator-installed) | Configuration | `operator_installed` |
 
 ----------
 
@@ -332,6 +389,7 @@ Avoid vendor-specific network APIs, annotations and device resources in the CNF'
 #### Overview
 
 Checks whether any deprecated Kubernetes features (API versions, annotations, fields) are used by the CNF. The CNF's manifest is applied to the cluster as a server-side dry-run, and the deprecation warnings the API server returns are reported, each attributed to the resource that carries it. The API server is the authority on what is deprecated in the Kubernetes version the CNF runs on. What the CNF ships (its charts and manifests, custom resources included) is judged as such; a failure to dry-run it is reported as the reason for a skip. The objects an operator created for the CNF's custom resources, the label-identified ones and the CRDs discovered behind its custom resources are copies read back from the cluster: they are dry-run, as a create and as an apply, without the fields the server assigned them, for a deprecated field or annotation they carry; the API version an operator chose when it created them is not visible in such a copy (the server returns its preferred version) and is not judged.
+Expectation: The CNF uses no API version, annotation or field that the cluster's API server reports as deprecated.
 
 #### Rationale
 
@@ -356,6 +414,7 @@ Ensure that the CNF is not using deprecated Kubernetes features. If any are dete
 
 Checks that each of the CNF's Services declares dual-stack by setting `spec.ipFamilyPolicy` to `PreferDualStack` or `RequireDualStack`. It checks the declaration only, not that the CNF works over IPv6; that needs a dual-stack cluster and is not tested. `ExternalName` Services have no cluster IP families and are not judged; when no applicable Service exists the test is `na`. A Service in the manifest that is not found in the cluster is not judged and is listed in the test details; if none of the Services is found, the test is `skipped`. A pass names how many Services were found and judged, and how many were not found, so it does not claim more than it checked. Each judged Service and its policy are listed in the test details.
 Measurement: each of the CNF's live Services is read and its `spec.ipFamilyPolicy` is checked. A Service whose policy is unset (or explicitly `SingleStack`) is reported with the reason: on a dual-stack cluster it receives only the cluster's primary address family.
+Expectation: Every Service of the CNF, other than an `ExternalName` one, declares dual-stack, with `PreferDualStack` or `RequireDualStack`.
 
 #### Rationale
 
@@ -1046,6 +1105,7 @@ Ensure that your CNF has a [Readiness Probe](https://kubernetes.io/docs/tasks/co
 
 Checks that every pod of the CNF is owned by a controller: a Pod declared in the CNF's manifest is a finding, and each live pod of the CNF's workloads must have an owner reference with `controller: true`, whatever its kind, so a pod whose controller is an operator's custom resource counts as owned. Each pod is reported once, however many workloads select it. Helm hooks (such as a chart's `*-test-connection` Pod) are not part of the CNF's workloads and are not judged. When the CNF has no pod to read (for example a workload scaled to zero), the test is `skipped`.
 Measurement: the live pods of each workload resource are read, and their `metadata.ownerReferences` are checked; pods already being deleted, and pods with a `helm.sh/hook` annotation, are left out.
+Expectation: Every pod of the CNF is owned by a controller.
 
 #### Rationale
 
@@ -1194,6 +1254,7 @@ Instrument your CNF with OpenTelemetry or Jaeger client libraries and point it a
 
 Checks that each container of the CNF, init containers included, sets `terminationMessagePolicy: FallbackToLogsOnError`. Ephemeral containers are added by `kubectl debug`, not by the CNF, and are not judged.
 Measurement: the policy is read from the live workload resources. The API server defaults an unset field to `File`, so an unset policy and an explicit `File` are the same finding.
+Expectation: Every container of the CNF sets `terminationMessagePolicy: FallbackToLogsOnError`.
 
 #### Rationale
 
@@ -1475,6 +1536,7 @@ Disable automatic mounting of service account tokens to PODs either at the servi
 
 Checks that each workload of the CNF runs as a service account of its own: its pod template sets `serviceAccountName`, and not to `default`. One service account shared by several workloads of the CNF is accepted; the test details list which workload runs as which account.
 Measurement: `serviceAccountName` is read from the live workload resources. The API server mirrors the deprecated `serviceAccount` field into it, so a chart using either field is judged by the account it names. An unset field stays empty on a pod template; on a bare Pod it reads `default`.
+Expectation: Every workload of the CNF runs as a service account of its own, not `default`.
 
 #### Rationale
 
@@ -1827,6 +1889,7 @@ All configuration: `./cnti-testsuite configuration`
 
 Checks that every hugepages `emptyDir` volume declared by the CNF is backed by a matching hugepages request in the same pod. A `HugePages-<size>` medium needs a container or init container that requests `hugepages-<size>`; a size-less `HugePages` medium needs the pod to request hugepages in exactly one page size. A CNF that declares no hugepages volume is reported as N/A.
 Measurement: the CNF's rendered workload manifests are read and, for each pod that declares a hugepages `emptyDir` volume, the volume's medium is compared against the hugepages page sizes requested across all of the pod's containers and init containers (from requests and limits).
+Expectation: Every hugepages volume of the CNF is backed by a hugepages request of the same size in its pod.
 
 #### Rationale
 
