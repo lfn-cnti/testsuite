@@ -34,7 +34,7 @@
 
 * [**Common rules**](#common-rules)
 
-   [[Rollout tests]](#rollout-tests) | [[Containers that cannot be inspected]](#containers-that-cannot-be-inspected) | [[Jobs and CronJobs]](#jobs-and-cronjobs)
+   [[Rollout tests]](#rollout-tests) | [[Containers that cannot be inspected]](#containers-that-cannot-be-inspected) | [[Chaos tests]](#chaos-tests) | [[Jobs and CronJobs]](#jobs-and-cronjobs)
 
 ----------
 
@@ -820,13 +820,8 @@ All resilience: `./cnti-testsuite resilience`
 
 #### Overview
 
-[This experiment](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-latency/) causes network degradation without the pod being marked unhealthy/unworthy of traffic by kube-proxy (unless you have a liveness probe of sorts that measures latency and restarts/crashes the container). The idea of this experiment is to simulate issues within your pod network OR microservice communication across services in different availability zones/regions etc.
-The applications may stall or get corrupted while they wait endlessly for a packet. The experiment limits the impact (blast radius) to only the traffic you want to test by specifying IP addresses or application information. This experiment will help to improve the resilience of your services over time.
-Measurement: LitmusChaos experiment [pod-network-latency](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-latency/); the Litmus version is in the results file's `tools`.
-Expectation: The CNF should continue to function when network latency occurs
-The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) from the nodes and probes the usual socket locations on a node, and `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path. The test is not applicable when the runtime is unsupported or no socket is found.
-Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod, ReplicaSet, Job or CronJob is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
-Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
+Delays the network traffic of each of the CNF's workloads with the LitmusChaos [pod-network-latency](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-latency/) fault, one workload at a time, and takes Litmus's verdict on each run.
+Expectation: The CNF should continue to function when network latency occurs.
 
 #### Rationale
 
@@ -845,19 +840,25 @@ A mitigation strategy (in this case keep the timeout i.e., access latency low) c
 
 `./cnti-testsuite pod_network_latency`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the fault adds 60 s of latency (`NETWORK_LATENCY` 60000 ms) to the egress traffic on `eth0` of the target container for 60 s.
+* **Verdicts**: Litmus's verdict, as described in [Chaos tests](#chaos-tests): this fault does not check the CNF's pods, so a pass means the latency was injected and the experiment completed.
+* **Common rules**: [Chaos tests](#chaos-tests).
+
+</details>
+
 ----------
 
 ### CNF with host disk fill
 
 #### Overview
 
-[This experiment](https://litmuschaos.github.io/litmus/experiments/categories/pods/disk-fill/) stresses the disk with continuous and heavy IO to cause degradation in the shared disk. This experiment also reduces the amount of scratch space available on a node which can lead to a lack of space for newer containers to get scheduled. This can cause (Kubernetes gives up by applying an "eviction" taint like "disk-pressure") a wholesale movement of all pods to other nodes.
-Measurement: LitmusChaos experiment [disk-fill](https://litmuschaos.github.io/litmus/experiments/categories/pods/disk-fill/); the Litmus version is in the results file's `tools`.
+Fills the ephemeral storage of each of the CNF's workloads with the LitmusChaos [disk-fill](https://litmuschaos.github.io/litmus/experiments/categories/pods/disk-fill/) fault, one workload at a time, and takes Litmus's verdict. A workload whose containers are all read-only passes without the fault.
 Expectation: The CNF should continue to function when disk fill occurs and pods should not be evicted to another node.
-Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod, ReplicaSet, Job or CronJob is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
-Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
-A workload whose containers all mount a read-only root file system cannot be filled at all, which is the property this experiment probes, so it passes without the fault being injected; the reason is recorded in the test details. In a workload that mixes read-only and writable containers, the fault is injected into a writable one.
-The fault fills the target container's directory under the container runtime's root on the node: the suite finds it for the detected runtime (containerd, with the k3s, RKE2 and microk8s roots; CRI-O; Docker), and the details name it. The test is not applicable when the runtime is not one of those, or when no such directory is found (`CNTI_TESTSUITE_CONTAINER_PATH` sets it).
 
 #### Rationale
 
@@ -873,17 +874,26 @@ Ensure that your CNF is resilient and doesn't stall when heavy IO causes a degra
 
 `./cnti-testsuite disk_fill`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the fault writes into a writable container of the workload, the first whose root file system is not read-only, until 80 % of that container's ephemeral-storage limit is used (Litmus's `FILL_PERCENTAGE`), and holds it for 60 s. A container without an ephemeral-storage limit gets nothing written: Litmus then fills `EPHEMERAL_STORAGE_MEBIBYTES`, which is not set.
+* **Configuration**: the fault fills the target container's directory under the container runtime's root on the node, which the suite finds for the detected runtime (containerd, CRI-O, docker; k3s, RKE2 and microk8s paths included) and names in the details; `CNTI_TESTSUITE_CONTAINER_PATH` overrides it. The test is not applicable when the runtime is unsupported or the directory is not found.
+* **Verdicts**: a workload whose containers all mount a read-only root file system cannot be filled at all, which is the property this fault probes, so it passes without the fault and the reason is in the details; when every workload is like that, the test passes saying so. A writable container without an ephemeral-storage limit gets nothing written, and Litmus still gives the run `Pass` (see Scope). Otherwise Litmus's verdict, as described in [Chaos tests](#chaos-tests): this fault does not check the CNF's pods.
+* **Common rules**: [Chaos tests](#chaos-tests).
+
+</details>
+
 ----------
 
 ### Pod delete
 
 #### Overview
 
-[This experiment](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-delete/) helps to simulate such a scenario with forced/graceful pod failure on specific or random replicas of an application resource and checks the deployment sanity (replica availability & uninterrupted service) and recovery workflow of the application.
-Measurement: LitmusChaos experiment [pod-delete](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-delete/); the Litmus version is in the results file's `tools`.
-Expectation: The CNF should continue to function when pod delete occurs
-Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod, ReplicaSet, Job or CronJob is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
-Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
+Deletes pods of each of the CNF's workloads with the LitmusChaos [pod-delete](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-delete/) fault, one workload at a time, and passes when Litmus sees the deleted pods recreated and running.
+Expectation: The CNF should continue to function when pod delete occurs.
 
 #### Rationale
 
@@ -899,18 +909,25 @@ Ensure that your CNF is resilient and doesn't fail on a forced/graceful pod fail
 
 `./cnti-testsuite pod_delete`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the fault deletes a pod of the workload gracefully (`FORCE` false) every 10 s for 30 s. It needs no container runtime socket.
+* **Verdicts**: Litmus's verdict, as described in [Chaos tests](#chaos-tests). This is the one fault that checks the CNF: after each deletion Litmus waits for the workload's pods to be recreated and running, and the run fails when they are not.
+* **Common rules**: [Chaos tests](#chaos-tests).
+
+</details>
+
 ----------
 
 ### Memory hog
 
 #### Overview
 
-The [pod-memory hog](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-memory-hog/) experiment launches a stress process within the target container - which can cause either the primary process in the container to be resource constrained in cases where the limits are enforced OR eat up available system memory on the node in cases where the limits are not specified.
-Measurement: LitmusChaos experiment [pod-memory-hog](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-memory-hog/); the Litmus version is in the results file's `tools`.
-Expectation: The CNF should continue to function when pod memory hog occurs
-The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) from the nodes and probes the usual socket locations on a node, and `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path. The test is not applicable when the runtime is unsupported or no socket is found.
-Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod, ReplicaSet, Job or CronJob is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
-Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
+Starts a memory stress process in each of the CNF's workloads with the LitmusChaos [pod-memory-hog](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-memory-hog/) fault, one workload at a time, and takes Litmus's verdict on each run.
+Expectation: The CNF should continue to function when pod memory hog occurs.
 
 #### Rationale
 
@@ -932,21 +949,25 @@ Set a memory request and limit on every container, sized from what the workload 
 
 `./cnti-testsuite pod_memory_hog`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the fault runs a process that takes 80 MB (`MEMORY_CONSUMPTION`) in the target container for 60 s. Where the container has a memory limit, the stress counts against it and can constrain the container's own process; without one, it takes memory from the node.
+* **Verdicts**: Litmus's verdict, as described in [Chaos tests](#chaos-tests): this fault does not check the CNF's pods, so a pass means the stress ran and the experiment completed.
+* **Common rules**: [Chaos tests](#chaos-tests).
+
+</details>
+
 ----------
 
 ### IO Stress
 
 #### Overview
 
-The [pod-io stress](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-io-stress/) experiment the disk with continuous and heavy IO to cause degradation in reads/writes by other microservices that use this shared disk.
-Measurement: LitmusChaos experiment [pod-io-stress](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-io-stress/); the Litmus version is in the results file's `tools`.
-Expectation: The CNF should continue to function when pod io stress occurs
-The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) from the nodes and probes the usual socket locations on a node, and `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path. The test is not applicable when the runtime is unsupported or no socket is found.
-Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod, ReplicaSet, Job or CronJob is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
-Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
-A workload whose containers all mount a read-only root file system cannot be stressed at all, which is the property this experiment probes, so it passes without the fault being injected; the reason is recorded in the test details. In a workload that mixes read-only and writable containers, the fault is injected into a writable one.
-
-Litmus writes the stress file to the target container's root filesystem. On a memory-backed `tmpfs` root, for example containerd's root on a kind node's `tmpfs`, there is no disk I/O to stress: the file is charged to the container's memory limit as `shmem`, so a bounded write would stress memory and a pass would say nothing about I/O. The test is therefore not applicable to a workload whose root filesystem is memory backed, and the reason is recorded in the details. A disk-backed root keeps the default size; when the filesystem type cannot be probed, the fault is injected as before and the failed probe is recorded in the details.
+Stresses the file system of each of the CNF's workloads with continuous writes, using the LitmusChaos [pod-io-stress](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-io-stress/) fault, one workload at a time, and takes Litmus's verdict. A workload whose containers are all read-only passes without the fault.
+Expectation: The CNF should continue to function when pod io stress occurs.
 
 #### Rationale
 
@@ -964,18 +985,27 @@ Ensure that your CNF is resilient to continuous and heavy disk IO load and can m
 
 `./cnti-testsuite pod_io_stress`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the fault writes to the root file system of a writable container of the workload, the first whose root file system is not read-only, up to 50 % of its free space (`FILESYSTEM_UTILIZATION_PERCENTAGE`), for 120 s.
+* **Verdicts**: a workload whose containers all mount a read-only root file system cannot be stressed at all, which is the property this fault probes, so it passes without the fault and the reason is in the details; when every workload is like that, the test passes saying so. Otherwise Litmus's verdict, as described in [Chaos tests](#chaos-tests): this fault does not check the CNF's pods.
+* **Verdicts**: on a memory-backed root file system (a `tmpfs`, such as containerd's root on a kind node's `/tmp`) there is no disk I/O to stress: the file is charged to the container's memory limit as `shmem`, so a write would stress memory and a pass would say nothing about I/O. Such a workload is not injected and the reason is in the details; the test is not applicable when no workload could be injected for that reason. When the file system type cannot be probed, the fault is injected and the failed probe is in the details.
+* **Side effects**: afterwards the suite deletes the resources of Kubernetes' `all` category (pods, services, deployments, replica sets, jobs and the like) labeled `app.kubernetes.io/part-of=litmus` in the `default` namespace. Service accounts, RBAC and Litmus's custom resources are not in that category and stay.
+* **Common rules**: [Chaos tests](#chaos-tests).
+
+</details>
+
 ----------
 
 ### Network corruption
 
 #### Overview
 
-The [pod-network corruption](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-corruption/) experiment injects packet corruption on the CNF by starting a traffic control (tc) process with netem rules to add egress packet corruption.
-Measurement: LitmusChaos experiment [pod-network-corruption](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-corruption/); the Litmus version is in the results file's `tools`.
+Corrupts the network packets of each of the CNF's workloads with the LitmusChaos [pod-network-corruption](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-corruption/) fault, one workload at a time, and takes Litmus's verdict on each run.
 Expectation: The CNF should be resilient to a lossy/flaky network and should continue to provide some level of availability.
-The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) from the nodes and probes the usual socket locations on a node, and `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path. The test is not applicable when the runtime is unsupported or no socket is found.
-Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod, ReplicaSet, Job or CronJob is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
-Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 
 #### Rationale
 
@@ -992,18 +1022,25 @@ Ensure that your CNF is resilient to a lossy/flaky network and can maintain a le
 
 `./cnti-testsuite pod_network_corruption`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the fault corrupts every egress packet (`NETWORK_PACKET_CORRUPTION_PERCENTAGE` 100) on `eth0` of the target container for 60 s, with a traffic control (`tc`) netem rule.
+* **Verdicts**: Litmus's verdict, as described in [Chaos tests](#chaos-tests): this fault does not check the CNF's pods, so a pass means the corruption was injected and the experiment completed.
+* **Common rules**: [Chaos tests](#chaos-tests).
+
+</details>
+
 ----------
 
 ### Network duplication
 
 #### Overview
 
-The [pod-network duplication](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-duplication/) experiment injects network duplication into the CNF by starting a traffic control (tc) process with netem rules to add egress delays.
-Measurement: LitmusChaos experiment [pod-network-duplication](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-duplication/); the Litmus version is in the results file's `tools`.
+Duplicates the network packets of each of the CNF's workloads with the LitmusChaos [pod-network-duplication](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-network-duplication/) fault, one workload at a time, and takes Litmus's verdict on each run.
 Expectation: The CNF should continue to function and be resilient to a duplicate network.
-The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) from the nodes and probes the usual socket locations on a node, and `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path. The test is not applicable when the runtime is unsupported or no socket is found.
-Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod, ReplicaSet, Job or CronJob is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
-Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
 
 #### Rationale
 
@@ -1020,18 +1057,25 @@ Ensure that your CNF is resilient to erroneously duplicated packets and can main
 
 `./cnti-testsuite pod_network_duplication`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the fault duplicates every egress packet (`NETWORK_PACKET_DUPLICATION_PERCENTAGE` 100) of the target container for 60 s, with a traffic control (`tc`) netem rule.
+* **Verdicts**: Litmus's verdict, as described in [Chaos tests](#chaos-tests): this fault does not check the CNF's pods, so a pass means the duplication was injected and the experiment completed.
+* **Common rules**: [Chaos tests](#chaos-tests).
+
+</details>
+
 ----------
 
 ### Pod DNS errors
 
 #### Overview
 
-The [pod-dns error](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-dns-error/) experiment injects chaos to disrupt DNS resolution in kubernetes pods and causes loss of access to services by blocking DNS resolution of hostnames/domains.
-Measurement: LitmusChaos experiment [pod-dns-error](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-dns-error/); the Litmus version is in the results file's `tools`.
-Expectation: That the CNF doesn't crash is resilient to DNS resolution failures.
-The fault is injected through the node's container runtime: the suite detects the runtime (docker, containerd or CRI-O) and its socket the same way `pod_io_stress` does, and the test is not applicable when the runtime is unsupported or no socket is found.
-Litmus can only target Deployments, StatefulSets and DaemonSets: a bare Pod, ReplicaSet, Job or CronJob is listed in the test details and left out, and the test is not applicable when nothing else can be targeted.
-Each workload is targeted by a selector label that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. A workload that owns no pod is listed in the test details and left out.
+Makes DNS resolution fail in each of the CNF's workloads with the LitmusChaos [pod-dns-error](https://litmuschaos.github.io/litmus/experiments/categories/pods/pod-dns-error/) fault, one workload at a time, and takes Litmus's verdict on each run.
+Expectation: The CNF does not crash and is resilient to DNS resolution failures.
 
 #### Rationale
 
@@ -1046,6 +1090,17 @@ Ensure that your CNF is resilient to DNS resolution failures and can maintain a 
 #### Usage
 
 `./cnti-testsuite pod_dns_error`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the fault makes the resolution of every host name fail (`TARGET_HOSTNAMES` empty) in the target container for 120 s.
+* **Verdicts**: Litmus's verdict, as described in [Chaos tests](#chaos-tests): this fault does not check the CNF's pods, so a pass means the DNS errors were injected and the experiment completed.
+* **Common rules**: [Chaos tests](#chaos-tests).
+
+</details>
 
 ----------
 
@@ -2231,6 +2286,21 @@ Rolling update, Rolling version change, Rolling downgrade and Rollback move the 
 ### Containers that cannot be inspected
 
 The tests that read a container's processes on its node, through the cluster-tools pod there, list a container they could not inspect in the details with the reason, among them: not started or not ready, with the container's state; no ready cluster-tools pod on the node; a container ID of a runtime other than containerd or CRI-O; a container that crictl does not know about, or that has no running process. A test can add reasons of its own, as Sigterm Handled's Details say. Such a container does not fail the test, and the test is skipped, naming how many containers could not be inspected and why, only when none could.
+
+----------
+
+### Chaos tests
+
+CNF under network latency, CNF with host disk fill, Pod delete, Memory hog, IO Stress, Network corruption, Network duplication and Pod DNS errors each inject one [LitmusChaos](https://litmuschaos.io/) fault into the CNF's workloads, one workload at a time, and take Litmus's verdict; each test's Details names its fault. They share these rules.
+
+* **Targets**: Litmus can target Deployments, StatefulSets and DaemonSets. A bare Pod, ReplicaSet, Job or CronJob is listed in the details and left out. A workload that owns no pod is left out too, except when it has a single selector label: that label is used without checking that the workload owns pods, and Litmus then targets whatever pods carry it, which can belong to another workload. A workload whose pod template carries no label is a finding, since Litmus selects pods by label. The test is not applicable when nothing can be targeted.
+* **Selector**: a workload's pods are selected by the first of its selector labels that only its own pods carry, so a label shared by a whole Helm release does not send the fault to another workload's pod. When no label is unique to it, its first selector label is used.
+* **Runs**: CNF with host disk fill and IO Stress run their experiment once per workload, into a container that can be written to. The other six run theirs once for every container of the workload: Pod delete deletes pods of the workload each time, and the other five inject into the container Litmus picks, the pod's first, each time.
+* **Container runtime**: every fault except Pod delete reaches its target through the node's container runtime, which the suite detects (docker, containerd or CRI-O) from the nodes; the test is not applicable when the runtime is unsupported. CNF with host disk fill then needs the runtime's directory of containers, as its Details say. The other six need the runtime's socket: the suite probes the usual socket locations on a node, `CNTI_TESTSUITE_CONTAINER_RUNTIME_SOCKET` overrides the path, and the test is not applicable when no socket is found.
+* **Verdict**: a workload passes when Litmus's verdict on each of its runs is `Pass`, and the test passes when every workload does. The Litmus 3 faults ship with their default health check off (`DEFAULT_HEALTH_CHECK` false) and the suite adds no probe, so only Pod delete checks the CNF itself, by waiting for the deleted pods to be recreated; for the other faults, `Pass` means that the experiment completed. That includes CNF with host disk fill on a container without an ephemeral-storage limit, where Litmus writes nothing, as its Details say. Every run leaves a line in the details: the verdict, the pods Litmus targeted and how long it ran, and for a failure the step that failed.
+* **When Litmus does not run**: when Litmus skips an experiment (its ChaosExperiment missing, its job not created), the CNF was not tested, and the test ends as an error with Litmus's reason. So does a fault whose definition cannot be downloaded or applied. `CNTI_TESTSUITE_CHAOS_CHARTS_URL` names a mirror of the Litmus chaos charts the definitions come from. That URL must use HTTPS; a redirect it answers with is followed without checking its scheme.
+* **Timeouts**: the suite waits `CNTI_TESTSUITE_LITMUS_CHAOS_TEST_TIMEOUT` seconds for an experiment to finish (1800 by default), then `CNTI_TESTSUITE_GENERIC_OPERATION_TIMEOUT` seconds (60) for its verdict; a run without a `Pass` verdict by then fails.
+* **Side effects**: each targeted workload is annotated `litmuschaos.io/chaos="true"`, and the annotation stays. The fault's ChaosExperiment, service account and RBAC are installed in the workload's namespace. Each ChaosEngine is deleted once its verdict is read, and a stopped run deletes it too, which ends the fault. The Litmus version is in the results file's `tools`.
 
 ----------
 
