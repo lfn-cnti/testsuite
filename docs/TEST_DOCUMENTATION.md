@@ -388,7 +388,7 @@ Avoid vendor-specific network APIs, annotations and device resources in the CNF'
 
 #### Overview
 
-Checks whether any deprecated Kubernetes features (API versions, annotations, fields) are used by the CNF. The CNF's manifest is applied to the cluster as a server-side dry-run, and the deprecation warnings the API server returns are reported, each attributed to the resource that carries it. The API server is the authority on what is deprecated in the Kubernetes version the CNF runs on. What the CNF ships (its charts and manifests, custom resources included) is judged as such; a failure to dry-run it is reported as the reason for a skip. The objects an operator created for the CNF's custom resources, the label-identified ones and the CRDs discovered behind its custom resources are copies read back from the cluster: they are dry-run, as a create and as an apply, without the fields the server assigned them, for a deprecated field or annotation they carry; the API version an operator chose when it created them is not visible in such a copy (the server returns its preferred version) and is not judged.
+Checks that the CNF uses no deprecated Kubernetes API version, annotation or field. The cluster's API server decides what is deprecated: the CNF's manifests are sent to it as a dry-run, which changes nothing, and each deprecation warning it returns is reported, with the resource that carries it when the warning identifies one. Any such warning fails the test.
 Expectation: The CNF uses no API version, annotation or field that the cluster's API server reports as deprecated.
 
 #### Rationale
@@ -406,14 +406,26 @@ Ensure that the CNF is not using deprecated Kubernetes features. If any are dete
 
 `./cnti-testsuite deprecated_k8s_features`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: every object of the CNF's installed manifest. What the CNF ships (its charts and manifests, custom resources included) is judged as such. The objects an operator created for the CNF's custom resources, the ones `workload_resource_labels` selects and the CRDs discovered behind its custom resources are copies read back from the cluster: they are judged without the fields the server assigned them (`status`, `uid`, `resourceVersion`, `creationTimestamp`, `generation`, `managedFields`), for a deprecated field or annotation they carry.
+* **Verdicts**: each part is dry-run on the server twice, as a server-side apply and as a create, and the warnings of both are joined: the API server gives some warnings only on create (the Ingress `kubernetes.io/ingress.class` annotation, for one) and does not repeat them when an installed object is re-applied unchanged. A warning counts when the word "deprecated" stands on its own in it, so a resource whose name contains the word is not a finding. Any such warning fails the test. Each warning is listed; one that names an API version and kind is attributed to the CNF's resources of that version and kind, one that names an annotation to the resources that carry it, and one about a field is listed without a resource.
+* **Verdicts**: the test is skipped when the CNF's manifest is not there (the CNF is not installed), and when the server-side apply of what the CNF ships fails and no deprecation warning was found at all, with the API server's error as the reason; when warnings were found, the test fails whatever the dry-run returned. A read-back copy that fails to dry-run says nothing about the CNF (a create of an object that exists is refused, after its warnings) and is not held against it.
+* **Side effects**: none: every request is a dry-run, and nothing in the cluster is created or changed.
+* **Limits**: the API server reports what is deprecated in the Kubernetes version the cluster runs; a version deprecated only in a later release is not found. A read-back copy comes back in the server's preferred API version, so the API version an operator chose when it created the object is not visible and not judged.
+
+</details>
+
 ----------
 
 ### Dual stack
 
 #### Overview
 
-Checks that each of the CNF's Services declares dual-stack by setting `spec.ipFamilyPolicy` to `PreferDualStack` or `RequireDualStack`. It checks the declaration only, not that the CNF works over IPv6; that needs a dual-stack cluster and is not tested. `ExternalName` Services have no cluster IP families and are not judged; when no applicable Service exists the test is `na`. A Service in the manifest that is not found in the cluster is not judged and is listed in the test details; if none of the Services is found, the test is `skipped`. A pass names how many Services were found and judged, and how many were not found, so it does not claim more than it checked. Each judged Service and its policy are listed in the test details.
-Measurement: each of the CNF's live Services is read and its `spec.ipFamilyPolicy` is checked. A Service whose policy is unset (or explicitly `SingleStack`) is reported with the reason: on a dual-stack cluster it receives only the cluster's primary address family.
+Checks that each of the CNF's Services declares dual-stack, with `spec.ipFamilyPolicy` set to `PreferDualStack` or `RequireDualStack`. A Service left single-stack fails: on a dual-stack cluster it receives only the cluster's primary address family. The test checks the declaration only, not that the CNF works over IPv6.
 Expectation: Every Service of the CNF, other than an `ExternalName` one, declares dual-stack, with `PreferDualStack` or `RequireDualStack`.
 
 #### Rationale
@@ -429,6 +441,18 @@ Set `spec.ipFamilyPolicy` to `PreferDualStack` on the CNF's Services so they are
 #### Usage
 
 `./cnti-testsuite dual_stack`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the Services of the CNF's installed manifest, Helm hooks left out. Each one is read from the cluster and its live `spec.ipFamilyPolicy` is judged. An `ExternalName` Service maps to a DNS name, has no cluster IP families and is not judged.
+* **Verdicts**: a Service whose policy is `PreferDualStack` or `RequireDualStack` passes, and each one is listed with its policy in the test details. A Service whose policy is `SingleStack` (the value the API server records when the chart leaves the field out) or unset fails, with the reason. A Service in the manifest that is not found in the cluster is listed in the test details and not judged. A pass names how many Services were found and judged, and how many were not found, so it does not claim more than it checked.
+* **Verdicts**: the test is skipped when no Service was judged and at least one was not found in the cluster, and not applicable when the CNF declares no Service, or only `ExternalName` ones.
+* **Limits**: whether the CNF works over IPv6 needs a dual-stack cluster and is not tested.
+
+</details>
 
 ----------
 
@@ -476,7 +500,7 @@ Audit your CNF's images:
 
 #### Overview
 
-Measures, for every workload resource of the CNF, how long its slowest pod took from its containers starting to reporting Ready, as recorded in the pod's status; image pulls and scheduling are excluded. Each workload is reported with its slowest pod and time, and each one over the limit is a finding. The limit is 30 seconds unless the CNF sets `startup_time_max_seconds` in `cnti-testsuite.yaml`.
+Measures, for each workload of the CNF, how long its slowest pod took from its containers starting to reporting Ready. A workload over the limit, 30 seconds unless the CNF configures another, fails the test, and so does a pod that never reports Ready.
 Expectation: Every workload of the CNF is Ready within 30 seconds of its containers starting.
 
 #### Rationale
@@ -493,16 +517,27 @@ Move work out of the start-up path (lazy initialisation, pre-built caches, small
 
 `./cnti-testsuite reasonable_startup_time`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: every workload of the CNF, through the pods it has when the test runs; no pod is restarted for the measurement. A pod's time runs from the latest start among its running containers to the moment the pod became Ready, both as recorded in the pod's status, so scheduling, image pulls and init containers are left out. A workload with no pod is named in the details and not judged. Jobs and CronJobs are not applicable, and the test is not applicable when the CNF has no other workload.
+* **Configuration**: `startup_time_max_seconds` in the common section of `cnti-testsuite.yaml`: the limit, a positive number of seconds (30 by default).
+* **Verdicts**: each workload is reported with its slowest pod and that pod's time. A workload whose slowest pod took longer than the limit is a finding, and so is each pod that has no running container or never became Ready, with its phase.
+* **Limits**: the time is that of each pod's current start: a pod or container restarted by an earlier test, or by a crash, is measured from that restart. The reference is the last container to start, so in a pod whose containers start one after another the earlier containers' start-up is only partly counted.
+* **Common rules**: [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
+
 ----------
 
 ### Single Process Type in One Container
 
 #### Overview
 
-This verifies that there is only one application process type within one container. This does not count against child processes of the same type, nor against the container's init/supervisor process. For example, nginx or httpd could have a parent process and then 10 child processes, but if both nginx and httpd were running, this test would fail. A container that could not be inspected on its node is listed in the details with the reason (not started or not ready, with the container's state; no ready cluster-tools pod on the node; a container ID of a runtime other than containerd or CRI-O; a container crictl does not know or that has no running process); the test is skipped, naming how many containers could not be inspected and why, only when none could.
-Expectation: CNF container has one application process type
-
-The container's own init/supervisor process (PID 1) is not counted as an application process type, regardless of which init system it uses. When PID 1 is a specialized init system, that init's own processes are not counted either: s6-overlay runs as a family of `s6-*` processes (s6-supervise, s6-linux-init-shutdownd, s6-ipcserverd) under s6-svscan, and they are the init, not the workload. Whether that init system is a recommended, specialized one (e.g. tini, dumb-init, s6) is evaluated separately by the `specialized_init_system` test — using a home-grown init will not fail this test, but it is reported in the test output and results file.
+Checks that each container runs one application process type. Processes of one name count once, as an nginx parent and its workers do, but a container running both nginx and httpd fails. The container's PID 1 and the processes of a specialized init system are not counted.
+Expectation: CNF container has one application process type.
 
 #### Rationale
 
@@ -517,6 +552,18 @@ Ensure that there is only one process type within a container. This does not cou
 #### Usage
 
 `./cnti-testsuite single_process_type`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: every running, Ready container of the CNF's workloads, those of Jobs and CronJobs included; init containers are not inspected. The processes are read on the container's node: PID 1 and every process under it.
+* **Verdicts**: a process type is a process name as the kernel reports it (the `Name` in `/proc/PID/status`, at most 15 characters). Not counted: PID 1, whatever it runs; a specialized init system (tini, tini-static, docker-init, dumb-init, catatonit, s6-svscan, gopherd) wherever it appears in the tree; and, when PID 1 is one, the init's own processes: s6-overlay runs as a family of `s6-*` processes (s6-supervise, s6-linux-init-shutdownd, s6-ipcserverd) under s6-svscan, and they are the init, not the workload. A container with more than one remaining type fails, and the details list its processes with their PIDs, parents and command lines; each container is otherwise reported with its one process type. Whether PID 1 is a recommended init system is judged by [Specialized Init Systems](#specialized-init-systems): a home-grown init does not fail this test, and when the container has application processes of another name it is named in the test output and the results file as not counted. Skipped when no container could be inspected.
+* **Limits**: since PID 1 is never counted, a PID 1 whose children all share one other name passes, such as nginx as PID 1 with httpd children. A shell a process runs as a child (`sh -c`) is a process type of its own.
+* **Common rules**: [Containers that cannot be inspected](#containers-that-cannot-be-inspected).
+
+</details>
 
 ----------
 
@@ -547,7 +594,7 @@ Make sure the CNF exposes any of its containers as a Kubernetes Service. This is
 
 #### Overview
 
-Finds the databases among the CNF's workloads (MariaDB/MySQL, PostgreSQL, MongoDB, Redis, Cassandra, etcd, by image name or port) and watches each one's connections for a minute to see which CNF workloads connect to it. A workload counts as a service when a Service of the CNF selects its pods; other clients (jobs, batch workers) are listed but do not count. Every database is reported with the services that connected to it, and a database with two or more services is a finding. N/A when the CNF has no database.
+Finds the databases among the CNF's workloads and watches, for up to a minute, which of the CNF's services connect to each one. A database that two or more services use fails the test. The test is not applicable when the CNF has no database.
 Expectation: No database of the CNF is used by more than one service.
 
 #### Rationale
@@ -564,13 +611,24 @@ Give each service its own database (or its own schema with no cross-service acce
 
 `./cnti-testsuite shared_database`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: a database is a container whose image's repository name, without registry, path, tag or digest, is `mariadb`, `mysql`, `percona` or `percona-server` (MariaDB/MySQL), `postgres` or `postgresql`, `mongo` or `mongodb`, `redis` or `valkey`, `cassandra` or `etcd`; failing that, one that declares the database's default port as a `containerPort` (3306, 5432, 27017, 6379, 9042, 2379). An exporter, operator or proxy whose image name only contains a database's name is not a database. Init containers are not looked at, and each database container is judged on its own. The clients are the pods of every other workload of the CNF, databases and Jobs included.
+* **Verdicts**: a workload counts as a service when a Service of the CNF in its namespace selects its pods; a client no Service selects (a Job, a batch worker) is listed in the details as another client and does not count. A client is connected when one of its TCP connections, TIME_WAIT included, goes to a pod of the database on the database's default port, or to a cluster IP of a Service in the database's namespace that selects the database's pods, on one of that Service's ports. The connections are read on the client side, sampled every 5 seconds for up to 60 seconds per database; the watch ends early once every client workload has been seen. Every database is reported with the services and other clients that connected to it, or with none; a database with two or more services connected is a finding, and so is each of those services.
+* **Limits**: only connections open during the watch, or closed less than about a minute before it, are seen: a service that does not talk to the database then is not counted. Clients outside the CNF, connections through a NodePort, an ingress or an external address, and connections to a database pod on a port other than its default one are not seen. A client pod whose process cannot be found on its node is named in the details and its connections are not read; a pod with no running container is left out.
+
+</details>
+
 ----------
 
 ### Specialized Init Systems
 
 #### Overview
 
-This tests if containers in pods use a specialized init system as their PID 1 process: tini (including tini-static and docker-init), dumb-init, catatonit, s6-overlay (whose PID 1 is s6-svscan), or gopherd (HAProxy's container init and supervisor). The check is on the executable's name, not on any part of its path. Of a Job's or CronJob's pods only the running ones can be inspected; a pod that has finished is listed in the test details. A container that could not be inspected on its node is listed in the details with the reason (not started or not ready, with the container's state; no ready cluster-tools pod on the node; a container ID of a runtime other than containerd or CRI-O; a container crictl does not know or that has no running process); the test is skipped, naming how many containers could not be inspected and why, only when none could.
+Checks that each container's PID 1 is an init system made for containers: tini, dumb-init, catatonit, s6-overlay or gopherd. A container whose PID 1 is anything else, the application itself included, fails the test.
 Expectation: Container images should use specialized init systems for containers.
 
 #### Rationale
@@ -587,13 +645,24 @@ Use init systems that are purpose-built for containers like tini, dumb-init, cat
 
 `./cnti-testsuite specialized_init_system`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: every container of the pods of the CNF's workloads; init containers are not inspected. Of a Job's or CronJob's pods only the running ones are inspected; a pod that has finished is listed in the test details. A pod with no container status yet lists each of its containers as not inspected.
+* **Verdicts**: PID 1 passes when the command it was started as, the first word of its command line without its path, is `tini`, `tini-static`, `docker-init` (Docker's bundled tini), `dumb-init`, `catatonit`, `s6-svscan` (s6-overlay's PID 1) or `gopherd` (HAProxy's container init and supervisor); a path that merely contains one of these names does not count. A script started through its interpreter is judged by the interpreter's name. Each passing container is reported with its init, each failing one with the command PID 1 runs. A container whose PID 1 cannot be read, after three tries a few seconds apart, is listed as not inspected and does not fail the test. Skipped when a workload's pods cannot be listed, whatever else was found, and when no container's PID 1 could be read and some container could not be inspected.
+* **Common rules**: [Containers that cannot be inspected](#containers-that-cannot-be-inspected), [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
+
 ----------
 
 ### System Init Not Used
 
 #### Overview
 
-This tests that no container in the CNF's pods runs an init system made for a whole operating system as its PID 1 process: systemd, SysV init, upstart and BusyBox init (which all run as `init`), OpenRC (`openrc-init`) or runit (`runit`, `runit-init`). The check is on the executable PID 1 runs, read on the node from `/proc/<pid>/exe`, not on its command line: systemd is usually started as `/sbin/init`, a symlink to systemd itself, and a script named `init` runs as its interpreter. BusyBox resolves to `busybox` whichever applet it runs, so it fails the test only when that applet is `init`: the name it was started under (`/proc/<pid>/comm`), as for Alpine's `/sbin/init` symlink, or its first argument when it was started as `busybox init`. A BusyBox PID 1 whose name cannot be read is listed as not inspected. Of a Job's or CronJob's pods only the running ones can be inspected, and a container that could not be inspected is listed in the details with the reason, as in [Specialized Init Systems](#specialized-init-systems); the test is skipped when no container's PID 1 could be read, including when the CNF's workloads have no pods.
+Checks that no container's PID 1 is an init system made for a whole operating system: systemd, SysV init, upstart, BusyBox init, OpenRC or runit. A container that runs one fails the test; the application itself, or an init made for containers, passes.
 Expectation: No container runs an operating-system init as its PID 1.
 
 #### Rationale
@@ -609,6 +678,18 @@ Run the application itself as PID 1, or under an init made for containers (tini,
 #### Usage
 
 `./cnti-testsuite system_init_not_used`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: every container of the pods of the CNF's workloads; init containers are not inspected. Of a Job's or CronJob's pods only the running ones are inspected; a pod that has finished is listed in the test details. A pod with no container status yet lists each of its containers as not inspected.
+* **Verdicts**: the check is on the executable PID 1 runs, read on the node from `/proc/PID/exe`, not on its command line: systemd is usually started as `/sbin/init`, a symlink to systemd itself, and a script named `init` runs as its interpreter. A container fails when that executable is named `systemd`, `init` (as SysV init, upstart and BusyBox's init symlinks are, and any other program of that name), `openrc-init`, `runit` or `runit-init`. BusyBox resolves to `busybox` whichever applet it runs, so it fails the test only when that applet is `init`: the name it was started under (`/proc/PID/comm`), as for Alpine's `/sbin/init` symlink, or its first argument when it was started as `busybox init`. Each passing container is reported with the executable its PID 1 runs, each failing one with that executable and the command it was started as.
+* **Verdicts**: a container whose PID 1 cannot be read, after three tries a few seconds apart, is listed as not inspected and does not fail the test, and so is a BusyBox PID 1 whose name cannot be read. Skipped when a workload's pods cannot be listed, whatever else was found, and when no container's PID 1 could be read, including when the CNF's workloads have no pods.
+* **Common rules**: [Containers that cannot be inspected](#containers-that-cannot-be-inspected), [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
 
 ----------
 
@@ -652,8 +733,7 @@ Make the PID 1 container process handle the container's stop signal (SIGTERM unl
 
 #### Overview
 
-This tests if the PID 1 process of containers handles/reaps zombie processes.
-The test injects a probe into every container that creates an orphaned child process; the test is skipped when the probe cannot be injected (for example into a read-only root filesystem). A container that could not be inspected on its node is listed in the details with the reason (not started or not ready, with the container's state; no ready cluster-tools pod on the node; a container ID of a runtime other than containerd or CRI-O; a container crictl does not know or that has no running process); the test is skipped, naming how many containers could not be inspected and why, only when none could.
+Checks that each container's PID 1 reaps zombie processes. The test leaves an orphaned child process in every running, Ready application container for PID 1 to inherit, and a zombie still in the container after the child has exited fails the test.
 Expectation: Zombie processes are handled/reaped by PID 1 process of containers.
 
 #### Rationale
@@ -669,6 +749,19 @@ Make the PID 1 container process to handle/reap zombie processes; enable process
 #### Usage
 
 `./cnti-testsuite zombie_handled`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: every running, Ready regular container of the CNF's workloads, those of Jobs and CronJobs included; init and ephemeral containers are not probed. The probe runs from the cluster-tools pod on the container's node, inside the container's PID namespace, so nothing is written into the container: a read-only root filesystem or a distroless image is probed like any other. It starts a child that is orphaned at once onto the container's PID 1 and exits shortly after.
+* **Configuration**: `CNTI_TESTSUITE_POD_READINESS_TIMEOUT` (180 s by default): the search for the CNF's running containers repeats for this long while none is running, as after the restarts Sigterm Handled causes. `CNTI_TESTSUITE_GENERIC_OPERATION_TIMEOUT` (60 s by default): after a zombie is found, the test restarts the pod and waits this long for it to restart, then this long again for it to be Ready, so up to twice this timeout.
+* **Verdicts**: 10 seconds after the probes start, each container's processes are read again, and every process in the zombie state there, the probe's or any other, is a finding with its name, PID and parent. When every container was probed and passed, the details list the probed containers. Skipped, with every failed probe in the details, when the probe could not be started in some container, even if others were probed; and when no container could be probed.
+* **Side effects**: a container in which a zombie was found is killed through the container runtime, and the test waits for its pod to restart and be Ready again; a pod that does not is not a finding.
+* **Common rules**: [Containers that cannot be inspected](#containers-that-cannot-be-inspected).
+
+</details>
 
 ----------
 
@@ -728,7 +821,7 @@ Ensure that your CNF can be successfully rescheduled when a node fails or is [dr
 
 #### Overview
 
-Checks every persistent volume claim the CNF's workloads mount: the PersistentVolume it is bound to must not be a local volume (`spec.local.path`), which ties the workload to one node and its disk. Each local volume is reported with the workload, the claim and the path; a claim bound to no PersistentVolume leaves the storage type undetermined and the test is skipped rather than passed.
+Checks that no persistent volume claim of the CNF's workloads is bound to a local PersistentVolume, which ties the workload to one node and its disk. A local volume fails the test. A claim bound to no volume leaves its storage undetermined, and the test is then skipped rather than passed.
 Expectation: Local storage should not be used or configured.
 
 #### Rationale
@@ -747,15 +840,24 @@ Back each persistent volume claim with a network or cloud volume, claimed throug
 
 `./cnti-testsuite no_local_volume_configuration`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the claims the pod volumes of the CNF's workloads name (`persistentVolumeClaim.claimName`), as the installed manifests declare them, Jobs and CronJobs included. The claims a StatefulSet makes from its volumeClaimTemplates are not checked. A CNF with no such claim passes.
+* **Verdicts**: a claim's PersistentVolume is local when it sets `spec.local.path`; the storage class name is not judged, since a class named `local-storage` can be backed by anything. Each local volume is a finding with the workload, the volume, the claim, the PersistentVolume and its path. A claim no PersistentVolume is bound to is listed in the details as undetermined, and the test is skipped when nothing local was found but some claim was unbound. A resource or volume that cannot be read is a test error, not a pass.
+* **Limits**: a hostPath PersistentVolume, or one whose node affinity names a host, is not a local volume here; [Elastic volumes](#elastic-volumes) judges those. A PersistentVolume is matched by its claim's name alone, so a volume bound to a claim of the same name in another namespace is judged too.
+
+</details>
+
 ----------
 
 ### Elastic volumes
 
 #### Overview
 
-This checks whether the persistent volumes of the CNF are elastic: not tied to one node, so that a workload can be rescheduled together with its data.
-Measurement: the PersistentVolume each claim of the CNF is bound to, including the claims made from a StatefulSet's volumeClaimTemplates. A volume is tied to a node when it is a `local` or `hostPath` volume, or when its node affinity names a host. A node affinity on a zone or a region, as cloud disks carry, does not tie it. The name of the provisioner is not judged.
-A volume tied to a node that the cluster's default storage class provisioned is the cluster's choice: it is listed in the test details and not judged. The test is not applicable when no persistent volumes are used, or when all of them are such volumes. It is skipped when no claim is bound to a volume.
+Checks that the CNF's persistent volumes are elastic: not tied to one node, so that a workload can be rescheduled with its data. A local or hostPath volume, or one pinned to a node, fails the test, unless the cluster's default storage class provisioned it.
 Expectation: Persistent volumes should be able to follow the workload to another node.
 
 #### Rationale
@@ -772,15 +874,24 @@ Claim the storage from a storage class whose volumes can follow the workload to 
 
 `./cnti-testsuite elastic_volumes`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the PersistentVolume each claim of the CNF's workloads is bound to, Jobs and CronJobs included: the claims its pod volumes name and, for a StatefulSet, those made from its volumeClaimTemplates, one per template and replica of its current replica count. A volume belongs to a claim when its claim reference names the claim and its namespace.
+* **Verdicts**: a volume is tied to a node when it is a `local` or `hostPath` volume, or when its node affinity names a host (`kubernetes.io/hostname`, or the node's `metadata.name`). A node affinity on a zone or a region, as cloud disks carry, does not tie it, and the name of the provisioner is not judged. A tied volume is a finding unless a provisioner made it and its storage class is the one the cluster marks as default: it is then the cluster's choice, listed in the test details and not judged. A tied volume created by hand, or of a class that is not the default, stays a finding.
+* **Verdicts**: the test fails when any volume is a finding, and otherwise passes when at least one volume is elastic, even if other claims are unbound or the cluster's choice. It is not applicable when no persistent volumes are used, or when every bound volume is the cluster's choice, and skipped when no claim is bound to a volume. An unbound claim is listed in the details.
+
+</details>
+
 ----------
 
 ### Database persistence
 
 #### Overview
 
-This checks if the databases of the CNF keep their data on persistent storage. A database is recognised as in [Shared database](#shared-database): MariaDB/MySQL, PostgreSQL, MongoDB, Redis, Cassandra and etcd, by image name or port.
-A database passes when its workload claims persistent storage, through a PersistentVolumeClaim or a volumeClaimTemplate, whatever the kind of the workload. It fails without one. The provisioner behind the claim is the cluster's choice and is not judged here; see [Elastic volumes](#elastic-volumes).
-A Redis, or its fork Valkey, without a persistent volume may be a cache: it is listed in the test details and not judged. The test is not applicable when no database is found, or when nothing could be judged.
+Checks that each database of the CNF keeps its data on persistent storage: its workload must claim a persistent volume, and a database without one fails the test. A Redis or Valkey without one may be a cache and is not judged. The test is not applicable when the CNF has no database.
 Expectation: Databases should keep their data on persistent volumes, so that it survives the rescheduling of their pods.
 
 #### Rationale
@@ -798,6 +909,16 @@ Give the database a persistent volume: a volumeClaimTemplate in a StatefulSet, o
 #### Usage
 
 `./cnti-testsuite database_persistence`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the databases are found as in [Shared Database](#shared-database): MariaDB/MySQL, PostgreSQL, MongoDB, Redis, Cassandra and etcd, by the image's repository name or by the database's default port. Every kind of workload counts, Jobs and CronJobs included, and a workload is judged once, by its first database container.
+* **Verdicts**: a database passes when its workload claims persistent storage, through a PersistentVolumeClaim its pod volumes name or a StatefulSet's volumeClaimTemplate, whatever the kind of the workload; the claim does not have to be bound. It fails without one: an emptyDir or a hostPath volume is not persistent storage here. The provisioner behind the claim is the cluster's choice and is not judged here; see [Elastic volumes](#elastic-volumes). A Redis, or its fork Valkey, without a persistent volume may be a cache: it is listed in the test details and not judged. The test is not applicable when no database is found, or when every database found is such a Redis.
+
+</details>
 
 ----------
 
@@ -1103,8 +1224,7 @@ Ensure that your CNF has a [Readiness Probe](https://kubernetes.io/docs/tasks/co
 
 #### Overview
 
-Checks that every pod of the CNF is owned by a controller: a Pod declared in the CNF's manifest is a finding, and each live pod of the CNF's workloads must have an owner reference with `controller: true`, whatever its kind, so a pod whose controller is an operator's custom resource counts as owned. Each pod is reported once, however many workloads select it. Helm hooks (such as a chart's `*-test-connection` Pod) are not part of the CNF's workloads and are not judged. When the CNF has no pod to read (for example a workload scaled to zero), the test is `skipped`.
-Measurement: the live pods of each workload resource are read, and their `metadata.ownerReferences` are checked; pods already being deleted, and pods with a `helm.sh/hook` annotation, are left out.
+Checks that every pod of the CNF is owned by a controller, such as a Deployment, StatefulSet, DaemonSet, Job or an operator's custom resource, that recreates it when its node fails or is drained. A bare Pod, created directly with no controller owning it, fails the test.
 Expectation: Every pod of the CNF is owned by a controller.
 
 #### Rationale
@@ -1120,6 +1240,17 @@ Run the pods through a Deployment, StatefulSet, DaemonSet or Job instead of crea
 #### Usage
 
 `./cnti-testsuite pod_owner`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the live pods of each of the CNF's workloads, and each Pod the manifest declares. A pod with no controller that carries a workload's selector labels is counted as that workload's pod. Pods already being deleted and pods with a `helm.sh/hook` annotation (such as a chart's `*-test-connection` Pod) are left out: hooks are not part of the CNF's workloads, in the manifest as in the cluster.
+* **Verdicts**: a pod passes when it has an owner reference with `controller: true`, whatever its kind, so a pod whose controller is an operator's custom resource counts as owned. A pod without one is a finding; for a Pod the manifest declares, the reason says it is declared as a bare Pod. Each pod is reported once, however many workloads select it. The pass and failure messages give the number of pods judged. The test is skipped when the CNF has no pod to read (for example, a workload scaled to zero), and not applicable when the CNF has no workload.
+* **Common rules**: [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
 
 ----------
 
@@ -1137,7 +1268,7 @@ All observability: `./cnti-testsuite observability`
 
 #### Overview
 
-This checks and verifies that STDOUT/STDERR logging is configured for the CNF. The last log lines of every pod of each workload resource are read; a resource passes when any of its pods has written to stdout/stderr. Pods whose logs cannot be read yet (not scheduled, container still starting) are reported and left out of the verdict; the test is skipped when no pod could be read. A pod that ran to completion (a Job's) keeps its logs and is read like a running one.
+Checks that the CNF writes logs to stdout/stderr, where Kubernetes collects them. A workload passes when at least one of its pods has log output, and fails when every pod of it that could be read printed nothing. Pods whose logs cannot be read yet are reported and not judged.
 Expectation: Resource output logs should be sent to STDOUT/STDERR
 
 #### Rationale
@@ -1154,13 +1285,25 @@ Make sure applications and CNF's are sending log output to STDOUT and or STDERR.
 
 `./cnti-testsuite log_output`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: every pod of each of the CNF's workloads (Deployments, StatefulSets, DaemonSets, ReplicaSets, bare Pods, Jobs and CronJobs; Helm hooks left out). A pod is read when it is Running, or Succeeded: a pod that ran to completion (a Job's) keeps its logs and is read like a running one. A pod in any other phase (Pending, not scheduled, Failed, Unknown), or whose logs `kubectl` cannot return (a container still starting), is listed in the test details with the reason and left out of the verdict. A Job or CronJob that ran and was removed is not judged.
+* **Verdicts**: the last five log lines of all the pod's containers are read. A workload passes when any of its pods has written anything; when every readable pod of it is silent, each of them is a finding. A workload with no readable pod is not judged. The details name, per passing workload, the pods that logged. The test is skipped when no pod's logs could be read, and not applicable when the CNF has no workload.
+* **Limits**: only the current instance of each container is read, not the log of one that restarted. The test checks that output exists, not its content, and not that the CNF writes no logs to files as well.
+* **Common rules**: [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
+
 ----------
 
 ### Prometheus installed
 
 #### Overview
 
-Finds the [Prometheus](https://prometheus.io/) server in the cluster (a pod running a `prometheus` process and the Service in front of it), reads its active targets, and checks that every workload of the CNF has a pod among them. The details name the server, the URL its targets API answered at and, per workload, the scrape URL and target health; a workload no target scrapes is a finding. Not applicable, with the pods and URLs probed in the details, when no Prometheus server answers: nothing scrapes the CNF in that cluster.
+Checks that a Prometheus server in the cluster has every workload of the CNF among its scrape targets. The test finds the server, reads its active targets, and fails for each workload none of whose pods is a target; whether a target is up is not judged. When no Prometheus server in the cluster answers, the test is not applicable.
 Expectation: The CNF is configured and sending metrics to a Prometheus server.
 
 #### Rationale
@@ -1176,6 +1319,19 @@ Install and configure Prometheus for your CNF.
 #### Usage
 
 `./cnti-testsuite prometheus_traffic`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: every workload of the CNF but its Jobs and CronJobs, which serve nothing to scrape: they are listed in the test details as not applicable, and the test is not applicable when the CNF has no other workload. The Prometheus server need not be the CNF's: any one in the cluster counts.
+* **Verdicts**: the server is found on the schedulable nodes as a ready container whose command line contains `prometheus`, with a Service in any namespace selecting its pod. Each TCP port of that Service is probed at `http://SERVICE.NAMESPACE.svc.cluster.local:PORT/api/v1/targets?state=active` (`https` on port 443), 10 seconds each, and the first one that answers is the server. Not applicable, with the pods and URLs probed in the details, when no Prometheus process is found or none answers: nothing scrapes the CNF in that cluster.
+* **Verdicts**: a workload is scraped when an active target's URL is on one of its pods' IPs, on any port. The details name the server, the URL its targets API answered at and, per workload, the scrape URL and target health. A workload no target scrapes is a finding, with its pod IPs or the note that its pods have no IP yet; the test fails when any workload is not scraped. A target's health is reported, not judged: a target that is down still counts as scraping the workload.
+* **Limits**: the match is by IP address, so a pod on the host network shares its node's IP and is matched by any target on that node. Only the targets active when the test runs are read. A Prometheus container that is not ready, or runs on a node that is not schedulable, is not found.
+* **Common rules**: [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
 
 ----------
 
@@ -1534,8 +1690,7 @@ Disable automatic mounting of service account tokens to PODs either at the servi
 
 #### Overview
 
-Checks that each workload of the CNF runs as a service account of its own: its pod template sets `serviceAccountName`, and not to `default`. One service account shared by several workloads of the CNF is accepted; the test details list which workload runs as which account.
-Measurement: `serviceAccountName` is read from the live workload resources. The API server mirrors the deprecated `serviceAccount` field into it, so a chart using either field is judged by the account it names. An unset field stays empty on a pod template; on a bare Pod it reads `default`.
+Checks that each workload of the CNF runs as a service account other than its namespace's `default`. A workload that names no service account, or names `default`, fails. Several workloads of the CNF may share one account.
 Expectation: Every workload of the CNF runs as a service account of its own, not `default`.
 
 #### Rationale
@@ -1551,6 +1706,18 @@ Create a ServiceAccount for the workload in the CNF's chart and set `serviceAcco
 #### Usage
 
 `./cnti-testsuite dedicated_service_account`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: every workload of the CNF, read from the cluster: the `serviceAccountName` of its pod template (a CronJob's job template, a bare Pod's own spec). The API server mirrors the deprecated `serviceAccount` field into `serviceAccountName`, so a chart using either field is judged by the account it names. A Job that ran to completion and was removed is not judged. Not applicable when the CNF has no workload.
+* **Verdicts**: a workload whose `serviceAccountName` is unset, so that its pods run as the namespace's `default` service account, or is set to `default`, fails with the reason. An unset field stays empty on a pod template; on a bare Pod, admission has already filled in `default`, and it fails the same way. Any other account passes, shared or not; the test details list which workload runs as which account.
+* **Limits**: only the account's name is judged: not whether the CNF creates it, whether other applications in the namespace run as it too, or which RBAC it is bound to. Whether its token is mounted is judged by [Service account mapping](#service-account-mapping).
+* **Common rules**: [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
 
 ----------
 
@@ -1608,9 +1775,7 @@ Remove all insecure capabilities which aren’t necessary for the container.
 
 #### Overview
 
-Checks that no container of the CNF runs as root. Kubescape control C-0013 (Non-root containers) first finds every container whose manifest does not rule root out: `runAsNonRoot` is not true, or `runAsUser`/`runAsGroup` are unset or 0, at the pod or container level. Each flagged container is then observed on its node: the effective user and group of its first process are read from `/proc`. A container observed running as a non-root user and group passes, and the missing declaration is reported as remediation; a container observed as uid 0 or gid 0, or one that cannot be observed, fails. Whether privilege escalation is allowed is checked separately by the `privilege_escalation` test.
-Read more at [ARMO-C0013](https://bit.ly/2Zzlts3)
-Measurement: Kubescape control [C-0013](https://hub.armosec.io/docs/c-0013) (Non-root containers) of the NSA framework selects the containers to observe; the scanner and regolibrary versions are in the results file's `tools`. The observation reads `/proc/<pid>/status` of the container's first process on its node through cluster-tools.
+Checks that no container of the CNF runs as root. A container whose manifest does not rule root out is checked on its node: it fails when its process runs as user or group 0, or cannot be observed. One observed running as non-root passes, with a remediation to declare it.
 Expectation: Containers should run with non-root user and group, and should declare it so the kubelet enforces it.
 
 #### Rationale
@@ -1626,6 +1791,19 @@ If your application does not need root privileges, build the image to run as a n
 #### Usage
 
 `./cnti-testsuite non_root_containers`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the containers and init containers of the CNF's workloads, as Kubescape reads them from the cluster in its scan of the NSA framework; findings for resources outside the CNF are left out. Not applicable when the CNF has no workload.
+* **Verdicts**: Kubescape control [C-0013](https://hub.armosec.io/docs/c-0013) (Non-root containers) flags a container whose manifest does not rule root out: neither `runAsNonRoot: true` nor a non-zero `runAsUser` is set, or `runAsGroup` is unset or 0, at the container or the pod level, the container's value taking precedence. Each flagged container is then observed on its node through cluster-tools: the effective user and group of its first process are read from `/proc/PID/status`. Observed with a non-zero user and group, it passes, and the details list it as observed as non-root but not declared, with the missing fields as remediation. Observed as uid 0 or gid 0, it fails with the user, the group and the field Kubescape names. A scan that produced no report makes the test an error with Kubescape's reason.
+* **Verdicts**: a flagged container that cannot be observed fails; the rule for [Containers that cannot be inspected](#containers-that-cannot-be-inspected) does not apply here. That covers a container that is not started or not ready, every init container (it has finished), the containers of a CronJob and of a Job whose pods have completed, and a container on a node where cluster-tools cannot read the process. A flagged workload for which Kubescape names no field fails with its alert message.
+* **Limits**: supplementary groups are not read. When several pods of a workload run a container of the same name, one observation judges them all. Whether privilege escalation is allowed is judged by [Privilege escalation](#privilege-escalation). The scanner and regolibrary versions are in the results file's `tools`.
+* **Common rules**: [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
 
 ----------
 
@@ -1824,9 +2002,7 @@ Set the filesystem of the container to read-only when possible. If the container
 
 #### Overview
 
-Checks, through Kubescape control C-0048 (HostPath mount), whether any pod of the CNF mounts a hostPath volume. Any hostPath mount is reported, read-only ones included: a host directory mounted into a container is a path to the underlying host either way.
-Read more at [ARMO-C0045](https://bit.ly/3EvltIL)
-Measurement: Kubescape control [C-0048](https://hub.armosec.io/docs/c-0048) (HostPath mount) scanned on its own; the scanner and regolibrary versions are in the results file's `tools`.
+Checks that no pod of the CNF declares a hostPath volume. Any hostPath volume fails the test, read-only ones included: a host directory mounted into a container is a path to the underlying host either way.
 Expectation: Containers should not have hostPath mounts
 
 #### Rationale
@@ -1843,15 +2019,25 @@ Refrain from using a hostPath mount.
 
 `./cnti-testsuite hostpath_mounts`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the pod specs of the CNF's workloads, CronJobs' job templates included, as Kubescape reads them from the cluster; findings for resources outside the CNF are left out. Not applicable when the CNF has no workload.
+* **Verdicts**: Kubescape control [C-0048](https://hub.armosec.io/docs/c-0048) (HostPath mount), scanned on its own, flags every volume with a `hostPath`, whether or not a container mounts it; the finding names the volume and each container or init container that mounts it. No path and no type is exempt. A scan that produced no report makes the test an error with Kubescape's reason. The scanner and regolibrary versions are in the results file's `tools`.
+* **Common rules**: [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
+
 ----------
 
 ### SBOM available
 
 #### Overview
 
-Checks whether each of the CNF's container images has a discoverable SBOM (Software Bill of Materials) published alongside it in the registry. For every workload container image, skopeo (in the cluster-tools pod) inspects the image and looks for an SBOM in three places, checked in order: (1) a BuildKit/OCI attestation manifest — the test opens each attestation-manifest entry in the image index and requires a layer whose `in-toto.io/predicate-type` is SPDX (`https://spdx.dev/Document`) or CycloneDX (`https://cyclonedx.org/bom`); a provenance-only attestation does not count; (2) a cosign attestation tag (`<repo>:sha256-<digest>.att`) with an SPDX or CycloneDX `predicateType` annotation; (3) the deprecated cosign `.sbom` tag as a fallback. The check reads the image published in the registry, not a source tree, so it works against the running CNF's images.
-Expectation: every container image has a discoverable SBOM. An image that cannot be inspected (private registry, network error) is reported as skipped rather than failed, since the test measured nothing for it. The results say where each SBOM was found.
-Measurement: for each distinct workload container image, `skopeo inspect --raw` reads the image's OCI index/manifest; attestation-manifest entries are opened and their layers checked for an SPDX or CycloneDX predicate; cosign `.att` and `.sbom` tags are probed by digest.
+Checks that the image of every regular container of the CNF (init and ephemeral containers are not checked) has an SBOM (Software Bill of Materials) published with it in its registry. An image without one fails. An image the test cannot read is not a failure: when no image fails and one could not be read, the test is skipped.
+Expectation: Every container image has a discoverable SBOM.
 
 #### Rationale
 
@@ -1866,6 +2052,20 @@ Publish an SBOM for each container image — attach it with `docker buildx build
 #### Usage
 
 `./cnti-testsuite sbom_available`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the image of every container of the CNF's workloads, read from the cluster; init and ephemeral containers are not judged. Each distinct image is inspected once, as published in its registry, not in a source tree. Not applicable when the CNF declares no container image.
+* **Configuration**: `image_registry_fqdns` in `cnti-testsuite.yaml`: maps a registry host in an image reference to the address the test reaches it at.
+* **Verdicts**: skopeo, in the cluster-tools pod, reads the image's manifest (`skopeo inspect --raw`) and looks for an SBOM in three places, in order: (1) a BuildKit/OCI attestation manifest listed in the image index, with a layer whose `in-toto.io/predicate-type` is SPDX (`https://spdx.dev/Document`) or CycloneDX (`https://cyclonedx.org/bom`); a provenance-only attestation does not count; (2) a cosign attestation tag (`REPO:sha256-DIGEST.att`) with a layer whose `predicateType` annotation is SPDX or CycloneDX; (3) the deprecated cosign `.sbom` tag, whose presence counts. The cosign tags are found by the image's digest, from the reference or from the registry. The details say where each SBOM was found.
+* **Verdicts**: an image with none of them fails, naming each container that runs it. An image whose manifest cannot be read or parsed (a private registry, a network error) is named with the reason and is not a finding; the test is skipped when no image fails and at least one could not be read. The test is also skipped when cluster-tools is not ready or cannot inspect containers on every node.
+* **Limits**: skopeo is given no registry credentials, so an image that needs them cannot be read. The SBOM's content is not checked, only its predicate type.
+* **Common rules**: [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
 
 ----------
 
@@ -1887,8 +2087,7 @@ All configuration: `./cnti-testsuite configuration`
 
 #### Overview
 
-Checks that every hugepages `emptyDir` volume declared by the CNF is backed by a matching hugepages request in the same pod. A `HugePages-<size>` medium needs a container or init container that requests `hugepages-<size>`; a size-less `HugePages` medium needs the pod to request hugepages in exactly one page size. A CNF that declares no hugepages volume is reported as N/A.
-Measurement: the CNF's rendered workload manifests are read and, for each pod that declares a hugepages `emptyDir` volume, the volume's medium is compared against the hugepages page sizes requested across all of the pod's containers and init containers (from requests and limits).
+Checks that every hugepages `emptyDir` volume of the CNF is backed by a hugepages request of the same page size in its pod; without one, the kubelet does not mount the volume and the pod never starts. A volume without a matching request fails. A CNF with no hugepages volume is not applicable.
 Expectation: Every hugepages volume of the CNF is backed by a hugepages request of the same size in its pod.
 
 #### Rationale
@@ -1904,6 +2103,18 @@ Back each hugepages `emptyDir` volume with a hugepages request in the pod: a `Hu
 #### Usage
 
 `./cnti-testsuite hugepages_volumes`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the workloads of the CNF's installed manifest, as rendered, not the cluster's objects; each workload's pod spec is judged once. A volume is a hugepages volume when its `emptyDir` medium starts with `HugePages`. A container that requests hugepages without such a volume is legitimate and not judged. Not applicable when no workload declares a hugepages volume.
+* **Verdicts**: the page sizes a pod requests are gathered from the `requests` and `limits` of all its containers and init containers (a hugepages limit with no request is valid: Kubernetes defaults the request from it). A `HugePages-SIZE` medium needs a request for `hugepages-SIZE`. A size-less `HugePages` medium needs the pod to request hugepages in exactly one page size: none, or more than one, is a finding. Each finding names the workload and the volume.
+* **Limits**: page sizes are compared as written, so `HugePages-1Gi` is not backed by `hugepages-1024Mi`. The nodes' hugepages capacity is not checked.
+* **Common rules**: [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
 
 ----------
 
@@ -1984,8 +2195,8 @@ Make sure to define `app.kubernetes.io/name` label under metadata for your CNF.
 
 #### Overview
 
-Reads the image reference of every container of the CNF's workloads and reports each one that is not versioned, with the image and the reason. An image is versioned when it is pinned by digest, or by a tag that is present, is not `latest` and names a version, which for the test means it contains a digit (`1.2.3`, `v2`, `6.0.2-debian-11-r0`); untagged images (implicitly `latest`) and moving tags such as `stable` or `main` are not.
-Expectation: Every container image is pinned to a version or a digest.
+Checks that the image of every regular container of the CNF (init and ephemeral containers are not checked) is referenced by digest or by a tag that names a version. An untagged image, the `latest` tag, or a tag without a digit such as `stable` or `main` fails. A versioned tag can still move to another build.
+Expectation: Every container image is referenced by a digest or a versioned tag.
 
 #### Rationale
 
@@ -2000,6 +2211,18 @@ When specifying container images, always specify a tag and ensure to use an immu
 #### Usage
 
 `./cnti-testsuite versioned_tag`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the image reference of every container of the CNF's workloads, read from the cluster; init and ephemeral containers are not judged. A Job that ran to completion and was removed is not judged. Not applicable when the CNF has no workload.
+* **Verdicts**: an image is versioned when it is pinned by a `@sha256:` digest, or by a tag that is present, is not `latest` and names a version, which for the test means it contains a digit (`1.2.3`, `v2`, `6.0.2-debian-11-r0`, `20240101`). A registry port (`registry:5000/org/image`) is not a tag. Each container that is not versioned is a finding with its image and the reason: no tag (implicitly `latest`), the `latest` tag, or a moving tag that names no version. The details list the versioned ones.
+* **Limits**: the registry is not read, so a tag that contains a digit passes even when it moves (`ubuntu-24.04-latest`).
+* **Common rules**: [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
 
 ----------
 
@@ -2053,8 +2276,8 @@ Review all Helm Charts & Kubernetes Manifest files for the CNF and remove all oc
 
 #### Overview
 
-The hardcoded ip address test will scan all of the CNF's workload resources and check for any static, hardcoded ip addresses being used in the configuration. CIDR notation is allowed and will not cause the test to fail. The files a ConfigMap carries are read file line by file line; comment lines (whose first non-blank character is `#`, such as the commented-out defaults many config files ship with) are not configuration and are ignored. IP addresses that are justified by application logic are possible to be included in `hardcoded_ip_exceptions` in the [CNF configuration](https://github.com/lfn-cnti/testsuite/blob/main/docs/CNTI_TESTSUITE_YAML_USAGE.md) and will be excluded from violation reports. CustomResourceDefinitions are not scanned: they are schemas whose descriptions carry RFC section numbers and OIDs, not configuration. Four dot-separated numbers count as an address only when each is an octet (0 to 255).
-Expectation: That no hardcoded IP addresses are found in the Kubernetes workload resources for the CNF unless they are in CIDR format or explicitly listed in `hardcoded_ip_exceptions`.
+Checks the CNF's Kubernetes resources, and the files its ConfigMaps carry, for hardcoded IPv4 addresses. Each address found fails the test, except CIDR ranges, `127.0.0.1`, `0.0.0.0` and the addresses the CNF lists in `hardcoded_ip_exceptions`.
+Expectation: No hardcoded IP addresses are found in the CNF's Kubernetes resources unless they are in CIDR format or explicitly listed in `hardcoded_ip_exceptions`.
 
 #### Rationale
 
@@ -2070,13 +2293,26 @@ Review all Helm Charts & Kubernetes Manifest files of the CNF and look for any h
 
 `./cnti-testsuite hardcoded_ip_addresses_in_k8s_runtime_configuration`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: every resource of the CNF's installed manifest, not only its workloads: the rendered chart or manifests, with the workloads found by label or created by an operator for the CNF's custom resources (read without their status). The manifest is scanned line by line. CustomResourceDefinitions are not scanned: they are schemas whose descriptions carry RFC section numbers and OIDs, not configuration. The files a ConfigMap carries in its `data` are read file line by file line; comment lines (whose first non-blank character is `#`, such as the commented-out defaults many config files ship with) are not configuration and are ignored. The ConfigMap's other lines, its metadata and `binaryData`, are not scanned. Comment lines elsewhere in the manifest are scanned.
+* **Configuration**: `hardcoded_ip_exceptions` under `common` in the [CNF configuration](https://github.com/lfn-cnti/testsuite/blob/main/docs/CNTI_TESTSUITE_YAML_USAGE.md), one `- ip: ADDRESS` entry per address: addresses justified by application logic, which are excluded from violation reports.
+* **Verdicts**: four dot-separated numbers count as an address only when each is an octet (0 to 255). An address followed by a prefix length (`10.0.0.0/8`) is CIDR notation and does not cause the test to fail, and `127.0.0.1` and `0.0.0.0` are always allowed. Each other address is a finding that names the resource it sits in, its line in the manifest and the line's text.
+* **Limits**: IPv6 addresses are not detected. A dotted number with four parts, such as a version `1.2.3.4`, is taken for an address. The line scan stops at the first line that contains `NOTES:`, so the manifest's lines after it are not scanned; ConfigMap files are read in full.
+* **Common rules**: [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
+
 ----------
 
 ### Secrets used
 
 #### Overview
 
-The secrets used test reads, for every workload of the CNF, which Secrets its pod spec consumes (a secret volume a container mounts, a projected secret source, an env `secretKeyRef`, an `envFrom` `secretRef`, an `imagePullSecrets` entry), and lists the Secrets the CNF ships in its namespaces (every Secret but service account tokens, registry credentials and Helm's release records). It fails when a shipped Secret is read by no workload, or when a workload requires a Secret that does not exist; it is not applicable when the CNF ships no Secret and reads none.
+Checks that every Secret in the namespaces of the CNF's workloads is read by one of them, and that every Secret a workload requires exists. An unread Secret or a missing required one fails. A CNF that has no Secret and reads none is not applicable.
 Expectation: The CNF keeps its sensitive data in Secrets, and every Secret it ships is read by one of its workloads.
 
 #### Rationale
@@ -2095,13 +2331,25 @@ A Secret the CNF ships but no workload reads is either dead data in the namespac
 
 `./cnti-testsuite secrets_used`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the CNF's workloads, read from the cluster, and the Secrets in each namespace where one of them runs. Every Secret there counts as shipped by the CNF, whoever created it, except service account tokens (`kubernetes.io/service-account-token`), registry credentials (`kubernetes.io/dockercfg`, `kubernetes.io/dockerconfigjson`) and Helm's release records (`helm.sh/release.v1`). Not applicable when no Secret is shipped and no workload reads one, or when the CNF has no workload.
+* **Verdicts**: a workload reads a Secret through a `secret` volume or a projected volume's secret source that one of its containers mounts (a volume no container mounts reaches no process), an env `secretKeyRef` or an `envFrom` `secretRef` of any of its containers, init and ephemeral ones included, or an `imagePullSecrets` entry. A shipped Secret that no workload in its namespace reads fails. A reference to a Secret that does not exist in the namespace fails, unless it is `optional: true`; an `imagePullSecrets` entry is never required. The details list which workload reads which Secret.
+* **Limits**: only the pod spec counts as reading: a Secret that an application or an operator reads through the Kubernetes API, or that only a ServiceAccount, an Ingress or a custom resource names, is unread. A Secret another tool creates in the CNF's namespace (a cert-manager certificate, for example) counts as shipped. Whether sensitive data sits in ConfigMaps or environment variables instead of Secrets is not checked.
+* **Common rules**: [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
+
 ----------
 
 ### Immutable configmap
 
 #### Overview
 
-The immutable configmap test scans the CNF's workload resources for ConfigMaps mounted as volumes or used in container environments and reports each mutable one with the workload and container that uses it. The cluster is first probed with an immutable ConfigMap that must reject a change; a cluster that accepts it does not enforce immutability, and the test is not applicable there.
+Checks that every ConfigMap the CNF's workloads use as a volume or in a container's environment variables is immutable. Each mutable one is a finding, with the workload and container that use it. A cluster that does not enforce immutable ConfigMaps makes the test not applicable.
 Expectation: Immutable configmaps are being used for non-mutable data.
 
 #### Rationale
@@ -2123,13 +2371,25 @@ Use immutable configmaps for any non-mutable configuration data.
 
 `./cnti-testsuite immutable_configmap`
 
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: the CNF's workloads, read from the cluster, and the ConfigMaps in each one's namespace. A workload uses a ConfigMap through a `configMap` volume of its pod spec, whether or not a container mounts it, or through a `valueFrom.configMapKeyRef` in the env of one of its regular containers. An `envFrom` `configMapRef`, a projected volume's ConfigMap source and init containers are not checked, and a reference to a ConfigMap that does not exist is not judged. Not applicable when the CNF has no workload.
+* **Verdicts**: the cluster is first probed with an immutable ConfigMap that must reject a change; a cluster that accepts it does not enforce immutability, and the test is not applicable there. A used ConfigMap without `immutable: true` is then a finding for each container that mounts it or reads it in its env, and a mutable volume is also reported for the workload, without a container, when a container does not mount it. A CNF whose workloads use no ConfigMap passes.
+* **Side effects**: the probe is the ConfigMap `cnti-immutable-configmap-probe` in the suite's `cnti-testsuite` namespace, created, changed and deleted again; no resource of the CNF is changed.
+* **Common rules**: [Jobs and CronJobs](#jobs-and-cronjobs).
+
+</details>
+
 ----------
 
 ### Kubernetes Alpha APIs
 
 #### Overview
 
-This checks the CNF's rendered manifests for resources declared with alpha versions of a Kubernetes API, and for CustomResourceDefinitions that define a Kubernetes API in alpha versions only. A Kubernetes API is one in a group Kubernetes governs: the core group (`v1`), the legacy groups without a domain (`apps`, `batch`, `autoscaling`, `policy`, `extensions`, `events`) and `*.k8s.io`, the SIG APIs delivered as CRDs included (a `gateway.networking.k8s.io/v1alpha2` route of the Gateway API's experimental channel is a finding). A project's own API group (`keda.sh`, `external-secrets.io`, a `*.x-k8s.io` sandbox group) is not judged: its `v1alpha1` versions are the project's own versioning, not a Kubernetes alpha feature.
+Checks that the CNF declares no resource with an alpha version of a Kubernetes API, and no CustomResourceDefinition that serves a Kubernetes API in alpha versions only. Each such resource fails. A project's own API groups are not judged: their alpha versions are the project's own versioning.
 Expectation: CNF should not use Kubernetes alpha APIs
 
 #### Rationale
@@ -2145,6 +2405,17 @@ Make sure your CNFs are not utilizing any Kubernetes alpha APIs. You can learn m
 #### Usage
 
 `./cnti-testsuite alpha_k8s_apis`
+
+#### Details
+
+<details>
+<summary>How the test works in detail</summary>
+
+* **Scope**: every resource of the CNF's installed manifest: the rendered chart or manifests, Helm hooks excluded, with the workloads found by label or created by an operator, and the CustomResourceDefinitions the install read from the cluster for the CNF's custom resources. A CNF with no such resource passes; the test is never not applicable.
+* **Verdicts**: a Kubernetes API is one in a group Kubernetes governs: the core group (`v1`), the legacy groups without a domain (`apps`, `batch`, `autoscaling`, `policy`, `extensions`, `events`) and `*.k8s.io`, the SIG APIs delivered as CRDs included (a `gateway.networking.k8s.io/v1alpha2` route of the Gateway API's experimental channel is a finding). A project's own API group (`keda.sh`, `external-secrets.io`, a `*.x-k8s.io` sandbox group) is not judged: its `v1alpha1` versions are the project's own versioning, not a Kubernetes alpha feature. A resource of a Kubernetes group is a finding when the version in its `apiVersion` contains `alpha`. A CustomResourceDefinition of a Kubernetes group is a finding when every version it serves is alpha; a version with `served: false` does not count.
+* **Limits**: beta versions are not judged, and neither are alpha fields or feature gates within a stable API version; [Deprecated K8s Features](#deprecated-k8s-features) judges deprecated APIs.
+
+</details>
 
 ----------
 

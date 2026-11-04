@@ -288,3 +288,25 @@ rule "TTDS009", "Details is a collapsed list whose items start with one of #{DET
     violation_lines.empty? ? nil : violation_lines
   end
 end
+
+# Details is a raw HTML block: kramdown reads a <placeholder> in it as an HTML
+# tag even inside backticks, and every heading after it drops out of the
+# parse (and out of TTDS002/TTDS005). Placeholders there are written in
+# capitals, as in /proc/PID/status.
+rule "TTDS010", "No <placeholder> in angle brackets inside Details" do
+  tags :documentation
+  check do |doc|
+    violation_lines = []
+    in_details = false
+    doc.lines.each_with_index do |line, index|
+      if line.strip == "<details>"
+        in_details = true
+      elsif line.strip == "</details>"
+        in_details = false
+      elsif in_details && line.gsub(%r{</?(details|summary)>}, "") =~ /<\/?[a-zA-Z][^<>]*>/
+        violation_lines << index + 1
+      end
+    end
+    violation_lines.empty? ? nil : violation_lines
+  end
+end
