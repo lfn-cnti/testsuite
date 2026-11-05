@@ -26,6 +26,26 @@ describe "KubectlClient::Get.replica_counts" do
     KubectlClient::Get.replica_counts("Deployment", json).should eq({current: -1, desired: -1, unavailable: -1})
   end
 
+  it "reports -1 for a DaemonSet the controller has not observed yet, whose status the API server set to zeros", tags: ["points"] do
+    json = JSON.parse(%({"kind": "DaemonSet", "metadata": {"generation": 1}, "status": {"currentNumberScheduled": 0, "desiredNumberScheduled": 0, "numberMisscheduled": 0, "numberReady": 0}}))
+    KubectlClient::Get.replica_counts("DaemonSet", json).should eq({current: -1, desired: -1, unavailable: -1})
+  end
+
+  it "reads a DaemonSet the controller has observed and no node schedules as 0 of 0", tags: ["points"] do
+    json = JSON.parse(%({"kind": "DaemonSet", "metadata": {"generation": 1}, "status": {"observedGeneration": 1, "currentNumberScheduled": 0, "desiredNumberScheduled": 0, "numberMisscheduled": 0, "numberReady": 0}}))
+    KubectlClient::Get.replica_counts("DaemonSet", json).should eq({current: 0, desired: 0, unavailable: -1})
+  end
+
+  it "reports -1 while the controller has not observed a Deployment's newest spec", tags: ["points"] do
+    json = JSON.parse(%({"kind": "Deployment", "metadata": {"generation": 2}, "spec": {"replicas": 3}, "status": {"observedGeneration": 1, "replicas": 2, "readyReplicas": 2}}))
+    KubectlClient::Get.replica_counts("Deployment", json).should eq({current: -1, desired: -1, unavailable: -1})
+  end
+
+  it "reads the counts once the controller has observed the newest spec", tags: ["points"] do
+    json = JSON.parse(%({"kind": "StatefulSet", "metadata": {"generation": 3}, "status": {"observedGeneration": 3, "replicas": 2, "readyReplicas": 1}}))
+    KubectlClient::Get.replica_counts("StatefulSet", json).should eq({current: 1, desired: 2, unavailable: -1})
+  end
+
   it "reads a DaemonSet with nothing scheduled as 0 of 0", tags: ["points"] do
     json = JSON.parse(%({"kind": "DaemonSet", "status": {"desiredNumberScheduled": 0, "numberReady": 0}}))
     KubectlClient::Get.replica_counts("DaemonSet", json).should eq({current: 0, desired: 0, unavailable: -1})

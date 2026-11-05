@@ -479,7 +479,19 @@ module KubectlClient
     # count is the spec's replica count (1 when unset) and a missing ready count
     # is 0, so a workload scaled to zero reads 0 of 0 and is ready rather than
     # never ready. Before any status, both stay -1.
+    #
+    # The counts describe the spec the controller last observed. While its
+    # `observedGeneration` is behind `metadata.generation`, or not written yet,
+    # they belong to an older spec or to none: all three are -1. A DaemonSet
+    # the API server has just created carries a status of zeros before its
+    # controller has seen it, which read as 0 of 0 would be taken for one that
+    # no node schedules.
     def self.replica_counts(kind : String, resource_json : JSON::Any) : NamedTuple(current: Int32, desired: Int32, unavailable: Int32)
+      unknown = {current: -1, desired: -1, unavailable: -1}
+      if generation = resource_json.dig?("metadata", "generation").try(&.as_i64?)
+        observed = resource_json.dig?("status", "observedGeneration").try(&.as_i64?)
+        return unknown if observed.nil? || observed < generation
+      end
       case kind.downcase
       when "replicaset", "deployment", "statefulset"
         current_json = resource_json.dig?("status", "readyReplicas")

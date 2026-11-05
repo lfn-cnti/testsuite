@@ -159,40 +159,50 @@ module KubectlClient
       logger.debug { "Checking if custom resource #{kind}/#{resource_name} has Ready condition" }
 
       begin
-        resource = KubectlClient::Get.resource(kind, resource_name, namespace)
-        
-        # Check if the resource has status.conditions
-        conditions = resource.dig?("status", "conditions")
-        
-        # If no status.conditions, the CR doesn't implement status - consider it ready once it exists
-        if !conditions
-          logger.debug { "Custom resource #{kind}/#{resource_name} has no status.conditions, considering it ready" }
-          return true
-        end
-        
-        conditions_array = conditions.as_a?
-        if !conditions_array
-          logger.debug { "Custom resource #{kind}/#{resource_name} status.conditions is not an array, considering it ready" }
-          return true
-        end
-        
-        # Look for Ready condition with status=True
-        ready_condition = conditions_array.find do |condition|
-          condition.dig?("type").try(&.as_s) == "Ready"
-        end
-        
-        # If no Ready condition found, consider it ready (not all CRs implement Ready condition)
-        if !ready_condition
-          logger.debug { "Custom resource #{kind}/#{resource_name} has no Ready condition, considering it ready" }
-          return true
-        end
-        
-        status = ready_condition.dig?("status").try(&.as_s)
-        return status == "True"
+        custom_resource_json_ready?(KubectlClient::Get.resource(kind, resource_name, namespace), "#{kind}/#{resource_name}")
       rescue ex
         logger.debug { "Failed to check custom resource Ready condition: #{ex.message}" }
+        false
+      end
+    end
+
+    # Whether a custom resource, as read from the cluster, is ready by its
+    # Ready condition: a resource without status.conditions, or without a
+    # Ready condition, is ready once it exists (not every CR implements one);
+    # one whose Ready condition describes an earlier generation is not.
+    def self.custom_resource_json_ready?(resource : JSON::Any, label : String = "custom resource") : Bool
+      logger = @@logger.for("custom_resource_ready?")
+      conditions = resource.dig?("status", "conditions")
+      if !conditions
+        logger.debug { "#{label} has no status.conditions, considering it ready" }
+        return true
+      end
+      conditions_array = conditions.as_a?
+      if !conditions_array
+        logger.debug { "#{label} status.conditions is not an array, considering it ready" }
+        return true
+      end
+      ready_condition = conditions_array.find { |condition| condition.dig?("type").try(&.as_s?) == "Ready" }
+      if !ready_condition
+        logger.debug { "#{label} has no Ready condition, considering it ready" }
+        return true
+      end
+      if condition_stale?(resource, ready_condition)
+        logger.debug { "#{label}: its Ready condition describes an earlier generation" }
         return false
       end
+      ready_condition.dig?("status").try(&.as_s?) == "True"
+    end
+
+    # A condition that carries its own `observedGeneration` (the standard
+    # metav1.Condition does) describes the spec of that generation: behind the
+    # resource's `metadata.generation`, it is about an earlier spec, as a
+    # workload's counts are before its controller observed the newest one.
+    # A condition without the field says nothing either way.
+    def self.condition_stale?(resource : JSON::Any, condition : JSON::Any) : Bool
+      generation = resource.dig?("metadata", "generation").try(&.as_i64?)
+      observed = condition.dig?("observedGeneration").try(&.as_i64?)
+      !generation.nil? && !observed.nil? && observed < generation
     end
 
     def self.wait_for_resource_key_value(
