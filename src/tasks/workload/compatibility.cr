@@ -373,6 +373,9 @@ scored_task "increase_decrease_capacity",
     # Workloads deployed with no replicas (arbiters, standby sets) run nothing
     # to scale; they are named in the details, not scaled.
     idle = [] of String
+    # DaemonSets whose controller never reported the nodes they run on: not
+    # judged, and not idle either, since their count is unknown, not zero.
+    unjudged = [] of String
     # Workloads scaled up and back to their deployed count, for the restart
     # check after the scaling.
     scaled_back = [] of Tuple(String, String, String)
@@ -388,11 +391,19 @@ scored_task "increase_decrease_capacity",
 
     CNFManager.resource_refs(args, config, ["daemonset"]) do |resource|
       kind, name, namespace = resource[:kind], resource[:name], resource[:namespace]
-      # The controller fills in desiredNumberScheduled shortly after the
-      # DaemonSet is created; until then, its pods already bound to a node
-      # say how many nodes it runs on.
-      scheduled = KubectlClient::Get.resource(kind, name, namespace).dig?("status", "desiredNumberScheduled").try(&.as_i?) ||
-                  CapacityRestart.pods(kind, name, namespace).count { |pod| pod.dig?("spec", "nodeName").try(&.as_s?).try { |n| !n.empty? } }
+      # Not known until the DaemonSet's controller has observed it: wait for
+      # that rather than take the unknown count for none.
+      scheduled = nil
+      (GENERIC_OPERATION_TIMEOUT + 1).times do |second|
+        scheduled = CapacityRestart.scheduled_nodes(KubectlClient::Get.resource(kind, name, namespace),
+          CapacityRestart.pods(kind, name, namespace))
+        break if scheduled || second == GENERIC_OPERATION_TIMEOUT
+        sleep 1.seconds
+      end
+      if scheduled.nil?
+        unjudged << "#{kind}/#{name} in #{namespace}: its controller did not report the nodes it runs on within #{GENERIC_OPERATION_TIMEOUT}s, not judged"
+        next
+      end
       if scheduled == 0
         idle << "#{kind}/#{name} in #{namespace}: scheduled on no node, nothing to restart"
         next
@@ -454,6 +465,7 @@ scored_task "increase_decrease_capacity",
     end
 
     idle.each { |line| result.append_description(line) }
+    unjudged.each { |line| result.append_description(line) }
     operator_owned.each { |line| result.append_description(line) }
 
     # Scaling back restores the replica counts, not the application: a
@@ -475,7 +487,9 @@ scored_task "increase_decrease_capacity",
       daemonsets.empty? ? nil : "#{daemonsets.size} DaemonSet(s) back on every node",
       single_instance.empty? ? nil : "#{single_instance.size} single-instance Deployment(s) Ready again",
     ].compact.join(", ") + " after a pod restart"
-    if deployed.empty? && restart_only.empty? && !idle.empty?
+    if deployed.empty? && restart_only.empty? && !unjudged.empty?
+      result.skipped("increase_decrease_capacity not judged: the controller of #{unjudged.size} DaemonSet(s) did not report the nodes they run on; see the details")
+    elsif deployed.empty? && restart_only.empty? && !idle.empty?
       result.na("increase_decrease_capacity not applicable: no Deployment, StatefulSet or DaemonSet runs pods to scale or restart")
     elsif !deployed.empty? && restart_only.empty? && operator_owned.size == deployed.size
       result.na("increase_decrease_capacity not applicable: every workload is sized by an operator's custom resource and none followed a direct scale")
@@ -497,10 +511,25 @@ end
 module CapacityRestart
   alias Ref = Tuple(String, String, String)
 
-  # The workload's pods that are not on their way out.
+  # How many nodes a DaemonSet runs on: its desired count once its controller
+  # has observed it. Until then the API server's status reads 0, which would
+  # take it for a DaemonSet scheduled on no node, so its pods already bound to
+  # a node say instead; with none, the count is unknown (nil), not zero.
+  def self.scheduled_nodes(daemonset : JSON::Any, pods : Array(JSON::Any)) : Int32?
+    desired = KubectlClient::Get.replica_counts("DaemonSet", daemonset)[:desired]
+    return desired if desired >= 0
+    bound = pods.count { |pod| pod.dig?("spec", "nodeName").try(&.as_s?).try { |n| !n.empty? } }
+    bound > 0 ? bound : nil
+  end
+
+  # The workload's pods that are not on their way out. A pod with no
+  # controller only shares the labels: no workload recreates it, so it is
+  # neither counted, nor restarted, nor waited for.
   def self.pods(kind : String, name : String, namespace : String) : Array(JSON::Any)
     live = KubectlClient::Get.resource(kind, name, namespace)
-    KubectlClient::Get.pods_by_resource_labels(live, namespace).reject { |pod| pod.dig?("metadata", "deletionTimestamp") }
+    KubectlClient::Get.pods_by_resource_labels(live, namespace).reject do |pod|
+      pod.dig?("metadata", "deletionTimestamp") || KubectlClient::Get.controller_of(pod).nil?
+    end
   end
 
   def self.pod_ready?(pod : JSON::Any) : Bool
@@ -518,8 +547,13 @@ module CapacityRestart
     # A surge (maxSurge) can leave a second, not yet Ready pod on a node, so
     # it is judged by the nodes that have a Ready pod, counted from the pods
     # and by the DaemonSet's own status, not by every pod being Ready.
+    # Until the controller has observed the DaemonSet, its status is the API
+    # server's zeros: 0 ready of 0 would pass for recovered before any pod
+    # replaced the deleted one.
     if kind.downcase == "daemonset"
-      status = KubectlClient::Get.resource(kind, name, namespace)["status"]?
+      live = KubectlClient::Get.resource(kind, name, namespace)
+      return false if KubectlClient::Get.replica_counts(kind, live)[:desired] < 0
+      status = live["status"]?
       desired = status.try(&.["desiredNumberScheduled"]?).try(&.as_i?) || 1
       number_ready = status.try(&.["numberReady"]?).try(&.as_i?) || 0
       ready_nodes = pods.select { |pod| pod_ready?(pod) }.compact_map { |pod| pod.dig?("spec", "nodeName").try(&.as_s?) }.uniq.size

@@ -145,6 +145,12 @@ To run the automated test suite within the source clone:
 crystal spec
 ```
 
+The specs tagged `controller_paused` stop the controller manager on a kind control-plane node, and need a kind cluster. On any other cluster, leave them out:
+
+```
+crystal spec --tag '~controller_paused'
+```
+
 </p></details>
 
 ### Preparation
