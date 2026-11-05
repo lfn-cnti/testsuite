@@ -435,25 +435,24 @@ scored_task "increase_decrease_capacity",
         target = replicas + increase_by
         Log.for(t.name).info { "#{ref} in #{namespace}: deployed with #{replicas} replicas; scaling to #{target}, then back" }
 
-        ready = scale_and_wait(resource, target, args)
-        if ready != target.to_s && owner
-          operator_owned << "#{ref} in #{namespace}: owned by #{owner}, which sets its replica count; a direct scale to #{target} did not take (#{ready} ready), so it is not counted"
+        label = "#{ref} in #{namespace}"
+        up = judge_scale(scale_and_wait(resource, target, args), replicas, target, owner, label)
+        case up.verdict
+        when :operator_owned
+          operator_owned << up.detail
           next
-        end
-        if ready != target.to_s
-          failures << "#{ref} in #{namespace}: increase from #{replicas} to #{target} replicas did not complete (#{ready} ready)"
-          why = WorkloadDiagnostics.report(result, kind, name, namespace, "#{ref} while scaling to #{target}")
-          result.add_impacted_resource(kind, name, namespace,
-            reason: "could not scale up to #{target} replicas (#{ready} ready)#{why.first?.try { |w| ": #{w}" }}")
+        when :failed
+          failures << up.detail
+          why = WorkloadDiagnostics.report(result, kind, name, namespace, "#{label} while scaling to #{target}")
+          result.add_impacted_resource(kind, name, namespace, reason: "#{up.reason}#{why.first?.try { |w| ": #{w}" }}")
           next
         end
 
-        ready = scale_and_wait(resource, replicas, args)
-        if ready != replicas.to_s
-          failures << "#{ref} in #{namespace}: decrease from #{target} back to #{replicas} replicas did not complete (#{ready} ready)"
-          why = WorkloadDiagnostics.report(result, kind, name, namespace, "#{ref} while scaling back to #{replicas}")
-          result.add_impacted_resource(kind, name, namespace,
-            reason: "could not scale back down to #{replicas} replicas (#{ready} ready)#{why.first?.try { |w| ": #{w}" }}")
+        down = judge_scale(scale_and_wait(resource, replicas, args), target, replicas, nil, label)
+        if down.verdict == :failed
+          failures << down.detail
+          why = WorkloadDiagnostics.report(result, kind, name, namespace, "#{label} while scaling back to #{replicas}")
+          result.add_impacted_resource(kind, name, namespace, reason: "#{down.reason}#{why.first?.try { |w| ": #{w}" }}")
         else
           scaled_back << {kind, name, namespace}
         end
@@ -738,46 +737,96 @@ def deployed_replicas(kind : String, name : String, namespace : String) : Int32
   KubectlClient::Get.resource(kind, name, namespace).dig?("spec", "replicas").try(&.as_i) || 1
 end
 
-# Scales the workload and returns the ready replica count once it settles.
-def scale_and_wait(resource : NamedTuple(kind: String, name: String, namespace: String), target : Int32, args) : String
-  Log.for("scale_and_wait").info { "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}: scaling to #{target}" }
-  KubectlClient::Utils.scale(resource[:kind], resource[:name], target, resource[:namespace])
-  wait_for_scaling(resource, target.to_s, args)
+# How a scale is going, read from the workload: the ready count, -1 until the
+# controller has observed the spec it was scaled to (#2900), and the replica
+# count the spec asks for now.
+def scaling_state(live : JSON::Any, kind : String) : NamedTuple(ready: Int32, spec: Int32)
+  {ready: KubectlClient::Get.replica_counts(kind, live)[:current], spec: live.dig?("spec", "replicas").try(&.as_i?) || 1}
 end
 
-def wait_for_scaling(resource : NamedTuple(kind: String, name: String, namespace: String), target_replica_count, args)
-  Log.debug { "target_replica_count: #{target_replica_count}" }
-  replicas_cmd = "kubectl get #{resource[:kind]} #{resource[:name]} -o=jsonpath='{.status.readyReplicas}' -n #{resource[:namespace]}"
-  Process.run(
-    replicas_cmd,
-    shell: true,
-    output: replicas_stdout = IO::Memory.new,
-    error: replicas_stderr = IO::Memory.new
-  )
-  current_replicas = replicas_stdout.to_s.empty? ? "0" : replicas_stdout.to_s
-  previous_replicas = current_replicas
-  # This waits for pods to become ready, so it gets the pod readiness budget
-  # rather than the generic one: a replica that needs a minute to pass its
-  # readiness probe on a busy node is what the budget is for. The timer resets
-  # on every change of the ready count, so it bounds the gap between replicas.
-  repeat_with_timeout(timeout: POD_READINESS_TIMEOUT, errormsg: "Pod scaling has timed-out", reset_on_nil: true) do
-    Log.debug { "current_replicas before get #{resource[:kind]}: #{current_replicas}" }
-    Log.trace { "$KUBECONFIG = #{ENV.fetch("KUBECONFIG", nil)}" }
-
-    Process.run(
-      replicas_cmd,
-      shell: true,
-      output: replicas_stdout = IO::Memory.new,
-      error: replicas_stderr = IO::Memory.new
-    )
-    current_replicas = replicas_stdout.to_s.empty? ? "0" : replicas_stdout.to_s
-    if current_replicas.to_i != previous_replicas.to_i
-      previous_replicas = current_replicas
-      next nil
-    end
-    current_replicas == target_replica_count
+# Where a scale ended: the ready count then, whether the spec had been set
+# back from the target meanwhile (`reverted`), and what it asked for.
+record ScaleOutcome, ready : Int32, reverted : Bool, spec : Int32 do
+  # The ready count for a message: unknown while the controller has not
+  # observed the spec.
+  def ready_s : String
+    ready < 0 ? "none yet" : ready.to_s
   end
-  current_replicas
+end
+
+# What a scale's outcome means for the workload, with the lines for the
+# details. `:scaled` only when the ready count reached the target and the spec
+# still asked for it: a Deployment's ready count comes from its ReplicaSets
+# and can show the target for a moment after the spec was set back, so a
+# reverted scale is never a success. A workload an operator sizes (`owner`)
+# that was set back, or never got there, is `:operator_owned`: named, not
+# failed. Anything else is `:failed`, with the reason for the finding.
+record ScaleJudgement, verdict : Symbol, detail : String, reason : String
+
+def judge_scale(outcome : ScaleOutcome, from : Int32, target : Int32, owner : String?, label : String) : ScaleJudgement
+  return ScaleJudgement.new(:scaled, "", "") if !outcome.reverted && outcome.ready == target
+  if owner
+    taken = outcome.reverted ? "was set back to #{outcome.spec}" : "did not take (#{outcome.ready_s} ready)"
+    return ScaleJudgement.new(:operator_owned, "#{label}: owned by #{owner}, which sets its replica count; a direct scale to #{target} #{taken}, so it is not counted", "")
+  end
+  up = target > from
+  what = outcome.reverted ? "was set back to #{outcome.spec} while scaling" : "did not complete (#{outcome.ready_s} ready)"
+  how = outcome.reverted ? "set back to #{outcome.spec}" : "#{outcome.ready_s} ready"
+  ScaleJudgement.new(:failed,
+    "#{label}: #{up ? "increase from #{from} to #{target}" : "decrease from #{from} back to #{target}"} replicas #{what}",
+    "could not scale #{up ? "up to" : "back down to"} #{target} replicas (#{how})")
+end
+
+# Scales the workload and waits for its ready count to reach the target.
+def scale_and_wait(resource : NamedTuple(kind: String, name: String, namespace: String), target : Int32, args) : ScaleOutcome
+  Log.for("scale_and_wait").info { "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}: scaling to #{target}" }
+  KubectlClient::Utils.scale(resource[:kind], resource[:name], target, resource[:namespace])
+  wait_for_scaling(resource, target, args)
+end
+
+# Waits until the workload has `target` replicas ready. The wait ends early
+# when the spec no longer asks for the target: an operator that sets its
+# workload's size, or an autoscaler, has put it back, and nothing more will
+# happen (#2899). Each replica gets the pod readiness budget: the timer
+# restarts on every change of the ready count, so it bounds the gap between
+# replicas rather than the whole scale, and a replica that needs a minute to
+# pass its readiness probe on a busy node fits. A wait that runs out is logged
+# with the workload, the target and the ready count.
+def wait_for_scaling(resource : NamedTuple(kind: String, name: String, namespace: String), target : Int32, args) : ScaleOutcome
+  label = "#{resource[:kind]}/#{resource[:name]} in #{resource[:namespace]}"
+  log = Log.for("wait_for_scaling")
+  ready = -1
+  spec = target
+  previous = nil.as(Int32?)
+  since = Time.utc
+  loop do
+    # A read that fails (the API server busy) is a poll missed: the counts
+    # and the timer stay as they were, so missed polls neither restart the
+    # budget nor count as progress.
+    live = begin
+      KubectlClient::Get.resource(resource[:kind], resource[:name], resource[:namespace])
+    rescue KubectlClient::ShellCMD::K8sClientCMDException
+      nil
+    end
+    if live
+      state = scaling_state(live, resource[:kind])
+      ready, spec = state[:ready], state[:spec]
+      if spec != target
+        log.info { "#{label}: the replica count was set back to #{spec} while scaling to #{target} (#{ready} ready)" }
+        return ScaleOutcome.new(ready, true, spec)
+      end
+      return ScaleOutcome.new(ready, false, spec) if ready == target
+      if ready != previous
+        previous = ready
+        since = Time.utc
+      end
+    end
+    if (Time.utc - since).total_seconds >= POD_READINESS_TIMEOUT
+      log.error { "#{label}: scaling to #{target} did not complete within #{POD_READINESS_TIMEOUT}s of the last change: #{ready} ready" }
+      return ScaleOutcome.new(ready, false, spec)
+    end
+    sleep 1.seconds
+  end
 end
 
 def extract_f_flags(helm_values : String?) : String?
