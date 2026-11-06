@@ -220,6 +220,33 @@ jobs:
           .github/workflows/adopter_canary.sh report "$canary" "$NAME" report.md || status=$?
           { cat report.md; echo "Adopter's commit: $HEAD_URL"; } >> "$GITHUB_STEP_SUMMARY"
           exit $status
+      # Trial: the suite's newer commands (compare, analyze, evidence) against
+      # this run, and a small local model's reading of its failures.
+      - name: Start a small local model
+        id: model
+        if: always() && steps.run.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          docker run -d --name ollama -p 127.0.0.1:11434:11434 ollama/ollama:0.40.12@sha256:20d1bbfbabe1c97ba4b16301f08a20d8484bcf77047742a3cb71c613d8e12d0b
+          for _ in $(seq 60); do curl -sf http://127.0.0.1:11434/api/version && break || sleep 2; done
+          docker exec ollama ollama pull qwen2.5:1.5b
+      - name: The newer commands against this run
+        if: always() && steps.run.outcome == 'success'
+        env:
+          NAME: ${{ matrix.adopter.display_name }}
+          BASELINE: ${{ steps.baseline.outputs.file }}
+          MODEL_UP: ${{ steps.model.outcome }}
+        run: |
+          set -uo pipefail
+          canary=$(.github/workflows/adopter_canary.sh newest adopter/cnti/results 2>/dev/null || true)
+          [[ -n "$canary" ]] || { echo "::error::no results file"; exit 1; }
+          endpoint=""; [[ "$MODEL_UP" == success ]] && endpoint=http://127.0.0.1:11434/v1
+          status=0
+          .github/workflows/adopter_features.sh "$canary" "$BASELINE" "$NAME" features "$endpoint" qwen2.5:1.5b || status=$?
+          cat features/features.md >> "$GITHUB_STEP_SUMMARY"
+          cat features/features.md
+          exit $status
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
@@ -227,4 +254,5 @@ jobs:
           path: |
             adopter/cnti/results/
             report.md
+            features/
           if-no-files-found: ignore
