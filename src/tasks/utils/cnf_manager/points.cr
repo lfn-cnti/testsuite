@@ -593,6 +593,9 @@ module CNFManager
                    command:           "#{Process.executable_path} #{ARGV.join(" ")}",
                    exit_code:         results["exit_code"],
                    tools:             tool_versions,
+                   # Recorded once when the file was created (#2902): the
+                   # cluster the run is about to use, kept through every test.
+                   platform:          results["platform"]?,
                    items:             result_items}, f)
       end
       write_summary!
