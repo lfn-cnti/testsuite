@@ -55,6 +55,22 @@ describe "CNFManager::Platform" do
     end
   end
 
+  it "stays in the results file once a test has been recorded (#2902)", tags: ["points"] do
+    CNFManager::Points.clean_results_yml
+    file = CNFManager::Points::Results.file
+    doc = YAML.parse(File.read(file))
+    # A record of a kind cluster, so the check does not depend on the cluster at hand.
+    record = YAML.parse(CNFManager::Platform.from_json(version, nodes, daemonsets).to_json)
+    doc.as_h[YAML::Any.new("platform")] = record
+    File.write(file, doc.to_yaml)
+    # Every test's result rewrites the whole document: the block has to come through.
+    CNFManager::Points.upsert_task(CNFManager::TestCaseResult.new("liveness", CNFManager::ResultStatus::Passed))
+    after = YAML.parse(File.read(file))
+    after.as_h.has_key?(YAML::Any.new("platform")).should be_true
+    after["platform"].should eq(record)
+    after["items"].as_a.size.should eq(1)
+  end
+
   it "'results_junit' prints the platform as properties", tags: ["points"] do
     results = YAML.parse(File.read("spec/fixtures/results-sample.yml"))
     results.as_h[YAML::Any.new("platform")] = YAML.parse(CNFManager::Platform.from_json(version, nodes, daemonsets).to_json)
