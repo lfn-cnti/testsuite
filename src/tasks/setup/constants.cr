@@ -17,7 +17,7 @@ module Setup
 
   # Versions of the tools
   # renovate: datasource=github-releases depName=kubescape/kubescape
-  KUBESCAPE_VERSION           = "4.0.17"
+  KUBESCAPE_VERSION           = "4.0.20"
   # renovate: datasource=github-releases depName=kubescape/regolibrary
   KUBESCAPE_FRAMEWORK_VERSION = "2.0.39"
   # renovate: datasource=github-releases depName=helm/helm
