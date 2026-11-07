@@ -14,7 +14,7 @@ inputs:
     description: "kubectl version to install"
     required: false
     # renovate: datasource=github-releases depName=kubernetes/kubernetes
-    default: "1.37.1"
+    default: "1.37.2"
   helm:
     description: "Helm version to install"
     required: false
