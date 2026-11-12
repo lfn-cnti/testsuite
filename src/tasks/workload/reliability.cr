@@ -773,14 +773,32 @@ scored_task "disruption_budget",
     kind_of = ->(r : JSON::Any) { r.dig?("kind").try(&.as_s?) }
 
     hpas = resources.select { |r| kind_of.call(r) == "HorizontalPodAutoscaler" }.map { |r| {r, namespace_of.call(r)} }
-    # DaemonSets are left out: a drain does not evict them.
-    workloads = resources.select { |r| ["Deployment", "StatefulSet"].includes?(kind_of.call(r)) }.map do |r|
+    # DaemonSet pods are not evicted during a drain. Count the remaining
+    # pod templates for budget selection, avoiding child controllers already
+    # represented by their parent workload.
+    workloads = resources.compact_map do |r|
+      kind = kind_of.call(r)
+      next unless kind && {"Deployment", "StatefulSet", "ReplicaSet", "Job", "CronJob", "Pod"}.includes?(kind)
+      owner = KubectlClient::Get.controller_of(r)
+      next if kind == "Pod" && owner.try(&.[0]) == "DaemonSet"
+      parent_kind = owner.try(&.[0])
+      has_workload_parent = case kind
+                            when "ReplicaSet" then parent_kind == "Deployment"
+                            when "Job"        then parent_kind == "CronJob"
+                            when "Pod"        then {"Deployment", "ReplicaSet", "StatefulSet", "Job"}.includes?(parent_kind)
+                            else                   false
+                            end
+      next if owner && has_workload_parent && resources.any? { |parent|
+        kind_of.call(parent) == owner[0] &&
+          parent.dig?("metadata", "name").try(&.as_s?) == owner[1] &&
+          namespace_of.call(parent) == namespace_of.call(r)
+      }
       ns = namespace_of.call(r)
-      labels = (r.dig?("spec", "template", "metadata", "labels").try(&.as_h?) || {} of String => JSON::Any)
+      labels = (KubectlClient::Get.pod_template_labels_of(r).try(&.as_h?) || {} of String => JSON::Any)
         .transform_values { |v| v.as_s? || v.to_s }
-      DisruptionBudget::Workload.new(kind_of.call(r).not_nil!, r.dig("metadata", "name").as_s, ns,
+      DisruptionBudget::Workload.new(kind, r.dig("metadata", "name").as_s, ns,
         DisruptionBudget.replicas(r, ns, hpas), labels,
-        r.dig?("spec", "template", "spec") || JSON::Any.new({} of String => JSON::Any))
+        CNFManager.pod_spec_of(r) || EMPTY_JSON)
     end
 
     # Budgets from the manifest, and those live in the CNF's namespaces (an
@@ -791,13 +809,15 @@ scored_task "disruption_budget",
       name = r.dig("metadata", "name").as_s
       budgets["#{ns}/#{name}"] = DisruptionBudget::Budget.new(name, ns, r["spec"]? || JSON::Any.new({} of String => JSON::Any))
     end
+    unread = Set(String).new
     (workloads.map(&.namespace) + budgets.values.map(&.namespace)).uniq.each do |ns|
       live = begin
         KubectlClient::Get.resource("poddisruptionbudgets", namespace: ns)
       rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
         message = "PodDisruptionBudgets in #{ns} could not be read: #{ex.message}"
         Log.for(t.name).warn { message }
-        result.append_description("#{message}. Judged this namespace from the manifest only.")
+        result.append_description("#{message}. This namespace was not judged.")
+        unread << ns
         next
       end
       (live["items"]?.try(&.as_a?) || [] of JSON::Any).each do |item|
@@ -806,9 +826,14 @@ scored_task "disruption_budget",
       end
     end
 
-    evaluation = DisruptionBudget.evaluate(workloads, budgets.values)
+    evaluation = DisruptionBudget.evaluate(
+      workloads.reject { |workload| unread.includes?(workload.namespace) },
+      budgets.values.reject { |budget| unread.includes?(budget.namespace) })
     evaluation.details.each { |d| result.append_description(d) }
-    if !evaluation.applicable
+    if evaluation.findings.empty? && !unread.empty?
+      result.append_remediation("Ensure the suite can list PodDisruptionBudgets in every CNF namespace and run the test again.")
+      result.skipped("Could not judge disruption budgets in #{unread.to_a.sort.join(", ")}")
+    elsif !evaluation.applicable
       result.na("The CNF has no workload with more than one replica and no PodDisruptionBudget")
     elsif evaluation.findings.empty?
       result.passed("Every replicated workload is covered by a disruption budget and has a node spreading rule, and no budget blocks eviction under the configured replica counts")

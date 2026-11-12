@@ -64,6 +64,22 @@ describe "DisruptionBudget" do
       DisruptionBudget.spread(db_workload("w", 2, pod_spec: tsc.call("DoNotSchedule")))[0].should be_true
     end
 
+    it "counts required anti-affinity only if it reaches this namespace and matches the workload's labels", tags: ["points"] do
+      spec = ->(extra : String) do
+        JSON.parse(%({"affinity":{"podAntiAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":[
+          {"topologyKey":"kubernetes.io/hostname","labelSelector":{"matchLabels":{"app":"a"}}#{extra}}
+        ]}}}))
+      end
+      rule = ->(extra : String) do
+        w = DisruptionBudget::Workload.new("Deployment", "w", "cnf", 2, {"app" => "a"}, spec.call(extra))
+        DisruptionBudget.spread(w)[0]
+      end
+      rule.call(%(,"namespaces":["other"])).should be_false
+      rule.call(%(,"namespaces":["other"],"namespaceSelector":{})).should be_true
+      rule.call(%(,"namespaceSelector":{"matchLabels":{"kubernetes.io/metadata.name":"cnf"}})).should be_true
+      rule.call(%(,"mismatchLabelKeys":["app"])).should be_false
+    end
+
     it "does not count maxSkew that allows all replicas on one node", tags: ["points"] do
       constraint = ->(skew : Int32) do
         {"topologySpreadConstraints" => [{"topologyKey" => "kubernetes.io/hostname", "whenUnsatisfiable" => "DoNotSchedule",
@@ -103,6 +119,18 @@ describe "DisruptionBudget" do
       b = db_workload("b", 2, {"tier" => "web", "app" => "b"})
       budget = db_budget("web", {"minAvailable" => 3, "selector" => {"matchLabels" => {"tier" => "web"}}})
       DisruptionBudget.evaluate([a, b], [budget]).details.first.should contain("allows 1 of 4 selected pod(s)")
+    end
+
+    it "checks budgets selecting Job pods without requiring the Job to spread replicas", tags: ["points"] do
+      job = DisruptionBudget::Workload.new("Job", "batch", "cnf", 2, {"app" => "a"}, db_json({} of String => String))
+      budget = db_budget("batch", {"maxUnavailable" => 0, "selector" => {"matchLabels" => {"app" => "a"}}})
+      evaluation = DisruptionBudget.evaluate([job], [budget])
+      evaluation.findings.map(&.kind).should eq(["PodDisruptionBudget"])
+      evaluation.findings.first.reason.should contain("allows no eviction of its 2 selected pod(s)")
+      unsupported = db_budget("batch", {"maxUnavailable" => 1, "selector" => {"matchLabels" => {"app" => "a"}}})
+      DisruptionBudget.evaluate([job], [unsupported]).findings.first.reason.should contain("use an integer minAvailable")
+      supported = db_budget("batch", {"minAvailable" => 1, "selector" => {"matchLabels" => {"app" => "a"}}})
+      DisruptionBudget.evaluate([job], [supported]).findings.should be_empty
     end
 
     it "names a budget that sets neither field as blocking", tags: ["points"] do

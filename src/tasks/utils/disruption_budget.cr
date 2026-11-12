@@ -63,6 +63,12 @@ module DisruptionBudget
     end
   end
 
+  private def self.scale_required?(budget : Budget, selected : Array(Workload)) : Bool
+    min = budget.spec.dig?("minAvailable")
+    needs_scale = !budget.spec.dig?("maxUnavailable").nil? || min.try(&.as_s?).try(&.ends_with?("%")) == true
+    needs_scale && selected.any? { |w| {"Job", "CronJob", "Pod"}.includes?(w.kind) }
+  end
+
   # Why a budget allows no eviction, for the finding.
   def self.blocking_reason(budget : Budget, expected : Int32) : String
     cause = if budget.spec.dig?("maxUnavailable")
@@ -75,13 +81,38 @@ module DisruptionBudget
     "allows no eviction of its #{expected} selected pod(s) (#{cause}), so it blocks every drain of their nodes"
   end
 
+  def self.replica_spreading_required?(workload : Workload) : Bool
+    workload.replicas > 1 && {"Deployment", "StatefulSet"}.includes?(workload.kind)
+  end
+
+  private def self.targets_own_namespace?(term : JSON::Any, namespace : String) : Bool
+    names = term.dig?("namespaces").try(&.as_a?) || [] of JSON::Any
+    return true if names.any? { |name| name.as_s? == namespace }
+
+    selector = term.dig?("namespaceSelector")
+    return names.empty? if selector.nil? || selector.raw.nil?
+
+    # The namespace-name label is the only namespace label the manifest
+    # lets us verify without a cluster lookup.
+    labels = selector.dig?("matchLabels").try(&.as_h?) || {} of String => JSON::Any
+    expressions = selector.dig?("matchExpressions").try(&.as_a?) || [] of JSON::Any
+    key = "kubernetes.io/metadata.name"
+    labels.keys.all? { |label| label == key } &&
+      expressions.all? { |expression| expression.dig?("key").try(&.as_s?) == key } &&
+      selects?(selector, {key => namespace})
+  end
+
   # Whether the workload's own pods are spread over nodes, and what else was
   # seen that does not guarantee it (named in the details, not counted).
   def self.spread(workload : Workload) : {Bool, Array(String)}
     seen = [] of String
     terms = workload.pod_spec.dig?("affinity", "podAntiAffinity", "requiredDuringSchedulingIgnoredDuringExecution").try(&.as_a?) || [] of JSON::Any
     required = terms.any? do |t|
-      t.dig?("topologyKey").try(&.as_s?) == HOSTNAME_KEY && selects?(t.dig?("labelSelector"), workload.labels)
+      mismatch_keys = t.dig?("mismatchLabelKeys").try(&.as_a?) || [] of JSON::Any
+      t.dig?("topologyKey").try(&.as_s?) == HOSTNAME_KEY &&
+        targets_own_namespace?(t, workload.namespace) &&
+        selects?(t.dig?("labelSelector"), workload.labels) &&
+        mismatch_keys.none? { |key| key.as_s?.try { |label| workload.labels.has_key?(label) } }
     end
     preferred = workload.pod_spec.dig?("affinity", "podAntiAffinity", "preferredDuringSchedulingIgnoredDuringExecution").try(&.as_a?) || [] of JSON::Any
     if preferred.any? { |p| p.dig?("podAffinityTerm", "topologyKey").try(&.as_s?) == HOSTNAME_KEY }
@@ -129,6 +160,9 @@ module DisruptionBudget
       allowed = allowed_evictions(b, expected)
       if allowed < 1
         findings << Finding.new("PodDisruptionBudget", b.name, b.namespace, blocking_reason(b, expected))
+      elsif scale_required?(b, sel)
+        findings << Finding.new("PodDisruptionBudget", b.name, b.namespace,
+          "selects pod templates without a supported scale subresource; use an integer minAvailable")
       else
         detail = "PodDisruptionBudget/#{b.name} in #{b.namespace}: allows #{allowed} of #{expected} selected pod(s) to be evicted at once"
         shared = sel.select { |w| budgets.count { |o| o.namespace == w.namespace && selects?(o.spec.dig?("selector"), w.labels) } > 1 }
@@ -137,7 +171,7 @@ module DisruptionBudget
       end
     end
 
-    multi = workloads.select { |w| w.replicas > 1 }
+    multi = workloads.any? { |w| replica_spreading_required?(w) }
     workloads.each do |w|
       reasons = [] of String
       covering = budgets.select { |b| b.namespace == w.namespace && selects?(b.spec.dig?("selector"), w.labels) }
@@ -146,7 +180,7 @@ module DisruptionBudget
       if covering.size > 1
         reasons << "selected by #{and_list(covering.map { |b| "PodDisruptionBudget/#{b.name}" })}; the eviction API refuses pods with more than one budget, so a drain cannot evict them"
       end
-      if w.replicas > 1
+      if replica_spreading_required?(w)
         missing = [] of String
         missing << "no PodDisruptionBudget selects its pods" if covering.empty?
         spread_ok, seen = spread(w)
@@ -157,18 +191,19 @@ module DisruptionBudget
           # A budget that blocks every drain is reported as its own finding; the
           # workload is not "covered" by it.
           b = covering.first
-          allowed = allowed_evictions(b, selected(b, workloads).sum(&.replicas))
-          if allowed < 1
-            details << "#{w.kind}/#{w.name} in #{w.namespace}: #{w.replicas} replicas, spread over nodes, but PodDisruptionBudget/#{b.name} allows no eviction (reported above)"
+          selected_workloads = selected(b, workloads)
+          allowed = allowed_evictions(b, selected_workloads.sum(&.replicas))
+          if allowed < 1 || scale_required?(b, selected_workloads)
+            details << "#{w.kind}/#{w.name} in #{w.namespace}: #{w.replicas} replicas with a node spreading rule, but PodDisruptionBudget/#{b.name} allows no eviction (reported above)"
           else
-            details << "#{w.kind}/#{w.name} in #{w.namespace}: #{w.replicas} replicas, spread over nodes, and PodDisruptionBudget/#{b.name} lets a drain evict #{allowed} at a time"
+            details << "#{w.kind}/#{w.name} in #{w.namespace}: #{w.replicas} replicas with a node spreading rule, and PodDisruptionBudget/#{b.name} lets a drain evict #{allowed} at a time"
           end
         end
       end
       findings << Finding.new(w.kind, w.name, w.namespace, reasons.join("; ")) unless reasons.empty?
     end
 
-    Evaluation.new(findings, details, !(multi.empty? && budgets.empty?))
+    Evaluation.new(findings, details, (multi || !budgets.empty?))
   end
 
   # "a", "a and b", "a, b and c".
@@ -181,6 +216,12 @@ module DisruptionBudget
   # pairs of an HPA and its namespace.
   def self.replicas(resource : JSON::Any, namespace : String, hpas : Array({JSON::Any, String})) : Int32
     kind = resource.dig?("kind").try(&.as_s?)
+    if {"Job", "CronJob"}.includes?(kind)
+      spec = kind == "Job" ? resource["spec"]? : resource.dig?("spec", "jobTemplate", "spec")
+      parallelism = spec.try(&.dig?("parallelism")).try(&.as_i?) || 1
+      completions = spec.try(&.dig?("completions")).try(&.as_i?)
+      return completions ? Math.min(parallelism, completions) : parallelism
+    end
     name = resource.dig?("metadata", "name").try(&.as_s?)
     hpa = hpas.find do |h, ns|
       ns == namespace && h.dig?("spec", "scaleTargetRef", "kind").try(&.as_s?) == kind &&
