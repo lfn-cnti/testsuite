@@ -8,10 +8,10 @@ require "../../src/tasks/utils/pod_security.cr"
 def live_pod(name = "app-7d9f-abcde", image = "busybox:1.36", owner = "ReplicaSet", owner_name = "app-7d9f", controller = true)
   JSON.parse({
     "apiVersion" => "v1", "kind" => "Pod",
-    "metadata"   => {
+    "metadata" => {
       "name" => name, "namespace" => "cnf", "uid" => "1234", "resourceVersion" => "42",
-      "labels"          => {"app" => "app"},
-      "annotations"     => {"container.apparmor.security.beta.kubernetes.io/app" => "unconfined"},
+      "labels" => {"app" => "app"},
+      "annotations" => {"container.apparmor.security.beta.kubernetes.io/app" => "unconfined"},
       "ownerReferences" => [{"kind" => owner, "name" => owner_name, "controller" => controller}],
     },
     "spec" => {
@@ -51,7 +51,20 @@ describe "PodSecurity" do
     end
   end
 
+  it "recognizes only namespaces marked as owned by the baseline check", tags: ["points"] do
+    PodSecurity.owns_namespace?(JSON.parse(%({"metadata":{"name":"cnti-pss-baseline"}}))).should be_false
+    labels = {PodSecurity::OWNER_LABEL => "true"}
+    PodSecurity.owns_namespace?(JSON.parse({"metadata" => {"labels" => labels}}.to_json)).should be_true
+  end
+
   describe "owner and variant_key" do
+    it "keeps identical workload variants in different namespaces", tags: ["points"] do
+      original = live_pod
+      other = live_pod
+      other["metadata"].as_h["namespace"] = JSON::Any.new("other")
+      PodSecurity.variant_key(original).should_not eq(PodSecurity.variant_key(other))
+    end
+
     it "names the controller, or the pod itself when it has none", tags: ["points"] do
       PodSecurity.owner(live_pod).should eq("ReplicaSet/app-7d9f")
       PodSecurity.owner(live_pod(name: "bare", controller: false)).should eq("Pod/bare")

@@ -9,6 +9,9 @@ require "json"
 module PodSecurity
   BASELINE_NAMESPACE = "cnti-pss-baseline"
   LEVEL              = "baseline"
+  OWNER_LABEL        = "cnti.lfn.org/pod-security-baseline"
+  NAMESPACE_LABELS   = {OWNER_LABEL => "true", "pod-security.kubernetes.io/enforce" => LEVEL,
+                        "pod-security.kubernetes.io/enforce-version" => "latest"}
 
   # What admission would check against the dry run's namespace rather than the
   # CNF's: the service account (and its token volume) and the priority, which
@@ -79,7 +82,7 @@ module PodSecurity
   # operator) are each judged.
   def self.variant_key(pod : JSON::Any) : String
     sent = dry_run_pod(pod)
-    "#{owner(pod)}|#{sent.dig?("metadata", "annotations").to_json}|#{sent["spec"].to_json}"
+    "#{pod.dig?("metadata", "namespace").to_json}|#{owner(pod)}|#{sent.dig?("metadata", "annotations").to_json}|#{sent["spec"].to_json}"
   end
 
   enum Verdict
@@ -114,8 +117,8 @@ module PodSecurity
     spec["containers"] = JSON.parse([{"name" => "canary", "image" => "busybox:1.36"}].to_json)
     JSON.parse({
       "apiVersion" => "v1", "kind" => "Pod",
-      "metadata"   => {"name" => "cnti-pss-canary"},
-      "spec"       => spec,
+      "metadata" => {"name" => "cnti-pss-canary"},
+      "spec" => spec,
     }.to_json)
   end
 
@@ -147,23 +150,80 @@ module PodSecurity
     end
   end
 
+  def self.owns_namespace?(namespace : JSON::Any) : Bool
+    namespace.dig?("metadata", "labels", OWNER_LABEL).try(&.as_s?) == "true"
+  end
+
+  private def self.namespace_resource : JSON::Any?
+    KubectlClient::Get.resource("namespace", BASELINE_NAMESPACE)
+  rescue KubectlClient::ShellCMD::NotFoundError
+    nil
+  end
+
   # Make sure the dry-run namespace exists and enforces the level. The API
   # server creates the namespace's default service account asynchronously, and
   # admission rejects a pod whose service account does not exist yet, so wait
   # for it.
-  def self.ensure_namespace
-    KubectlClient::Apply.namespace(BASELINE_NAMESPACE)
-    KubectlClient::Utils.label("namespace", BASELINE_NAMESPACE,
-      ["pod-security.kubernetes.io/enforce=#{LEVEL}", "pod-security.kubernetes.io/enforce-version=latest"])
+  def self.ensure_namespace : String?
+    namespace = namespace_resource
+    unless namespace
+      manifest = {"apiVersion" => "v1", "kind" => "Namespace",
+                  "metadata" => {"name" => BASELINE_NAMESPACE, "labels" => NAMESPACE_LABELS}}
+      begin
+        with_namespace_request(manifest) do |path|
+          cmd = "kubectl create -f #{path}"
+          KubectlClient::ShellCMD.raise_exc_on_error do
+            KubectlClient::ShellCMD.run(cmd, Log.for("pod_security"))
+          end
+        end
+      rescue KubectlClient::ShellCMD::AlreadyExistsError
+        # Another run may have created the namespace since the lookup.
+      end
+      namespace = namespace_resource
+    end
+    unless namespace && owns_namespace?(namespace)
+      return "namespace #{BASELINE_NAMESPACE} is unavailable or is not owned by the suite"
+    end
+    unless NAMESPACE_LABELS.all? { |key, value| namespace.dig?("metadata", "labels", key).try(&.as_s?) == value }
+      return "namespace #{BASELINE_NAMESPACE} is missing the suite's Pod Security labels"
+    end
+
     10.times do
       result = KubectlClient::ShellCMD.run("kubectl get serviceaccount default -n #{BASELINE_NAMESPACE}", Log.for("pod_security"))
-      break if result[:status].success?
+      return nil if result[:status].success?
       sleep 1.second
     end
+    "the default service account in #{BASELINE_NAMESPACE} did not become available"
   end
 
   def self.uninstall_namespace
-    KubectlClient::ShellCMD.run("kubectl delete namespace #{BASELINE_NAMESPACE} --ignore-not-found --wait=false", Log.for("pod_security"))
+    namespace = namespace_resource
+    return unless namespace && owns_namespace?(namespace)
+    uid = namespace.dig?("metadata", "uid").try(&.as_s?) || return
+    version = namespace.dig?("metadata", "resourceVersion").try(&.as_s?) || return
+
+    # Guard the deletion against a replacement or a change to ownership
+    # between the lookup and the API request.
+    options = {"apiVersion" => "v1", "kind" => "DeleteOptions",
+               "preconditions" => {"uid" => uid, "resourceVersion" => version}}
+    with_namespace_request(options) do |path|
+      cmd = "kubectl delete --raw /api/v1/namespaces/#{BASELINE_NAMESPACE} -f #{path}"
+      KubectlClient::ShellCMD.run(cmd, Log.for("pod_security"))
+    end
+  rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+    Log.for("pod_security").warn { "Could not inspect #{BASELINE_NAMESPACE} for cleanup: #{ex.message}" }
+  end
+
+  private def self.with_namespace_request(data, &)
+    file = File.tempfile("cnti-pss-namespace", ".json")
+    begin
+      data.to_json(file)
+      file.flush
+      yield Process.quote_posix(file.path)
+    ensure
+      file.close
+      file.delete
+    end
   end
 
   # One dry run: the pod's spec created in the baseline namespace, nothing
