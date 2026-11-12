@@ -188,12 +188,15 @@ module PodSecurity
       return "namespace #{BASELINE_NAMESPACE} is missing the suite's Pod Security labels"
     end
 
-    10.times do
+    last_error = nil
+    10.times do |attempt|
       result = KubectlClient::ShellCMD.run("kubectl get serviceaccount default -n #{BASELINE_NAMESPACE}", Log.for("pod_security"))
       return nil if result[:status].success?
-      sleep 1.second
+      last_error = result[:error].strip.presence || result[:output].strip.presence
+      sleep 1.second if attempt < 9
     end
-    "the default service account in #{BASELINE_NAMESPACE} did not become available"
+    reason = "the default service account in #{BASELINE_NAMESPACE} did not become available"
+    last_error ? "#{reason}: #{last_error}" : reason
   end
 
   def self.uninstall_namespace
