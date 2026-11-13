@@ -7,6 +7,7 @@ require "json"
 require "../utils/utils.cr"
 require "../utils/image_tag.cr"
 require "../utils/hugepages_volumes.cr"
+require "../utils/crd_conformance.cr"
 
 rolling_version_change_test_names = ["rolling_update", "rolling_downgrade", "rolling_version_change"]
 
@@ -25,7 +26,8 @@ category_task "configuration", [
     "operator_installed",
     "versioned_tag",
     "hugepages_volumes",
-    "exclusive_cpus"
+    "exclusive_cpus",
+    "crd_conformance"
   ]
 
 desc "Check if the CNF is running containers with labels configured?"
@@ -868,6 +870,68 @@ scored_task "exclusive_cpus",
       result.passed("Latency-sensitive workloads are eligible for exclusive CPUs")
     else
       result.na("No pods to measure for the latency-sensitive workload(s)")
+    end
+  end
+end
+
+
+desc "Check schemas, status subresources and versions of the CNF's custom resource definitions"
+scored_task "crd_conformance",
+  type: CNFManager::TestType::Normal,
+  emoji: "⚙️" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    definitions = {} of {String, String} => JSON::Any
+    instances = Set({String, String}).new
+    CNFManager.cnf_resource_ymls(args, config).each do |resource|
+      kind = resource.dig?("kind").try(&.as_s?)
+      if kind == "CustomResourceDefinition"
+        # Installation also copies discovered live CRDs into the manifest.
+        # Those carry a UID and are looked up by exact group and kind below.
+        next if resource.dig?("metadata", "uid")
+        definition = JSON.parse(resource.to_json)
+        definitions[CRDConformance.identity(definition)] = definition
+      elsif kind && CNFInstall.is_custom_resource?(resource)
+        api = resource.dig?("apiVersion").try(&.as_s?)
+        instances.add({api.split("/", 2).first, kind}) if api && api.includes?("/")
+      end
+    end
+
+    platform, unresolved = instances.reject { |key| definitions.has_key?(key) }
+      .partition { |(group, _)| CRDConformance::PLATFORM_GROUPS.includes?(group) }
+    platform.each { |group, kind| result.append_description("#{group}/#{kind}: uses a platform API outside this check") }
+
+    live_read_error = nil
+    unless unresolved.empty?
+      begin
+        live = KubectlClient::Get.resource("customresourcedefinitions")
+        live["items"].as_a.each do |definition|
+          key = CRDConformance.identity(definition)
+          definitions[key] = definition if unresolved.includes?(key)
+        end
+      rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+        live_read_error = ex.message || "kubectl could not list custom resource definitions"
+        result.append_description("Could not read live custom resource definitions. #{live_read_error}")
+      end
+    end
+
+    violations = 0
+    definitions.each_value do |definition|
+      name = definition.dig("metadata", "name").as_s
+      CRDConformance.findings(definition).each do |reason|
+        violations += 1
+        result.add_impacted_resource("CustomResourceDefinition", name, reason: reason)
+      end
+    end
+
+    if violations > 0
+      result.append_remediation("Declare an OpenAPI v3 schema and a status subresource for each served version. Choose one storage version and configure a conversion webhook when version schemas differ.")
+      result.failed("Found #{violations} conformance finding(s) across #{definitions.size} custom resource definition(s)")
+    elsif live_read_error
+      result.skipped("Could not judge the live custom resource definitions used by the CNF")
+    elsif definitions.empty?
+      result.na("No custom resource definitions of the CNF were found to check")
+    else
+      result.passed("Checked #{definitions.size} custom resource definition(s) for schemas, status subresources and versions")
     end
   end
 end
