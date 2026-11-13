@@ -882,41 +882,78 @@ scored_task "crd_conformance",
   CNFManager::Task.task_runner(args, task: t) do |args, config, result|
     definitions = {} of {String, String} => JSON::Any
     instances = Set({String, String}).new
+    releases = (config.deployments.helm_dirs + config.deployments.helm_charts).map do |release|
+      {release.name, release.namespace.presence || DEFAULT_CNF_NAMESPACE}
+    end.to_set
+    violations = 0
     CNFManager.cnf_resource_ymls(args, config).each do |resource|
       kind = resource.dig?("kind").try(&.as_s?)
       if kind == "CustomResourceDefinition"
-        # Installation also copies discovered live CRDs into the manifest.
-        # Those carry a UID and are looked up by exact group and kind below.
+        # Installation copies live definitions into the composite manifest.
         next if resource.dig?("metadata", "uid")
         definition = JSON.parse(resource.to_json)
-        definitions[CRDConformance.identity(definition)] = definition
+        if key = CRDConformance.identity(definition)
+          definitions[key] = definition
+        else
+          violations += 1
+          name = definition.dig?("metadata", "name").try(&.as_s?) || "(unnamed)"
+          result.add_impacted_resource("CustomResourceDefinition", name, reason: "spec.group and spec.names.kind are required")
+        end
       elsif kind && CNFInstall.is_custom_resource?(resource)
         api = resource.dig?("apiVersion").try(&.as_s?)
-        instances.add({api.split("/", 2).first, kind}) if api && api.includes?("/")
+        next unless api && api.includes?("/")
+        group = api.split("/", 2).first
+        instances.add({group, kind}) unless CRDConformance::BUILTIN_GROUPS.includes?(group)
       end
     end
 
-    platform, unresolved = instances.reject { |key| definitions.has_key?(key) }
-      .partition { |(group, _)| CRDConformance::PLATFORM_GROUPS.includes?(group) }
-    platform.each { |group, kind| result.append_description("#{group}/#{kind}: uses a platform API outside this check") }
+    chart_roots = config.deployments.helm_dirs.map do |release|
+      File.join(DEPLOYMENTS_DIR, release.name, File.basename(release.helm_directory))
+    end
+    chart_roots.concat(config.deployments.helm_charts.map do |release|
+      File.join(DEPLOYMENTS_DIR, release.name, release.helm_chart_name)
+    end)
+    chart_roots.each do |root|
+      Dir.glob(File.join(root, "crds", "**", "*.{yaml,yml,json}")).each do |path|
+        YAML.parse_all(File.read(path)).each do |resource|
+          next unless resource.dig?("kind").try(&.as_s?) == "CustomResourceDefinition"
+          definition = JSON.parse(resource.to_json)
+          if key = CRDConformance.identity(definition)
+            definitions[key] ||= definition
+          else
+            violations += 1
+            name = definition.dig?("metadata", "name").try(&.as_s?) || "(unnamed)"
+            result.add_impacted_resource("CustomResourceDefinition", name, reason: "spec.group and spec.names.kind are required")
+          end
+        end
+      end
+    end
 
-    live_read_error = nil
+    unresolved = instances.reject { |key| definitions.has_key?(key) }.to_set
+    live_read_error = false
     unless unresolved.empty?
       begin
         live = KubectlClient::Get.resource("customresourcedefinitions")
         live["items"].as_a.each do |definition|
           key = CRDConformance.identity(definition)
-          definitions[key] = definition if unresolved.includes?(key)
+          next unless key && unresolved.delete(key)
+          name = definition.dig?("metadata", "annotations", "meta.helm.sh/release-name").try(&.as_s?)
+          namespace = definition.dig?("metadata", "annotations", "meta.helm.sh/release-namespace").try(&.as_s?)
+          if name && namespace && releases.includes?({name, namespace})
+            definitions[key] = definition
+          else
+            result.append_description("#{key[0]}/#{key[1]}: used by the CNF; the definition is not owned by its release")
+          end
         end
       rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
-        live_read_error = ex.message || "kubectl could not list custom resource definitions"
-        result.append_description("Could not read live custom resource definitions. #{live_read_error}")
+        live_read_error = true
+        result.append_description("Could not read live custom resource definitions. #{ex.message}")
       end
     end
+    unresolved.each { |group, kind| result.append_description("#{group}/#{kind}: no live definition could be verified") }
 
-    violations = 0
     definitions.each_value do |definition|
-      name = definition.dig("metadata", "name").as_s
+      name = definition.dig?("metadata", "name").try(&.as_s?) || "(unnamed)"
       CRDConformance.findings(definition).each do |reason|
         violations += 1
         result.add_impacted_resource("CustomResourceDefinition", name, reason: reason)
@@ -926,7 +963,7 @@ scored_task "crd_conformance",
     if violations > 0
       result.append_remediation("Declare an OpenAPI v3 schema and a status subresource for each served version. Choose one storage version and configure a conversion webhook when version schemas differ.")
       result.failed("Found #{violations} conformance finding(s) across #{definitions.size} custom resource definition(s)")
-    elsif live_read_error
+    elsif live_read_error || !unresolved.empty?
       result.skipped("Could not judge the live custom resource definitions used by the CNF")
     elsif definitions.empty?
       result.na("No custom resource definitions of the CNF were found to check")

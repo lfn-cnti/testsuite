@@ -98,7 +98,7 @@ describe "crd_conformance", tags: ["crd_conformance"] do
     output.should contain("PASSED: [crd_conformance]")
   end
 
-  it "checks the live definition with the exact group and kind and lists platform APIs" do
+  it "lists live definitions supplied by other releases without judging them" do
     manifest = <<-YAML
       apiVersion: example.net/v1
       kind: Function
@@ -109,13 +109,13 @@ describe "crd_conformance", tags: ["crd_conformance"] do
       metadata: {name: monitor}
       YAML
     code, output = check_crd_conformance(manifest, [
-      crd_manifest([crd_version]),
+      crd_manifest([crd_version(status: false)]),
       crd_manifest([crd_version(status: false)], kind: "Unrelated"),
       crd_manifest([crd_version(status: false)], group: "monitoring.coreos.com", kind: "ServiceMonitor"),
     ])
     code.should(eq(0), output)
-    output.should contain("Checked 1 custom resource definition(s)")
-    output.should contain("monitoring.coreos.com/ServiceMonitor: uses a platform API")
+    output.should contain("N/A: [crd_conformance]")
+    output.should contain("monitoring.coreos.com/ServiceMonitor: used by the CNF")
   end
 
   it "skips an unreadable live definition rather than passing" do

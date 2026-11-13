@@ -2536,7 +2536,7 @@ For each latency-sensitive workload make its pods Guaranteed (set cpu and memory
 
 #### Overview
 
-Checks declared custom resource definitions and live definitions that match the group and kind of custom resources in the CNF manifest. Each served version needs an OpenAPI v3 object schema with top-level properties and a status subresource. The definition needs at least one served version and exactly one storage version.
+Checks custom resource definitions owned by the CNF. Each served version needs an OpenAPI v3 object schema with top-level properties and a status subresource. The definition needs at least one served version and exactly one storage version.
 
 #### Rationale
 
@@ -2546,7 +2546,7 @@ Sources: [Kubernetes structural schemas and status subresources](https://kuberne
 
 #### Remediation
 
-Declare a schema and a status subresource on each served version. Configure a conversion webhook when several versions are served and their schemas differ from each other or from the storage schema. Gateway API and Prometheus Operator resources that use platform definitions are listed in the details. The check is not applicable when no definitions are in scope. An unreadable live CRD list leaves the live definitions unjudged.
+Declare a schema and a status subresource on each served version. Configure a conversion webhook when several versions are served and their schemas differ from each other or from the storage schema. The check judges definitions shipped in the CNF manifest or a chart’s `crds/` directory, plus referenced live definitions whose Helm release name and namespace match a configured CNF release. Definitions supplied by another release are listed in the details. The check is not applicable when there are no in-scope definitions. A missing or unreadable live definition leaves the reference unjudged.
 
 #### Usage
 
