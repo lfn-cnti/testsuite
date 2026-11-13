@@ -1,7 +1,8 @@
 require "json"
 
 module CRDConformance
-  BUILTIN_GROUPS = {"autoscaling", "authentication.k8s.io", "authorization.k8s.io", "certificates.k8s.io", "events.k8s.io", "resource.k8s.io", "apiregistration.k8s.io", "internal.apiserver.k8s.io"}
+  PLATFORM_GROUPS = {"gateway.networking.k8s.io", "monitoring.coreos.com"}
+  BUILTIN_GROUPS  = {"autoscaling", "authentication.k8s.io", "authorization.k8s.io", "certificates.k8s.io", "events.k8s.io", "resource.k8s.io", "apiregistration.k8s.io", "internal.apiserver.k8s.io"}
 
   def self.identity(definition : JSON::Any) : {String, String}?
     group = definition.dig?("spec", "group").try(&.as_s?).try(&.presence)

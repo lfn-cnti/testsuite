@@ -2546,7 +2546,7 @@ Sources: [Kubernetes structural schemas and status subresources](https://kuberne
 
 #### Remediation
 
-Declare a schema and a status subresource on each served version. Configure a conversion webhook when several versions are served and their schemas differ from each other or from the storage schema. The check judges definitions shipped in the CNF manifest or a chart’s `crds/` directory, plus referenced live definitions whose Helm release name and namespace match a configured CNF release. Definitions supplied by another release are listed in the details. The check is not applicable when there are no in-scope definitions. A missing or unreadable live definition leaves the reference unjudged.
+Declare a schema and a status subresource on each served version. Configure a conversion webhook when several versions are served and their schemas differ from each other or from the storage schema. The check judges definitions shipped in the CNF manifest or a chart or its dependencies under `crds/`, plus referenced live definitions whose Helm release name and namespace match a configured CNF release. Definitions supplied by the platform or another release are listed in the details. Unknown ownership is reported as skipped when there are no conformance failures. The check is not applicable when there are no in-scope definitions. A missing or unreadable live definition leaves the reference unjudged.
 
 #### Usage
 

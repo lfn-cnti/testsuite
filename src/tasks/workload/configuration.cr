@@ -913,24 +913,36 @@ scored_task "crd_conformance",
     chart_roots.concat(config.deployments.helm_charts.map do |release|
       File.join(DEPLOYMENTS_DIR, release.name, release.helm_chart_name)
     end)
+    chart_read_error = false
     chart_roots.each do |root|
-      Dir.glob(File.join(root, "crds", "**", "*.{yaml,yml,json}")).each do |path|
-        YAML.parse_all(File.read(path)).each do |resource|
-          next unless resource.dig?("kind").try(&.as_s?) == "CustomResourceDefinition"
-          definition = JSON.parse(resource.to_json)
-          if key = CRDConformance.identity(definition)
-            definitions[key] ||= definition
-          else
-            violations += 1
-            name = definition.dig?("metadata", "name").try(&.as_s?) || "(unnamed)"
-            result.add_impacted_resource("CustomResourceDefinition", name, reason: "spec.group and spec.names.kind are required")
-          end
+      # Helm loads both packaged and unpacked dependencies when listing CRDs.
+      output = IO::Memory.new
+      errors = IO::Memory.new
+      status = Process.run("helm", ["show", "crds", root], output: output, error: errors)
+      unless status.success?
+        chart_read_error = true
+        result.append_description("Could not list CRDs shipped by #{root}: #{errors.to_s.strip}")
+        next
+      end
+      YAML.parse_all(output.to_s).each do |resource|
+        next unless resource.dig?("kind").try(&.as_s?) == "CustomResourceDefinition"
+        definition = JSON.parse(resource.to_json)
+        if key = CRDConformance.identity(definition)
+          definitions[key] ||= definition
+        else
+          violations += 1
+          name = definition.dig?("metadata", "name").try(&.as_s?) || "(unnamed)"
+          result.add_impacted_resource("CustomResourceDefinition", name, reason: "spec.group and spec.names.kind are required")
         end
       end
+    rescue ex : File::Error | YAML::ParseException
+      chart_read_error = true
+      result.append_description("Could not read CRDs shipped by #{root}: #{ex.message}")
     end
 
     unresolved = instances.reject { |key| definitions.has_key?(key) }.to_set
     live_read_error = false
+    unknown_ownership = false
     unless unresolved.empty?
       begin
         live = KubectlClient::Get.resource("customresourcedefinitions")
@@ -941,8 +953,11 @@ scored_task "crd_conformance",
           namespace = definition.dig?("metadata", "annotations", "meta.helm.sh/release-namespace").try(&.as_s?)
           if name && namespace && releases.includes?({name, namespace})
             definitions[key] = definition
+          elsif (name && namespace) || CRDConformance::PLATFORM_GROUPS.includes?(key[0])
+            result.append_description("#{key[0]}/#{key[1]}: used by the CNF; the definition is supplied by the platform or another release")
           else
-            result.append_description("#{key[0]}/#{key[1]}: used by the CNF; the definition is not owned by its release")
+            unknown_ownership = true
+            result.append_description("#{key[0]}/#{key[1]}: used by the CNF; could not establish ownership")
           end
         end
       rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
@@ -963,8 +978,8 @@ scored_task "crd_conformance",
     if violations > 0
       result.append_remediation("Declare an OpenAPI v3 schema and a status subresource for each served version. Choose one storage version and configure a conversion webhook when version schemas differ.")
       result.failed("Found #{violations} conformance finding(s) across #{definitions.size} custom resource definition(s)")
-    elsif live_read_error || !unresolved.empty?
-      result.skipped("Could not judge the live custom resource definitions used by the CNF")
+    elsif chart_read_error || live_read_error || unknown_ownership || !unresolved.empty?
+      result.skipped("Could not determine conformance for all custom resource definitions in scope")
     elsif definitions.empty?
       result.na("No custom resource definitions of the CNF were found to check")
     else

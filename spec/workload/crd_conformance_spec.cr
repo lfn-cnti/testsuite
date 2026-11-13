@@ -21,7 +21,7 @@ private def crd_manifest(versions, group = "example.net", kind = "Function", str
   }.to_yaml
 end
 
-private def check_crd_conformance(manifest, live : Array(String) = [] of String, unreadable = false)
+private def check_crd_conformance(manifest, live : Array(String) = [] of String, unreadable = false, shipped : String? = nil)
   binary = File.expand_path("./cnti-testsuite")
   dir = File.tempname("cnti-crd-conformance", nil)
   Dir.mkdir(dir)
@@ -29,6 +29,19 @@ private def check_crd_conformance(manifest, live : Array(String) = [] of String,
     installed = File.join(dir, CNF_DIR, "example")
     FileUtils.mkdir_p(installed)
     FileUtils.cp("sample-cnfs/sample-batch-workloads/cnti-testsuite.yaml", File.join(installed, "cnti-testsuite.yaml"))
+    if shipped
+      File.write(File.join(installed, "cnti-testsuite.yaml"), <<-YAML)
+        config_version: v2
+        deployments:
+          helm_dirs:
+          - name: example
+            helm_directory: chart
+        YAML
+      helm = File.join(dir, "helm")
+      File.write(helm, "#!/bin/sh\n[ \"$1 $2 $3\" = 'show crds cnti/installed-cnf/deployments/example/chart' ] || exit 1\ncat #{Process.quote_posix(File.join(dir, "shipped.yaml"))}\n")
+      File.chmod(helm, 0o755)
+      File.write(File.join(dir, "shipped.yaml"), shipped)
+    end
     File.write(File.join(dir, COMMON_MANIFEST_FILE_PATH), manifest)
     File.write(File.join(dir, "live.json"), {"items" => live.map { |definition| YAML.parse(definition) }}.to_json)
     kubectl = File.join(dir, "kubectl")
@@ -109,13 +122,27 @@ describe "crd_conformance", tags: ["crd_conformance"] do
       metadata: {name: monitor}
       YAML
     code, output = check_crd_conformance(manifest, [
-      crd_manifest([crd_version(status: false)]),
+      crd_manifest([crd_version(status: false)]).sub("metadata:", "metadata:\n  annotations: {meta.helm.sh/release-name: external, meta.helm.sh/release-namespace: default}"),
       crd_manifest([crd_version(status: false)], kind: "Unrelated"),
       crd_manifest([crd_version(status: false)], group: "monitoring.coreos.com", kind: "ServiceMonitor"),
     ])
     code.should(eq(0), output)
     output.should contain("N/A: [crd_conformance]")
     output.should contain("monitoring.coreos.com/ServiceMonitor: used by the CNF")
+  end
+
+  it "judges chart CRDs returned by Helm without requiring a custom-resource instance" do
+    manifest = "apiVersion: v1\nkind: ConfigMap\nmetadata: {name: demo}\n"
+    code, output = check_crd_conformance(manifest, shipped: crd_manifest([crd_version(status: false)]))
+    code.should(eq(1), output)
+    output.should contain("version v1 has no status subresource")
+  end
+
+  it "skips when a live definition has no ownership evidence" do
+    manifest = "apiVersion: example.net/v1\nkind: Function\nmetadata: {name: demo}\n"
+    _, output = check_crd_conformance(manifest, [crd_manifest([crd_version])])
+    output.should contain("SKIPPED: [crd_conformance]")
+    output.should contain("could not establish ownership")
   end
 
   it "skips an unreadable live definition rather than passing" do
