@@ -1,6 +1,6 @@
 require "../spec_helper"
 
-private def check_exec_probes(containers)
+private def check_exec_probes(containers, latency_sensitive = false)
   binary = File.expand_path("./cnti-testsuite")
   dir = File.tempname("cnti-exec-probes", nil)
   Dir.mkdir(dir)
@@ -17,10 +17,30 @@ private def check_exec_probes(containers)
     installed = File.join(dir, CNF_DIR, "example")
     FileUtils.mkdir_p(installed)
     FileUtils.cp("sample-cnfs/sample-batch-workloads/cnti-testsuite.yaml", File.join(installed, "cnti-testsuite.yaml"))
+    config_path = File.join(installed, "cnti-testsuite.yaml")
+    if latency_sensitive
+      File.write(config_path, <<-YAML)
+        config_version: v2
+        deployments:
+          manifests:
+          - name: example
+            manifest_directory: manifests
+            latency_sensitive:
+            - kind: Pod
+              name: probe-example
+        YAML
+      pod = YAML.parse(manifest).as_h
+      pod[YAML::Any.new("status")] = YAML.parse("{qosClass: Guaranteed}")
+      live_pod = File.join(dir, "live.json")
+      File.write(live_pod, pod.to_json)
+      kubectl = File.join(dir, "kubectl")
+      File.write(kubectl, "#!/bin/sh\ncat #{Process.quote_posix(live_pod)}\n")
+      File.chmod(kubectl, 0o755)
+    end
     File.write(File.join(dir, COMMON_MANIFEST_FILE_PATH), manifest)
     output = IO::Memory.new
     status = Process.run(binary, ["exec_probes"],
-      chdir: dir, output: output, error: output, env: {"KUBECONFIG" => File.join(dir, "no-cluster")})
+      chdir: dir, output: output, error: output, env: {"PATH" => "#{dir}:#{ENV["PATH"]}", "KUBECONFIG" => File.join(dir, "no-cluster")})
     {status.exit_code, output.to_s}
   ensure
     FileUtils.rm_rf(dir)
@@ -45,7 +65,7 @@ describe "exec_probes", tags: ["exec_probes"] do
   end
 
   it "fails an exec probe on a container eligible for exclusive CPUs" do
-    code, output = check_exec_probes([probe_container(probe: slow_exec, resources: cpu_limits, probe_type: "startupProbe")])
+    code, output = check_exec_probes([probe_container(probe: slow_exec, resources: cpu_limits, probe_type: "startupProbe")], latency_sensitive: true)
     code.should(eq(1), output)
     output.should contain("container app")
     output.should contain("startupProbe uses exec and container is eligible for exclusive CPUs")

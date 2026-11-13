@@ -2546,7 +2546,7 @@ Sources: [Kubernetes probes](https://kubernetes.io/docs/concepts/configuration/l
 
 #### Remediation
 
-Use HTTP, TCP or gRPC probes for containers eligible for exclusive CPUs. Keep at most ten exec probes, each with a period of at least ten seconds. The check uses the pod's declared CPU and memory resources, so actual CPU pinning depends on the node's CPU Manager configuration.
+Use HTTP, TCP or gRPC probes for containers eligible for exclusive CPUs. Keep at most ten exec probes, each with a period of at least ten seconds. The check uses the CNF’s latency_sensitive declaration, live Guaranteed QoS, and whole CPU requests. CPU pinning also depends on the node’s CPU Manager configuration.
 
 #### Usage
 
