@@ -289,7 +289,8 @@ describe "SampleUtils" do
       "immutable_configmap", "nodeport_not_used", "secrets_used", "versioned_tag",
       "require_labels", "default_namespace", "latest_tag", "operator_installed",
       "hugepages_volumes",
-      "exclusive_cpus"
+      "exclusive_cpus",
+      "crd_conformance"
     ]
     (CNFManager::Points.tasks_by_tag("configuration")).sort.should eq(tags.sort)
     (CNFManager::Points.tasks_by_tag("does-not-exist")).should eq([] of YAML::Any) 
