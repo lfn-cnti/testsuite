@@ -1,5 +1,6 @@
 require "../spec_helper"
 require "../../src/tasks/utils/analyze"
+require "../../src/tasks/utils/cli_args_validation"
 
 # A run as the suite leaves it, with two failed tests and one passed:
 # node_drain with an impacted resource, an observed condition and a capture
@@ -300,13 +301,36 @@ describe "Analyze" do
     Analyze.step_of(["strict"]).should be_nil
   end
 
+  it "keeps unsent readings in JSON without letting them take summary slots", tags: ["points"] do
+    dir = File.tempname("analyze")
+    begin
+      results = analyze_run(dir)
+      outdir = File.join(dir, "out")
+      Analyze.prepare(results, options, outdir)
+      readings = Array.new(Analyze::MAX_TESTS_SHOWN) { reading("Invented test", [] of String) }
+      readings << reading("node_drain", ["T1-R1"])
+      Analyze.render(outdir, reply(dir, anthropic_answer(readings)), 200)
+
+      md = File.read(File.join(outdir, "analysis.md"))
+      md.should contain("**node_drain**, failed")
+      md.should_not contain("**Invented test**")
+      md.should contain("#{Analyze::MAX_TESTS_SHOWN} reading(s) of tests that were not sent left out: Invented test")
+      md.should contain("_No reading of `zombie_handled`")
+      json = JSON.parse(File.read(File.join(outdir, "analysis.json")))
+      json["readings"].as_a.size.should eq(readings.size)
+      json["readings"][0]["name"].as_s.should eq("Invented test")
+    ensure
+      FileUtils.rm_rf(dir)
+    end
+  end
+
   it "says when readings beyond the ones shown are in analysis.json only", tags: ["points"] do
     dir = File.tempname("analyze")
     begin
       results = analyze_run(dir)
       outdir = File.join(dir, "out")
       Analyze.prepare(results, options, outdir)
-      readings = [reading("node_drain", ["T1-R1"])] + (1..Analyze::MAX_TESTS_SHOWN).map { |i| reading("extra_#{i}", [] of String) }
+      readings = [reading("node_drain", ["T1-R1"])] + (1..Analyze::MAX_TESTS_SHOWN).map { reading("zombie_handled", [] of String) }
       notes = Analyze.render(outdir, reply(dir, anthropic_answer(readings)), 200)
       notes.any?(&.includes?("1 reading(s) beyond the first #{Analyze::MAX_TESTS_SHOWN} are in analysis.json only")).should be_true
       File.read(File.join(outdir, "analysis.md")).should contain("1 more reading(s) not shown here")
