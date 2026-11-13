@@ -3,6 +3,7 @@ require "sam"
 require "file_utils"
 require "colorize"
 require "../utils/utils.cr"
+require "../utils/disruption_budget.cr"
 
 desc "The CNF test suite checks to see if the CNFs are resilient to failures."
 category_task "resilience", [
@@ -16,7 +17,8 @@ category_task "resilience", [
    "pod_network_duplication",
    "liveness",
    "readiness",
-   "pod_owner"
+   "pod_owner",
+   "disruption_budget"
   ],
   title: "Reliability, Resilience, and Availability"
 
@@ -758,6 +760,89 @@ scored_task "pod_owner",
       end
       result.append_remediation("Run the pods through a Deployment, StatefulSet, DaemonSet or Job, so that a controller recreates them when their node fails or is drained, and they can be scaled and rolled out.")
       result.failed("Found #{findings.size} of #{judged.size} pod(s) of the CNF not owned by a controller")
+    end
+  end
+end
+
+desc "Check the CNF's disruption budgets and replica spreading rules for node drains"
+scored_task "disruption_budget",
+  emoji: "⎈🧫" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    resources = CNFManager.cnf_resource_ymls(args, config).map { |y| JSON.parse(y.to_json) }
+    namespace_of = ->(r : JSON::Any) { r.dig?("metadata", "namespace").try(&.as_s?) || CLUSTER_DEFAULT_NAMESPACE }
+    kind_of = ->(r : JSON::Any) { r.dig?("kind").try(&.as_s?) }
+
+    hpas = resources.select { |r| kind_of.call(r) == "HorizontalPodAutoscaler" }.map { |r| {r, namespace_of.call(r)} }
+    # DaemonSet pods are not evicted during a drain. Count the remaining
+    # pod templates for budget selection, avoiding child controllers already
+    # represented by their parent workload.
+    workloads = resources.compact_map do |r|
+      kind = kind_of.call(r)
+      next unless kind && {"Deployment", "StatefulSet", "ReplicaSet", "Job", "CronJob", "Pod"}.includes?(kind)
+      owner = KubectlClient::Get.controller_of(r)
+      next if kind == "Pod" && owner.try(&.[0]) == "DaemonSet"
+      parent_kind = owner.try(&.[0])
+      has_workload_parent = case kind
+                            when "ReplicaSet" then parent_kind == "Deployment"
+                            when "Job"        then parent_kind == "CronJob"
+                            when "Pod"        then {"Deployment", "ReplicaSet", "StatefulSet", "Job"}.includes?(parent_kind)
+                            else                   false
+                            end
+      next if owner && has_workload_parent && resources.any? { |parent|
+        kind_of.call(parent) == owner[0] &&
+          parent.dig?("metadata", "name").try(&.as_s?) == owner[1] &&
+          namespace_of.call(parent) == namespace_of.call(r)
+      }
+      ns = namespace_of.call(r)
+      labels = (KubectlClient::Get.pod_template_labels_of(r).try(&.as_h?) || {} of String => JSON::Any)
+        .transform_values { |v| v.as_s? || v.to_s }
+      DisruptionBudget::Workload.new(kind, r.dig("metadata", "name").as_s, ns,
+        DisruptionBudget.replicas(r, ns, hpas), labels,
+        CNFManager.pod_spec_of(r) || EMPTY_JSON)
+    end
+
+    # Budgets from the manifest, and those live in the CNF's namespaces (an
+    # operator may create them); the live object wins.
+    budgets = {} of String => DisruptionBudget::Budget
+    resources.select { |r| kind_of.call(r) == "PodDisruptionBudget" }.each do |r|
+      ns = namespace_of.call(r)
+      name = r.dig("metadata", "name").as_s
+      budgets["#{ns}/#{name}"] = DisruptionBudget::Budget.new(name, ns, r["spec"]? || JSON::Any.new({} of String => JSON::Any))
+    end
+    unread = Set(String).new
+    (workloads.map(&.namespace) + budgets.values.map(&.namespace)).uniq.each do |ns|
+      live = begin
+        KubectlClient::Get.resource("poddisruptionbudgets", namespace: ns)
+      rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+        message = "PodDisruptionBudgets in #{ns} could not be read: #{ex.message}"
+        Log.for(t.name).warn { message }
+        result.append_description("#{message}. This namespace was not judged.")
+        unread << ns
+        next
+      end
+      (live["items"]?.try(&.as_a?) || [] of JSON::Any).each do |item|
+        name = item.dig("metadata", "name").as_s
+        budgets["#{ns}/#{name}"] = DisruptionBudget::Budget.new(name, ns, item["spec"]? || JSON::Any.new({} of String => JSON::Any))
+      end
+    end
+
+    evaluation = DisruptionBudget.evaluate(
+      workloads.reject { |workload| unread.includes?(workload.namespace) },
+      budgets.values.reject { |budget| unread.includes?(budget.namespace) })
+    evaluation.details.each { |d| result.append_description(d) }
+    if evaluation.findings.empty? && !unread.empty?
+      result.append_remediation("Ensure the suite can list PodDisruptionBudgets in every CNF namespace and run the test again.")
+      result.skipped("Could not judge disruption budgets in #{unread.to_a.sort.join(", ")}")
+    elsif !evaluation.applicable
+      result.na("The CNF has no workload with more than one replica and no PodDisruptionBudget")
+    elsif evaluation.findings.empty?
+      result.passed("Every replicated workload is covered by a disruption budget and has a node spreading rule, and no budget blocks eviction under the configured replica counts")
+    else
+      evaluation.findings.each do |f|
+        result.add_impacted_resource(f.kind, f.name, f.namespace, reason: f.reason)
+      end
+      result.append_remediation("For each workload with more than one replica, add a PodDisruptionBudget that selects its pods and allows at least one eviction (for example maxUnavailable: 1), and spread its replicas over nodes with a required podAntiAffinity or a topologySpreadConstraints entry on kubernetes.io/hostname with whenUnsatisfiable: DoNotSchedule and maxSkew below the replica count. A budget must not set maxUnavailable: 0 or a minAvailable equal to its pods, nor leave both unset, and a pod must not be selected by more than one budget.")
+      result.failed("Found #{evaluation.findings.size} workload(s) or budget(s) with missing drain safeguards or blocked evictions")
     end
   end
 end

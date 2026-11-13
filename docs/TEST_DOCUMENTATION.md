@@ -18,7 +18,7 @@
 
 * [**Category: Reliability, Resilience and Availability Tests**](#category-reliability-resilience-and-availability-tests)
 
-   [[CNF under network latency]](#cnf-under-network-latency) | [[CNF with host disk fill]](#cnf-with-host-disk-fill) | [[Pod delete]](#pod-delete) | [[Memory hog]](#memory-hog) | [[IO Stress]](#io-stress) | [[Network corruption]](#network-corruption) | [[Network duplication]](#network-duplication) | [[Pod DNS errors]](#pod-dns-errors) | [[Liveness probe]](#liveness-probe) | [[Readiness probe]](#readiness-probe) | [[Pod owner]](#pod-owner)
+   [[CNF under network latency]](#cnf-under-network-latency) | [[CNF with host disk fill]](#cnf-with-host-disk-fill) | [[Pod delete]](#pod-delete) | [[Memory hog]](#memory-hog) | [[IO Stress]](#io-stress) | [[Network corruption]](#network-corruption) | [[Network duplication]](#network-duplication) | [[Pod DNS errors]](#pod-dns-errors) | [[Liveness probe]](#liveness-probe) | [[Readiness probe]](#readiness-probe) | [[Pod owner]](#pod-owner) | [[Disruption budget]](#disruption-budget)
 
 * [**Category: Observability and Diagnostic Tests**](#category-observability-and-diagnostic-tests)
 
@@ -1306,6 +1306,29 @@ Run the pods through a Deployment, StatefulSet, DaemonSet or Job instead of crea
 * **Common rules**: [Jobs and CronJobs](#jobs-and-cronjobs).
 
 </details>
+
+----------
+
+### Disruption budget
+
+#### Overview
+
+Checks the CNF's disruption budgets and replica spreading rules for node drains. Every Deployment and StatefulSet with more than one replica (for a workload an HPA manages, its `minReplicas`) needs a PodDisruptionBudget that selects its pods and allows at least one eviction, and its pods required to spread over nodes: a `requiredDuringSchedulingIgnoredDuringExecution` podAntiAffinity, or a `topologySpreadConstraints` entry with `whenUnsatisfiable: DoNotSchedule`, on `kubernetes.io/hostname`, selecting the workload's own pods, with `maxSkew` below the replica count for topology spread. A preferred anti-affinity or `ScheduleAnyway` does not guarantee the spread; it is named in the details and not counted. Independently of the replicas, every PodDisruptionBudget of the CNF must allow an eviction: `maxUnavailable: 0`, a `minAvailable` equal to the pods it selects, or neither field set, blocks the drain. A workload whose pods more than one PodDisruptionBudget selects is a finding too, whatever its replicas and whatever the budgets allow: the eviction API refuses to evict a pod with more than one budget, so a drain cannot evict them. A budget that selects no pod of the CNF is listed in the details. DaemonSets are left out: a drain does not evict them. The test is `na` when the CNF has no workload with more than one replica and no PodDisruptionBudget: many network functions run one replica on purpose and keep their availability in the application.
+Measurement: the workloads, HPAs and budgets are read from the CNF's manifest, together with the PodDisruptionBudgets live in the CNF's namespaces (an operator may create them). A budget is measured against the replicas of all the CNF's workloads it selects; percentages are rounded up, as the eviction API does. The test reads configuration. It does not drain nodes or measure service availability. Budget selection includes Pod, ReplicaSet, Job and CronJob templates as well as Deployments and StatefulSets. Only Deployments and StatefulSets require spreading rules. Budgets that select Job, CronJob or bare Pod workloads need an integer `minAvailable`. The test checks whether a required anti-affinity term selects the workload's own pods in its namespace. Namespace selectors that depend on labels other than the namespace name are outside the static check. Topology spread depends on eligible nodes. If live budgets cannot be read, that namespace is left unjudged, and the test skips unless it has a confirmed finding in another namespace.
+
+#### Rationale
+
+`node_drain` checks that the CNF's pods come back after a drain, not that the service stays up while it happens. Putting all replicas on one node or allowing unrestricted voluntary evictions can cause an outage during an upgrade. A budget that allows no eviction can block the drain.
+
+Sources: [Kubernetes: Disruptions](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/); [Kubernetes: Specifying a Disruption Budget for your Application](https://kubernetes.io/docs/tasks/run-application/configure-pdb/); [Kubernetes: Pod Topology Spread Constraints](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/).
+
+#### Remediation
+
+For each workload with more than one replica, add one PodDisruptionBudget that selects its pods and allows at least one eviction (for example `maxUnavailable: 1`), and no other budget selecting the same pods, and spread its replicas over nodes with a required podAntiAffinity or a `DoNotSchedule` topology spread constraint on `kubernetes.io/hostname` with `maxSkew` below the replica count.
+
+#### Usage
+
+`./cnti-testsuite disruption_budget`
 
 ----------
 
