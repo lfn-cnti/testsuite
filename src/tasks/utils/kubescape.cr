@@ -313,14 +313,33 @@ module Kubescape
   # but it stores no credential (#2659).
   SWITCH_VALUES = ["", "yes", "no", "true", "false", "on", "off"]
 
+  CREDENTIAL_SETTING = /(?:^|[_.-])(?:PASSWORD|PASSWD|PASSPHRASE|TOKEN|SECRET|CREDENTIAL|(?:API|ACCESS|PRIVATE)[_.-]?KEY)[_.-](AUDIENCES?|TTL|EXPIRATION|LIFETIME|PATH|FILE|DIR|URL|ENDPOINT|HEADER|NAME|KEY[_.-]ID)\z/i
+
+  private def self.credential_setting?(name : String, value : String) : Bool
+    match = CREDENTIAL_SETTING.match(name)
+    return false unless match
+    case match[1].upcase
+    when "HEADER"
+      # A header name has no whitespace or colon. Keep a header value as
+      # a finding, even if the variable has a configuration-style name.
+      value.matches?(/\A[a-zA-Z0-9!#$%&'*+.^_`|~-]+\z/)
+    when "URL", "ENDPOINT"
+      # Keep URLs with user info, query strings, or fragments as findings.
+      !value.includes?('@') && !value.includes?('?') && !value.includes?('#')
+    else
+      true
+    end
+  end
+
   # What the credentials control (C-0012) found in `object`, by the paths it
   # names: `findings` are the variables and ConfigMap keys that hold a value,
   # by name and never with the value; `switches` are those the scanner
-  # matched by name whose value is only a switch. A path that cannot be
-  # resolved in the object stays a finding as it is.
+  # matched by name whose value is only a switch. `settings` are named
+  # credential-related settings. An unresolved path stays a finding.
   def self.credential_findings(object : JSON::Any?, paths : Array(String))
     findings = [] of NamedTuple(container: String?, reason: String)
     switches = [] of String
+    settings = [] of String
     seen = Set(String).new
     paths.each do |path|
       if object && (match = path.match(/^((.*(?:containers|initContainers|ephemeralContainers)\[\d+\])\.env\[\d+\])/))
@@ -333,6 +352,8 @@ module Kubescape
           value = variable.dig?("value").try(&.as_s?) || ""
           if SWITCH_VALUES.includes?(value.downcase)
             switches << "environment variable #{name}#{container ? " of container #{container}" : ""}"
+          elsif credential_setting?(name, value)
+            settings << "environment variable #{name}#{container ? " of container #{container}" : ""}"
           else
             findings << {container: container, reason: "environment variable #{name} holds a value (#{match[1]})"}
           end
@@ -344,6 +365,8 @@ module Kubescape
           next unless seen.add?(path)
           if SWITCH_VALUES.includes?(value.downcase)
             switches << "key #{key}"
+          elsif credential_setting?(key, value)
+            settings << "key #{key}"
           else
             findings << {container: nil, reason: "key #{key} holds a value (#{path})"}
           end
@@ -352,7 +375,7 @@ module Kubescape
       end
       findings << {container: nil, reason: path} if seen.add?(path)
     end
-    {findings: findings, switches: switches}
+    {findings: findings, switches: switches, settings: settings}
   end
 
   # Value at a kubescape path like spec.template.spec.containers[0].env[1].

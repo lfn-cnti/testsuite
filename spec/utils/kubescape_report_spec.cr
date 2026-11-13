@@ -122,6 +122,36 @@ describe "Kubescape report parsing" do
     credentials[:findings].none? { |f| f[:reason].includes?("hunter2") }.should be_true
   end
 
+  it "describes qualified settings and keeps credential values as findings", tags: ["points"] do
+    object = JSON.parse(<<-'JSON')
+    {
+      "spec": {"containers": [{"name": "keda", "env": [
+        {"name": "KEDA_SERVICE_ACCOUNT_TOKEN_AUDIENCES", "value": "[\"api\"]"},
+        {"name": "SERVICE_TOKEN_FILE", "value": "/run/service/token"},
+        {"name": "SERVICE_TOKEN", "value": "example-opaque-value"},
+        {"name": "SERVICE_TOKEN_FILE_PASSWORD", "value": "example-password"},
+        {"name": "SERVICE_TOKEN_HEADER", "value": "Bearer example-value"}
+      ]}]}
+    }
+    JSON
+    paths = (0..4).map { |index| "spec.containers[0].env[#{index}].value" }
+    paths << "spec.containers[0].env[0].name"
+    credentials = Kubescape.credential_findings(object, paths)
+    credentials[:settings].should eq([
+      "environment variable KEDA_SERVICE_ACCOUNT_TOKEN_AUDIENCES of container keda",
+      "environment variable SERVICE_TOKEN_FILE of container keda",
+    ])
+    credentials[:findings].size.should eq(3)
+    credentials[:findings].all? { |finding| !finding[:reason].includes?("example-") }.should be_true
+  end
+
+  it "recognizes ConfigMap setting keys while keeping URLs with embedded credentials", tags: ["points"] do
+    object = JSON.parse(%({"data":{"token.ttl":"300","secret_name":"db","token_url":"https://example.test/token","token_endpoint":"https://example.test/token?token=example-value"}}))
+    credentials = Kubescape.credential_findings(object, ["data.token.ttl", "data[secret_name]", "data[token_url]", "data[token_endpoint]"])
+    credentials[:settings].should eq(["key token.ttl", "key secret_name", "key token_url"])
+    credentials[:findings].map { |finding| finding[:reason] }.should eq(["key token_endpoint holds a value (data[token_endpoint])"])
+  end
+
   it "keeps a variable the scanner names when the object does not have it", tags: ["points"] do
     object = JSON.parse(%({"spec": {"template": {"spec": {"containers": [{"name": "app", "env": []}]}}}}))
     paths = ["spec.template.spec.containers[0].env[3].name", "spec.template.spec.containers[0].env[3].value"]
