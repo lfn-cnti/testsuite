@@ -30,7 +30,7 @@
 
 * [**Category: Configuration Tests**](#category-configuration-tests)
 
-   [[Default namespaces]](#default-namespaces) | [[Latest tag]](#latest-tag) | [[Require labels]](#require-labels) | [[Versioned tag]](#versioned-tag) | [[NodePort not used]](#nodeport-not-used) | [[HostPort not used]](#hostport-not-used) | [[Hardcoded IP addresses in K8s runtime configuration]](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | [[Secrets used]](#secrets-used) | [[Immutable configmap]](#immutable-configmap) | [[Kubernetes Alpha APIs]](#kubernetes-alpha-apis) | [[Operator installed]](#operator-installed) | [[Hugepages volumes]](#hugepages-volumes) | [[Exclusive CPUs]](#exclusive-cpus)
+   [[Default namespaces]](#default-namespaces) | [[Latest tag]](#latest-tag) | [[Require labels]](#require-labels) | [[Versioned tag]](#versioned-tag) | [[NodePort not used]](#nodeport-not-used) | [[HostPort not used]](#hostport-not-used) | [[Hardcoded IP addresses in K8s runtime configuration]](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | [[Secrets used]](#secrets-used) | [[Immutable configmap]](#immutable-configmap) | [[Kubernetes Alpha APIs]](#kubernetes-alpha-apis) | [[Operator installed]](#operator-installed) | [[Hugepages volumes]](#hugepages-volumes) | [[Exclusive CPUs]](#exclusive-cpus) | [[CRD conformance]](#crd-conformance)
 
 * [**Common rules**](#common-rules)
 
@@ -2529,6 +2529,28 @@ For each latency-sensitive workload make its pods Guaranteed (set cpu and memory
 `./cnti-testsuite exclusive_cpus`
 
 ----------
+
+----------
+
+### CRD conformance
+
+#### Overview
+
+Checks declared custom resource definitions and live definitions that match the group and kind of custom resources in the CNF manifest. Each served version needs an OpenAPI v3 object schema with top-level properties and a status subresource. The definition needs at least one served version and exactly one storage version.
+
+#### Rationale
+
+A schema validates the API fields, a status subresource separates controller updates from the desired state, and a conversion webhook can translate between versions that use different schemas.
+
+Sources: [Kubernetes structural schemas and status subresources](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/), [Kubernetes CRD versioning](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/).
+
+#### Remediation
+
+Declare a schema and a status subresource on each served version. Configure a conversion webhook when several versions are served and their schemas differ from each other or from the storage schema. Gateway API and Prometheus Operator resources that use platform definitions are listed in the details. The check is not applicable when no definitions are in scope. An unreadable live CRD list leaves the live definitions unjudged.
+
+#### Usage
+
+`./cnti-testsuite crd_conformance`
 
 ----------
 
