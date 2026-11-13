@@ -30,7 +30,7 @@
 
 * [**Category: Configuration Tests**](#category-configuration-tests)
 
-   [[Default namespaces]](#default-namespaces) | [[Latest tag]](#latest-tag) | [[Require labels]](#require-labels) | [[Versioned tag]](#versioned-tag) | [[NodePort not used]](#nodeport-not-used) | [[HostPort not used]](#hostport-not-used) | [[Hardcoded IP addresses in K8s runtime configuration]](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | [[Secrets used]](#secrets-used) | [[Immutable configmap]](#immutable-configmap) | [[Kubernetes Alpha APIs]](#kubernetes-alpha-apis) | [[Operator installed]](#operator-installed) | [[Hugepages volumes]](#hugepages-volumes) | [[Exclusive CPUs]](#exclusive-cpus)
+   [[Default namespaces]](#default-namespaces) | [[Latest tag]](#latest-tag) | [[Require labels]](#require-labels) | [[Versioned tag]](#versioned-tag) | [[NodePort not used]](#nodeport-not-used) | [[HostPort not used]](#hostport-not-used) | [[Hardcoded IP addresses in K8s runtime configuration]](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | [[Secrets used]](#secrets-used) | [[Immutable configmap]](#immutable-configmap) | [[Kubernetes Alpha APIs]](#kubernetes-alpha-apis) | [[Operator installed]](#operator-installed) | [[Hugepages volumes]](#hugepages-volumes) | [[Exclusive CPUs]](#exclusive-cpus) | [[Exec probes]](#exec-probes)
 
 * [**Common rules**](#common-rules)
 
@@ -2529,6 +2529,28 @@ For each latency-sensitive workload make its pods Guaranteed (set cpu and memory
 `./cnti-testsuite exclusive_cpus`
 
 ----------
+
+----------
+
+### Exec probes
+
+#### Overview
+
+Checks the rendered manifest for exec probes on containers eligible for exclusive CPUs. Counts all declared liveness, readiness and startup exec probes. The check fails above ten exec probes or when any exec probe runs more often than every ten seconds. It is not applicable when no probes are declared.
+
+#### Rationale
+
+Exec probes start a process inside the container. That process can contend with the application for CPUs that the kubelet would otherwise reserve for the workload. A large number of frequent exec probes also adds load to the node.
+
+Sources: [Kubernetes probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/), [Kubernetes CPU management policies](https://kubernetes.io/docs/tasks/administer-cluster/cpu-management-policies/#static-policy).
+
+#### Remediation
+
+Use HTTP, TCP or gRPC probes for containers eligible for exclusive CPUs. Keep at most ten exec probes, each with a period of at least ten seconds. The check uses the pod's declared CPU and memory resources, so actual CPU pinning depends on the node's CPU Manager configuration.
+
+#### Usage
+
+`./cnti-testsuite exec_probes`
 
 ----------
 

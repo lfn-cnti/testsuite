@@ -7,6 +7,7 @@ require "json"
 require "../utils/utils.cr"
 require "../utils/image_tag.cr"
 require "../utils/hugepages_volumes.cr"
+require "../utils/exec_probes.cr"
 
 rolling_version_change_test_names = ["rolling_update", "rolling_downgrade", "rolling_version_change"]
 
@@ -25,7 +26,8 @@ category_task "configuration", [
     "operator_installed",
     "versioned_tag",
     "hugepages_volumes",
-    "exclusive_cpus"
+    "exclusive_cpus",
+    "exec_probes"
   ]
 
 desc "Check if the CNF is running containers with labels configured?"
@@ -868,6 +870,53 @@ scored_task "exclusive_cpus",
       result.passed("Latency-sensitive workloads are eligible for exclusive CPUs")
     else
       result.na("No pods to measure for the latency-sensitive workload(s)")
+    end
+  end
+end
+
+
+desc "Check exec probes on containers eligible for exclusive CPUs and the CNF's exec probe budget"
+scored_task "exec_probes",
+  type: CNFManager::TestType::Normal,
+  emoji: "⚙️" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    probes = 0
+    exec_probes = 0
+    findings = 0
+
+    CNFManager.cnf_workload_resources(args, config) do |resource|
+      pod = CNFManager.pod_spec_of(resource)
+      containers = (pod.try(&.dig?("containers")).try(&.as_a?) || [] of JSON::Any) +
+                   (pod.try(&.dig?("initContainers")).try(&.as_a?) || [] of JSON::Any)
+      guaranteed = ExecProbes.guaranteed?(containers)
+      containers.each do |container|
+        eligible = guaranteed && ExecProbes.exclusive_cpu_eligible?(container)
+        ExecProbes::PROBE_KEYS.each do |key|
+          probe = container[key]?
+          next unless probe && probe.as_h?
+          probes += 1
+          next unless probe["exec"]?.try(&.as_h?)
+          exec_probes += 1
+          if reason = ExecProbes.finding(probe, eligible)
+            findings += 1
+            result.add_impacted_resource(resource["kind"].as_s, resource.dig("metadata", "name").as_s,
+              resource.dig("metadata", "namespace").as_s, container: container["name"].as_s,
+              reason: "#{key} uses exec and #{reason}")
+          end
+        end
+      end
+    end
+
+    if probes == 0
+      result.na("No container declares a liveness, readiness or startup probe")
+    elsif findings > 0 || exec_probes > ExecProbes::MAX_PROBES
+      if exec_probes > ExecProbes::MAX_PROBES
+        result.append_description("The CNF declares #{exec_probes} exec probes, above the limit of #{ExecProbes::MAX_PROBES}.")
+      end
+      result.append_remediation("Use HTTP, TCP or gRPC probes for containers eligible for exclusive CPUs. Keep at most #{ExecProbes::MAX_PROBES} exec probes, each with a period of at least #{ExecProbes::MIN_PERIOD_SECONDS} seconds.")
+      result.failed("Found exec probes that exceed the budget or run in containers eligible for exclusive CPUs")
+    else
+      result.passed("Checked #{probes} probe(s), including #{exec_probes} exec probe(s) within the budget")
     end
   end
 end
