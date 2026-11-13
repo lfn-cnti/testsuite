@@ -1,0 +1,30 @@
+---
+# Meets the baseline level (and restricted, so it is admitted on CI).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pss-baseline-app
+  labels:
+    app: pss-baseline-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pss-baseline-app
+  template:
+    metadata:
+      labels:
+        app: pss-baseline-app
+    spec:
+      containers:
+      - name: app
+        image: busybox:1.36
+        command: ["sh", "-c", "sleep 2147483647"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
