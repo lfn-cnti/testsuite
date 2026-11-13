@@ -170,7 +170,8 @@ its owner only.
   one of the facts is left out, a cause with no fact left is low confidence, a test the answer leaves
   out is said so, and the model's text is plain text (no HTML, links or images). An HTTP error, a
   refusal, a cut answer or one that isn't the expected JSON is a `warning:` line, never a failure.
-  The analysis is advisory: it changes no result, exit code, badge or evidence.
+  Readings for tests that were never sent are listed as omitted in `analysis.md`. The full response
+  readings stay in `analysis.json`. The analysis is advisory: it changes no result, exit code, badge or evidence.
 
 #### Evidence bundle
 
