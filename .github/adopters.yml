@@ -108,6 +108,73 @@ adopters:
     prepare: ""
     expected: []
 
+  # OCUDU's other four charts, each with a job of its own in its chart's child
+  # pipeline, under the same rules as the gNB's: on merge requests and on main
+  # when the chart or its test values change, artifacts of a run on main kept
+  # for 30 days, so without a recent change the canary runs on main without
+  # a comparison. The CU and CU-CP open SCTP listeners at startup and exit
+  # when the kernel has no SCTP; OCUDU runs them on runners with the module
+  # loaded, and kind nodes share the host kernel, so the canary loads it.
+  - name: ocudu-du
+    display_name: OCUDU DU
+    host: gitlab
+    repo: ocudu/ocudu_elements/ocudu_helm
+    workflow: cnti-testsuite-du
+    artifact: ""
+    cnf_config: .gitlab/cnti/ocudu-du/cnti-testsuite.yaml
+    kind_config: ""
+    install_timeout: "900"
+    tests: cert
+    env: {}
+    prepare: ""
+    expected: []
+
+  - name: ocudu-cu
+    display_name: OCUDU CU
+    host: gitlab
+    repo: ocudu/ocudu_elements/ocudu_helm
+    workflow: cnti-testsuite-cu
+    artifact: ""
+    cnf_config: .gitlab/cnti/ocudu-cu/cnti-testsuite.yaml
+    kind_config: ""
+    install_timeout: "900"
+    tests: cert
+    env: {}
+    prepare: |
+      sudo modprobe sctp || { sudo apt-get install -y -qq "linux-modules-extra-$(uname -r)" && sudo modprobe sctp; }
+      lsmod | grep -q '^sctp'
+    expected: []
+
+  - name: ocudu-cu-cp
+    display_name: OCUDU CU-CP
+    host: gitlab
+    repo: ocudu/ocudu_elements/ocudu_helm
+    workflow: cnti-testsuite-cu-cp
+    artifact: ""
+    cnf_config: .gitlab/cnti/ocudu-cu-cp/cnti-testsuite.yaml
+    kind_config: ""
+    install_timeout: "900"
+    tests: cert
+    env: {}
+    prepare: |
+      sudo modprobe sctp || { sudo apt-get install -y -qq "linux-modules-extra-$(uname -r)" && sudo modprobe sctp; }
+      lsmod | grep -q '^sctp'
+    expected: []
+
+  - name: ocudu-cu-up
+    display_name: OCUDU CU-UP
+    host: gitlab
+    repo: ocudu/ocudu_elements/ocudu_helm
+    workflow: cnti-testsuite-cu-up
+    artifact: ""
+    cnf_config: .gitlab/cnti/ocudu-cu-up/cnti-testsuite.yaml
+    kind_config: ""
+    install_timeout: "900"
+    tests: cert
+    env: {}
+    prepare: ""
+    expected: []
+
   # free5GC's badge job runs nightly and on pushes to main that change the
   # chart or the job, so a recent baseline is always there. Like their job,
   # the canary builds and loads the gtp5g kernel module on the runner first:
