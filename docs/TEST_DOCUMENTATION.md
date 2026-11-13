@@ -18,7 +18,7 @@
 
 * [**Category: Reliability, Resilience and Availability Tests**](#category-reliability-resilience-and-availability-tests)
 
-   [[CNF under network latency]](#cnf-under-network-latency) | [[CNF with host disk fill]](#cnf-with-host-disk-fill) | [[Pod delete]](#pod-delete) | [[Memory hog]](#memory-hog) | [[IO Stress]](#io-stress) | [[Network corruption]](#network-corruption) | [[Network duplication]](#network-duplication) | [[Pod DNS errors]](#pod-dns-errors) | [[Liveness probe]](#liveness-probe) | [[Readiness probe]](#readiness-probe) | [[Pod owner]](#pod-owner)
+   [[CNF under network latency]](#cnf-under-network-latency) | [[CNF with host disk fill]](#cnf-with-host-disk-fill) | [[Pod delete]](#pod-delete) | [[Memory hog]](#memory-hog) | [[IO Stress]](#io-stress) | [[Network corruption]](#network-corruption) | [[Network duplication]](#network-duplication) | [[Pod DNS errors]](#pod-dns-errors) | [[Liveness probe]](#liveness-probe) | [[Readiness probe]](#readiness-probe) | [[Startup probe]](#startup-probe) | [[Pod owner]](#pod-owner)
 
 * [**Category: Observability and Diagnostic Tests**](#category-observability-and-diagnostic-tests)
 
@@ -66,7 +66,7 @@ Every test is Essential, Normal or Bonus, as the suite's code declares it. A pas
 | [HostPort not used](#hostport-not-used) | Configuration | `hostport_not_used` |
 | [Hardcoded IP addresses in K8s runtime configuration](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | Configuration | `hardcoded_ip_addresses_in_k8s_runtime_configuration` |
 
-**Bonus** (20 tests):
+**Bonus** (21 tests):
 
 | Test | Category | Command |
 | --- | --- | --- |
@@ -79,6 +79,7 @@ Every test is Essential, Normal or Bonus, as the suite's code declares it. A pas
 | [IO Stress](#io-stress) | Reliability | `pod_io_stress` |
 | [Network corruption](#network-corruption) | Reliability | `pod_network_corruption` |
 | [Network duplication](#network-duplication) | Reliability | `pod_network_duplication` |
+| [Startup probe](#startup-probe) | Reliability | `startup_probe` |
 | [Prometheus installed](#prometheus-installed) | Observability | `prometheus_traffic` |
 | [Routed logs](#routed-logs) | Observability | `routed_logs` |
 | [OpenMetrics compatible](#openmetrics-compatible) | Observability | `open_metrics` |
@@ -1272,6 +1273,28 @@ Ensure that your CNF has a [Readiness Probe](https://kubernetes.io/docs/tasks/co
 #### Usage
 
 `./cnti-testsuite readiness`
+
+----------
+
+### Startup probe
+
+#### Overview
+
+Checks the CNF manifest for containers with a positive liveness probe initial delay and no startup probe. A container without a liveness probe is outside the check. The test is not applicable when no container declares a liveness probe.
+
+#### Rationale
+
+A startup probe gives a slow-starting container time to initialize. Kubernetes waits for it to succeed before running the liveness probe.
+
+Sources: [Kubernetes probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/).
+
+#### Remediation
+
+Add a startup probe and size its failure threshold and period for the container's startup time.
+
+#### Usage
+
+`./cnti-testsuite startup_probe`
 
 ----------
 

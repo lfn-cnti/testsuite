@@ -16,6 +16,7 @@ category_task "resilience", [
    "pod_network_duplication",
    "liveness",
    "readiness",
+   "startup_probe",
    "pod_owner"
   ],
   title: "Reliability, Resilience, and Availability"
@@ -78,6 +79,43 @@ scored_task "readiness",
   type: CNFManager::TestType::Essential,
   emoji: "⎈🧫" do |t, args|
   run_probe_task(t, args, "readiness")
+end
+
+desc "Check for startup probes on containers that delay their liveness probe"
+scored_task "startup_probe",
+  type: CNFManager::TestType::Bonus,
+  emoji: "⎈🧫" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    judged = 0
+    findings = 0
+
+    CNFManager.cnf_workload_resources(args, config) do |resource|
+      kind = resource["kind"].as_s
+      name = resource.dig("metadata", "name").as_s
+      namespace = resource.dig("metadata", "namespace").as_s
+      CNFManager.all_containers_of(CNFManager.pod_spec_of(resource)).each do |container|
+        liveness = container["livenessProbe"]?.try(&.as_h?)
+        next unless liveness
+
+        judged += 1
+        delay = liveness["initialDelaySeconds"]?.try(&.as_i?) || 0
+        next if delay <= 0 || container["startupProbe"]?.try(&.as_h?)
+
+        findings += 1
+        result.add_impacted_resource(kind, name, namespace, container: container["name"].as_s,
+          reason: "livenessProbe.initialDelaySeconds is #{delay}, but no startupProbe is defined")
+      end
+    end
+
+    if judged == 0
+      result.na("No container declares a liveness probe")
+    elsif findings > 0
+      result.append_remediation("Add a startup probe with enough time for the container to initialize. Kubernetes will start running the liveness probe after the startup probe succeeds.")
+      result.failed("Found #{findings} container(s) with a delayed liveness probe and no startup probe")
+    else
+      result.passed("All #{judged} container(s) with a liveness probe declare a startup probe or use no initial delay")
+    end
+  end
 end
 
 # Kinds a litmus ChaosEngine can name as its appkind. Pod and ReplicaSet are
