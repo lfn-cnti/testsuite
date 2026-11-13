@@ -293,6 +293,9 @@ scored_task "application_credentials",
       credentials[:switches].each do |switch|
         result.append_description("#{r.kind}/#{r.name} in #{r.namespace}: #{switch} is an on/off switch, not a stored credential")
       end
+      credentials[:settings].each do |setting|
+        result.append_description("#{r.kind}/#{r.name} in #{r.namespace}: #{setting} describes a credential setting")
+      end
       credentials[:findings].each do |finding|
         found += 1
         result.add_impacted_resource(r.kind, r.name, r.namespace, container: finding[:container], reason: finding[:reason])
