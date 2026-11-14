@@ -161,3 +161,79 @@ adopters:
     env: {}
     prepare: ""
     expected: []
+
+  # Open5GS's badge job (Gradiant/5g-charts) runs weekly, on Sundays, and on
+  # pull requests that change the open5gs charts; its artifacts are kept for
+  # five days, so for two days a week the canary runs on main without a
+  # comparison. Like their job, it runs on ubuntu-22.04 (MongoDB 8.0 does not
+  # start on the 6.19 to 7.0.13 kernels) and builds the chart's dependencies
+  # first: MongoDB and the Open5GS charts are local, the Bitnami common
+  # library comes from its repository.
+  - name: open5gs
+    display_name: Open5GS
+    host: github
+    repo: Gradiant/5g-charts
+    workflow: cnti.yml
+    artifact: cnti-testsuite-results
+    cnf_config: .github/cnti/cnti-testsuite.yaml
+    kind_config: ""
+    install_timeout: "1200"
+    tests: cert
+    env:
+      CNTI_TESTSUITE_GENERIC_OPERATION_TIMEOUT: "180"
+    runner: ubuntu-22.04
+    prepare: |
+      helm repo add bitnami https://charts.bitnami.com/bitnami
+      helm dependency build charts/open5gs
+    expected: []
+
+  # Ella Core's badge job (ellanetworks/core) runs weekly, on Mondays, and on
+  # pushes to main that change its Kubernetes manifests; its artifacts are
+  # kept for two days, so most days the canary runs on main without a
+  # comparison. Their job creates its own cluster with kind v0.33.0 and its
+  # default node image (Kubernetes v1.37.0), which is what the canary's
+  # kind-action creates; it gives every node an eth1 on a Docker network for
+  # the RAN attachment, with Multus and the macvlan, static and tuning CNI
+  # plugins, storage that follows the pod for node_drain, and renders the
+  # Kustomize manifests the suite applies.
+  - name: ellacore
+    display_name: Ella Core
+    host: github
+    repo: ellanetworks/core
+    workflow: cnti.yaml
+    artifact: cnti-testsuite-results
+    cnf_config: .github/cnti/cnti-testsuite.yaml
+    kind_config: .github/cnti/kind.yaml
+    install_timeout: "600"
+    tests: cert
+    env:
+      MULTUS_VERSION: v4.3.2
+      CNI_PLUGINS_VERSION: v1.9.1
+    prepare: |
+      mkdir -p /tmp/kind-shared-storage
+      sudo modprobe sctp
+      mkdir -p .github/cnti/rendered
+      kubectl kustomize k8s > .github/cnti/rendered/ella-core.yaml
+    prepare_cluster: |
+      curl -fsSL --retry 3 -o "$RUNNER_TEMP/cni-plugins.tgz" \
+        "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGINS_VERSION}/cni-plugins-linux-amd64-${CNI_PLUGINS_VERSION}.tgz"
+      printf '%s  %s\n' b98f74a0f8522f0a83867178729c1aa70f2158f90c45a2ca8fa791db1c76b303 "$RUNNER_TEMP/cni-plugins.tgz" | sha256sum --check
+      mkdir -p "$RUNNER_TEMP/cni"
+      tar -xzf "$RUNNER_TEMP/cni-plugins.tgz" -C "$RUNNER_TEMP/cni" ./macvlan ./static ./tuning
+      docker network create ella-ran
+      for node in $(kind get nodes --name cnti-testsuite); do
+        docker network connect ella-ran "$node"
+        docker exec "$node" ip link show eth1
+        for plugin in macvlan static tuning; do
+          docker cp "$RUNNER_TEMP/cni/$plugin" "$node:/opt/cni/bin/$plugin"
+        done
+      done
+      curl -fsSL --retry 3 "https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/${MULTUS_VERSION}/deployments/multus-daemonset-thick.yml" |
+        sed "s|multus-cni:snapshot-thick|multus-cni:${MULTUS_VERSION}-thick|g" |
+        kubectl apply -f -
+      kubectl -n kube-system rollout status daemonset/kube-multus-ds --timeout=5m
+      kubectl -n local-path-storage patch configmap local-path-config --type merge \
+        -p '{"data":{"config.json":"{\"nodePathMap\":[],\"sharedFileSystemPath\":\"/var/local-path-provisioner\"}"}}'
+      kubectl -n local-path-storage rollout restart deployment/local-path-provisioner
+      kubectl -n local-path-storage rollout status deployment/local-path-provisioner --timeout=2m
+    expected: []
