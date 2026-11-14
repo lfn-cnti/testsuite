@@ -4,7 +4,10 @@
 #   adopter_canary.sh baseline <repo> <workflow> <artifact> <dir>
 #     Finds the adopter's latest completed run of <workflow> on its default
 #     branch that still has the results artifact, downloads it into <dir>,
-#     and prints "run_id head_sha run_url" for the GitHub output.
+#     and prints "run_id head_sha run_url" for the GitHub output. The
+#     results file is at the artifact's top level, or under results/ when the
+#     action also uploaded the evidence bundle (testsuite-action v1.4.0 with a
+#     badge: results/ and evidence/).
 #
 #   adopter_canary.sh baseline-gitlab <project path> <job name> <dir>
 #     The same for an adopter on gitlab.com: the latest job named <job name>
@@ -47,7 +50,7 @@ baseline() {
   while read -r id sha url; do
     rm -rf "$dir"
     if gh run download "$id" -R "$repo" -n "$artifact" -D "$dir" >/dev/null 2>&1 &&
-       ls "$dir"/cnti-testsuite-results-*.yml >/dev/null 2>&1; then
+       [[ -n "$(newest "$dir")" ]]; then
       echo "$id $sha $url"
       return 0
     fi
@@ -151,9 +154,11 @@ report() {
   fi
 }
 
-# The newest results file in a directory, or in its cnti/results.
+# The newest results file in a directory, in its results/ (a results
+# artifact that also holds the evidence bundle), or in its cnti/results.
 newest() {
-  ls -t "$1"/cnti-testsuite-results-*.yml "$1"/cnti/results/cnti-testsuite-results-*.yml 2>/dev/null | head -1
+  ls -t "$1"/cnti-testsuite-results-*.yml "$1"/results/cnti-testsuite-results-*.yml \
+    "$1"/cnti/results/cnti-testsuite-results-*.yml 2>/dev/null | head -1
 }
 
 # name<TAB>status<TAB>message for every test in a results file.
