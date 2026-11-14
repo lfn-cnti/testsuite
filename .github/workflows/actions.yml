@@ -736,7 +736,7 @@ jobs:
     - name: Install minikube
       run: |
         # renovate: datasource=github-releases depName=kubernetes/minikube
-        MINIKUBE_VERSION=v1.37.0
+        MINIKUBE_VERSION=v1.39.0
         curl -fsSL -o minikube "https://storage.googleapis.com/minikube/releases/${MINIKUBE_VERSION}/minikube-linux-amd64"
         sudo install minikube /usr/local/bin/minikube
         minikube version
