@@ -7,6 +7,7 @@ require "json"
 require "../utils/utils.cr"
 require "../utils/image_tag.cr"
 require "../utils/hugepages_volumes.cr"
+require "../utils/exec_probes.cr"
 
 rolling_version_change_test_names = ["rolling_update", "rolling_downgrade", "rolling_version_change"]
 
@@ -25,7 +26,8 @@ category_task "configuration", [
     "operator_installed",
     "versioned_tag",
     "hugepages_volumes",
-    "exclusive_cpus"
+    "exclusive_cpus",
+    "exec_probes"
   ]
 
 desc "Check if the CNF is running containers with labels configured?"
@@ -868,6 +870,100 @@ scored_task "exclusive_cpus",
       result.passed("Latency-sensitive workloads are eligible for exclusive CPUs")
     else
       result.na("No pods to measure for the latency-sensitive workload(s)")
+    end
+  end
+end
+
+
+desc "Check exec probes on containers eligible for exclusive CPUs and the CNF's exec probe budget"
+scored_task "exec_probes",
+  type: CNFManager::TestType::Normal,
+  emoji: "⚙️" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    pinned = Set({String, String, String, String}).new
+    unmeasurable = false
+    targets = (config.deployments.manifests + config.deployments.helm_dirs + config.deployments.helm_charts)
+      .flat_map(&.latency_sensitive)
+    targets.each do |target|
+      matched = false
+      CNFManager.resource_refs(args, config, WORKLOAD_RESOURCE_KIND_NAMES) do |ref|
+        next unless ref[:kind].downcase == target.kind.downcase && ref[:name] == target.name
+        matched = true
+        begin
+          live = KubectlClient::Get.resource(ref[:kind], ref[:name], ref[:namespace])
+          pods = KubectlClient::Get.pods_by_resource_labels(live, ref[:namespace])
+            .reject { |pod| pod.dig?("metadata", "deletionTimestamp") }
+          unmeasurable = true if pods.empty?
+          pods.each do |pod|
+            qos = pod.dig?("status", "qosClass").try(&.as_s?)
+            unmeasurable = true unless qos
+            next unless qos == "Guaranteed"
+            regular = pod.dig?("spec", "containers").try(&.as_a?) || [] of JSON::Any
+            init = pod.dig?("spec", "initContainers").try(&.as_a?) || [] of JSON::Any
+            candidates = target.containers.empty? ? regular : (regular + init).select do |container|
+              target.containers.includes?(container["name"].as_s)
+            end
+            unmeasurable = true if !target.containers.empty? && candidates.size < target.containers.uniq.size
+            candidates.each do |container|
+              cpu = container.dig?("resources", "requests", "cpu").try(&.to_s)
+              next unless cpu && whole_cpu?(cpu)
+              pinned.add({ref[:kind].downcase, ref[:name], ref[:namespace], container["name"].as_s})
+            end
+          end
+        rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+          unmeasurable = true
+          result.append_description("#{ref[:kind]}/#{ref[:name]}: #{ex.message}")
+        end
+      end
+      unmeasurable = true unless matched
+    end
+
+    probes = 0
+    exec_probe_refs = [] of {String, String, String, String, String}
+    findings = 0
+
+    CNFManager.cnf_workload_resources(args, config) do |resource|
+      pod = CNFManager.pod_spec_of(resource)
+      containers = (pod.try(&.dig?("containers")).try(&.as_a?) || [] of JSON::Any) +
+                   (pod.try(&.dig?("initContainers")).try(&.as_a?) || [] of JSON::Any)
+      kind = resource["kind"].as_s
+      name = resource.dig("metadata", "name").as_s
+      namespace = resource.dig("metadata", "namespace").as_s
+      containers.each do |container|
+        eligible = pinned.includes?({kind.downcase, name, namespace, container["name"].as_s})
+        ExecProbes::PROBE_KEYS.each do |key|
+          probe = container[key]?
+          next unless probe && probe.as_h?
+          probes += 1
+          next unless probe["exec"]?.try(&.as_h?)
+          exec_probe_refs << {kind, name, namespace, container["name"].as_s, key}
+          if reason = ExecProbes.finding(probe, eligible)
+            findings += 1
+            result.add_impacted_resource(resource["kind"].as_s, resource.dig("metadata", "name").as_s,
+              resource.dig("metadata", "namespace").as_s, container: container["name"].as_s,
+              reason: "#{key} uses exec and #{reason}")
+          end
+        end
+      end
+    end
+
+    exec_probes = exec_probe_refs.size
+    if probes == 0
+      result.na("No container declares a liveness, readiness or startup probe")
+    elsif findings > 0 || exec_probes > ExecProbes::MAX_PROBES
+      if exec_probes > ExecProbes::MAX_PROBES
+        result.append_description("The CNF declares #{exec_probes} exec probes, above the limit of #{ExecProbes::MAX_PROBES}.")
+        exec_probe_refs.each do |kind, name, namespace, container, key|
+          result.add_impacted_resource(kind, name, namespace, container: container,
+            reason: "#{key} contributes to the CNF-wide exec probe count")
+        end
+      end
+      result.append_remediation("Use HTTP, TCP or gRPC probes for containers eligible for exclusive CPUs. Keep at most #{ExecProbes::MAX_PROBES} exec probes, each with a period of at least #{ExecProbes::MIN_PERIOD_SECONDS} seconds.")
+      result.failed("Found exec probes that exceed the budget or run in containers eligible for exclusive CPUs")
+    elsif unmeasurable && exec_probes > 0
+      result.skipped("Could not verify exclusive CPU eligibility for all workloads declared latency_sensitive")
+    else
+      result.passed("Checked #{probes} probe(s), including #{exec_probes} exec probe(s) within the budget")
     end
   end
 end
