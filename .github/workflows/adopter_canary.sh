@@ -45,7 +45,10 @@ baseline() {
   branch=$(gh api "repos/$repo" -q .default_branch)
   # Runs from pull requests use a read-only job and test the PR's changes,
   # not the adopter's state; only runs on the default branch count.
-  gh api "repos/$repo/actions/workflows/$workflow/runs?branch=$branch&status=completed&per_page=20" \
+  # 100 runs, the most one page holds: a nightly job that fails before the
+  # suite writes results has no artifact, and 20 runs reached back only 20
+  # nights to the last run that had one.
+  gh api "repos/$repo/actions/workflows/$workflow/runs?branch=$branch&status=completed&per_page=100" \
     -q '.workflow_runs[] | select(.event != "pull_request") | "\(.id) \(.head_sha) \(.html_url)"' |
   while read -r id sha url; do
     rm -rf "$dir"
