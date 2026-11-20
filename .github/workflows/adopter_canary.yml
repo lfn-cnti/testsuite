@@ -159,7 +159,7 @@ jobs:
             - role: worker
           KIND
       - name: Create the kind cluster
-        uses: helm/kind-action@v1.15.1
+        uses: helm/kind-action@v1.15.2
         with:
           cluster_name: cnti-testsuite
           config: ${{ matrix.adopter.kind_config != '' && format('adopter/{0}', matrix.adopter.kind_config) || format('{0}/kind.yaml', runner.temp) }}
