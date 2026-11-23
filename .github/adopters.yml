@@ -313,3 +313,35 @@ adopters:
       kubectl -n local-path-storage rollout restart deployment/local-path-provisioner
       kubectl -n local-path-storage rollout status deployment/local-path-provisioner --timeout=2m
     expected: []
+
+  # HAProxy's badge job (haproxytech/helm-charts) runs weekly, on Mondays,
+  # with one matrix job per chart on ubuntu-latest and the action's default
+  # cluster; each chart has its own configuration, known results and results
+  # artifact, kept for 90 days.
+  - name: haproxy-ingress
+    display_name: HAProxy Kubernetes Ingress
+    host: github
+    repo: haproxytech/helm-charts
+    workflow: cnti.yml
+    artifact: cnti-kubernetes-ingress
+    cnf_config: .github/cnti/kubernetes-ingress.yaml
+    kind_config: ""
+    install_timeout: ""
+    tests: cert
+    env: {}
+    prepare: ""
+    expected: []
+
+  - name: haproxy-unified-gateway
+    display_name: HAProxy Unified Gateway
+    host: github
+    repo: haproxytech/helm-charts
+    workflow: cnti.yml
+    artifact: cnti-haproxy-unified-gateway
+    cnf_config: .github/cnti/haproxy-unified-gateway.yaml
+    kind_config: ""
+    install_timeout: ""
+    tests: cert
+    env: {}
+    prepare: ""
+    expected: []
