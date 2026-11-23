@@ -34,7 +34,7 @@ module SuiteNamespaces
   # being deleted (a release whose deletion outlived its timeout) is waited
   # out first: labelling it would succeed, and what is installed next would
   # find it gone ("namespaces ... not found").
-  def self.ensure_exists(namespace : String)
+  def self.ensure_exists(namespace : String, level : String = "privileged", *, owned_only : Bool = false)
     existing = get(namespace)
     if existing && terminating?(existing)
       wait_until_deleted(namespace)
@@ -42,27 +42,41 @@ module SuiteNamespaces
     end
     saved_here = false
     if existing.nil?
+      if owned_only
+        metadata = {"name" => namespace, "labels" => MANAGED_BY.merge({ENFORCE => level})}
+        File.tempfile("cnti-suite-namespace", ".json") do |manifest|
+          {"apiVersion" => "v1", "kind" => "Namespace", "metadata" => metadata}.to_json(manifest)
+          manifest.flush
+          cmd = "kubectl create -f #{Process.quote_posix(manifest.path)}"
+          KubectlClient::ShellCMD.raise_exc_on_error do
+            KubectlClient::ShellCMD.run(cmd, Log.for("SuiteNamespaces.ensure_exists"))
+          end
+        end
+        return
+      end
       KubectlClient::Apply.namespace(namespace, labels: MANAGED_BY)
     else
-      level = existing.dig?("metadata", "labels", ENFORCE).try(&.as_s?)
-      return if level == "privileged"
+      return if owned_only && !owned?(existing)
+      previous_level = existing.dig?("metadata", "labels", ENFORCE).try(&.as_s?)
+      return if previous_level == level
       # A second install finds privileged already set: what it replaced was
       # saved by the first.
       if !owned?(existing) && existing.dig?("metadata", "annotations", PREVIOUS_ENFORCE).nil?
-        KubectlClient::Utils.annotate("namespace", namespace, ["#{PREVIOUS_ENFORCE}=#{level || NO_LEVEL}"])
+        KubectlClient::Utils.annotate("namespace", namespace, ["#{PREVIOUS_ENFORCE}=#{previous_level || NO_LEVEL}"])
         saved_here = true
       end
     end
     begin
-      KubectlClient::Utils.label("namespace", namespace, ["#{ENFORCE}=privileged"])
+      KubectlClient::Utils.label("namespace", namespace, ["#{ENFORCE}=#{level}"])
     rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
       # The level was not replaced, so there is nothing for release to put
       # back: a saved level left here would undo a privileged label an
       # administrator sets after reading the message below.
-      forget_saved_level(namespace) if saved_here && !privileged_now?(namespace)
+      forget_saved_level(namespace) if saved_here && !enforces_level?(namespace, level)
       # kubectl's own line, past the exception's prefix and past any warning.
       lines = ex.message.to_s.sub(/\A.*?error: /m, "").lines.map(&.strip).reject(&.empty?)
       reason = lines.find { |l| !l.starts_with?("Warning:") } || lines.first.to_s
+      raise ex if level != "privileged"
       raise LabelRefused.new(namespace, reason.sub(/\Aerror: /, ""))
     end
   end
@@ -70,8 +84,8 @@ module SuiteNamespaces
   # Whether the namespace enforces privileged now, read again after a failed
   # write: a write the API server applied before kubectl reported an error
   # keeps its saved level for release. A read that fails counts as yes.
-  private def self.privileged_now?(namespace : String) : Bool
-    KubectlClient::Get.resource("namespace", namespace).dig?("metadata", "labels", ENFORCE).try(&.as_s?) == "privileged"
+  private def self.enforces_level?(namespace : String, level : String) : Bool
+    KubectlClient::Get.resource("namespace", namespace).dig?("metadata", "labels", ENFORCE).try(&.as_s?) == level
   rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
     true
   end
@@ -92,7 +106,7 @@ module SuiteNamespaces
   # Deletes the namespace if the suite created it; otherwise puts back the Pod
   # Security level the suite replaced. Failures are logged, not raised: the
   # workloads are already gone.
-  def self.release(namespace : String, wait : Bool = true)
+  def self.release(namespace : String, wait : Bool = true, *, owned_only : Bool = false)
     logger = Log.for("SuiteNamespaces.release")
     existing = get(namespace)
     return if existing.nil?
@@ -101,7 +115,7 @@ module SuiteNamespaces
       logger.info { "Deleting namespace #{namespace}, created by the suite" }
       KubectlClient::Delete.resource("namespace", namespace,
         extra_opts: "--wait=#{wait} --timeout=#{GENERIC_OPERATION_TIMEOUT}s")
-    elsif saved = existing.dig?("metadata", "annotations", PREVIOUS_ENFORCE).try(&.as_s?)
+    elsif !owned_only && (saved = existing.dig?("metadata", "annotations", PREVIOUS_ENFORCE).try(&.as_s?))
       logger.info { "Keeping namespace #{namespace}, which existed before; restoring its Pod Security level (#{saved})" }
       KubectlClient::Utils.label("namespace", namespace, [saved == NO_LEVEL ? "#{ENFORCE}-" : "#{ENFORCE}=#{saved}"])
       KubectlClient::Utils.annotate("namespace", namespace, ["#{PREVIOUS_ENFORCE}-"])
