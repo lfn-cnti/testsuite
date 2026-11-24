@@ -97,6 +97,7 @@ module CLIHelp
 
     add.call("Getting started", [
       "setup", "cnf_install", "cnf_uninstall", "validate_config",
+      "airgap_prepare", "airgap_status",
       "cnf_setup", "cnf_cleanup", "uninstall_all", "tools_uninstall",
     ])
     add.call("Test suites", ["all", "workload", "essential", "cert", "static"])

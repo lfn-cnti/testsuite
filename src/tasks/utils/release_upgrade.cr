@@ -133,6 +133,69 @@ module ReleaseUpgrade
     chosen
   end
 
+  # Whether the chart of `version` is on disk, so moving the release to it
+  # does not need a pull.
+  def self.chart_cached?(release : Release, version : String) : Bool
+    installed_path = File.join(DEPLOYMENTS_DIR, release.name, release.chart_name)
+    return true if version == release.installed && Dir.exists?(installed_path)
+    Dir.exists?(File.join(DEPLOYMENTS_DIR, "#{release.name}-#{version}", release.chart_name))
+  end
+
+  # A preloaded image is still pulled from a registry when a chart starts a
+  # pod with imagePullPolicy: Always. Render the cached chart to see what the
+  # move would start; true also when it cannot be rendered, since such a move
+  # cannot be judged offline either.
+  def self.chart_pulls_images?(chart_dir : String, release_name : String, namespace : String, values : String?) : Bool
+    rendered = File.tempname("release-upgrade-chart", ".yaml")
+    begin
+      Helm.template(release_name, chart_dir, output_file: rendered, namespace: namespace, values: values)
+      YAML.parse_all(File.read(rendered)).each do |document|
+        next unless document.as_h?
+        specs = [] of YAML::Any
+        if template = document.dig?("spec", "template", "spec")
+          specs << template
+        end
+        if spec = document.dig?("spec")
+          specs << spec
+        end
+        specs.each do |spec|
+          ["containers", "initContainers", "ephemeralContainers"].each do |list|
+            (spec.dig?(list).try(&.as_a?) || [] of YAML::Any).each do |container|
+              policy = container.dig?("imagePullPolicy").try(&.as_s?) || next
+              return true if policy.downcase == "always"
+            end
+          end
+        end
+      end
+      false
+    rescue
+      true
+    ensure
+      FileUtils.rm_rf(rendered)
+    end
+  end
+
+  # In offline mode the repository cannot be listed, a chart that is not on
+  # disk cannot be pulled, and a cached chart whose pods pull their images
+  # from a registry cannot be moved either. Nil when the move can be judged
+  # from local files.
+  def self.offline_reason(release : Release) : String?
+    return nil unless Offline.enabled?
+    configured = release.config.previous_chart_version
+    if configured.empty?
+      return "offline mode cannot list the chart versions of #{release.chart_name}; set previous_chart_version and prepare that chart locally"
+    end
+    unless chart_cached?(release, configured) && chart_cached?(release, release.installed)
+      return "offline mode cannot pull the chart #{release.chart_name} #{configured} or #{release.installed}; prepare both locally"
+    end
+    values = release.config.helm_values.empty? ? nil : CNFInstall.resolve_helm_values(release.config.helm_values, CNFInstall.installed_config_dir)
+    [configured, release.installed].each do |version|
+      next unless chart_pulls_images?(chart_path(release, version), release.name, release.namespace, values)
+      return "offline mode cannot pull the images of chart #{release.chart_name} #{version}: its pods use imagePullPolicy: Always; prepare a version with IfNotPresent or Never"
+    end
+    nil
+  end
+
   def self.repository_versions(release : Release) : Array(Helm::ChartVersion)?
     cfg = release.config
     if release.oci?

@@ -25,8 +25,7 @@ spec:
         - name: cluster-tools
           # Fully qualified: CRI-O resolves no short names without a
           # configured search registry, and would never pull the image.
-          # renovate: datasource=docker depName=lfncnti/cluster-tools
-          image: docker.io/lfncnti/cluster-tools:v1.0.8
+          image: <%= ClusterTools::IMAGE %>
           # The tag is pinned, so there is nothing to refresh: pulling it on
           # every node only adds a wait, and a registry that is slow or
           # rate-limits leaves a node without the pod the tests read the

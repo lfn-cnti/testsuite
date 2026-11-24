@@ -51,6 +51,49 @@ def release_revision(release : String) : Int32
 end
 
 describe "Release upgrade", tags: ["release_upgrade"] do
+  it "detects a cached chart whose pods would pull their images from a registry" do
+    chart = File.tempname("release-upgrade-chart")
+    begin
+      Dir.mkdir_p(File.join(chart, "templates"))
+      File.write(File.join(chart, "Chart.yaml"), <<-YAML)
+        apiVersion: v2
+        name: policy-chart
+        version: 0.1.0
+      YAML
+      File.write(File.join(chart, "values.yaml"), "{}\n")
+      deployment = File.join(chart, "templates", "deployment.yaml")
+      render = ->(policy : String) {
+        File.write(deployment, <<-YAML)
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: app
+          spec:
+            selector:
+              matchLabels:
+                app: app
+            template:
+              metadata:
+                labels:
+                  app: app
+              spec:
+                containers:
+                  - name: app
+                    image: busybox:1.36
+                    imagePullPolicy: #{policy}
+          YAML
+      }
+
+      render.call("Always")
+      ReleaseUpgrade.chart_pulls_images?(chart, "release", "default", nil).should be_true
+
+      render.call("IfNotPresent")
+      ReleaseUpgrade.chart_pulls_images?(chart, "release", "default", nil).should be_false
+    ensure
+      FileUtils.rm_rf(chart)
+    end
+  end
+
   it "'rolling_update' moves a chart from a repository to the release before and upgrades it back, preferring a release with another app version" do
     # 0.1.5 ships the same app version as the installed 0.2.0: a chart-only
     # change, so the release before is 0.1.0.

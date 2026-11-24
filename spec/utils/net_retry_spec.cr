@@ -123,3 +123,24 @@ describe "url_without_credentials" do
     url_without_credentials("https://mirror.example/charts?ref=a@b").should eq("https://mirror.example/charts?ref=a@b")
   end
 end
+
+describe "mirror credentials" do
+  it "refuses to send URL credentials over cleartext HTTP", tags: ["points"] do
+    previous = ENV[Offline::MODE_ENV]?
+    output = File.tempname("cleartext-auth", ".bin")
+    begin
+      ENV.delete(Offline::MODE_ENV)
+      expect_raises(Exception, "Refusing to send URL credentials over http") do
+        download_file("http://user:token@127.0.0.1:1/file", output)
+      end
+      File.exists?(output).should be_false
+    ensure
+      File.delete?(output)
+      if previous
+        ENV[Offline::MODE_ENV] = previous
+      else
+        ENV.delete(Offline::MODE_ENV)
+      end
+    end
+  end
+end
