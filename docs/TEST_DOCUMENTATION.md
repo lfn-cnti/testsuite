@@ -30,7 +30,7 @@
 
 * [**Category: Configuration Tests**](#category-configuration-tests)
 
-   [[Default namespaces]](#default-namespaces) | [[Latest tag]](#latest-tag) | [[Require labels]](#require-labels) | [[Versioned tag]](#versioned-tag) | [[NodePort not used]](#nodeport-not-used) | [[HostPort not used]](#hostport-not-used) | [[Hardcoded IP addresses in K8s runtime configuration]](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | [[Secrets used]](#secrets-used) | [[Immutable configmap]](#immutable-configmap) | [[Kubernetes Alpha APIs]](#kubernetes-alpha-apis) | [[Operator installed]](#operator-installed) | [[Hugepages volumes]](#hugepages-volumes) | [[Exclusive CPUs]](#exclusive-cpus)
+   [[Default namespaces]](#default-namespaces) | [[Latest tag]](#latest-tag) | [[Require labels]](#require-labels) | [[Versioned tag]](#versioned-tag) | [[NodePort not used]](#nodeport-not-used) | [[HostPort not used]](#hostport-not-used) | [[Hardcoded IP addresses in K8s runtime configuration]](#hardcoded-ip-addresses-in-k8s-runtime-configuration) | [[Secrets used]](#secrets-used) | [[Immutable configmap]](#immutable-configmap) | [[Kubernetes Alpha APIs]](#kubernetes-alpha-apis) | [[Operator installed]](#operator-installed) | [[Hugepages volumes]](#hugepages-volumes) | [[Exclusive CPUs]](#exclusive-cpus) | [[CRD conformance]](#crd-conformance)
 
 * [**Common rules**](#common-rules)
 
@@ -2598,6 +2598,39 @@ For each latency-sensitive workload make its pods Guaranteed (set cpu and memory
 `./cnti-testsuite exclusive_cpus`
 
 ----------
+
+----------
+
+### CRD conformance
+
+#### Overview
+
+Checks CRDs shipped in the CNF manifest or charts (including enabled dependencies), and referenced live CRDs whose Helm release matches a configured CNF release by name and namespace. Each served version needs an OpenAPI v3 object schema with top-level properties and a status subresource. Requires at least one served version, exactly one storage version, and conversion when served schemas differ.
+
+#### Rationale
+
+A schema validates the API fields, a status subresource separates controller updates from the desired state, and a conversion webhook can translate between versions that use different schemas. The suite expects every CNF-owned CRD to be reconciled and requires a status subresource on every served version, including configuration-only CRDs.
+
+Sources: [Kubernetes structural schemas and status subresources](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/), [Kubernetes CRD versioning](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/).
+
+#### Remediation
+
+Declare a schema and a status subresource on each served version. Choose exactly one storage version. Configure a conversion webhook when several versions are served and their schemas differ from each other or from the storage schema.
+
+#### Usage
+
+`./cnti-testsuite crd_conformance`
+
+#### Details
+
+<details>
+<summary>Scope and verdicts</summary>
+
+* **Scope**: Shipped CRDs include definitions in the CNF manifest and under a chart’s or its enabled dependencies’ `crds/`, rendered with the configured release values. Referenced live CRDs are judged only when their Helm release name and namespace match a configured CNF release. Definitions supplied by the platform or another release, and definitions whose ownership cannot be established, are listed without judging them.
+* **Limits**: The conversion check reads the strategy (`Webhook`); it does not verify that a webhook is configured or usable.
+* **Verdicts**: Conformance findings mean FAILED, even when another definition could not be judged. A missing or unreadable referenced live definition, or a failure to read chart CRDs, means SKIPPED when there are no findings. N/A means no CNF-owned CRDs are in scope and there are no unresolved references or read errors.
+
+</details>
 
 ----------
 

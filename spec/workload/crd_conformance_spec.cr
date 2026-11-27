@@ -1,0 +1,227 @@
+require "../spec_helper"
+
+private def crd_version(name = "v1", storage = true, status = true, schema = "{type: object, properties: {spec: {type: object}}}")
+  version = {
+    "name" => YAML::Any.new(name), "served" => YAML::Any.new(true), "storage" => YAML::Any.new(storage),
+    "schema" => YAML.parse("{openAPIV3Schema: #{schema}}"),
+  }
+  version["subresources"] = YAML.parse("{status: {}}") if status
+  version
+end
+
+private def crd_manifest(versions, group = "example.net", kind = "Function", strategy = "None")
+  {
+    "apiVersion" => "apiextensions.k8s.io/v1",
+    "kind"       => "CustomResourceDefinition",
+    "metadata"   => {"name" => "#{kind.downcase}s.#{group}"},
+    "spec"       => {
+      "group" => group, "names" => {"kind" => kind, "plural" => "#{kind.downcase}s"},
+      "scope" => "Namespaced", "versions" => versions, "conversion" => {"strategy" => strategy},
+    },
+  }.to_yaml
+end
+
+private def check_crd_conformance(manifest, live : Array(String) = [] of String, unreadable = false, shipped : String? = nil, dependency_enabled : Bool? = nil)
+  binary = File.expand_path("./cnti-testsuite")
+  dir = File.tempname("cnti-crd-conformance", nil)
+  Dir.mkdir(dir)
+  begin
+    installed = File.join(dir, CNF_DIR, "example")
+    FileUtils.mkdir_p(installed)
+    FileUtils.cp("sample-cnfs/sample-batch-workloads/cnti-testsuite.yaml", File.join(installed, "cnti-testsuite.yaml"))
+    if shipped
+      File.write(File.join(installed, "cnti-testsuite.yaml"), <<-YAML)
+        config_version: v2
+        deployments:
+          helm_dirs:
+          - name: example
+            helm_directory: chart
+            helm_values: #{dependency_enabled.nil? ? "" : "-f override.yaml"}
+        YAML
+      helm = File.join(dir, "helm")
+      File.write(helm, <<-SH)
+        #!/bin/sh
+        case "$1" in
+          version) echo 'Version:"v#{Setup::HELM_VERSION}"'; exit 0 ;;
+          list) exit 0 ;;
+        esac
+        [ "$1 $2 $3 $4" = 'template example cnti/installed-cnf/deployments/example/chart --include-crds' ] || exit 1
+        cat #{Process.quote_posix(File.join(dir, "shipped.yaml"))}
+        SH
+      unless dependency_enabled.nil?
+        unless Helm.binary_found?
+          setup = ShellCmd.run_testsuite("setup:install_local_helm")
+          setup[:status].success?.should be_true
+        end
+        real_helm = File.exists?(Setup::HELM_BINARY) ? Setup::HELM_BINARY : Process.find_executable("helm").not_nil!
+        chart = File.join(dir, DEPLOYMENTS_DIR, "example", "chart")
+        dependency = File.join(chart, "charts", "optional")
+        FileUtils.mkdir_p(File.join(dependency, "crds"))
+        File.write(File.join(chart, "Chart.yaml"), <<-YAML)
+          apiVersion: v2
+          name: parent
+          version: 0.1.0
+          dependencies:
+          - name: optional
+            version: 0.1.0
+            repository: file://charts/optional
+            condition: optional.enabled
+          YAML
+        File.write(File.join(chart, "values.yaml"), "optional: {enabled: true}\n")
+        File.write(File.join(dependency, "Chart.yaml"), "apiVersion: v2\nname: optional\nversion: 0.1.0\n")
+        File.write(File.join(dependency, "crds", "functions.yaml"), shipped)
+        File.write(File.join(dir, "override.yaml"), "optional: {enabled: #{dependency_enabled}}\n")
+        File.write(File.join(dir, CNFInstall::INSTALLED_CONFIG_DIR_FILE), dir)
+        File.write(helm, <<-SH)
+          #!/bin/sh
+          [ "$1" = list ] && exit 0
+          exec #{Process.quote_posix(real_helm)} "$@"
+          SH
+      end
+      File.chmod(helm, 0o755)
+      File.write(File.join(dir, "shipped.yaml"), shipped)
+    end
+    File.write(File.join(dir, COMMON_MANIFEST_FILE_PATH), manifest)
+    File.write(File.join(dir, "live.json"), {"items" => live.map { |definition| YAML.parse(definition) }}.to_json)
+    kubectl = File.join(dir, "kubectl")
+    File.write(kubectl, <<-SH)
+      #!/bin/sh
+      if [ "$1 $2" = "get customresourcedefinitions" ]; then
+        if [ "$CNTI_SPEC_CRDS_UNREADABLE" = true ]; then
+          echo "forbidden to list definitions" >&2
+          exit 1
+        fi
+        cat "$CNTI_SPEC_LIVE_CRDS"
+      else
+        exit 1
+      fi
+      SH
+    File.chmod(kubectl, 0o755)
+    output = IO::Memory.new
+    status = Process.run(binary, ["crd_conformance"], chdir: dir, output: output, error: output,
+      env: {"PATH" => "#{dir}:#{ENV["PATH"]}", "CNTI_SPEC_LIVE_CRDS" => File.join(dir, "live.json"),
+            "CNTI_SPEC_CRDS_UNREADABLE" => unreadable.to_s, "KUBECONFIG" => File.join(dir, "no-cluster")})
+    {status.exit_code, output.to_s}
+  ensure
+    FileUtils.rm_rf(dir)
+  end
+end
+
+describe "crd_conformance", tags: ["crd_conformance"] do
+  it "passes a declared CRD with a schema, status subresource and one served storage version" do
+    code, output = check_crd_conformance(crd_manifest([crd_version]))
+    code.should(eq(0), output)
+    output.should contain("PASSED: [crd_conformance]")
+  end
+
+  it "fails a permissive schema and identifies the affected version" do
+    schema = "{type: object, x-kubernetes-preserve-unknown-fields: true}"
+    code, output = check_crd_conformance(crd_manifest([crd_version(schema: schema)]))
+    code.should(eq(1), output)
+    output.should contain("CustomResourceDefinition/functions.example.net")
+    output.should contain("version v1 needs an OpenAPI v3 object schema")
+  end
+
+  it "fails a served version without a status subresource" do
+    code, output = check_crd_conformance(crd_manifest([crd_version(status: false)]))
+    code.should(eq(1), output)
+    output.should contain("version v1 has no status subresource")
+  end
+
+  it "fails a definition with neither a served nor a storage version" do
+    version = crd_version(storage: false)
+    version["served"] = YAML::Any.new(false)
+    code, output = check_crd_conformance(crd_manifest([version]))
+    code.should(eq(1), output)
+    output.should contain("no served version is declared")
+    output.should contain("expected one storage version, found 0")
+  end
+
+  it "fails differing served schemas without conversion" do
+    second = crd_version("v2", storage: false, schema: "{type: object, properties: {config: {type: object}}}")
+    code, output = check_crd_conformance(crd_manifest([crd_version, second]))
+    code.should(eq(1), output)
+    output.should contain("different schemas without a conversion webhook")
+  end
+
+  it "passes identical schemas served without conversion" do
+    code, output = check_crd_conformance(crd_manifest([crd_version, crd_version("v2", storage: false)]))
+    code.should(eq(0), output)
+    output.should contain("PASSED: [crd_conformance]")
+  end
+
+  it "lists live definitions supplied by other releases without judging them" do
+    manifest = <<-YAML
+      apiVersion: example.net/v1
+      kind: Function
+      metadata: {name: demo}
+      ---
+      apiVersion: monitoring.coreos.com/v1
+      kind: ServiceMonitor
+      metadata: {name: monitor}
+      YAML
+    code, output = check_crd_conformance(manifest, [
+      crd_manifest([crd_version(status: false)]).sub("metadata:", "metadata:\n  annotations: {meta.helm.sh/release-name: external, meta.helm.sh/release-namespace: default}"),
+      crd_manifest([crd_version(status: false)], kind: "Unrelated"),
+      crd_manifest([crd_version(status: false)], group: "monitoring.coreos.com", kind: "ServiceMonitor"),
+    ])
+    code.should(eq(0), output)
+    output.should contain("N/A: [crd_conformance]")
+    output.should contain("monitoring.coreos.com/ServiceMonitor: used by the CNF")
+  end
+
+  it "judges chart CRDs returned by Helm without requiring a custom-resource instance" do
+    manifest = "apiVersion: v1\nkind: ConfigMap\nmetadata: {name: demo}\n"
+    code, output = check_crd_conformance(manifest, shipped: crd_manifest([crd_version(status: false)]))
+    code.should(eq(1), output)
+    output.should contain("version v1 has no status subresource")
+  end
+
+  it "does not judge a nonconforming CRD in a dependency disabled by release values" do
+    manifest = "apiVersion: v1\nkind: ConfigMap\nmetadata: {name: demo}\n"
+    code, output = check_crd_conformance(manifest,
+      shipped: crd_manifest([crd_version(status: false)]), dependency_enabled: false)
+    code.should(eq(0), output)
+    output.should contain("N/A: [crd_conformance]")
+    output.should_not contain("version v1 has no status subresource")
+  end
+
+  it "judges the same dependency CRD when release values enable it" do
+    manifest = "apiVersion: v1\nkind: ConfigMap\nmetadata: {name: demo}\n"
+    code, output = check_crd_conformance(manifest,
+      shipped: crd_manifest([crd_version(status: false)]), dependency_enabled: true)
+    code.should(eq(1), output)
+    output.should contain("FAILED: [crd_conformance]")
+    output.should contain("version v1 has no status subresource")
+  end
+
+  it "lists a live definition without ownership evidence without judging it" do
+    manifest = "apiVersion: example.net/v1\nkind: Function\nmetadata: {name: demo}\n"
+    code, output = check_crd_conformance(manifest, [crd_manifest([crd_version(status: false)])])
+    code.should(eq(0), output)
+    output.should contain("N/A: [crd_conformance]")
+    output.should contain("could not establish ownership")
+  end
+
+  it "judges an owned CRD while listing a used CRD of uncertain ownership" do
+    manifest = crd_manifest([crd_version], kind: "Owned") +
+      "---\napiVersion: example.net/v1\nkind: Function\nmetadata: {name: demo}\n"
+    code, output = check_crd_conformance(manifest, [crd_manifest([crd_version(status: false)])])
+    code.should(eq(0), output)
+    output.should contain("PASSED: [crd_conformance]")
+    output.should contain("could not establish ownership")
+  end
+
+  it "skips an unreadable live definition rather than passing" do
+    manifest = "apiVersion: example.net/v1\nkind: Function\nmetadata: {name: demo}\n"
+    _, output = check_crd_conformance(manifest, unreadable: true)
+    output.should contain("SKIPPED: [crd_conformance]")
+    output.should contain("forbidden to list definitions")
+  end
+
+  it "reports N/A when the CNF uses no CRDs" do
+    code, output = check_crd_conformance("apiVersion: v1\nkind: ConfigMap\nmetadata: {name: demo}\n")
+    code.should(eq(0), output)
+    output.should contain("N/A: [crd_conformance]")
+  end
+end
