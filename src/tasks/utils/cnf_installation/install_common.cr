@@ -734,7 +734,7 @@ module CNFInstall
   end
 
   # Check if a resource is a custom resource (not a standard Kubernetes resource)
-  private def self.is_custom_resource?(resource : YAML::Any) : Bool
+  def self.is_custom_resource?(resource : YAML::Any) : Bool
     api_version = resource.dig?("apiVersion")
     return false unless api_version
     

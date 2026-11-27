@@ -7,6 +7,7 @@ require "json"
 require "../utils/utils.cr"
 require "../utils/image_tag.cr"
 require "../utils/hugepages_volumes.cr"
+require "../utils/crd_conformance.cr"
 
 rolling_version_change_test_names = ["rolling_update", "rolling_downgrade", "rolling_version_change"]
 
@@ -25,7 +26,8 @@ category_task "configuration", [
     "operator_installed",
     "versioned_tag",
     "hugepages_volumes",
-    "exclusive_cpus"
+    "exclusive_cpus",
+    "crd_conformance"
   ]
 
 desc "Check if the CNF is running containers with labels configured?"
@@ -868,6 +870,119 @@ scored_task "exclusive_cpus",
       result.passed("Latency-sensitive workloads are eligible for exclusive CPUs")
     else
       result.na("No pods to measure for the latency-sensitive workload(s)")
+    end
+  end
+end
+
+desc "Check schemas, status subresources and versions of the CNF's custom resource definitions"
+scored_task "crd_conformance",
+  type: CNFManager::TestType::Normal,
+  emoji: "⚙️" do |t, args|
+  CNFManager::Task.task_runner(args, task: t) do |args, config, result|
+    definitions = {} of {String, String} => JSON::Any
+    instances = Set({String, String}).new
+    releases = (config.deployments.helm_dirs + config.deployments.helm_charts).map do |release|
+      {release.name, release.namespace.presence || DEFAULT_CNF_NAMESPACE}
+    end.to_set
+    violations = 0
+    CNFManager.cnf_resource_ymls(args, config).each do |resource|
+      kind = resource.dig?("kind").try(&.as_s?)
+      if kind == "CustomResourceDefinition"
+        # Installation copies live definitions into the composite manifest.
+        next if resource.dig?("metadata", "uid")
+        definition = JSON.parse(resource.to_json)
+        if key = CRDConformance.identity(definition)
+          definitions[key] = definition
+        else
+          violations += 1
+          name = definition.dig?("metadata", "name").try(&.as_s?) || "(unnamed)"
+          result.add_impacted_resource("CustomResourceDefinition", name, reason: "spec.group and spec.names.kind are required")
+        end
+      elsif kind && CNFInstall.is_custom_resource?(resource)
+        api = resource.dig?("apiVersion").try(&.as_s?)
+        next unless api && api.includes?("/")
+        group = api.split("/", 2).first
+        instances.add({group, kind}) unless CRDConformance::BUILTIN_GROUPS.includes?(group)
+      end
+    end
+
+    chart_roots = [] of {CNFInstall::ConfigV2::HelmDeploymentConfig, String}
+    config.deployments.helm_dirs.each do |release|
+      chart_roots << {release, File.join(DEPLOYMENTS_DIR, release.name, File.basename(release.helm_directory))}
+    end
+    config.deployments.helm_charts.each do |release|
+      chart_roots << {release, File.join(DEPLOYMENTS_DIR, release.name, release.helm_chart_name)}
+    end
+    chart_read_error = false
+    chart_roots.each do |release, root|
+      # Render with installation values so disabled dependencies are excluded.
+      helm = Process.quote_posix(Helm::Binary.get)
+      values = CNFInstall.resolve_helm_values(release.helm_values, CNFInstall.installed_config_dir)
+      namespace = release.namespace.presence || DEFAULT_CNF_NAMESPACE
+      response = Helm::ShellCMD.run("#{helm} template #{Process.quote_posix(release.name)} #{Process.quote_posix(root)} --include-crds --namespace #{Process.quote_posix(namespace)} #{values}")
+      unless response[:status].success?
+        chart_read_error = true
+        result.append_description("Could not list CRDs shipped by #{root}: #{response[:error].strip}")
+        next
+      end
+      YAML.parse_all(response[:output]).each do |resource|
+        next unless resource.dig?("kind").try(&.as_s?) == "CustomResourceDefinition"
+        definition = JSON.parse(resource.to_json)
+        if key = CRDConformance.identity(definition)
+          definitions[key] ||= definition
+        else
+          violations += 1
+          name = definition.dig?("metadata", "name").try(&.as_s?) || "(unnamed)"
+          result.add_impacted_resource("CustomResourceDefinition", name, reason: "spec.group and spec.names.kind are required")
+        end
+      end
+    rescue ex : File::Error | YAML::ParseException | Helm::Binary::HelmBinaryNotFoundError
+      chart_read_error = true
+      result.append_description("Could not read CRDs shipped by #{root}: #{ex.message}")
+    end
+
+    unresolved = instances.reject { |key| definitions.has_key?(key) }.to_set
+    live_read_error = false
+    unless unresolved.empty?
+      begin
+        live = KubectlClient::Get.resource("customresourcedefinitions")
+        live["items"].as_a.each do |definition|
+          key = CRDConformance.identity(definition)
+          next unless key && unresolved.delete(key)
+          name = definition.dig?("metadata", "annotations", "meta.helm.sh/release-name").try(&.as_s?)
+          namespace = definition.dig?("metadata", "annotations", "meta.helm.sh/release-namespace").try(&.as_s?)
+          if name && namespace && releases.includes?({name, namespace})
+            definitions[key] = definition
+          elsif (name && namespace) || CRDConformance::PLATFORM_GROUPS.includes?(key[0])
+            result.append_description("#{key[0]}/#{key[1]}: used by the CNF; the definition is supplied by the platform or another release")
+          else
+            result.append_description("#{key[0]}/#{key[1]}: used by the CNF; could not establish ownership")
+          end
+        end
+      rescue ex : KubectlClient::ShellCMD::K8sClientCMDException
+        live_read_error = true
+        result.append_description("Could not read live custom resource definitions. #{ex.message}")
+      end
+    end
+    unresolved.each { |group, kind| result.append_description("#{group}/#{kind}: no live definition could be verified") }
+
+    definitions.each_value do |definition|
+      name = definition.dig?("metadata", "name").try(&.as_s?) || "(unnamed)"
+      CRDConformance.findings(definition).each do |reason|
+        violations += 1
+        result.add_impacted_resource("CustomResourceDefinition", name, reason: reason)
+      end
+    end
+
+    if violations > 0
+      result.append_remediation("Declare an OpenAPI v3 schema and a status subresource for each served version. Choose one storage version and configure a conversion webhook when version schemas differ.")
+      result.failed("Found #{violations} conformance finding(s) across #{definitions.size} custom resource definition(s)")
+    elsif chart_read_error || live_read_error || !unresolved.empty?
+      result.skipped("Could not determine conformance for all custom resource definitions in scope")
+    elsif definitions.empty?
+      result.na("No custom resource definitions of the CNF were found to check")
+    else
+      result.passed("Checked #{definitions.size} custom resource definition(s) for schemas, status subresources and versions")
     end
   end
 end
